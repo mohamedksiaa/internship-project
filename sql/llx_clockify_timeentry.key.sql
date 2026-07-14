@@ -1,4 +1,4 @@
--- Copyright (C) 2026		SuperAdmin
+- Copyright (C) 2026		SuperAdmin
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -12,16 +12,12 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
-
-
 -- BEGIN MODULEBUILDER INDEXES
-ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_rowid (rowid);
 ALTER TABLE llx_clockify_timeentry ADD UNIQUE INDEX uk_clockify_timeentry_ref (ref);
-ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_soc (fk_soc);
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_project (fk_project);
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_status (status);
+ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_user (fk_user);
+ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_user_dateend (fk_user, date_end);
 -- END MODULEBUILDER INDEXES
-
 --ALTER TABLE llx_clockify_timeentry ADD UNIQUE INDEX uk_clockify_timeentry_fieldxy(fieldx, fieldy);
-
 --ALTER TABLE llx_clockify_timeentry ADD CONSTRAINT llx_clockify_timeentry_fk_field FOREIGN KEY (fk_field) REFERENCES llx_clockify_myotherobject(rowid);
