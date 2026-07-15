@@ -16,15 +16,23 @@
 
 CREATE TABLE llx_clockify_timeentry(
 	-- BEGIN MODULEBUILDER FIELDS
-	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
-	entity INTEGER DEFAULT 1 NOT NULL,
-	label VARCHAR(255),
-	qty INTEGER,
-	date_creation DATETIME NOT NULL,
-	tms TIMESTAMP,
-	fk_user_create INTEGER,
-	fk_user_modif INTEGER,
-	status INTEGER,
-	import_key VARCHAR(14)
+	rowid integer AUTO_INCREMENT PRIMARY KEY NOT NULL, 
+	ref varchar(128) NOT NULL, 
+	label varchar(255), 
+	amount double DEFAULT NULL, 
+	qty real, 
+	fk_soc integer, 
+	fk_project integer, 
+	description text, 
+	note_public text, 
+	note_private text, 
+	date_creation datetime NOT NULL, 
+	tms timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, 
+	fk_user_creat integer NOT NULL, 
+	fk_user_modif integer, 
+	last_main_doc varchar(255), 
+	import_key varchar(14), 
+	model_pdf varchar(255), 
+	status integer NOT NULL
 	-- END MODULEBUILDER FIELDS
 ) ENGINE=innodb;
