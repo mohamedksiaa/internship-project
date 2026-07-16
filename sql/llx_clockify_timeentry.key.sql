@@ -13,7 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 -- BEGIN MODULEBUILDER INDEXES
-ALTER TABLE llx_clockify_timeentry ADD UNIQUE INDEX uk_clockify_timeentry_ref (ref);
+ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_rowid (rowid);
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_project (fk_project);
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_status (status);
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_user (fk_user);
