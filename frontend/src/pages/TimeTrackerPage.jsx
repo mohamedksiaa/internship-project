@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import DashboardLayout from '../templates/DashboardLayout';
-import TimerWidget from '../organisms/TimerWidget';
-import TimeEntryList from '../organisms/TimeEntryList';
+import DashboardLayout from "../components/templates/DashboardLayout";
+import TimerWidget from "../components/organisms/TimerWidget";
+import TimeEntryList from "../components/organisms/TimeEntryList";
 
 export default function TimeTrackerPage() {
   const [projects, setProjects] = useState([]);
