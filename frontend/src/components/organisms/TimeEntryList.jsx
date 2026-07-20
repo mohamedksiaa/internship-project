@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useTimer } from '../../hooks/useTimer';
+import { useTimer } from '../../hooks/UseTimer';
 import ProjectSelector from '../molecules/ProjectSelector';
 import NoteField from '../molecules/NoteField';
 import TimerControls from '../molecules/TimerControls';
