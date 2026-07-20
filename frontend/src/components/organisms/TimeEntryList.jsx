@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTimer } from '../../hooks/UseTimer';
 import ProjectSelector from '../molecules/ProjectSelector';
 import NoteField from '../molecules/NoteField';
-import TimerControls from '../molecules/TimerControls';
+import TimerControls from '../molecules/TimeControls';
 import TimeDisplay from '../atoms/TimeDisplay';
 
 export default function TimerWidget({ projects }) {
