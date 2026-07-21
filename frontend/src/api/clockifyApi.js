@@ -1,9 +1,7 @@
-// frontend/src/api/clockifyApi.js
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/custom/clockify/ajax';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const API_KEY = import.meta.env.VITE_API_KEY;
 
-// Fonction générique
+// Fonction générique utilisée par toutes les autres, pour éviter de répéter le code
 async function apiRequest(endpoint, options = {}) {
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
@@ -15,6 +13,7 @@ async function apiRequest(endpoint, options = {}) {
   });
 
   if (!response.ok) {
+    // On lève une erreur explicite, que les composants pourront attraper avec try/catch
     const errorBody = await response.text();
     throw new Error(`Erreur API (${response.status}): ${errorBody}`);
   }
@@ -22,33 +21,25 @@ async function apiRequest(endpoint, options = {}) {
   return response.json();
 }
 
-// Fonctions principales
 export async function getActiveTimer() {
-  return apiRequest('/timeentry.php?action=getActiveTimer');
+  return apiRequest('/clockify/timeentrys/active');
 }
 
 export async function startTimer(fkProject, fkTask, note) {
-  return apiRequest('/timeentry.php?action=startTimer', {
+  return apiRequest('/clockify/timeentrys/start', {
     method: 'POST',
-    body: JSON.stringify({ 
-      fk_project: fkProject, 
-      fk_task: fkTask, 
-      note 
-    }),
+    body: JSON.stringify({ fk_project: fkProject, fk_task: fkTask, note }),
   });
 }
 
 export async function stopTimer(id) {
-  return apiRequest('/timeentry.php?action=stopTimer', {
+  return apiRequest('/clockify/timeentrys/stop', {
     method: 'POST',
     body: JSON.stringify({ id }),
   });
 }
 
 export async function getTimeEntries(filters = {}) {
-  const params = new URLSearchParams({ 
-    action: 'getTimeEntries', 
-    ...filters 
-  }).toString();
-  return apiRequest(`/timeentry.php?${params}`);
+  const params = new URLSearchParams(filters).toString();
+  return apiRequest(`/clockify/timeentrys?${params}`);
 }

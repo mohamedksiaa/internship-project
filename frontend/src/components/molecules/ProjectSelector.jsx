@@ -1,4 +1,4 @@
-export default function ProjectSelector({ projects, value, onChange }) {
+export default function ProjectSelector({ projects = [], value, onChange = () => {} }) {
   return (
     <select
       value={value ?? ''}
