@@ -1231,6 +1231,68 @@ class TimeEntry extends CommonObject
 
 		return $error;
 	}
+	public function startTimer($fk_user, $fk_project, $fk_task, $note, $user)
+	{
+		if ($this->hasActiveTimer($fk_user) > 0) {
+			$this->error = "Un chrono est déjà actif pour cet utilisateur";
+			return -1;
+		}
+		$this->fk_user = $fk_user;
+		$this->fk_project = $fk_project;
+		$this->fk_task = $fk_task;
+		$this->note = $note;
+		$this->date_start = dol_now();
+		$this->date_end = null;
+		$this->status = 0;
+		return $this->create($user);
+	}
+
+	/**
+	 * @param int $id
+	 * @param User $user
+	 * @return int 1 si succès, -1 si erreur
+	 */
+	public function stopTimer($id, $user)
+	{
+		if ($this->fetch($id) <= 0) {
+			$this->error = "Entrée introuvable";
+			return -1;
+		}
+		$this->date_end = dol_now();
+		$this->duration = $this->calculateDuration();
+		return $this->update($user);
+	}
+
+	/**
+	 * @return int Durée en secondes
+	 */
+	public function calculateDuration()
+	{
+		if (empty($this->date_end) || empty($this->date_start)) {
+			return 0;
+		}
+		return $this->date_end - $this->date_start;
+	}
+
+	/**
+	 * @param DoliDB $db
+	 * @param int $fk_user
+	 * @param int $dateStart
+	 * @param int $dateEnd
+	 * @return int Total en secondes
+	 */
+	public static function getTotalDuration($db, $fk_user, $dateStart, $dateEnd)
+	{
+		$sql = "SELECT SUM(duration) as total FROM ".MAIN_DB_PREFIX."clockify_timeentry";
+		$sql .= " WHERE fk_user = ".((int) $fk_user);
+		$sql .= " AND date_start >= '".$db->idate($dateStart)."'";
+		$sql .= " AND date_start <= '".$db->idate($dateEnd)."'";
+		$resql = $db->query($sql);
+		if ($resql) {
+			return (int) $db->fetch_object($resql)->total;
+		}
+		return 0;
+	}
 }
 
 
@@ -1301,66 +1363,5 @@ class TimeEntryLine extends CommonObjectLine
 	 * @param User $user
 	 * @return int Nouvel ID créé, ou -1 en cas d'erreur
 	 */
-	public function startTimer($fk_user, $fk_project, $fk_task, $note, $user)
-	{
-		if ($this->hasActiveTimer($fk_user) > 0) {
-			$this->error = "Un chrono est déjà actif pour cet utilisateur";
-			return -1;
-		}
-		$this->fk_user = $fk_user;
-		$this->fk_project = $fk_project;
-		$this->fk_task = $fk_task;
-		$this->note = $note;
-		$this->date_start = dol_now();
-		$this->date_end = null;
-		$this->status = 0;
-		return $this->create($user);
-	}
 
-	/**
-	 * @param int $id
-	 * @param User $user
-	 * @return int 1 si succès, -1 si erreur
-	 */
-	public function stopTimer($id, $user)
-	{
-		if ($this->fetch($id) <= 0) {
-			$this->error = "Entrée introuvable";
-			return -1;
-		}
-		$this->date_end = dol_now();
-		$this->duration = $this->calculateDuration();
-		return $this->update($user);
-	}
-
-	/**
-	 * @return int Durée en secondes
-	 */
-	public function calculateDuration()
-	{
-		if (empty($this->date_end) || empty($this->date_start)) {
-			return 0;
-		}
-		return $this->date_end - $this->date_start;
-	}
-
-	/**
-	 * @param DoliDB $db
-	 * @param int $fk_user
-	 * @param int $dateStart
-	 * @param int $dateEnd
-	 * @return int Total en secondes
-	 */
-	public static function getTotalDuration($db, $fk_user, $dateStart, $dateEnd)
-	{
-		$sql = "SELECT SUM(duration) as total FROM ".MAIN_DB_PREFIX."clockify_timeentry";
-		$sql .= " WHERE fk_user = ".((int) $fk_user);
-		$sql .= " AND date_start >= '".$db->idate($dateStart)."'";
-		$sql .= " AND date_start <= '".$db->idate($dateEnd)."'";
-		$resql = $db->query($sql);
-		if ($resql) {
-			return (int) $db->fetch_object($resql)->total;
-		}
-		return 0;
-	}
 }
