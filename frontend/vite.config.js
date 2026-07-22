@@ -6,8 +6,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost/dolibarr',
+        target: 'http://localhost',
         changeOrigin: true,
+        rewrite: (path) => path,
       },
     },
   },

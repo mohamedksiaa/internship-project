@@ -148,6 +148,10 @@ if (!$sortorder) {
 	$sortorder = "ASC";
 }
 
+if (!$user->hasRight('clockify', 'timeentry', 'readall')) {
+    $sql .= " AND fk_user = ".((int) $user->id); // ne voit que ses propres entrées
+}
+
 // Initialize array of search criteria
 $search_all = trim(GETPOST('search_all', 'alphanohtml'));
 $search = array();
