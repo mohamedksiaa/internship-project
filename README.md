@@ -1,99 +1,76 @@
+# Clockify pour Dolibarr
 
-# CLOCKIFY FOR [DOLIBARR ERP & CRM](https://www.dolibarr.org)
+## Présentation
 
-## Features
+Ce module développe un prototype de suivi du temps inspiré de Clockify, intégré à Dolibarr avec une interface React/Vite et une API REST dédiée.
 
-Description of the module...
+Il permet de :
+- démarrer et arrêter un chrono
+- associer un temps à un projet et à une tâche Dolibarr
+- consulter l’historique des entrées de temps
+- valider ou refuser des saisies depuis une logique manager
+- visualiser un tableau de bord simple avec des métriques hebdomadaires
 
-<!--
-![Screenshot clockify](img/screenshot_clockify.png?raw=true "Clockify"){imgmd}
--->
+## Architecture
 
-Other external modules are available on [Dolistore.com](https://www.dolistore.com).
+### Backend Dolibarr
+- objet métier : TimeEntry
+- table : llx_clockify_timeentry
+- API REST : endpoints Clockify pour le timer, l’historique et la validation
 
-## Translations
+### Frontend React
+- Vite + React
+- architecture Atomic Design
+- communication via fetch natif
+- état de chargement, erreur et vide géré proprement
 
-Translations can be completed manually by editing files in the module directories under `langs`.
+## Fonctionnalités livrées
 
-<!--
-This module contains also a sample configuration for Transifex, under the hidden directory [.tx](.tx), so it is possible to manage translation using this service.
-
-For more information, see the [translator's documentation](https://wiki.dolibarr.org/index.php/Translator_documentation).
-
-There is a [Transifex project](https://transifex.com/projects/p/dolibarr-module-template) for this module.
--->
-
+- suivi du temps en temps réel
+- sélection d’un projet et d’une tâche
+- ajout d’une note de description
+- historique des entrées
+- validation/refus des entrées
+- dashboard avec synthèse hebdomadaire
 
 ## Installation
 
-Prerequisites: You must have Dolibarr ERP & CRM software installed. You can download it from [Dolistore.org](https://www.dolibarr.org).
-You can also get a ready-to-use instance in the cloud from https://saas.dolibarr.org
+### Prérequis
+- Dolibarr installé et configuré
+- module placé dans le dossier custom de Dolibarr
+- dépendances Node.js installées pour le frontend
 
+### Backend
+1. Copier le module dans le répertoire custom de Dolibarr.
+2. Activer le module depuis l’interface Dolibarr.
+3. Vérifier que la table llx_clockify_timeentry est bien créée.
 
-### From the ZIP file and GUI interface
+### Frontend
+1. Se placer dans le dossier frontend.
+2. Installer les dépendances :
+   ```bash
+   npm install
+   ```
+3. Lancer le serveur de développement :
+   ```bash
+   npm run dev
+   ```
+4. Vérifier la configuration du fichier .env si vous souhaitez utiliser l’API réelle.
 
-If the module is a ready-to-deploy zip file, so with a name `module_xxx-version.zip` (e.g., when downloading it from a marketplace like [Dolistore](https://www.dolistore.com)),
-go to menu `Home> Setup> Modules> Deploy external module` and upload the zip file.
+## Utilisation
 
-<!--
+- Un utilisateur peut démarrer un chrono depuis l’interface React.
+- Il peut associer une note et un projet/tâche.
+- Le manager peut valider ou refuser une entrée depuis la liste.
+- Le dashboard affiche la synthèse du temps de la semaine en cours.
 
-Note: If this screen tells you that there is no "custom" directory, check that your setup is correct:
+## Sécurité
 
-- In your Dolibarr installation directory, edit the `htdocs/conf/conf.php` file and check that following lines are not commented:
+- les actions sensibles passent par les droits Dolibarr
+- l’API exige une authentification valide
+- les réponses sont nettoyées avant d’être exposées au frontend
 
-    ```php
-    //$dolibarr_main_url_root_alt ...
-    //$dolibarr_main_document_root_alt ...
-    ```
+## Licence
 
-- Uncomment them if necessary (delete the leading `//`) and assign the proper value according to your Dolibarr installation
-
-    For example :
-
-    - UNIX:
-        ```php
-        $dolibarr_main_url_root_alt = '/custom';
-        $dolibarr_main_document_root_alt = '/var/www/Dolibarr/htdocs/custom';
-        ```
-
-    - Windows:
-        ```php
-        $dolibarr_main_url_root_alt = '/custom';
-        $dolibarr_main_document_root_alt = 'C:/My Web Sites/Dolibarr/htdocs/custom';
-        ```
--->
-
-<!--
-
-### From a GIT repository
-
-Clone the repository in `$dolibarr_main_document_root_alt/clockify`
-
-```shell
-cd ....../custom
-git clone git@github.com:gitlogin/clockify.git clockify
-```
-
--->
-
-### Final steps
-
-Using your browser:
-
-  - Log into Dolibarr as a super-administrator
-  - Go to "Setup"> "Modules"
-  - You should now be able to find and enable the module
-
-
-
-## Licenses
-
-### Main code
-
-GPLv3 or (at your option) any later version. See file COPYING for more information.
-
-### Documentation
-
-All texts and readme's are licensed under [GFDL](https://www.gnu.org/licenses/fdl-1.3.en.html).
-# internship-project
+GPLv3 ou version ultérieure.
 

@@ -107,6 +107,26 @@ class TimeEntry extends CommonObject
         return $this->update($user);
     }
 
+    public function validateEntry($id, $user, $status)
+    {
+        $status = (int) $status;
+
+        if (!in_array($status, array(self::STATUS_VALIDATED, self::STATUS_CANCELED), true)) {
+            $this->error = "Statut de validation invalide";
+            return -1;
+        }
+
+        if ($this->fetch($id) <= 0) {
+            $this->error = "Entrée introuvable";
+            return -1;
+        }
+
+        $this->status = $status;
+        $this->fk_user_valid = $user->id;
+
+        return $this->update($user);
+    }
+
     public function calculateDuration()
     {
         if (empty($this->date_end) || empty($this->date_start)) return 0;
