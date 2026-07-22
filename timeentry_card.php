@@ -23,29 +23,6 @@
  *    \brief      Page to create/edit/view timeentry
  */
 
-
-// General defined Options
-//if (! defined('CSRFCHECK_WITH_TOKEN'))     define('CSRFCHECK_WITH_TOKEN', '1');					// Force use of CSRF protection with tokens even for GET
-//if (! defined('MAIN_AUTHENTICATION_MODE')) define('MAIN_AUTHENTICATION_MODE', 'aloginmodule');	// Force authentication handler
-//if (! defined('MAIN_LANG_DEFAULT'))        define('MAIN_LANG_DEFAULT', 'auto');					// Force LANG (language) to a particular value
-//if (! defined('MAIN_SECURITY_FORCECSP'))   define('MAIN_SECURITY_FORCECSP', 'none');				// Disable all Content Security Policies
-//if (! defined('NOBROWSERNOTIF'))     		 define('NOBROWSERNOTIF', '1');					// Disable browser notification
-//if (! defined('NOIPCHECK'))                define('NOIPCHECK', '1');						// Do not check IP defined into conf $dolibarr_main_restrict_ip
-//if (! defined('NOLOGIN'))                  define('NOLOGIN', '1');						// Do not use login - if this page is public (can be called outside logged session). This includes the NOIPCHECK too.
-//if (! defined('NOREQUIREAJAX'))            define('NOREQUIREAJAX', '1');       	  		// Do not load ajax.lib.php library
-//if (! defined('NOREQUIREDB'))              define('NOREQUIREDB', '1');					// Do not create database handler $db
-//if (! defined('NOREQUIREHTML'))            define('NOREQUIREHTML', '1');					// Do not load html.form.class.php
-//if (! defined('NOREQUIREMENU'))            define('NOREQUIREMENU', '1');					// Do not load and show top and left menu
-//if (! defined('NOREQUIRESOC'))             define('NOREQUIRESOC', '1');					// Do not load object $mysoc
-//if (! defined('NOREQUIRETRAN'))            define('NOREQUIRETRAN', '1');					// Do not load object $langs
-//if (! defined('NOREQUIREUSER'))            define('NOREQUIREUSER', '1');					// Do not load object $user
-//if (! defined('NOSCANGETFORINJECTION'))    define('NOSCANGETFORINJECTION', '1');			// Do not check injection attack on GET parameters
-//if (! defined('NOSCANPOSTFORINJECTION'))   define('NOSCANPOSTFORINJECTION', '1');			// Do not check injection attack on POST parameters
-//if (! defined('NOSESSION'))                define('NOSESSION', '1');						// On CLI mode, no need to use web sessions
-//if (! defined('NOSTYLECHECK'))             define('NOSTYLECHECK', '1');					// Do not check style html tag into posted data
-//if (! defined('NOTOKENRENEWAL'))           define('NOTOKENRENEWAL', '1');					// Do not roll the Anti CSRF token (used if MAIN_SECURITY_CSRF_WITH_TOKEN is on)
-
-
 // Load Dolibarr environment
 $res = 0;
 // Try main.inc.php into web root known defined into CONTEXT_DOCUMENT_ROOT (not always defined)
@@ -102,27 +79,25 @@ $langs->loadLangs(array("clockify@clockify", "other"));
 $id = GETPOSTINT('id');
 $ref = GETPOST('ref', 'alpha');
 $lineid   = GETPOSTINT('lineid');
-//$socid = GETPOSTINT('socid');
 
 $action = GETPOST('action', 'aZ09');
 $confirm = GETPOST('confirm', 'alpha');
 $cancel = GETPOST('cancel');
-$contextpage = GETPOST('contextpage', 'aZ') ? GETPOST('contextpage', 'aZ') : getDolDefaultContextPage(__FILE__); // To manage different context of search
-$backtopage = GETPOST('backtopage', 'alpha');					// if not set, a default page will be used
-$backtopageforcancel = GETPOST('backtopageforcancel', 'alpha');	// if not set, $backtopage will be used
-$optioncss = GETPOST('optioncss', 'aZ'); // Option for the css output (always '' except when 'print')
+$contextpage = GETPOST('contextpage', 'aZ') ? GETPOST('contextpage', 'aZ') : getDolDefaultContextPage(__FILE__);
+$backtopage = GETPOST('backtopage', 'alpha');
+$backtopageforcancel = GETPOST('backtopageforcancel', 'alpha');
+$optioncss = GETPOST('optioncss', 'aZ');
 $dol_openinpopup = GETPOST('dol_openinpopup', 'aZ09');
 
 // Initialize a technical objects
 $object = new TimeEntry($db);
 $extrafields = new ExtraFields($db);
 $diroutputmassaction = $conf->clockify->dir_output.'/temp/massgeneration/'.$user->id;
-$hookmanager->initHooks(array($object->element.'card', 'globalcard')); // Note that conf->hooks_modules contains array
+$hookmanager->initHooks(array($object->element.'card', 'globalcard'));
 $soc = null;
 
 // Fetch optionals attributes and labels
 $extrafields->fetch_name_optionals_label($object->table_element);
-
 
 $search_array_options = $extrafields->getOptionalsFromPost($object->table_element, '', 'search_');
 
@@ -140,32 +115,28 @@ if (empty($action) && empty($id) && empty($ref)) {
 }
 
 // Load object
-include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be 'include', not 'include_once'.
+include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php';
 
-// There is several ways to check permission.
-// Set $enablepermissioncheck to 1 to enable a minimum low level of checks
+// Permission checks
 $enablepermissioncheck = getDolGlobalInt('CLOCKIFY_ENABLE_PERMISSION_CHECK');
 if ($enablepermissioncheck) {
 	$permissiontoread = $user->hasRight('clockify', 'timeentry', 'read');
-	$permissiontoadd = $user->hasRight('clockify', 'timeentry', 'write'); // Used by the include of actions_addupdatedelete.inc.php and actions_lineupdown.inc.php
+	$permissiontoadd = $user->hasRight('clockify', 'timeentry', 'write');
 	$permissiontodelete = $user->hasRight('clockify', 'timeentry', 'delete') || ($permissiontoadd && isset($object->status) && $object->status == $object::STATUS_DRAFT);
-	$permissionnote = $user->hasRight('clockify', 'timeentry', 'write'); // Used by the include of actions_setnotes.inc.php
-	$permissiondellink = $user->hasRight('clockify', 'timeentry', 'write'); // Used by the include of actions_dellink.inc.php
+	$permissionnote = $user->hasRight('clockify', 'timeentry', 'write');
+	$permissiondellink = $user->hasRight('clockify', 'timeentry', 'write');
 } else {
 	$permissiontoread = 1;
-	$permissiontoadd = 1; // Used by the include of actions_addupdatedelete.inc.php and actions_lineupdown.inc.php
+	$permissiontoadd = 1;
 	$permissiontodelete = 1;
 	$permissionnote = 1;
 	$permissiondellink = 1;
 }
 
-$upload_dir = $conf->clockify->multidir_output[isset($object->entity) ? $object->entity : 1].'/timeentry';
+$entity_id = isset($object->entity) ? $object->entity : 1;
+$upload_dir = !empty($conf->clockify->multidir_output[$entity_id]) ? $conf->clockify->multidir_output[$entity_id].'/timeentry' : (isset($conf->clockify->dir_output) ? $conf->clockify->dir_output.'/timeentry' : '');
 
-// Security check (enable at least one, the most restrictive one)
-//if ($user->socid > 0) accessforbidden();
-//if ($user->socid > 0) $socid = $user->socid;
-//$isdraft = (isset($object->status) && ($object->status == $object::STATUS_DRAFT) ? 1 : 0);
-//restrictedArea($user, $object->module, $object, $object->table_element, $object->element, 'fk_soc', 'rowid', $isdraft);
+// Security check
 if (!isModEnabled($object->module)) {
 	accessforbidden("Module ".$object->module." not enabled");
 }
@@ -181,7 +152,7 @@ $error = 0;
  */
 
 $parameters = array();
-$reshook = $hookmanager->executeHooks('doActions', $parameters, $object, $action); // Note that $action and $object may have been modified by some hooks
+$reshook = $hookmanager->executeHooks('doActions', $parameters, $object, $action);
 if ($reshook < 0) {
 	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
 }
@@ -199,62 +170,20 @@ if (empty($reshook)) {
 		}
 	}
 
-	$triggermodname = $object->TRIGGER_PREFIX.'_MODIFY'; // Name of trigger action code to execute when we modify record. Used in actions_addupdatedelete.inc.php
+	$triggermodname = $object->TRIGGER_PREFIX.'_MODIFY';
 
-	// Custom Timer Actions
-	if ($action == 'confirm_start_timer' && $permissiontoadd) {
-		$result = $object->startTimer($user->id, $object->fk_project, $object->fk_task, $object->note, $user);
-		if ($result > 0) {
-			header("Location: ".$_SERVER["PHP_SELF"]."?id=".$result);
-			exit;
-		} else {
-			setEventMessages($object->error, $object->errors, 'errors');
-		}
-	}
-
-	if ($action == 'confirm_stop_timer' && $permissiontoadd) {
-		$result = $object->stopTimer($object->id, $user);
-		if ($result > 0) {
-			setEventMessages($langs->trans("TimerStopped"), null, 'mesgs');
-			header("Location: ".$_SERVER["PHP_SELF"]."?id=".$object->id);
-			exit;
-		} else {
-			setEventMessages($object->error, $object->errors, 'errors');
-		}
-	}
-
-	// Actions cancel, add, update, update_extras, confirm_validate, confirm_delete, confirm_deleteline, confirm_clone, confirm_close, confirm_setdraft, confirm_reopen
+	// Standard actions handling
 	include DOL_DOCUMENT_ROOT.'/core/actions_addupdatedelete.inc.php';
-
-	// Actions when linking object each other
 	include DOL_DOCUMENT_ROOT.'/core/actions_dellink.inc.php';
-
-	// Actions when printing a doc from card
 	include DOL_DOCUMENT_ROOT.'/core/actions_printing.inc.php';
-
-	// Action to move up and down lines of object
-	//include DOL_DOCUMENT_ROOT.'/core/actions_lineupdown.inc.php';
-
-	// Action to build doc
 	include DOL_DOCUMENT_ROOT.'/core/actions_builddoc.inc.php';
 
-	// Other special actions
-	/*
-	if ($action == 'set_thirdparty' && $permissiontoadd) {
-		$object->setValueFrom('fk_soc', GETPOSTINT('fk_soc'), '', null, 'date', '', $user, $triggermodname);
-	}
-	if ($action == 'classin' && $permissiontoadd) {
-		$object->setProject(GETPOSTINT('projectid'));
-	}
-	*/
-
 	// Actions to send emails
-	$triggersendname = 'CLOCKIFY_TIMEENTRY_SENTBYMAIL';
-	$autocopy = 'MAIN_MAIL_AUTOCOPY_TIMEENTRY_TO';
+	$triggersendname = 'CLOCKIFY_MYOBJECT_SENTBYMAIL';
+	$autocopy = 'MAIN_MAIL_AUTOCOPY_MYOBJECT_TO';
 	$trackid = 'timeentry'.$object->id;
 	include DOL_DOCUMENT_ROOT.'/core/actions_sendmails.inc.php';
 }
-
 
 
 /*
@@ -265,28 +194,12 @@ $form = new Form($db);
 $formfile = new FormFile($db);
 
 $title = $langs->trans("TimeEntry")." - ".$langs->trans('Card');
-//$title = $object->ref." - ".$langs->trans('Card');
 if ($action == 'create') {
 	$title = $langs->trans("NewObject", $langs->transnoentitiesnoconv("TimeEntry"));
 }
 $help_url = '';
 
 llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-clockify page-card');
-
-// Example : Adding jquery code
-// print '<script type="text/javascript">
-// jQuery(document).ready(function() {
-// 	function init_myfunc()
-// 	{
-// 		jQuery("#myid").removeAttr(\'disabled\');
-// 		jQuery("#myid").attr(\'disabled\',\'disabled\');
-// 	}
-// 	init_myfunc();
-// 	jQuery("#mybutton").click(function() {
-// 		init_myfunc();
-// 	});
-// });
-// </script>';
 
 
 // Part to create
@@ -312,7 +225,6 @@ if ($action == 'create') {
 
 	print dol_get_fiche_head(array(), '');
 
-
 	print '<table class="border centpercent tableforfieldcreate">'."\n";
 
 	// Common attributes
@@ -328,8 +240,6 @@ if ($action == 'create') {
 	print $form->buttonsSaveCancel("Create");
 
 	print '</form>';
-
-	//dol_set_focus('input[name="ref"]');
 }
 
 // Part to edit record
@@ -385,88 +295,29 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 
 	// Clone confirmation
 	if ($action == 'clone') {
-		// Create an array for form
 		$formquestion = array();
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('ToClone'), $langs->trans('ConfirmCloneAsk', $object->ref), 'confirm_clone', $formquestion, 'yes', 1);
 	}
 
-	// Confirmation of action xxxx (You can use it for xxx = 'close', xxx = 'reopen', ...)
-	// if ($action == 'xxx') {
-	// 	$text = $langs->trans('ConfirmActionXxx', $object->ref);
-	// 	if (isModEnabled('notification')) {
-	// 		require_once DOL_DOCUMENT_ROOT . '/core/class/notify.class.php';
-	// 		$notify = new Notify($db);
-	// 		$text .= '<br>';
-	// 		$text .= $notify->confirmMessage('MYOBJECT_CLOSE', $object->socid, $object);
-	// 	}
-
-	// 	$formquestion = array();
-
-	// 	$forcecombo=0;
-	// 	if ($conf->browser->name == 'ie') $forcecombo = 1;	// There is a bug in IE10 that make combo inside popup crazy
-	// 	$formquestion = array(
-	// 		// 'text' => $langs->trans("ConfirmClone"),
-	// 		// array('type' => 'checkbox', 'name' => 'clone_content', 'label' => $langs->trans("CloneMainAttributes"), 'value' => 1),
-	// 		// array('type' => 'checkbox', 'name' => 'update_prices', 'label' => $langs->trans("PuttingPricesUpToDate"), 'value' => 1),
-	// 		// array('type' => 'other',    'name' => 'idwarehouse',   'label' => $langs->trans("SelectWarehouseForStockDecrease"), 'value' => $formproduct->selectWarehouses(GETPOST('idwarehouse')?GETPOST('idwarehouse'):'ifone', 'idwarehouse', '', 1, 0, 0, '', 0, $forcecombo))
-	// 	);
-	// 	$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('XXX'), $text, 'confirm_xxx', $formquestion, 0, 1, 220);
-	// }
-
 	// Call Hook formConfirm
 	$parameters = array('formConfirm' => $formconfirm, 'lineid' => $lineid);
-	$reshook = $hookmanager->executeHooks('formConfirm', $parameters, $object, $action); // Note that $action and $object may have been modified by hook
+	$reshook = $hookmanager->executeHooks('formConfirm', $parameters, $object, $action);
 	if (empty($reshook)) {
 		$formconfirm .= $hookmanager->resPrint;
 	} elseif ($reshook > 0) {
 		$formconfirm = $hookmanager->resPrint;
 	}
 
-	// Print form confirm
 	print $formconfirm;
-
 
 	// Object card
 	// ------------------------------------------------------------
 	$linkback = '<a href="'.dol_buildpath('/clockify/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
 
 	$morehtmlref = '<div class="refidno">';
-	/*
-		// Ref customer
-		$morehtmlref .= $form->editfieldkey("RefCustomer", 'ref_client', $object->ref_client, $object, $usercancreate, 'string', '', 0, 1);
-		$morehtmlref .= $form->editfieldval("RefCustomer", 'ref_client', $object->ref_client, $object, $usercancreate, 'string'.(getDolGlobalInt('THIRDPARTY_REF_INPUT_SIZE') ? ':'.getDolGlobalInt('THIRDPARTY_REF_INPUT_SIZE') : ''), '', null, null, '', 1);
-		// Thirdparty
-		$morehtmlref .= '<br>'.$object->thirdparty->getNomUrl(1, 'customer');
-		if (!getDolGlobalInt('MAIN_DISABLE_OTHER_LINK') && $object->thirdparty->id > 0) {
-			$morehtmlref .= ' (<a href="'.DOL_URL_ROOT.'/commande/list.php?socid='.$object->thirdparty->id.'&search_societe='.urlencode($object->thirdparty->name).'">'.$langs->trans("OtherOrders").'</a>)';
-		}
-		// Project
-		if (isModEnabled('project')) {
-			$langs->load("projects");
-			$morehtmlref .= '<br>';
-			if ($permissiontoadd) {
-				$morehtmlref .= img_picto($langs->trans("Project"), 'project', 'class="pictofixedwidth"');
-				if ($action != 'classify') {
-					$morehtmlref .= '<a class="editfielda" href="'.dolBuildUrl($_SERVER['PHP_SELF'], ['action' => 'classify', 'id' => $object->id], true).'">'.img_edit($langs->transnoentitiesnoconv('SetProject')).'</a> ';
-				}
-				$morehtmlref .= $form->form_project($_SERVER['PHP_SELF'].'?id='.$object->id, $object->socid, $object->fk_project, ($action == 'classify' ? 'projectid' : 'none'), 0, 0, 0, 1, '', 'maxwidth300');
-			} else {
-				if (!empty($object->fk_project)) {
-					$proj = new Project($db);
-					$proj->fetch($object->fk_project);
-					$morehtmlref .= $proj->getNomUrl(1);
-					if ($proj->title) {
-						$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($proj->title).'</span>';
-					}
-				}
-			}
-		}
-	*/
 	$morehtmlref .= '</div>';
 
-
 	dol_banner_tab($object, 'ref', $linkback, 1, 'ref', 'ref', $morehtmlref);
-
 
 	print '<div class="fichecenter">';
 	print '<div class="fichehalfleft">';
@@ -474,12 +325,9 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 	print '<table class="border centpercent tableforfield">'."\n";
 
 	// Common attributes
-	//$keyforbreak='fieldkeytoswitchonsecondcolumn';	// We change column just before this field
-	//unset($object->fields['fk_project']);				// Hide field already shown in banner
-	//unset($object->fields['fk_soc']);					// Hide field already shown in banner
 	include DOL_DOCUMENT_ROOT.'/core/tpl/commonfields_view.tpl.php';
 
-	// Other attributes. Fields from hook formObjectOptions and Extrafields.
+	// Other attributes
 	include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_view.tpl.php';
 
 	print '</table>';
@@ -490,13 +338,11 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 
 	print dol_get_fiche_end();
 
-
 	/*
 	 * Lines
 	 */
 
 	if (!empty($object->table_element_line)) {
-		// Show object lines
 		$result = $object->getLinesArray();
 
 		print '	<form name="addproduct" id="addproduct" action="'.$_SERVER["PHP_SELF"].'?id='.$object->id.(($action != 'editline') ? '' : '#line_'.GETPOSTINT('lineid')).'" method="POST">
@@ -523,10 +369,8 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 		// Form to add new line
 		if ($object->status == 0 && $permissiontoadd && $action != 'selectlines') {
 			if ($action != 'editline') {
-				// Add products/services form
-
 				$parameters = array();
-				$reshook = $hookmanager->executeHooks('formAddObjectLine', $parameters, $object, $action); // Note that $action and $object may have been modified by hook
+				$reshook = $hookmanager->executeHooks('formAddObjectLine', $parameters, $object, $action);
 				if ($reshook < 0) {
 					setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
 				}
@@ -544,28 +388,17 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 		print "</form>\n";
 	}
 
-
 	// Buttons for actions
 
 	if ($action != 'presend' && $action != 'editline') {
 		print '<div class="tabsAction">'."\n";
 		$parameters = array();
-		$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action); // Note that $action and $object may have been modified by hook
+		$reshook = $hookmanager->executeHooks('addMoreActionsButtons', $parameters, $object, $action);
 		if ($reshook < 0) {
 			setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
 		}
 
 		if (empty($reshook)) {
-			// Start Timer button (if creating/new or general context)
-			if (empty($object->id)) {
-				print dolGetButtonAction('', $langs->trans('StartTimer'), 'default', $_SERVER["PHP_SELF"].'?action=confirm_start_timer&token='.newToken(), '', $permissiontoadd);
-			}
-
-			// Stop Timer button (if timer is running: date_end is empty)
-			if ($object->id > 0 && empty($object->date_end)) {
-				print dolGetButtonAction('', $langs->trans('StopTimer'), 'delete', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=confirm_stop_timer&token='.newToken(), '', $permissiontoadd);
-			}
-
 			// Send
 			if (empty($user->socid)) {
 				print dolGetButtonAction('', $langs->trans('SendMail'), 'email', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=presend&token='.newToken().'&mode=init#formmailbeforetitle');
@@ -594,28 +427,10 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 				print dolGetButtonAction('', $langs->trans('ToClone'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.(!empty($object->socid) ? '&socid='.$object->socid : '').'&action=clone&token='.newToken(), '', $permissiontoadd);
 			}
 
-			/*
-			// Disable / Enable
-			if ($permissiontoadd) {
-				if ($object->status == $object::STATUS_ENABLED) {
-					print dolGetButtonAction('', $langs->trans('Disable'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=disable&token='.newToken(), '', $permissiontoadd);
-				} else {
-					print dolGetButtonAction('', $langs->trans('Enable'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=enable&token='.newToken(), '', $permissiontoadd);
-				}
-			}
-			if ($permissiontoadd) {
-				if ($object->status == $object::STATUS_VALIDATED) {
-					print dolGetButtonAction('', $langs->trans('Cancel'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=close&token='.newToken(), '', $permissiontoadd);
-				} else {
-					print dolGetButtonAction('', $langs->trans('Re-Open'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=reopen&token='.newToken(), '', $permissiontoadd);
-				}
-			}
-			*/
-
 			// Delete (with preloaded confirm popup)
 			$deleteUrl = $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delete&token='.newToken();
 			$buttonId = 'action-delete-no-ajax';
-			if ($conf->use_javascript_ajax && empty($conf->dol_use_jmobile)) {	// We can use preloaded confirm if not jmobile
+			if ($conf->use_javascript_ajax && empty($conf->dol_use_jmobile)) {
 				$deleteUrl = '';
 				$buttonId = 'action-delete';
 			}
@@ -625,7 +440,6 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 		print '</div>'."\n";
 	}
 
-
 	// Select mail models is same action as presend
 	if (GETPOST('modelselected')) {
 		$action = 'presend';
@@ -633,7 +447,7 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 
 	if ($action != 'presend') {
 		print '<div class="fichecenter"><div class="fichehalfleft">';
-		print '<a name="builddoc"></a>'; // ancre
+		print '<a name="builddoc"></a>';
 
 		$includedocgeneration = 0;
 
@@ -643,8 +457,8 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 			$relativepath = $objref.'/'.$objref.'.pdf';
 			$filedir = $conf->clockify->dir_output.'/'.$object->element.'/'.$objref;
 			$urlsource = $_SERVER["PHP_SELF"]."?id=".$object->id;
-			$genallowed = $permissiontoread; // If you can read, you can build the PDF to read content
-			$delallowed = $permissiontoadd; // If you can create/edit, you can remove a file on card
+			$genallowed = $permissiontoread;
+			$delallowed = $permissiontoadd;
 			print $formfile->showdocuments('clockify:TimeEntry', $object->element.'/'.$objref, $filedir, $urlsource, $genallowed, $delallowed, $object->model_pdf, 1, 0, 0, 28, 0, '', '', '', $langs->defaultlang);
 		}
 
@@ -656,7 +470,6 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 			print $htmltoenteralink;
 			$somethingshown = $form->showLinkedObjectBlock($object, $linktoelem);
 		} else {
-			// backward compatibility
 			$somethingshown = $form->showLinkedObjectBlock($object, $tmparray);
 		}
 
@@ -676,11 +489,6 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 		}
 
 		print '</div></div>';
-	}
-
-	//Select mail models is same action as presend
-	if (GETPOST('modelselected')) {
-		$action = 'presend';
 	}
 
 	// Presend form
