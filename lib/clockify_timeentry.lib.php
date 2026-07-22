@@ -76,7 +76,8 @@ function timeentryPrepareHead($object)
 	if ($showtabofpagedocument) {
 		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 		require_once DOL_DOCUMENT_ROOT.'/core/class/link.class.php';
-		$upload_dir = $conf->clockify->dir_output."/timeentry/".dol_sanitizeFileName($object->ref);
+		$ref = !empty($object->ref) ? $object->ref : $object->id;
+		$upload_dir = $conf->clockify->dir_output."/timeentry/".dol_sanitizeFileName($ref);
 		$nbFiles = count(dol_dir_list($upload_dir, 'files', 0, '', '(\.meta|_preview.*\.png)$'));
 		$nbLinks = Link::count($db, $object->element, $object->id);
 		$head[$h][0] = dolBuildUrl(dol_buildpath("/clockify/timeentry_document.php", 1), ['id' => $object->id]);
@@ -96,13 +97,6 @@ function timeentryPrepareHead($object)
 	}
 
 	// Show more tabs from modules
-	// Entries must be declared in modules descriptor with line
-	//$this->tabs = array(
-	//	'entity:+tabname:Title:@clockify:/clockify/mypage.php?id=__ID__'
-	//); // to add new tab
-	//$this->tabs = array(
-	//	'entity:-tabname:Title:@clockify:/clockify/mypage.php?id=__ID__'
-	//); // to remove a tab
 	complete_head_from_modules($conf, $langs, $object, $head, $h, 'timeentry@clockify');
 
 	complete_head_from_modules($conf, $langs, $object, $head, $h, 'timeentry@clockify', 'remove');
