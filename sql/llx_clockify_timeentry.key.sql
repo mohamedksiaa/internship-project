@@ -14,10 +14,9 @@
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 -- BEGIN MODULEBUILDER INDEXES
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_rowid (rowid);
-ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_project (fk_project);
-ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_status (status);
+ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_entity (entity);
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_user (fk_user);
-ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_user_dateend (fk_user, date_end);
+ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_project (fk_project);
 -- END MODULEBUILDER INDEXES
 --ALTER TABLE llx_clockify_timeentry ADD UNIQUE INDEX uk_clockify_timeentry_fieldxy(fieldx, fieldy);
 --ALTER TABLE llx_clockify_timeentry ADD CONSTRAINT llx_clockify_timeentry_fk_field FOREIGN KEY (fk_field) REFERENCES llx_clockify_myotherobject(rowid);

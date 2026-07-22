@@ -81,12 +81,20 @@ class Clockify extends DolibarrApi
             throw new RestException(401, 'Unauthorized');
         }
 
+        $fk_project = (int) $fk_project;
+        $fk_task = (int) $fk_task;
+        $note = trim((string) $note);
+
+        if ($fk_project <= 0) {
+            throw new RestException(400, 'fk_project is required');
+        }
+
         $timeentry = new TimeEntry($this->db);
         $id = $timeentry->startTimer(
             DolibarrApiAccess::$user->id,
-            (int) $fk_project,
-            (int) $fk_task,
-            (string) $note,
+            $fk_project,
+            $fk_task,
+            $note,
             DolibarrApiAccess::$user
         );
 
@@ -116,6 +124,60 @@ class Clockify extends DolibarrApi
 
         if ($res <= 0) {
             throw new RestException(500, $timeentry->error ? $timeentry->error : 'Error stopping timer');
+        }
+
+        return $this->_cleanObjectDatas($timeentry);
+    }
+
+    /**
+     * Valider une entrée de temps
+     *
+     * @param int $id ID du TimeEntry à valider
+     * @return array
+     *
+     * @url POST /timeentrys/{id}/validate
+     */
+    public function validateEntry($id)
+    {
+        if (!DolibarrApiAccess::$user->id) {
+            throw new RestException(401, 'Unauthorized');
+        }
+        if (!DolibarrApiAccess::$user->hasRight('clockify', 'timeentry', 'write')) {
+            throw new RestException(403, 'Forbidden');
+        }
+
+        $timeentry = new TimeEntry($this->db);
+        $res = $timeentry->validateEntry((int) $id, DolibarrApiAccess::$user, TimeEntry::STATUS_VALIDATED);
+
+        if ($res <= 0) {
+            throw new RestException(500, $timeentry->error ? $timeentry->error : 'Error validating timer');
+        }
+
+        return $this->_cleanObjectDatas($timeentry);
+    }
+
+    /**
+     * Refuser une entrée de temps
+     *
+     * @param int $id ID du TimeEntry à refuser
+     * @return array
+     *
+     * @url POST /timeentrys/{id}/reject
+     */
+    public function rejectEntry($id)
+    {
+        if (!DolibarrApiAccess::$user->id) {
+            throw new RestException(401, 'Unauthorized');
+        }
+        if (!DolibarrApiAccess::$user->hasRight('clockify', 'timeentry', 'write')) {
+            throw new RestException(403, 'Forbidden');
+        }
+
+        $timeentry = new TimeEntry($this->db);
+        $res = $timeentry->validateEntry((int) $id, DolibarrApiAccess::$user, TimeEntry::STATUS_CANCELED);
+
+        if ($res <= 0) {
+            throw new RestException(500, $timeentry->error ? $timeentry->error : 'Error rejecting timer');
         }
 
         return $this->_cleanObjectDatas($timeentry);
@@ -161,11 +223,39 @@ class Clockify extends DolibarrApi
     {
         $object = parent::_cleanObjectDatas($object);
 
-        // On s'assure d'exposer les champs métier utiles
-        unset($object->db);
-        unset($object->error);
-        unset($object->errors);
+        if (!is_object($object)) {
+            return array();
+        }
 
-        return $object;
+        $allowedFields = array(
+            'id',
+            'rowid',
+            'entity',
+            'fk_user',
+            'fk_project',
+            'fk_task',
+            'date_start',
+            'date_end',
+            'duration',
+            'note',
+            'billable',
+            'status',
+            'fk_user_valid',
+            'date_creation',
+            'tms'
+        );
+
+        $cleaned = array();
+        foreach ($allowedFields as $field) {
+            if (property_exists($object, $field)) {
+                $cleaned[$field] = $object->{$field};
+            }
+        }
+
+        unset($cleaned['db']);
+        unset($cleaned['error']);
+        unset($cleaned['errors']);
+
+        return $cleaned;
     }
 }
