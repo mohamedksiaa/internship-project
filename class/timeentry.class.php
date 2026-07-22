@@ -1278,3 +1278,122 @@ class TimeEntryLine extends CommonObjectLine
 		$this->db = $db;
 	}
 }
+
+
+
+/**
+ * Check if a user currently has a timer running
+ *
+ * @param	int		$fk_user	Id of user to check
+ * @return	int					Id of the active TimeEntry row, or 0 if none running
+ */
+public function hasActiveTimer($fk_user)
+{
+    $sql = "SELECT rowid FROM ".$this->db->prefix().$this->table_element;
+    $sql .= " WHERE fk_user = ".((int) $fk_user);
+    $sql .= " AND date_end IS NULL";
+    $sql .= " AND entity IN (".getEntity($this->element).")";
+
+    $resql = $this->db->query($sql);
+    if ($resql && $this->db->num_rows($resql) > 0) {
+        $obj = $this->db->fetch_object($resql);
+        $this->db->free($resql);
+        return (int) $obj->rowid;
+    }
+    if ($resql) {
+        $this->db->free($resql);
+    }
+    return 0;
+}
+
+/**
+ * Start a new timer for a user
+ *
+ * @param	int		$fk_user		Id of user the time belongs to
+ * @param	int		$fk_project		Id of project (0/null if none)
+ * @param	int		$fk_task		Id of task (0/null if none)
+ * @param	string	$note			Free text note
+ * @param	User	$user			User performing the action (for audit fields)
+ * @return	int						New row id if OK, <0 if KO
+ */
+public function startTimer($fk_user, $fk_project, $fk_task, $note, User $user)
+{
+    if ($this->hasActiveTimer($fk_user) > 0) {
+        $this->error = 'A timer is already running for this user';
+        return -1;
+    }
+
+    $this->fk_user     = $fk_user;
+    $this->fk_project  = !empty($fk_project) ? $fk_project : null;
+    $this->fk_task     = !empty($fk_task) ? $fk_task : null;
+    $this->note        = $note;
+    $this->date_start  = dol_now();
+    $this->date_end    = null;
+    $this->duration    = 0;
+    $this->status      = self::STATUS_DRAFT;
+
+    return $this->create($user);
+}
+
+/**
+ * Stop a running timer
+ *
+ * @param	int		$id		Id of the TimeEntry to stop
+ * @param	User	$user	User performing the action
+ * @return	int				>0 if OK, <0 if KO
+ */
+public function stopTimer($id, User $user)
+{
+    if ($this->fetch($id) <= 0) {
+        $this->error = 'TimeEntry not found';
+        return -1;
+    }
+
+    if (!empty($this->date_end)) {
+        $this->error = 'This timer is already stopped';
+        return -1;
+    }
+
+    $this->date_end = dol_now();
+    $this->duration = $this->calculateDuration();
+
+    return $this->update($user);
+}
+
+/**
+ * Compute duration in seconds from date_start/date_end
+ *
+ * @return	int		Duration in seconds, 0 if either date is missing
+ */
+public function calculateDuration()
+{
+    if (empty($this->date_start) || empty($this->date_end)) {
+        return 0;
+    }
+    return (int) ($this->date_end - $this->date_start);
+}
+
+/**
+ * Sum total duration for a user across a date range
+ *
+ * @param	DoliDB	$db			Database handler
+ * @param	int		$fk_user	Id of user
+ * @param	int		$dateStart	Start of range (timestamp)
+ * @param	int		$dateEnd	End of range (timestamp)
+ * @return	int					Total duration in seconds
+ */
+public static function getTotalDuration(DoliDB $db, $fk_user, $dateStart, $dateEnd)
+{
+    $sql = "SELECT SUM(duration) as total FROM ".$db->prefix()."clockify_timeentry";
+    $sql .= " WHERE fk_user = ".((int) $fk_user);
+    $sql .= " AND date_start >= '".$db->idate($dateStart)."'";
+    $sql .= " AND date_start <= '".$db->idate($dateEnd)."'";
+
+    $resql = $db->query($sql);
+    if ($resql) {
+        $obj = $db->fetch_object($resql);
+        $db->free($resql);
+        return (int) $obj->total;
+    }
+    return 0;
+}
