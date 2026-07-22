@@ -47,7 +47,7 @@ class TimeEntry extends CommonObject
 	 * @var string		Prefix to check for any trigger code of any business class to prevent bad value for trigger code.
 	 * @see CommonTrigger::call_trigger()
 	 */
-	public $TRIGGER_PREFIX = 'CLOCKIFY_MYOBJECT';	// Will be used to build trgiger keys 'CLOCKIFY_MYOBJECT_MODIFY', ...
+	public $TRIGGER_PREFIX = 'CLOCKIFY_TIMEENTRY';	// Will be used to build trigger keys 'CLOCKIFY_TIMEENTRY_MODIFY', ...
 
 	/**
 	 * @var string 		Name of table without prefix where object is stored. This is also the key used for extrafields management (so extrafields know the link to the parent table).
@@ -79,49 +79,6 @@ class TimeEntry extends CommonObject
 	const STATUS_DRAFT = 0;
 	const STATUS_VALIDATED = 1;
 	const STATUS_CANCELED = 9;
-
-	/**
-	 *  'type' field format:
-	 *  	'integer', 'integer:ObjectClass:PathToClass[:AddCreateButtonOrNot[:Filter[:Sortfield]]]',
-	 *  	'select' (list of values are in 'options'. for integer list of values are in 'arrayofkeyval'),
-	 *  	'sellist:TableName:LabelFieldName[:KeyFieldName[:KeyFieldParent[:Filter[:CategoryIdType[:CategoryIdList[:SortField]]]]]]',
-	 *  	'chkbxlst:...',
-	 *  	'varchar(x)',
-	 *  	'text', 'text:none', 'html',
-	 *   	'double(24,8)', 'real', 'price', 'stock',
-	 *  	'date', 'datetime', 'timestamp', 'duration',
-	 *  	'boolean', 'checkbox', 'radio', 'array',
-	 *  	'email', 'phone', 'url', 'password', 'ip'
-	 *		Note: Filter must be a Dolibarr Universal Filter syntax string. Example: "(t.ref:like:'SO-%') or (t.date_creation:<:'20160101') or (t.status:!=:0) or (t.nature:is:NULL)"
-	 *  'length' the length of field. Example: 255, '24,8'
-	 *  'label' the translation key.
-	 *  'langfile' the key of the language file for translation.
-	 *  'alias' the alias used into some old hard coded SQL requests
-	 *  'picto' is code of a picto to show before value in forms
-	 *  'enabled' is a condition when the field must be managed (Example: 1 or 'getDolGlobalInt("MY_SETUP_PARAM")' or 'isModEnabled("multicurrency")' ...)
-	 *  'position' is the sort order of field.
-	 *  'notnull' is set to 1 if not null in database. Set to -1 if we must set data to null if empty ('' or 0).
-	 *  'visible' says if field is visible in list (Examples: 0=Not visible, 1=Visible on list and create/update/view forms, 2=Visible on list only, 3=Visible on create/update/view form only (not list), 4=Visible on list and update/view form (not create). 5=Visible on list and view form (not create/not update). 6=visible on list and update/view form (not update). Using a negative value means field is not shown by default on list but can be selected for viewing)
-	 *  'noteditable' says if field is not editable (1 or 0)
-	 *  'alwayseditable' says if field can be modified also when status is not draft ('1' or '0')
-	 *  'default' is a default value for creation (can still be overwritten by the Setup of Default Values if the field is editable in creation form). Note: If default is set to '(PROV)' and field is 'ref', the default value will be set to '(PROVid)' where id is rowid when a new record is created.
-	 *  'index' if we want an index in database.
-	 *  'foreignkey'=>'tablename.field' if the field is a foreign key (it is recommended to name the field fk_...).
-	 *  'searchall' is 1 if we want to search in this field when making a search from the quick search button.
-	 *  'isameasure' must be set to 1 or 2 if field can be used for measure. Field type must be summable like integer or double(24,8). Use 1 in most cases, or 2 if you don't want to see the column total into list (for example for percentage)
-	 *  'css' and 'cssview' and 'csslist' is the CSS style to use on field. 'css' is used in creation and update. 'cssview' is used in view mode. 'csslist' is used for columns in lists. For example: 'css'=>'minwidth300 maxwidth500 widthcentpercentminusx', 'cssview'=>'wordbreak', 'csslist'=>'tdoverflowmax200'
-	 *  'placeholder' to set the placeholder of a varchar field.
-	 *  'help' and 'helplist' is a 'TranslationString' to use to show a tooltip on field. You can also use 'TranslationString:keyfortooltiponlick' for a tooltip on click.
-	 *  'showoncombobox' if value of the field must be visible into the label of the combobox that list record
-	 *  'disabled' is 1 if we want to have the field locked by a 'disabled' attribute. In most cases, this is never set into the definition of $fields into class, but is set dynamically by some part of code like the constructor of the class.
-	 *  'arrayofkeyval' to set a list of values if type is a list of predefined values. For example: array("0"=>"Draft","1"=>"Active","-1"=>"Cancel"). Note that type can be 'integer' or 'varchar'
-	 *  'autofocusoncreate' to have field having the focus on a create form. Only 1 field should have this property set to 1.
-	 *  'comment' is not used. You can store here any text of your choice. It is not used by application.
-	 *	'validate' is 1 if you need to validate the field with $this->validateField(). Need MAIN_ACTIVATE_VALIDATION_RESULT.
-	 *  'copytoclipboard' is 1 or 2 to allow to add a picto to copy value into clipboard (1=picto after label, 2=picto after value)
-	 *
-	 *  Note: To have value dynamic, you can set value to 0 in definition and edit the value on the fly into the constructor.
-	 */
 
 	// BEGIN MODULEBUILDER PROPERTIES
 	/**
@@ -168,43 +125,6 @@ class TimeEntry extends CommonObject
 	// END MODULEBUILDER PROPERTIES
 
 
-	// If this object has a subtable with lines
-
-	// /**
-	//  * @var string    Name of subtable line
-	//  */
-	// public $table_element_line = 'clockify_timeentryline';
-
-	// /**
-	//  * @var string    Field name with ID of parent key if this object has a parent, Or Field name of in child tables to link to this record.
-	//  */
-	// public $fk_element = 'fk_timeentry';
-
-	// /**
-	//  * @var string    Name of subtable class that manage subtable lines
-	//  */
-	// public $class_element_line = 'TimeEntryline';
-
-	// /**
-	//  * @var array	List of child tables. To test if we can delete object.
-	//  */
-	// protected $childtables = array('mychildtable' => array('name'=>'TimeEntry', 'fk_element'=>'fk_timeentry'));
-
-	// /**
-	//  * @var array    List of child tables. To know object to delete on cascade.
-	//  *               If name matches '@ClassName:FilePathClass:ParentFkFieldName' (the recommended mode) it will
-	//  *               call method ClassName->deleteByParentField(parentId, 'ParentFkFieldName') to fetch and delete child object.
-	//  *               Using an array like childtables should not be implemented because a child may have other child, so we must only use the method that call deleteByParentField().
-	//  */
-	// protected $childtablesoncascade = array('clockify_timeentrydet');
-
-	// /**
-	//  * @var TimeEntryLine[]     Array of subtable lines
-	//  */
-	// public $lines = array();
-
-
-
 	/**
 	 * Constructor
 	 *
@@ -222,12 +142,6 @@ class TimeEntry extends CommonObject
 		if (!isModEnabled('multicompany') && isset($this->fields['entity'])) {
 			$this->fields['entity']['enabled'] = 0;
 		}
-
-		// Example to show how to set values of fields definition dynamically
-		/*if ($user->hasRight('clockify', 'timeentry', 'read')) {
-			$this->fields['myfield']['visible'] = 1;
-			$this->fields['myfield']['noteditable'] = 0;
-		}*/
 
 		// Unset fields that are disabled
 		foreach ($this->fields as $key => $val) {
@@ -258,14 +172,6 @@ class TimeEntry extends CommonObject
 	public function create(User $user, $notrigger = 0)
 	{
 		$result = $this->createCommon($user, $notrigger);
-
-		// uncomment lines below if you want to validate object after creation
-		// if ($result > 0) {
-		// $this->fetch($this->id); // needed to retrieve some fields (ie date_creation for masked ref)
-		// $resultupdate = $this->validate($user, $notrigger);
-		// if ($resultupdate < 0) { return $resultupdate; }
-		// }
-
 		return $result;
 	}
 
@@ -293,10 +199,6 @@ class TimeEntry extends CommonObject
 			$object->fetchLines();
 		}
 
-		// get lines so they will be clone
-		//foreach($this->lines as $line)
-		//	$line->fetch_optionals();
-
 		// Reset some properties
 		unset($object->id);
 		unset($object->fk_user_creat);
@@ -318,15 +220,13 @@ class TimeEntry extends CommonObject
 		if (property_exists($object, 'date_modification')) {
 			$object->date_modification = null;
 		}
-		// ...
+
 		// Clear extrafields that are unique
 		if (is_array($object->array_options) && count($object->array_options) > 0) {
 			$extrafields->fetch_name_optionals_label($this->table_element);
 			foreach ($object->array_options as $key => $option) {
 				$shortkey = preg_replace('/options_/', '', $key);
 				if (!empty($extrafields->attributes[$this->table_element]['unique'][$shortkey])) {
-					//var_dump($key);
-					//var_dump($clonedObj->array_options[$key]); exit;
 					unset($object->array_options[$key]);
 				}
 			}
@@ -403,15 +303,12 @@ class TimeEntry extends CommonObject
 
 	/**
 	 * Load list of objects in memory from the database.
-	 * Using a fetchAll() with limit = 0 is a very bad practice. Instead try to forge yourself an optimized SQL request with
-	 * your own loop with start and stop pagination.
 	 *
 	 * @param	string		$sortorder	Sort Order
 	 * @param	string		$sortfield	Sort field
 	 * @param	int<0,max>	$limit		Limit the number of lines returned
 	 * @param	int<0,max>	$offset		Offset
 	 * @param	string		$filter		Filter as an Universal Search string.
-	 *                                  Example: '((client:=:1) OR ((client:>=:2) AND (client:<=:3))) AND (client:!=:8) AND (nom:like:'a%')'
 	 * @param	string		$filtermode	No longer used
 	 * @return	array<int,self>|int<-1,-1>	 <0 if KO, array of pages if OK
 	 */
@@ -504,7 +401,6 @@ class TimeEntry extends CommonObject
 	public function delete(User $user, $notrigger = 0)
 	{
 		return $this->deleteCommon($user, $notrigger);
-		//return $this->deleteCommon($user, $notrigger, 1);
 	}
 
 	/**
@@ -547,20 +443,12 @@ class TimeEntry extends CommonObject
 			return 0;
 		}
 
-		/* if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify', 'timeentry', 'write'))
-		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify', 'timeentry_advance', 'validate')))
-		 {
-		 $this->error='NotEnoughPermissions';
-		 dol_syslog(get_class($this)."::valid ".$this->error, LOG_ERR);
-		 return -1;
-		 }*/
-
 		$now = dol_now();
 
 		$this->db->begin();
 
 		// Define new ref
-		if (preg_match('/^[\(]?PROV/i', $this->ref) || empty($this->ref)) { // empty should not happened, but when it occurs, the test save life
+		if (preg_match('/^[\(]?PROV/i', $this->ref) || empty($this->ref)) { 
 			$num = $this->getNextNumRef();
 		} else {
 			$num = (string) $this->ref;
@@ -593,7 +481,7 @@ class TimeEntry extends CommonObject
 
 			if (!$error && !$notrigger) {
 				// Call trigger
-				$result = $this->call_trigger('MYOBJECT_VALIDATE', $user);
+				$result = $this->call_trigger('TIMEENTRY_VALIDATE', $user);
 				if ($result < 0) {
 					$error++;
 				}
@@ -676,14 +564,7 @@ class TimeEntry extends CommonObject
 			return 0;
 		}
 
-		/* if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','write'))
-		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','clockify_advance','validate'))))
-		 {
-		 $this->error='Permission denied';
-		 return -1;
-		 }*/
-
-		return $this->setStatusCommon($user, self::STATUS_DRAFT, $notrigger, 'CLOCKIFY_MYOBJECT_UNVALIDATE');
+		return $this->setStatusCommon($user, self::STATUS_DRAFT, $notrigger, 'CLOCKIFY_TIMEENTRY_UNVALIDATE');
 	}
 
 	/**
@@ -700,14 +581,7 @@ class TimeEntry extends CommonObject
 			return 0;
 		}
 
-		/* if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','write'))
-		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','clockify_advance','validate'))))
-		 {
-		 $this->error='Permission denied';
-		 return -1;
-		 }*/
-
-		return $this->setStatusCommon($user, self::STATUS_CANCELED, $notrigger, 'CLOCKIFY_MYOBJECT_CANCEL');
+		return $this->setStatusCommon($user, self::STATUS_CANCELED, $notrigger, 'CLOCKIFY_TIMEENTRY_CANCEL');
 	}
 
 	/**
@@ -724,14 +598,7 @@ class TimeEntry extends CommonObject
 			return 0;
 		}
 
-		/*if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','write'))
-		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','clockify_advance','validate'))))
-		 {
-		 $this->error='Permission denied';
-		 return -1;
-		 }*/
-
-		return $this->setStatusCommon($user, self::STATUS_VALIDATED, $notrigger, 'CLOCKIFY_MYOBJECT_REOPEN');
+		return $this->setStatusCommon($user, self::STATUS_VALIDATED, $notrigger, 'CLOCKIFY_TIMEENTRY_REOPEN');
 	}
 
 	/**
@@ -872,7 +739,6 @@ class TimeEntry extends CommonObject
 		}
 
 		$result .= $linkend;
-		//if ($withpicto != 2) $result.=(($addlabel && $this->label) ? $sep . dol_trunc($this->label, ($addlabel > 1 ? $addlabel : 0)) : '');
 
 		global $action, $hookmanager;
 		$hookmanager->initHooks(array($this->element.'dao'));
@@ -975,7 +841,6 @@ class TimeEntry extends CommonObject
 
 		if (empty($this->labelStatus) || empty($this->labelStatusShort)) {
 			global $langs;
-			//$langs->load("clockify@clockify");
 			$this->labelStatus[self::STATUS_DRAFT] = $langs->transnoentitiesnoconv('Draft');
 			$this->labelStatus[self::STATUS_VALIDATED] = $langs->transnoentitiesnoconv('Enabled');
 			$this->labelStatus[self::STATUS_CANCELED] = $langs->transnoentitiesnoconv('Disabled');
@@ -985,7 +850,6 @@ class TimeEntry extends CommonObject
 		}
 
 		$statusType = 'status'.$status;
-		//if ($status == self::STATUS_VALIDATED) $statusType = 'status1';
 		if ($status == self::STATUS_CANCELED) {
 			$statusType = 'status6';
 		}
@@ -1062,10 +926,6 @@ class TimeEntry extends CommonObject
 	 */
 	public function initAsSpecimen()
 	{
-		// Set here init that are not commonf fields
-		// $this->property1 = ...
-		// $this->property2 = ...
-
 		return $this->initAsSpecimenCommon();
 	}
 
@@ -1100,15 +960,15 @@ class TimeEntry extends CommonObject
 		global $langs, $conf;
 		$langs->load("clockify@clockify");
 
-		if (!getDolGlobalString('CLOCKIFY_MYOBJECT_ADDON')) {
-			$conf->global->CLOCKIFY_MYOBJECT_ADDON = 'mod_timeentry_standard';
+		if (!getDolGlobalString('CLOCKIFY_TIMEENTRY_ADDON')) {
+			$conf->global->CLOCKIFY_TIMEENTRY_ADDON = 'mod_timeentry_standard';
 		}
 
-		if (getDolGlobalString('CLOCKIFY_MYOBJECT_ADDON')) {
+		if (getDolGlobalString('CLOCKIFY_TIMEENTRY_ADDON')) {
 			$mybool = false;
 
-			$file = getDolGlobalString('CLOCKIFY_MYOBJECT_ADDON').".php";
-			$classname = getDolGlobalString('CLOCKIFY_MYOBJECT_ADDON');
+			$file = getDolGlobalString('CLOCKIFY_TIMEENTRY_ADDON').".php";
+			$classname = getDolGlobalString('CLOCKIFY_TIMEENTRY_ADDON');
 
 			// Include file with class
 			$dirmodels = array_merge(array('/'), (array) $conf->modules_parts['models']);
@@ -1133,7 +993,6 @@ class TimeEntry extends CommonObject
 					return $numref;
 				} else {
 					$this->error = $obj->error;
-					//dol_print_error($this->db,get_class($this)."::getNextNumRef ".$obj->error);
 					return "";
 				}
 			} else {
@@ -1170,7 +1029,7 @@ class TimeEntry extends CommonObject
 			if (!empty($this->model_pdf)) {
 				$modele = $this->model_pdf;
 			} else {
-				$modele = getDolGlobalString('MYOBJECT_ADDON_PDF', 'standard_timeentry');
+				$modele = getDolGlobalString('CLOCKIFY_TIMEENTRY_ADDON_PDF', 'standard_timeentry');
 			}
 		}
 
@@ -1195,8 +1054,6 @@ class TimeEntry extends CommonObject
 	public function validateField($fields, $fieldKey, $fieldValue)
 	{
 		// Add your own validation rules here.
-		// ...
-
 		return parent::validateField($fields, $fieldKey, $fieldValue);
 	}
 
@@ -1209,10 +1066,6 @@ class TimeEntry extends CommonObject
 	 */
 	public function doScheduledJob()
 	{
-		//global $conf, $langs;
-
-		//$conf->global->SYSLOG_FILE = 'DOL_DATA_ROOT/dolibarr_mydedicatedlogfile.log';
-
 		$error = 0;
 		$this->output = '';
 		$this->error = '';
@@ -1230,6 +1083,128 @@ class TimeEntry extends CommonObject
 		dol_syslog(__METHOD__." end", LOG_INFO);
 
 		return $error;
+	}
+
+
+	// ==========================================================
+	// CUSTOM TIMER CONTROL METHODS
+	// ==========================================================
+
+	/**
+	 * Check if a user currently has a timer running
+	 *
+	 * @param	int		$fk_user	Id of user to check
+	 * @return	int					Id of the active TimeEntry row, or 0 if none running
+	 */
+	public function hasActiveTimer($fk_user)
+	{
+		$sql = "SELECT rowid FROM ".$this->db->prefix().$this->table_element;
+		$sql .= " WHERE fk_user = ".((int) $fk_user);
+		$sql .= " AND date_end IS NULL";
+		$sql .= " AND entity IN (".getEntity($this->element).")";
+
+		$resql = $this->db->query($sql);
+		if ($resql && $this->db->num_rows($resql) > 0) {
+			$obj = $this->db->fetch_object($resql);
+			$this->db->free($resql);
+			return (int) $obj->rowid;
+		}
+		if ($resql) {
+			$this->db->free($resql);
+		}
+		return 0;
+	}
+
+	/**
+	 * Start a new timer for a user
+	 *
+	 * @param	int		$fk_user		Id of user the time belongs to
+	 * @param	int		$fk_project		Id of project (0/null if none)
+	 * @param	int		$fk_task		Id of task (0/null if none)
+	 * @param	string	$note			Free text note
+	 * @param	User	$user			User performing the action (for audit fields)
+	 * @return	int						New row id if OK, <0 if KO
+	 */
+	public function startTimer($fk_user, $fk_project, $fk_task, $note, User $user)
+	{
+		if ($this->hasActiveTimer($fk_user) > 0) {
+			$this->error = 'A timer is already running for this user';
+			return -1;
+		}
+
+		$this->fk_user     = $fk_user;
+		$this->fk_project  = !empty($fk_project) ? $fk_project : null;
+		$this->fk_task     = !empty($fk_task) ? $fk_task : null;
+		$this->note        = $note;
+		$this->date_start  = dol_now();
+		$this->date_end    = null;
+		$this->duration    = 0;
+		$this->status      = self::STATUS_DRAFT;
+
+		return $this->create($user);
+	}
+
+	/**
+	 * Stop a running timer
+	 *
+	 * @param	int		$id		Id of the TimeEntry to stop
+	 * @param	User	$user	User performing the action
+	 * @return	int				>0 if OK, <0 if KO
+	 */
+	public function stopTimer($id, User $user)
+	{
+		if ($this->fetch($id) <= 0) {
+			$this->error = 'TimeEntry not found';
+			return -1;
+		}
+
+		if (!empty($this->date_end)) {
+			$this->error = 'This timer is already stopped';
+			return -1;
+		}
+
+		$this->date_end = dol_now();
+		$this->duration = $this->calculateDuration();
+
+		return $this->update($user);
+	}
+
+	/**
+	 * Compute duration in seconds from date_start/date_end
+	 *
+	 * @return	int		Duration in seconds, 0 if either date is missing
+	 */
+	public function calculateDuration()
+	{
+		if (empty($this->date_start) || empty($this->date_end)) {
+			return 0;
+		}
+		return (int) ($this->date_end - $this->date_start);
+	}
+
+	/**
+	 * Sum total duration for a user across a date range
+	 *
+	 * @param	DoliDB	$db			Database handler
+	 * @param	int		$fk_user	Id of user
+	 * @param	int		$dateStart	Start of range (timestamp)
+	 * @param	int		$dateEnd	End of range (timestamp)
+	 * @return	int					Total duration in seconds
+	 */
+	public static function getTotalDuration(DoliDB $db, $fk_user, $dateStart, $dateEnd)
+	{
+		$sql = "SELECT SUM(duration) as total FROM ".$db->prefix()."clockify_timeentry";
+		$sql .= " WHERE fk_user = ".((int) $fk_user);
+		$sql .= " AND date_start >= '".$db->idate($dateStart)."'";
+		$sql .= " AND date_start <= '".$db->idate($dateEnd)."'";
+
+		$resql = $db->query($sql);
+		if ($resql) {
+			$obj = $db->fetch_object($resql);
+			$db->free($resql);
+			return (int) $obj->total;
+		}
+		return 0;
 	}
 }
 
@@ -1277,123 +1252,4 @@ class TimeEntryLine extends CommonObjectLine
 	{
 		$this->db = $db;
 	}
-}
-
-
-
-/**
- * Check if a user currently has a timer running
- *
- * @param	int		$fk_user	Id of user to check
- * @return	int					Id of the active TimeEntry row, or 0 if none running
- */
-public function hasActiveTimer($fk_user)
-{
-    $sql = "SELECT rowid FROM ".$this->db->prefix().$this->table_element;
-    $sql .= " WHERE fk_user = ".((int) $fk_user);
-    $sql .= " AND date_end IS NULL";
-    $sql .= " AND entity IN (".getEntity($this->element).")";
-
-    $resql = $this->db->query($sql);
-    if ($resql && $this->db->num_rows($resql) > 0) {
-        $obj = $this->db->fetch_object($resql);
-        $this->db->free($resql);
-        return (int) $obj->rowid;
-    }
-    if ($resql) {
-        $this->db->free($resql);
-    }
-    return 0;
-}
-
-/**
- * Start a new timer for a user
- *
- * @param	int		$fk_user		Id of user the time belongs to
- * @param	int		$fk_project		Id of project (0/null if none)
- * @param	int		$fk_task		Id of task (0/null if none)
- * @param	string	$note			Free text note
- * @param	User	$user			User performing the action (for audit fields)
- * @return	int						New row id if OK, <0 if KO
- */
-public function startTimer($fk_user, $fk_project, $fk_task, $note, User $user)
-{
-    if ($this->hasActiveTimer($fk_user) > 0) {
-        $this->error = 'A timer is already running for this user';
-        return -1;
-    }
-
-    $this->fk_user     = $fk_user;
-    $this->fk_project  = !empty($fk_project) ? $fk_project : null;
-    $this->fk_task     = !empty($fk_task) ? $fk_task : null;
-    $this->note        = $note;
-    $this->date_start  = dol_now();
-    $this->date_end    = null;
-    $this->duration    = 0;
-    $this->status      = self::STATUS_DRAFT;
-
-    return $this->create($user);
-}
-
-/**
- * Stop a running timer
- *
- * @param	int		$id		Id of the TimeEntry to stop
- * @param	User	$user	User performing the action
- * @return	int				>0 if OK, <0 if KO
- */
-public function stopTimer($id, User $user)
-{
-    if ($this->fetch($id) <= 0) {
-        $this->error = 'TimeEntry not found';
-        return -1;
-    }
-
-    if (!empty($this->date_end)) {
-        $this->error = 'This timer is already stopped';
-        return -1;
-    }
-
-    $this->date_end = dol_now();
-    $this->duration = $this->calculateDuration();
-
-    return $this->update($user);
-}
-
-/**
- * Compute duration in seconds from date_start/date_end
- *
- * @return	int		Duration in seconds, 0 if either date is missing
- */
-public function calculateDuration()
-{
-    if (empty($this->date_start) || empty($this->date_end)) {
-        return 0;
-    }
-    return (int) ($this->date_end - $this->date_start);
-}
-
-/**
- * Sum total duration for a user across a date range
- *
- * @param	DoliDB	$db			Database handler
- * @param	int		$fk_user	Id of user
- * @param	int		$dateStart	Start of range (timestamp)
- * @param	int		$dateEnd	End of range (timestamp)
- * @return	int					Total duration in seconds
- */
-public static function getTotalDuration(DoliDB $db, $fk_user, $dateStart, $dateEnd)
-{
-    $sql = "SELECT SUM(duration) as total FROM ".$db->prefix()."clockify_timeentry";
-    $sql .= " WHERE fk_user = ".((int) $fk_user);
-    $sql .= " AND date_start >= '".$db->idate($dateStart)."'";
-    $sql .= " AND date_start <= '".$db->idate($dateEnd)."'";
-
-    $resql = $db->query($sql);
-    if ($resql) {
-        $obj = $db->fetch_object($resql);
-        $db->free($resql);
-        return (int) $obj->total;
-    }
-    return 0;
 }
