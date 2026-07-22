@@ -23,50 +23,13 @@ function formatEntryDate(value) {
 
 export default function TimeEntryList({ entries: initialEntries = [], setEntries: setParentEntries }) {
   const [entries, setEntries] = useState(initialEntries);
-  const [loading, setLoading] = useState(!initialEntries.length);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
     setEntries(initialEntries);
-    setLoading(!initialEntries.length);
   }, [initialEntries]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadEntries() {
-      setLoading(true);
-      setError('');
-
-      try {
-        const data = await getTimeEntries();
-        if (!isMounted) {
-          return;
-        }
-        const nextEntries = Array.isArray(data) ? data : [];
-        setEntries(nextEntries);
-        if (setParentEntries) {
-          setParentEntries(nextEntries);
-        }
-      } catch (err) {
-        if (!isMounted) {
-          return;
-        }
-        setError(err.message);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadEntries();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const handleDecision = async (entryId, nextStatus) => {
     setBusyId(entryId);
@@ -79,15 +42,14 @@ export default function TimeEntryList({ entries: initialEntries = [], setEntries
         await rejectTimeEntry(entryId);
       }
 
-      setEntries((currentEntries) => {
-        const nextEntries = currentEntries.map((entry) => (
-          entry.id === entryId ? { ...entry, status: nextStatus } : entry
-        ));
-        if (setParentEntries) {
-          setParentEntries(nextEntries);
-        }
-        return nextEntries;
-      });
+      const nextEntries = entries.map((entry) => (
+        entry.id === entryId ? { ...entry, status: nextStatus } : entry
+      ));
+
+      setEntries(nextEntries);
+      if (setParentEntries) {
+        setParentEntries(nextEntries);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
