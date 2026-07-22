@@ -201,6 +201,28 @@ if (empty($reshook)) {
 
 	$triggermodname = $object->TRIGGER_PREFIX.'_MODIFY'; // Name of trigger action code to execute when we modify record. Used in actions_addupdatedelete.inc.php
 
+	// Custom Timer Actions
+	if ($action == 'confirm_start_timer' && $permissiontoadd) {
+		$result = $object->startTimer($user->id, $object->fk_project, $object->fk_task, $object->note, $user);
+		if ($result > 0) {
+			header("Location: ".$_SERVER["PHP_SELF"]."?id=".$result);
+			exit;
+		} else {
+			setEventMessages($object->error, $object->errors, 'errors');
+		}
+	}
+
+	if ($action == 'confirm_stop_timer' && $permissiontoadd) {
+		$result = $object->stopTimer($object->id, $user);
+		if ($result > 0) {
+			setEventMessages($langs->trans("TimerStopped"), null, 'mesgs');
+			header("Location: ".$_SERVER["PHP_SELF"]."?id=".$object->id);
+			exit;
+		} else {
+			setEventMessages($object->error, $object->errors, 'errors');
+		}
+	}
+
 	// Actions cancel, add, update, update_extras, confirm_validate, confirm_delete, confirm_deleteline, confirm_clone, confirm_close, confirm_setdraft, confirm_reopen
 	include DOL_DOCUMENT_ROOT.'/core/actions_addupdatedelete.inc.php';
 
@@ -227,8 +249,8 @@ if (empty($reshook)) {
 	*/
 
 	// Actions to send emails
-	$triggersendname = 'CLOCKIFY_MYOBJECT_SENTBYMAIL';
-	$autocopy = 'MAIN_MAIL_AUTOCOPY_MYOBJECT_TO';
+	$triggersendname = 'CLOCKIFY_TIMEENTRY_SENTBYMAIL';
+	$autocopy = 'MAIN_MAIL_AUTOCOPY_TIMEENTRY_TO';
 	$trackid = 'timeentry'.$object->id;
 	include DOL_DOCUMENT_ROOT.'/core/actions_sendmails.inc.php';
 }
@@ -534,6 +556,16 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 		}
 
 		if (empty($reshook)) {
+			// Start Timer button (if creating/new or general context)
+			if (empty($object->id)) {
+				print dolGetButtonAction('', $langs->trans('StartTimer'), 'default', $_SERVER["PHP_SELF"].'?action=confirm_start_timer&token='.newToken(), '', $permissiontoadd);
+			}
+
+			// Stop Timer button (if timer is running: date_end is empty)
+			if ($object->id > 0 && empty($object->date_end)) {
+				print dolGetButtonAction('', $langs->trans('StopTimer'), 'delete', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=confirm_stop_timer&token='.newToken(), '', $permissiontoadd);
+			}
+
 			// Send
 			if (empty($user->socid)) {
 				print dolGetButtonAction('', $langs->trans('SendMail'), 'email', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=presend&token='.newToken().'&mode=init#formmailbeforetitle');
