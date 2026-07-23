@@ -128,25 +128,28 @@ class TimeEntry extends CommonObject
 	 * @inheritdoc
 	 * Array with all fields and their property. Do not use it as a static var. It may be modified by constructor.
 	 */
+
 	public $fields = array(
-		"rowid" => array("type" => "integer", "label" => "TechnicalID", "enabled" => "1", 'position' => 1, 'notnull' => 1, "visible" => "-2", "index" => "1", "comment" => "Id"),
-		"fk_user" => array("type" => "integer:User:user/class/user.class.php", "label" => "User", "enabled" => "1", 'position' => 10, 'notnull' => 1, "visible" => "1", "index" => "1",),
-		"fk_project" => array("type" => "integer:Project:projet/class/project.class.php", "label" => "Project", "enabled" => "1", 'position' => 15, 'notnull' => 0, "visible" => "1", "index" => "1",),
-		"fk_task" => array("type" => "integer:Task:projet/class/task.class.php", "label" => "Task", "enabled" => "1", 'position' => 20, 'notnull' => 0, "visible" => "1",),
-		"date_start" => array("type" => "datetime", "label" => "DateStart", "enabled" => "1", 'position' => 25, 'notnull' => 1, "visible" => "1",),
-		"date_end" => array("type" => "datetime", "label" => "DateEnd", "enabled" => "1", 'position' => 30, 'notnull' => 0, "visible" => "1",),
-		"duration" => array("type" => "integer", "label" => "Duration", "enabled" => "1", 'position' => 35, 'notnull' => 0, "visible" => "1",),
-		"note" => array("type" => "text", "label" => "Note", "enabled" => "1", 'position' => 40, 'notnull' => 0, "visible" => "1",),
-		"billable" => array("type" => "boolean", "label" => "Billable", "enabled" => "1", 'position' => 45, 'notnull' => 0, "visible" => "1",),
-		"status" => array("type" => "integer", "label" => "Status", "enabled" => "1", 'position' => 50, 'notnull' => 1, "visible" => "1", "arrayofkeyval" => array("0" => "Draft", "1" => "Submitted", "2" => "Validated", "3" => "Refused"),),
-		"fk_user_valid" => array("type" => "integer:User:user/class/user.class.php", "label" => "ValidatedBy", "enabled" => "1", 'position' => 55, 'notnull' => 0, "visible" => "1",),
-		"date_creation" => array("type" => "datetime", "label" => "DateCreation", "enabled" => "1", 'position' => 500, 'notnull' => 1, "visible" => "-2",),
-		"tms" => array("type" => "timestamp", "label" => "DateModification", "enabled" => "1", 'position' => 501, 'notnull' => 1, "visible" => "-2",),
-		"fk_user_creat" => array("type" => "integer:User:user/class/user.class.php", "label" => "UserAuthor", "enabled" => "1", 'position' => 510, 'notnull' => 1, "visible" => "-2",),
-		"fk_user_modif" => array("type" => "integer:User:user/class/user.class.php", "label" => "UserModif", "enabled" => "1", 'position' => 511, 'notnull' => 0, "visible" => "-2",),
-		"import_key" => array("type" => "varchar(14)", "label" => "ImportId", "enabled" => "1", 'position' => 1000, 'notnull' => 0, "visible" => "-2",),
-	);
+    'rowid' => array('type'=>'integer', 'label'=>'TechnicalID', 'enabled'=>1, 'visible'=>-2, 'notnull'=>1, 'position'=>1, 'index'=>1, 'comment'=>'Id'),
+    'entity' => array('type'=>'integer', 'label'=>'Entity', 'enabled'=>1, 'visible'=>0, 'notnull'=>1, 'default'=>1, 'position'=>5, 'index'=>1),
+    'fk_user' => array('type'=>'integer:User:user/class/user.class.php', 'label'=>'User', 'enabled'=>1, 'visible'=>1, 'notnull'=>1, 'position'=>10, 'index'=>1),
+    'fk_project' => array('type'=>'integer:Project:projet/class/project.class.php', 'label'=>'Project', 'enabled'=>1, 'visible'=>1, 'position'=>15, 'index'=>1),
+    'fk_task' => array('type'=>'integer:Task:projet/class/task.class.php', 'label'=>'Task', 'enabled'=>1, 'visible'=>1, 'position'=>20),
+    'date_start' => array('type'=>'datetime', 'label'=>'DateStart', 'enabled'=>1, 'visible'=>1, 'notnull'=>1, 'position'=>25),
+    'date_end' => array('type'=>'datetime', 'label'=>'DateEnd', 'enabled'=>1, 'visible'=>1, 'position'=>30),
+    'duration' => array('type'=>'integer', 'label'=>'Duration', 'enabled'=>1, 'visible'=>1, 'default'=>0, 'position'=>35),
+    'note' => array('type'=>'text', 'label'=>'Note', 'enabled'=>1, 'visible'=>1, 'position'=>40),
+    'billable' => array('type'=>'boolean', 'label'=>'Billable', 'enabled'=>1, 'visible'=>1, 'default'=>0, 'position'=>45),
+    'status' => array('type'=>'integer', 'label'=>'Status', 'enabled'=>1, 'visible'=>1, 'notnull'=>1, 'default'=>0, 'position'=>50, 'arrayofkeyval'=>array(0=>'Draft', 1=>'Submitted', 2=>'Validated', 3=>'Refused')),
+    'fk_user_valid' => array('type'=>'integer:User:user/class/user.class.php', 'label'=>'ValidatedBy', 'enabled'=>1, 'visible'=>1, 'position'=>55),
+    'date_creation' => array('type'=>'datetime', 'label'=>'DateCreation', 'enabled'=>1, 'visible'=>-2, 'notnull'=>1, 'position'=>500),
+    'tms' => array('type'=>'timestamp', 'label'=>'DateModification', 'enabled'=>1, 'visible'=>-2, 'notnull'=>1, 'position'=>501),
+    'fk_user_creat' => array('type'=>'integer:User:user/class/user.class.php', 'label'=>'UserAuthor', 'enabled'=>1, 'visible'=>-2, 'notnull'=>1, 'position'=>510),
+    'fk_user_modif' => array('type'=>'integer:User:user/class/user.class.php', 'label'=>'UserModif', 'enabled'=>1, 'visible'=>-2, 'position'=>511),
+    'import_key' => array('type'=>'varchar(14)', 'label'=>'ImportId', 'enabled'=>1, 'visible'=>-2, 'position'=>1000),
+);
 	public $rowid;
+	public $entity;
 	public $fk_user;
 	public $fk_project;
 	public $fk_task;
