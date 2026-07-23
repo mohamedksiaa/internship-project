@@ -300,27 +300,25 @@ class modClockify extends DolibarrModules
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'read';
 		$r++;
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 0 + 1);
+		$this->rights[$r][1] = 'Read all TimeEntry objects (all users) of Clockify';
+		$this->rights[$r][4] = 'timeentry';
+		$this->rights[$r][5] = 'readall';
+		$r++;
 		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 1 + 1);
 		$this->rights[$r][1] = 'Create/Update TimeEntry object of Clockify';
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'write';
 		$r++;
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 1 + 1);
+		$this->rights[$r][1] = 'Validate TimeEntry of Clockify';
+		$this->rights[$r][4] = 'timeentry';
+		$this->rights[$r][5] = 'validate';
+		$r++;
 		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 2 + 1);
 		$this->rights[$r][1] = 'Delete TimeEntry object of Clockify';
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'delete';
-		$r++;
-		$this->rights[$r][0] = 50000004;
-		$this->rights[$r][1] = 'Read all TimeEntry objects (all users) of Clockify';
-		$this->rights[$r][3] = 0;
-		$this->rights[$r][4] = 'timeentry';
-		$this->rights[$r][5] = 'readall';
-		$r++;
-		$this->rights[$r][0] = 50000005;
-		$this->rights[$r][1] = 'Validate TimeEntry of Clockify';
-		$this->rights[$r][3] = 0;
-		$this->rights[$r][4] = 'timeentry';
-		$this->rights[$r][5] = 'validate';
 		$r++;
 
 		/* END MODULEBUILDER PERMISSIONS */
@@ -348,23 +346,24 @@ class modClockify extends DolibarrModules
 		);
 		/* END MODULEBUILDER TOPMENU */
 
-		/* BEGIN MODULEBUILDER LEFTMENU TIMEENTRY */
+				/* BEGIN MODULEBUILDER LEFTMENU TIMEENTRY */
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=clockify',
 			'type' => 'left',
 			'titre' => 'TimeEntry',
-			'prefix' => img_picto('', $this->picto, 'class="paddingright pictofixedwidth valignmiddle"'),
 			'mainmenu' => 'clockify',
 			'leftmenu' => 'timeentry',
 			'url' => '/clockify/timeentry_list.php',
 			'langs' => 'clockify@clockify',
-			'position' => 1000 + $r,
-			'enabled' => 'isModEnabled("clockify")',
-			'perms' => '$user->hasRight("clockify", "timeentry", "read")',
+			'position' => 1000,
+			'enabled' => 'isModEnabled(\'clockify\')',
+			'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'read\')',
 			'target' => '',
 			'user' => 2,
-			'object' => 'TimeEntry'
+			'object' => 'TimeEntry',
 		);
+		/* END MODULEBUILDER LEFTMENU TIMEENTRY */
+		/* BEGIN MODULEBUILDER LEFTMENU TIMEENTRY */
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=clockify,fk_leftmenu=timeentry',
 			'type' => 'left',
@@ -373,13 +372,15 @@ class modClockify extends DolibarrModules
 			'leftmenu' => 'clockify_timeentry_list',
 			'url' => '/clockify/timeentry_list.php',
 			'langs' => 'clockify@clockify',
-			'position' => 1000 + $r,
-			'enabled' => 'isModEnabled("clockify")',
-			'perms' => '$user->hasRight("clockify", "timeentry", "read")',
+			'position' => 1000,
+			'enabled' => 'isModEnabled(\'clockify\')',
+			'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'read\')',
 			'target' => '',
 			'user' => 2,
-			'object' => 'TimeEntry'
+			'object' => 'TimeEntry',
 		);
+		/* END MODULEBUILDER LEFTMENU TIMEENTRY */
+		/* BEGIN MODULEBUILDER LEFTMENU TIMEENTRY */
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=clockify,fk_leftmenu=timeentry',
 			'type' => 'left',
@@ -388,14 +389,15 @@ class modClockify extends DolibarrModules
 			'leftmenu' => 'clockify_timeentry_new',
 			'url' => '/clockify/timeentry_card.php?action=create',
 			'langs' => 'clockify@clockify',
-			'position' => 1000 + $r,
-			'enabled' => 'isModEnabled("clockify")',
-			'perms' => '$user->hasRight("clockify", "timeentry", "write")',
+			'position' => 1000,
+			'enabled' => 'isModEnabled(\'clockify\')',
+			'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'write\')',
 			'target' => '',
 			'user' => 2,
-			'object' => 'TimeEntry'
+			'object' => 'TimeEntry',
 		);
 		/* END MODULEBUILDER LEFTMENU TIMEENTRY */
+
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */
 		/*
 		$this->menu[$r++]=array(

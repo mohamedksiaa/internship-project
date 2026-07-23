@@ -310,6 +310,18 @@ class modClockify extends DolibarrModules
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'delete';
 		$r++;
+		$this->rights[$r][0] = 50000004;
+		$this->rights[$r][1] = 'Read all TimeEntry objects (all users) of Clockify';
+		$this->rights[$r][3] = 0;
+		$this->rights[$r][4] = 'timeentry';
+		$this->rights[$r][5] = 'readall';
+		$r++;
+		$this->rights[$r][0] = 50000005;
+		$this->rights[$r][1] = 'Validate TimeEntry of Clockify';
+		$this->rights[$r][3] = 0;
+		$this->rights[$r][4] = 'timeentry';
+		$this->rights[$r][5] = 'validate';
+		$r++;
 
 		/* END MODULEBUILDER PERMISSIONS */
 
