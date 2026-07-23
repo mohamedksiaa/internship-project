@@ -109,6 +109,7 @@ class modClockify extends DolibarrModules
 			'printing' => 0,
 			// Set this to 1 if module has its own theme directory (theme)
 			'theme' => 0,
+		    'api' => 1, // <--- TRÈS IMPORTANT : permet à Dolibarr d'inclure api_clockify.class.php
 			// Set this to relative path of css file if module has its own css file
 			'css' => array(
 				//    '/clockify/css/clockify.css.php',
