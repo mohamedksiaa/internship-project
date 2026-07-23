@@ -2,7 +2,6 @@
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api/index.php';
 const API_MODE = import.meta.env.VITE_API_MODE || 'mock';
-const API_KEY = import.meta.env.VITE_API_KEY || '';
 
 let mockActiveTimer = null;
 const mockEntries = [
@@ -38,10 +37,6 @@ function getApiHeaders() {
   const headers = {
     Accept: 'application/json',
   };
-
-  if (API_KEY) {
-    headers.DOLAPIKEY = API_KEY;
-  }
 
   if (API_MODE !== 'mock') {
     headers['Content-Type'] = 'application/json';
