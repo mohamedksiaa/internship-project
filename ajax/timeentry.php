@@ -1,104 +1,86 @@
 <?php
-/* Copyright (C) 2022       Laurent Destailleur     <eldy@users.sourceforge.net>
- * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
- * Copyright (C) 2026		SuperAdmin
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- */
+/* Copyright (C) 2026 SuperAdmin - AJAX Endpoint */
 
-/**
- *       \file       htdocs/clockify/ajax/timeentry.php
- *       \brief      File to return Ajax response on timeentry list request
- */
-
-if (!defined('NOTOKENRENEWAL')) {
-	define('NOTOKENRENEWAL', 1); // Disables token renewal
-}
-if (!defined('NOREQUIREMENU')) {
-	define('NOREQUIREMENU', '1');
-}
-if (!defined('NOREQUIREHTML')) {
-	define('NOREQUIREHTML', '1');
-}
-if (!defined('NOREQUIREAJAX')) {
-	define('NOREQUIREAJAX', '1');
-}
-if (!defined('NOREQUIRESOC')) {
-	define('NOREQUIRESOC', '1');
-}
 if (!defined('NOCSRFCHECK')) {
-	define('NOCSRFCHECK', '1');
+    define('NOCSRFCHECK', '1');
 }
-if (!defined('NOREQUIREHTML')) {
-	define('NOREQUIREHTML', '1');
+if (!defined('NOTOKENRENEWAL')) {
+    define('NOTOKENRENEWAL', '1');
 }
 
-// Load Dolibarr environment
+// Inclusion de l'environnement Dolibarr
 $res = 0;
 if (!$res && file_exists("../../main.inc.php")) {
-	$res = @include "../../main.inc.php";
+    $res = @include "../../main.inc.php";
 }
 if (!$res && file_exists("../../../main.inc.php")) {
-	$res = @include "../../../main.inc.php";
+    $res = @include "../../../main.inc.php";
 }
 if (!$res) {
-	die("Include of main fails");
-}
-dol_include_once('/clockify/class/timeentry.class.php');
-
-/**
- * @var Conf $conf
- * @var DoliDB $db
- * @var HookManager $hookmanager
- * @var Translate $langs
- * @var User $user
- */
-
-$mode = GETPOST('mode', 'aZ09');
-$objectId = GETPOSTINT('objectId');
-$field = GETPOST('field', 'aZ09');
-$value = GETPOST('value', 'aZ09');
-
-// @phan-suppress-next-line PhanUndeclaredClass
-$object = new TimeEntry($db);
-
-// Security check
-if (!$user->hasRight('clockify', 'timeentry', 'write')) {
-	accessforbidden();
+    die("Include of main.inc.php failed");
 }
 
-/*
- * View
- */
+require_once DOL_DOCUMENT_ROOT.'/custom/clockify/class/timeentry.class.php';
 
-dol_syslog("Call ajax clockify/ajax/timeentry.php");
+top_httphead('application/json');
 
-top_httphead();
-
-// Update the object field with the new value
-if ($objectId && $field && isset($value)) {
-	$object->fetch($objectId);
-	if ($object->id > 0) {
-		$object->$field = $value;
-	}
-	$result = $object->update($user);
-
-	if ($result < 0) {
-		print json_encode(['status' => 'error', 'message' => 'Error updating '. $field]);
-	} else {
-		print json_encode(['status' => 'success', 'message' => $field . ' updated successfully']);
-	}
+// Vérification authentification
+if (empty($user->id)) {
+    http_response_code(401);
+    echo json_encode(array('error' => 'Non autorisé'));
+    exit;
 }
 
-$db->close();
+$action = GETPOST('action', 'aZ09');
+$timeentry = new TimeEntry($db);
+
+// Gestion des requêtes POST JSON
+$postData = json_decode(file_get_contents('php://input'), true);
+if (is_array($postData)) {
+    if (!empty($postData['action'])) {
+        $action = $postData['action'];
+    }
+}
+
+switch ($action) {
+    case 'getActiveTimer':
+        $id = $timeentry->hasActiveTimer($user->id);
+        if ($id > 0) {
+            $timeentry->fetch($id);
+            echo json_encode(array('status' => 'success', 'data' => $timeentry));
+        } else {
+            echo json_encode(array('status' => 'success', 'data' => null));
+        }
+        break;
+
+    case 'startTimer':
+        $fk_project = !empty($postData['fk_project']) ? (int)$postData['fk_project'] : (int)GETPOST('fk_project', 'int');
+        $fk_task = !empty($postData['fk_task']) ? (int)$postData['fk_task'] : (int)GETPOST('fk_task', 'int');
+        $note = !empty($postData['note']) ? $postData['note'] : GETPOST('note', 'restricthtml');
+
+        $id = $timeentry->startTimer($user->id, $fk_project, $fk_task, $note, $user);
+        if ($id > 0) {
+            $timeentry->fetch($id);
+            echo json_encode(array('status' => 'success', 'data' => $timeentry));
+        } else {
+            http_response_code(400);
+            echo json_encode(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur au démarrage'));
+        }
+        break;
+
+    case 'stopTimer':
+        $id = !empty($postData['id']) ? (int)$postData['id'] : (int)GETPOST('id', 'int');
+        $res = $timeentry->stopTimer($id, $user);
+        if ($res > 0) {
+            echo json_encode(array('status' => 'success', 'data' => $timeentry));
+        } else {
+            http_response_code(400);
+            echo json_encode(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à l\'arrêt'));
+        }
+        break;
+
+    default:
+        http_response_code(404);
+        echo json_encode(array('error' => 'Action non reconnue'));
+        break;
+}

@@ -14,6 +14,10 @@
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 -- BEGIN MODULEBUILDER INDEXES
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_rowid (rowid);
+<<<<<<< HEAD
+=======
+ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_entity (entity);
+>>>>>>> 645ef6a7af5eadb86bb759a83254c9156ce8a74e
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_user (fk_user);
 ALTER TABLE llx_clockify_timeentry ADD INDEX idx_clockify_timeentry_fk_project (fk_project);
 -- END MODULEBUILDER INDEXES

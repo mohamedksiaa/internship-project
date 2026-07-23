@@ -1,30 +1,25 @@
-/**
- * Application principale Clockify
- */
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import AppLayout from './components/templates/AppLayout';
+import DashboardPage from './pages/DashboardPage';
+import TimerPage from './pages/TimerPage';
+import HistoryPage from './pages/HistoryPage';
+import ReportsPage from './pages/ReportsPage';
+import ValidationPage from './pages/ValidationPage';
 
-import React from 'react';
-import { TimerProvider } from './context/timerContext';
-import TimeTrackerPage from './pages/timeTrackerPage';
-import './App.css';
-
-function App() {
+export default function App() {
   return (
-    <TimerProvider>
-      <div className="app">
-        <header className="app__header">
-          <h1>⏱️ Clockify - Time Tracking</h1>
-        </header>
-        
-        <main className="app__main">
-          <TimeTrackerPage />
-        </main>
-        
-        <footer className="app__footer">
-          <p>Module Clockify pour Dolibarr v22</p>
-        </footer>
-      </div>
-    </TimerProvider>
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<AppLayout />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="timer" element={<TimerPage />} />
+          <Route path="history" element={<HistoryPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="validation" element={<ValidationPage />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Route>
+      </Routes>
+    </HashRouter>
   );
 }
-
-export default App;
