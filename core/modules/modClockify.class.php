@@ -329,74 +329,66 @@ class modClockify extends DolibarrModules
 		$this->menu = array();
 		$r = 0;
 		// Add here entries to declare new menus
+		$this->menu = array();
+        $r = 0;
+        // Add here entries to declare new menus
 		/* BEGIN MODULEBUILDER TOPMENU */
-		$this->menu[$r++] = array(
-			'fk_menu' => '', // Will be stored into mainmenu + leftmenu. Use '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
-			'type' => 'top', // This is a Top menu entry
-			'titre' => 'ModuleClockifyName',
-			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle"'),
-			'mainmenu' => 'clockify',
-			'leftmenu' => '',
-			'url' => '/clockify/clockifyindex.php',
-			'langs' => 'clockify@clockify', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-			'position' => 1000 + $r,
-			'enabled' => "isModEnabled('clockify')", // Define condition to show or hide menu entry. Use "isModEnabled('clockify')" if entry must be visible if module is enabled (those quote marks are importants).
-			'perms' => '1', // Use 'perms'=>'$user->hasRight("clockify", "timeentry", "read")' if you want your menu with a permission rules
-			'target' => '',
-			'user' => 2, // 0=Menu for internal users, 1=external users, 2=both
-		);
-		/* END MODULEBUILDER TOPMENU */
+        $this->menu[$r++] = array(
+            'fk_menu' => '',
+            'type' => 'top',
+            'titre' => 'ModuleClockifyName',
+            'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle"'),
+            'mainmenu' => 'clockify',
+            'leftmenu' => '',
+            'url' => '/clockify/clockifyindex.php',
+            'langs' => 'clockify@clockify',
+            'position' => 1000 + $r,
+            'enabled' => "isModEnabled('clockify')",
+            'perms' => '1',
+            'target' => '',
+            'user' => 2,
+        );
+        /* END MODULEBUILDER TOPMENU */
 
-				/* BEGIN MODULEBUILDER LEFTMENU TIMEENTRY */
-		$this->menu[$r++] = array(
-			'fk_menu' => 'fk_mainmenu=clockify',
-			'type' => 'left',
-			'titre' => 'TimeEntry',
-			'mainmenu' => 'clockify',
-			'leftmenu' => 'timeentry',
-			'url' => '/clockify/timeentry_list.php',
-			'langs' => 'clockify@clockify',
-			'position' => 1000,
-			'enabled' => 'isModEnabled(\'clockify\')',
-			'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'read\')',
-			'target' => '',
-			'user' => 2,
-			'object' => 'TimeEntry',
-		);
-		/* END MODULEBUILDER LEFTMENU TIMEENTRY */
-		/* BEGIN MODULEBUILDER LEFTMENU TIMEENTRY */
-		$this->menu[$r++] = array(
-			'fk_menu' => 'fk_mainmenu=clockify,fk_leftmenu=timeentry',
-			'type' => 'left',
-			'titre' => 'List TimeEntry',
-			'mainmenu' => 'clockify',
-			'leftmenu' => 'clockify_timeentry_list',
-			'url' => '/clockify/timeentry_list.php',
-			'langs' => 'clockify@clockify',
-			'position' => 1000,
-			'enabled' => 'isModEnabled(\'clockify\')',
-			'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'read\')',
-			'target' => '',
-			'user' => 2,
-			'object' => 'TimeEntry',
-		);
-		/* END MODULEBUILDER LEFTMENU TIMEENTRY */
-		/* BEGIN MODULEBUILDER LEFTMENU TIMEENTRY */
-		$this->menu[$r++] = array(
-			'fk_menu' => 'fk_mainmenu=clockify,fk_leftmenu=timeentry',
-			'type' => 'left',
-			'titre' => 'New TimeEntry',
-			'mainmenu' => 'clockify',
-			'leftmenu' => 'clockify_timeentry_new',
-			'url' => '/clockify/timeentry_card.php?action=create',
-			'langs' => 'clockify@clockify',
-			'position' => 1000,
-			'enabled' => 'isModEnabled(\'clockify\')',
-			'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'write\')',
-			'target' => '',
-			'user' => 2,
-			'object' => 'TimeEntry',
-		);
+        /* BEGIN MODULEBUILDER LEFTMENU TIMEENTRY */
+        $this->menu[$r++] = array(
+            'fk_menu' => 'fk_mainmenu=clockify',
+            'type' => 'left',
+            'titre' => 'TimeEntry',
+            'mainmenu' => 'clockify',
+            'leftmenu' => 'timeentry',
+            'url' => '/clockify/timeentry_list.php',
+            'langs' => 'clockify@clockify',
+            'position' => 1000,
+            'enabled' => 'isModEnabled(\'clockify\')',
+            'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'read\')',
+            'target' => '',
+            'user' => 2,
+            'object' => 'TimeEntry',
+        );
+        /* END MODULEBUILDER LEFTMENU TIMEENTRY */
+
+        /* BEGIN MODULEBUILDER LEFTMENU LIST TIMEENTRY */
+        // Removed duplicate menu entry. TimeEntry list is already defined by the parent left menu.
+        /* END MODULEBUILDER LEFTMENU LIST TIMEENTRY */
+
+        /* BEGIN MODULEBUILDER LEFTMENU NEW TIMEENTRY */
+        $this->menu[$r++] = array(
+            'fk_menu' => 'fk_mainmenu=clockify,fk_leftmenu=timeentry',
+            'type' => 'left',
+            'titre' => 'New TimeEntry',
+            'mainmenu' => 'clockify',
+            'leftmenu' => 'clockify_timeentry_new',
+            'url' => '/clockify/timeentry_card.php?action=create',
+            'langs' => 'clockify@clockify',
+            'position' => 1000,
+            'enabled' => 'isModEnabled(\'clockify\')',
+            'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'write\')',
+            'target' => '',
+            'user' => 2,
+            'object' => '',
+        );
+        /* END MODULEBUILDER LEFTMENU NEW TIMEENTRY */
 		/* END MODULEBUILDER LEFTMENU TIMEENTRY */
 
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */
