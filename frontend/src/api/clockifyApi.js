@@ -1,6 +1,9 @@
 // frontend/src/api/clockifyApi.js
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || ((typeof window !== 'undefined' && window.DOL_URL_ROOT) ? `${window.DOL_URL_ROOT.replace(/\/$/, '')}/api/index.php` : '/api/index.php');
+const MODULE_AJAX_URL = (typeof window !== 'undefined' && window.DOL_URL_ROOT)
+  ? `${window.DOL_URL_ROOT.replace(/\/$/, '')}/custom/clockify/ajax/timeentry.php`
+  : '/custom/clockify/ajax/timeentry.php';
 const API_MODE = import.meta.env.VITE_API_MODE || 'real';
 
 let mockActiveTimer = null;
@@ -104,12 +107,33 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     throw new Error(`Erreur API (${response.status}): ${await readApiError(response)}`);
   }
 
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    return response.json();
+  const responseText = await response.text();
+  if (!responseText) return null;
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    return responseText;
   }
+}
 
-  return null;
+async function moduleTimerRequest(action, body = null) {
+  const response = await fetch(`${MODULE_AJAX_URL}?action=${encodeURIComponent(action)}`, {
+    method: 'POST',
+    headers: getApiHeaders(body),
+    credentials: 'include',
+    body: body ? JSON.stringify(body) : null,
+  });
+  const responseText = await response.text();
+  let data = null;
+  try {
+    data = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    throw new Error(responseText || 'Réponse invalide du serveur.');
+  }
+  if (!response.ok || data?.status === 'error') {
+    throw new Error(data?.message || data?.error || `Erreur du chrono (${response.status})`);
+  }
+  return data;
 }
 
 function buildDolibarrApiUrl(endpoint, base = DEFAULT_BASE_URL) {
@@ -140,12 +164,13 @@ async function dolibarrRequest(endpoint, method = 'GET', body = null) {
     throw new Error(`Erreur API (${response.status}): ${await readApiError(response)}`);
   }
 
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    return response.json();
+  const responseText = await response.text();
+  if (!responseText) return null;
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    return responseText;
   }
-
-  return null;
 }
 
 function handleMockDolibarrRequest(endpoint, method, body) {
@@ -225,19 +250,25 @@ export async function getActiveTimer() {
 }
 
 export async function startTimer(fkProject, fkTask = 0, note = '') {
-  const data = await apiRequest('/start', 'POST', {
+  const data = await moduleTimerRequest('startTimer', {
     fk_project: fkProject,
     fk_task: fkTask,
     note,
   });
 
-  return normalizeEntry(
-    typeof data === 'number' ? { id: data } : data
-  );
+  // Support both the current API response ({ id }) and older Dolibarr AJAX
+  // responses ({ status, data }) while installations update their cache.
+  const payload = data?.data ?? data;
+  const numericId = typeof payload === 'number' || (typeof payload === 'string' && /^\d+$/.test(payload.trim()));
+  const entry = normalizeEntry(numericId ? { id: Number(payload) } : payload);
+  if (!entry?.id) {
+    throw new Error('Le serveur n’a pas renvoyé l’identifiant du chrono créé.');
+  }
+  return entry;
 }
 
 export async function stopTimer(id) {
-  const data = await apiRequest('/stop', 'POST', { id });
+  const data = await moduleTimerRequest('stopTimer', { id });
   return normalizeEntry(data);
 }
 
@@ -256,13 +287,16 @@ export async function rejectTimeEntry(id) {
   return normalizeEntry(data);
 }
 
-export async function getProjects(limit = 10) {
+export async function getProjects(limit = 0) {
   const data = await dolibarrRequest(`/projects?limit=${limit}`, 'GET');
   return normalizeProjects(data);
 }
 
-export async function getTasks(limit = 20) {
-  const data = await dolibarrRequest(`/tasks?limit=${limit}`, 'GET');
+export async function getTasks(projectId = 0, limit = 100) {
+  const projectFilter = Number(projectId) > 0
+    ? `&sqlfilters=${encodeURIComponent(`(t.fk_projet:=:${Number(projectId)})`)}`
+    : '';
+  const data = await dolibarrRequest(`/tasks?limit=${limit}${projectFilter}`, 'GET');
   return normalizeTasks(data);
 }
 
