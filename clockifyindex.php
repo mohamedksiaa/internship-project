@@ -109,7 +109,6 @@ if (!empty($user->socid) && $user->socid > 0) {
 
 // None
 
-
 /*
  * View
  */
@@ -117,12 +116,41 @@ if (!empty($user->socid) && $user->socid > 0) {
 $form = new Form($db);
 $formfile = new FormFile($db);
 
-llxHeader("", $langs->trans("ClockifyArea"), '', '', 0, 0, '', '', '', 'mod-clockify page-index');
+$distDir = __DIR__.'/frontend/dist';
+$distIndex = $distDir.'/index.html';
+$cssUrl = '';
+$jsUrl = '';
+if (file_exists($distIndex)) {
+	$distHtml = file_get_contents($distIndex);
+	if (preg_match('/<link[^>]+href="([^"]+)"[^>]*rel="stylesheet"/i', $distHtml, $matches)) {
+		$cssPath = $matches[1];
+		$cssPath = preg_replace('/^\.\//', '', $cssPath);
+		$cssUrl = dol_buildpath('/custom/clockify/frontend/dist/'.$cssPath, 1);
+	}
+	if (preg_match('/<script[^>]+src="([^"]+)"/i', $distHtml, $matches)) {
+		$jsPath = $matches[1];
+		$jsPath = preg_replace('/^\.\//', '', $jsPath);
+		$jsUrl = dol_buildpath('/custom/clockify/frontend/dist/'.$jsPath, 1);
+	}
+}
+
+$morecss = array();
+if ($cssUrl) {
+	$morecss[] = $cssUrl;
+}
+
+llxHeader("", $langs->trans("ClockifyArea"), '', '', 0, 0, '', $morecss, '', 'mod-clockify page-index');
 
 print load_fiche_titre($langs->trans("ClockifyArea"), '', 'clockify.png@clockify');
-
-print '<div class="fichecenter"><div class="fichethirdleft">';
-
+print '<div class="fichecenter"><div class="fichethirdleft"></div><div class="fichetwothirdright">';
+print '<div id="root" style="min-height:600px;"></div>';
+print '<script>window.DOL_URL_ROOT = "'.addslashes(DOL_URL_ROOT).'";</script>';
+if ($jsUrl) {
+	print '<script type="module" crossorigin src="'.$jsUrl.'" defer></script>';
+}
+print '</div></div>';
+llxFooter();
+exit;
 
 /* BEGIN MODULEBUILDER DRAFT MYOBJECT
 // Draft MyObject

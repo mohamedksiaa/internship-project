@@ -2,6 +2,8 @@ import TimerWidget from '../components/organisms/TimerWidget';
 import { useEffect, useState } from 'react';
 import { normalizeProjects, normalizeTasks } from '../api/clockifyApi';
 
+const DOL_API_BASE = (typeof window !== 'undefined' && window.DOL_URL_ROOT) ? `${window.DOL_URL_ROOT.replace(/\/$/, '')}/api/index.php` : '/api/index.php';
+
 const fallbackProjects = [
   { id: 1, title: 'Projet Alpha' },
   { id: 2, title: 'Projet Beta' },
@@ -17,7 +19,7 @@ export default function TimerPage() {
 
     async function loadProjects() {
       try {
-        const projectResponse = await fetch('/api/index.php/projects?limit=10', {
+        const projectResponse = await fetch(`${DOL_API_BASE}/projects?limit=10`, {
           credentials: 'include',
         });
 
@@ -45,7 +47,7 @@ export default function TimerPage() {
 
     async function loadTasks() {
       try {
-        const taskResponse = await fetch('/api/index.php/tasks?limit=20', {
+        const taskResponse = await fetch(`${DOL_API_BASE}/tasks?limit=20`, {
           credentials: 'include',
         });
 

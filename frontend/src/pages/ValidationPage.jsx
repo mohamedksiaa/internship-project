@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import TimeEntryList from '../components/organisms/TimeEntryList';
 
+const DOL_API_BASE = (typeof window !== 'undefined' && window.DOL_URL_ROOT) ? `${window.DOL_URL_ROOT.replace(/\/$/, '')}/api/index.php` : '/api/index.php';
+
 export default function ValidationPage() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,7 +13,7 @@ export default function ValidationPage() {
 
     async function loadEntries() {
       try {
-        const response = await fetch('/api/index.php/clockify/timeentrys', {
+        const response = await fetch(`${DOL_API_BASE}/clockify/timeentrys`, {
           credentials: 'include',
         });
 

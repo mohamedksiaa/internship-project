@@ -4,6 +4,8 @@ import TimeEntryList from '../components/organisms/TimeEntryList';
 import { useEffect, useState } from 'react';
 import { normalizeProjects, normalizeTasks } from '../api/clockifyApi';
 
+const DOL_API_BASE = (typeof window !== 'undefined' && window.DOL_URL_ROOT) ? `${window.DOL_URL_ROOT.replace(/\/$/, '')}/api/index.php` : '/api/index.php';
+
 const fallbackProjects = [
   { id: 1, title: 'Projet Alpha' },
   { id: 2, title: 'Projet Beta' },
@@ -20,7 +22,7 @@ export default function DashboardPage() {
 
     async function loadProjects() {
       try {
-        const projectResponse = await fetch('/api/index.php/projects?limit=10', {
+        const projectResponse = await fetch(`${DOL_API_BASE}/projects?limit=10`, {
           credentials: 'include',
         });
 
@@ -48,7 +50,7 @@ export default function DashboardPage() {
 
     async function loadTasks() {
       try {
-        const taskResponse = await fetch('/api/index.php/tasks?limit=20', {
+        const taskResponse = await fetch(`${DOL_API_BASE}/tasks?limit=20`, {
           credentials: 'include',
         });
 
@@ -69,7 +71,7 @@ export default function DashboardPage() {
 
     async function loadEntries() {
       try {
-        const response = await fetch('/api/index.php/clockify/timeentrys', {
+        const response = await fetch(`${DOL_API_BASE}/clockify/timeentrys`, {
           credentials: 'include',
         });
 

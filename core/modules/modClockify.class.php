@@ -357,7 +357,7 @@ class modClockify extends DolibarrModules
             'titre' => 'TimeEntry',
             'mainmenu' => 'clockify',
             'leftmenu' => 'timeentry',
-            'url' => '/clockify/timeentry_list.php',
+            'url' => '/clockify/clockifyindex.php',
             'langs' => 'clockify@clockify',
             'position' => 1000,
             'enabled' => 'isModEnabled(\'clockify\')',
