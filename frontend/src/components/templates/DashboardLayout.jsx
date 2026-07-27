@@ -1,41 +1,16 @@
 import { useMemo } from 'react';
 import { formatDuration, summarizeWeek } from '../../utils/FormatDuration';
-import StatCard from '../molecules/StatCard';
 
 export default function DashboardLayout({ timer, entryList, stats = [] }) {
   const summary = useMemo(() => summarizeWeek(stats), [stats]);
-
   return (
-    <div className="w-full max-w-none p-6 space-y-6">
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
-        <StatCard
-          label="Temps semaine"
-          value={formatDuration(summary.totalSeconds)}
-          description={`${summary.entryCount} entrées`}
-        />
-        <StatCard
-          label="Entrées"
-          value={summary.entryCount}
-          description="Total enregistré"
-        />
-        <StatCard
-          label="Validées"
-          value={summary.validatedCount}
-          description="Entrées prêtes"
-          accent="green"
-        />
-        <StatCard
-          label="En attente"
-          value={summary.pendingCount}
-          description="Entrées à valider"
-          accent="amber"
-        />
+    <div className="mx-auto max-w-[1680px] p-5 lg:p-7">
+      <div className="mb-12">{timer}</div>
+      <div className="mb-4 flex items-center justify-between text-sm text-[#263746]">
+        <span className="font-medium">Cette semaine</span>
+        <span className="text-[#8a9ba6]">Total de la semaine:&nbsp;&nbsp;<strong className="text-base text-[#263746]">{formatDuration(summary.totalSeconds)}</strong></span>
       </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_1fr]">
-        <div className="space-y-6">{timer}</div>
-        <div className="space-y-6">{entryList}</div>
-      </div>
+      {entryList}
     </div>
   );
 }
