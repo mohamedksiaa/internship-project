@@ -141,7 +141,7 @@ if ($cssUrl) {
 
 llxHeader($headHtml, $langs->trans("ClockifyArea"), '', '', 0, 0, '', '', '', 'mod-clockify page-index');
 
-print load_fiche_titre($langs->trans("ClockifyArea"), '', 'clockify.png@clockify');
+print load_fiche_titre($langs->trans("ClockifyArea"), '');
 print '<div class="fichecenter">';
 print '<div id="root" style="min-height:600px;"></div>';
 print '<script>window.DOL_URL_ROOT = "'.addslashes(DOL_URL_ROOT).'";</script>';

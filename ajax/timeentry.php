@@ -60,8 +60,9 @@ switch ($action) {
 
         $id = $timeentry->startTimer($user->id, $fk_project, $fk_task, $note, $user);
         if ($id > 0) {
-            $timeentry->fetch($id);
-            echo json_encode(array('status' => 'success', 'data' => $timeentry));
+            // Return only stable scalar data. Serializing a Dolibarr object may
+            // include non-serializable internals and result in an empty body.
+            echo json_encode(array('status' => 'success', 'id' => (int) $id));
         } else {
             http_response_code(400);
             echo json_encode(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur au démarrage'));
