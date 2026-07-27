@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { approveTimeEntry, getTimeEntries, rejectTimeEntry } from '../../api/clockifyApi';
+import { useState, useEffect } from 'react';
+import { approveTimeEntry, rejectTimeEntry } from '../../api/clockifyApi';
 import StatusBadge from '../atoms/StatusBadge';
 import { formatDuration } from '../../utils/FormatDuration';
 import Button from '../atoms/Button';
@@ -7,12 +7,15 @@ import Button from '../atoms/Button';
 function formatEntryDate(value) {
   if (!value) return '—';
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
+  const parsedValue = typeof value === 'number' || /^[0-9]+$/.test(String(value).trim())
+    ? new Date(Number(value) * (String(value).length === 10 ? 1000 : 1))
+    : new Date(value);
+
+  if (Number.isNaN(parsedValue.getTime())) {
+    return String(value);
   }
 
-  return date.toLocaleString('fr-FR', {
+  return parsedValue.toLocaleString('fr-FR', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -21,9 +24,13 @@ function formatEntryDate(value) {
   });
 }
 
-export default function TimeEntryList({ entries: initialEntries = [], setEntries: setParentEntries }) {
+export default function TimeEntryList({
+  entries: initialEntries = [],
+  setEntries: setParentEntries,
+  title = 'Historique',
+  subtitle = 'Dernières entrées de temps enregistrées',
+}) {
   const [entries, setEntries] = useState(initialEntries);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
 
@@ -58,34 +65,40 @@ export default function TimeEntryList({ entries: initialEntries = [], setEntries
   };
 
   return (
-    <div className="p-4 border rounded-lg shadow-sm bg-white space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-lg">Historique</h2>
-        <span className="text-sm text-gray-500">{entries.length} entrées</span>
+    <div className="p-4 border rounded-lg shadow-sm bg-white space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">{title}</p>
+          <p className="text-sm text-slate-600">{subtitle}</p>
+        </div>
+        <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">{entries.length} entrées</span>
       </div>
 
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+      {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      {loading && <p className="text-sm text-gray-500">Chargement des entrées…</p>}
-
-      {!loading && !error && entries.length === 0 && (
-        <p className="text-sm text-gray-500">Aucune entrée de temps pour le moment.</p>
+      {entries.length === 0 && !error && (
+        <p className="text-sm text-slate-500">Aucune entrée de temps disponible pour le moment.</p>
       )}
 
-      {!loading && !error && entries.length > 0 && (
-        <ul className="space-y-2">
+      {entries.length > 0 && (
+        <ul className="space-y-3">
           {entries.map((entry) => (
-            <li key={entry.id} className="border rounded p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="font-medium">{entry.note || 'Sans description'}</p>
-                  <p className="text-sm text-gray-500">{formatEntryDate(entry.date_start)}</p>
+            <li key={entry.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-2">
+                  <p className="font-semibold text-slate-900">{entry.note || 'Sans description'}</p>
+                  <p className="text-sm text-slate-500">{formatEntryDate(entry.date_start)}</p>
+                  <div className="flex flex-wrap gap-2 text-sm text-slate-600">
+                    {entry.fk_project && <span className="rounded-full bg-white px-3 py-1 shadow-sm">Projet #{entry.fk_project}</span>}
+                    {entry.fk_task && <span className="rounded-full bg-white px-3 py-1 shadow-sm">Tâche #{entry.fk_task}</span>}
+                  </div>
                 </div>
+
                 <div className="text-right">
                   <StatusBadge status={entry.status} />
-                  <p className="text-sm text-gray-600 mt-1">{formatDuration(entry.duration || 0)}</p>
+                  <p className="text-sm text-slate-700 mt-2">{formatDuration(entry.duration || 0)}</p>
                   {entry.status === 0 && (
-                    <div className="flex gap-2 mt-2 justify-end">
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
                       <Button variant="primary" onClick={() => handleDecision(entry.id, 1)} disabled={busyId === entry.id}>
                         {busyId === entry.id ? '…' : 'Valider'}
                       </Button>

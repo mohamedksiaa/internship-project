@@ -27,18 +27,44 @@ function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, '');
 }
 
+function normalizeEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return entry;
+  }
+
+  return {
+    ...entry,
+    id: entry.id ?? entry.rowid ?? null,
+    rowid: entry.rowid ?? entry.id ?? null,
+  };
+}
+
+function normalizeEntries(payload) {
+  if (Array.isArray(payload)) {
+    return payload.map(normalizeEntry);
+  }
+
+  const rows = Array.isArray(payload?.rows)
+    ? payload.rows
+    : Array.isArray(payload?.data)
+    ? payload.data
+    : [];
+
+  return rows.map(normalizeEntry);
+}
+
 export function buildApiUrl(endpoint, base = DEFAULT_BASE_URL) {
   const normalizedBase = normalizeBaseUrl(base);
   const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   return `${normalizedBase}/clockify/timeentrys${normalizedEndpoint}`;
 }
 
-function getApiHeaders() {
+function getApiHeaders(body) {
   const headers = {
     Accept: 'application/json',
   };
 
-  if (API_MODE !== 'mock') {
+  if (body) {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -64,7 +90,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
   const url = buildApiUrl(endpoint);
   const options = {
     method,
-    headers: getApiHeaders(),
+    headers: getApiHeaders(body),
     credentials: 'include',
   };
 
@@ -84,6 +110,60 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
   }
 
   return null;
+}
+
+function buildDolibarrApiUrl(endpoint, base = DEFAULT_BASE_URL) {
+  const normalizedBase = normalizeBaseUrl(base);
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${normalizedBase}${normalizedEndpoint}`;
+}
+
+async function dolibarrRequest(endpoint, method = 'GET', body = null) {
+  if (API_MODE === 'mock') {
+    return handleMockDolibarrRequest(endpoint, method, body);
+  }
+
+  const url = buildDolibarrApiUrl(endpoint);
+  const options = {
+    method,
+    headers: getApiHeaders(body),
+    credentials: 'include',
+  };
+
+  if (body && (method === 'POST' || method === 'PUT')) {
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    throw new Error(`Erreur API (${response.status}): ${await readApiError(response)}`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+
+  return null;
+}
+
+function handleMockDolibarrRequest(endpoint, method, body) {
+  if (endpoint.startsWith('/projects')) {
+    return Promise.resolve([
+      { id: 1, title: 'Projet Alpha' },
+      { id: 2, title: 'Projet Beta' },
+    ]);
+  }
+
+  if (endpoint.startsWith('/tasks')) {
+    return Promise.resolve([
+      { id: 1, title: 'Tâche analyse' },
+      { id: 2, title: 'Tâche corrective' },
+    ]);
+  }
+
+  return Promise.resolve([]);
 }
 
 function handleMockRequest(endpoint, method, body) {
@@ -140,31 +220,50 @@ function handleMockRequest(endpoint, method, body) {
 }
 
 export async function getActiveTimer() {
-  return apiRequest('/active', 'GET');
+  const data = await apiRequest('/active', 'GET');
+  return normalizeEntry(data);
 }
 
 export async function startTimer(fkProject, fkTask = 0, note = '') {
-  return apiRequest('/start', 'POST', {
+  const data = await apiRequest('/start', 'POST', {
     fk_project: fkProject,
     fk_task: fkTask,
     note,
   });
+
+  return normalizeEntry(
+    typeof data === 'number' ? { id: data } : data
+  );
 }
 
 export async function stopTimer(id) {
-  return apiRequest('/stop', 'POST', { id });
+  const data = await apiRequest('/stop', 'POST', { id });
+  return normalizeEntry(data);
 }
 
 export async function getTimeEntries() {
-  return apiRequest('', 'GET');
+  const data = await apiRequest('', 'GET');
+  return normalizeEntries(data);
 }
 
 export async function approveTimeEntry(id) {
-  return apiRequest(`/${id}/validate`, 'POST');
+  const data = await apiRequest(`/${id}/validate`, 'POST');
+  return normalizeEntry(data);
 }
 
 export async function rejectTimeEntry(id) {
-  return apiRequest(`/${id}/reject`, 'POST');
+  const data = await apiRequest(`/${id}/reject`, 'POST');
+  return normalizeEntry(data);
+}
+
+export async function getProjects(limit = 10) {
+  const data = await dolibarrRequest(`/projects?limit=${limit}`, 'GET');
+  return normalizeProjects(data);
+}
+
+export async function getTasks(limit = 20) {
+  const data = await dolibarrRequest(`/tasks?limit=${limit}`, 'GET');
+  return normalizeTasks(data);
 }
 
 export function normalizeProjects(payload) {
