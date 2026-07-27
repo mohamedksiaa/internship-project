@@ -20,7 +20,7 @@ export default function TimeTrackerPage() {
 
     async function loadProjects() {
       try {
-        const mappedProjects = await getProjects(10);
+        const mappedProjects = await getProjects();
         if (!mappedProjects.length) {
           throw new Error('Aucun projet disponible dans Dolibarr');
         }
@@ -37,7 +37,7 @@ export default function TimeTrackerPage() {
 
     async function loadTasks() {
       try {
-        const mappedTasks = await getTasks(20);
+        const mappedTasks = await getTasks();
         if (isMounted) {
           setTasks(mappedTasks);
         }
@@ -73,7 +73,7 @@ export default function TimeTrackerPage() {
   return (
     <DashboardLayout
       timer={<TimerWidget projects={projects} projectsError={projectsError} tasks={tasks} />}
-      entryList={<TimeEntryList entries={entries} setEntries={setEntries} title="Suivi en cours" subtitle="Chronomètre et sessions récentes" />}
+      entryList={<TimeEntryList entries={entries} setEntries={setEntries} projects={projects} tasks={tasks} />}
       stats={entries}
     />
   );

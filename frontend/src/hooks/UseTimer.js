@@ -58,8 +58,8 @@ export function useTimer() {
       setSeconds(0);
       return activeEntryPayload;
     } catch (err) {
-      setError(err.message);
-      throw err;
+      setError(err instanceof Error ? err.message : 'Impossible de démarrer le chrono.');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -75,8 +75,8 @@ export function useTimer() {
       setActiveEntry(null);
       return result;
     } catch (err) {
-      setError(err.message);
-      throw err;
+      setError(err instanceof Error ? err.message : 'Impossible d’arrêter le chrono.');
+      return null;
     } finally {
       setLoading(false);
     }
