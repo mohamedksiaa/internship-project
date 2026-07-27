@@ -253,6 +253,31 @@ if (isModEnabled('clockify') && $user->hasRight('clockify', 'read')) {
 
 print '</div></div>';
 
+// Try to surface the frontend app if it was built into `frontend/dist` or copied to `public`
+$frontendIndex = __DIR__ . '/frontend/dist/index.html';
+$publicIndex = __DIR__ . '/public/index.html';
+$iframeSrc = '';
+if (file_exists($publicIndex)) {
+	// Prefer a public/ copy (recommended for production)
+	$iframeSrc = dol_buildpath('/custom/clockify/public/index.html', 1);
+} elseif (file_exists($frontendIndex)) {
+	// Dev build located inside the frontend folder
+	$iframeSrc = dol_buildpath('/custom/clockify/frontend/dist/index.html', 1);
+}
+
+if ($iframeSrc) {
+	print '<div style="height:calc(100vh - 220px); margin-top: 16px;">';
+	print '<iframe src="' . $iframeSrc . '" style="width:100%;height:100%;border:0"></iframe>';
+	print '</div>';
+} else {
+	print '<div class="opacitymedium" style="margin-top:16px;">Frontend non construit ou introuvable. Pour lier l\'interface React :</div>';
+	print '<ul class="opacitymedium">';
+	print '<li>cd frontend && npm run build</li>';
+	print '<li>cp -r frontend/dist public/</li>';
+	print '<li>Rafraîchir cette page</li>';
+	print '</ul>';
+}
+
 // End of page
 llxFooter();
 $db->close();

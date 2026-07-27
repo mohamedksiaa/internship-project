@@ -40,6 +40,7 @@ function getApiHeaders() {
 
   if (API_MODE !== 'mock') {
     headers['Content-Type'] = 'application/json';
+    headers['DOLAPIKEY'] = import.meta.env.VITE_API_KEY || '';
   }
 
   return headers;
