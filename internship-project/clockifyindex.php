@@ -171,7 +171,7 @@ if (isModEnabled('clockify') && $user->hasRight('clockify', 'read')) {
 		print "</table><br>";
 	}
 }
-*/
+
 
 print '</div></div>';
 
