@@ -32,9 +32,9 @@ export default function DashboardLayout({ timer, entryList, stats = [] }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)]">
-        <div className="w-full">{timer}</div>
-        <div className="w-full">{entryList}</div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_1fr]">
+        <div className="space-y-6">{timer}</div>
+        <div className="space-y-6">{entryList}</div>
       </div>
     </div>
   );

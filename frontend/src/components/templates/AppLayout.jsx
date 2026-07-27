@@ -28,8 +28,8 @@ export default function AppLayout() {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <aside className="w-full max-w-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:w-72">
+      <div className="grid w-full max-w-full gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-8">
+        <aside className="sticky top-6 self-start rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
           <p className="mb-5 text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Navigation</p>
           <nav className="space-y-2">
             {navigation.map((item) => (
@@ -48,13 +48,13 @@ export default function AppLayout() {
             ))}
           </nav>
 
-          <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          <div className="mt-8 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             <p className="font-semibold text-slate-900">Astuce</p>
             <p className="mt-2">Utilisez le tableau de bord pour suivre vos validations, rapports et sessions en un seul endroit.</p>
           </div>
         </aside>
 
-        <main className="flex-1">
+        <main className="min-h-screen">
           <Outlet />
         </main>
       </div>
