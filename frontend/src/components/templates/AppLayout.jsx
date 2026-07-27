@@ -14,9 +14,9 @@ function classNames(...classes) {
 
 export default function AppLayout() {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-slate-100 text-slate-900">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-full items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Clockify SaaS</p>
             <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">Gestion du temps moderne</h1>
@@ -28,8 +28,8 @@ export default function AppLayout() {
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-7xl flex-col lg:flex-row gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <aside className="w-full lg:w-72 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mx-auto flex w-full max-w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <aside className="w-full max-w-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:w-72">
           <p className="mb-5 text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Navigation</p>
           <nav className="space-y-2">
             {navigation.map((item) => (

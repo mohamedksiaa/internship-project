@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-
-const DOL_API_BASE = (typeof window !== 'undefined' && window.DOL_URL_ROOT) ? `${window.DOL_URL_ROOT.replace(/\/$/, '')}/api/index.php` : '/api/index.php';
+import { getTimeEntries } from '../api/clockifyApi';
 
 export default function ValidationPage() {
   const [entries, setEntries] = useState([]);
@@ -13,15 +12,7 @@ export default function ValidationPage() {
 
     async function loadEntries() {
       try {
-        const response = await fetch(`${DOL_API_BASE}/clockify/timeentrys`, {
-          credentials: 'include',
-        });
-
-        if (!response.ok) {
-          throw new Error('Impossible de charger les entrées pour validation.');
-        }
-
-        const data = await response.json();
+        const data = await getTimeEntries();
         if (isMounted) {
           setEntries(Array.isArray(data) ? data : []);
         }
