@@ -1203,6 +1203,78 @@ class TimeEntry extends CommonObject
 
 		return $error;
 	}
+
+	/**
+	 * Return the active entry for a user, if any.
+	 *
+	 * @param int $fk_user User id
+	 * @return int Entry id, or 0
+	 */
+	public function hasActiveTimer($fk_user)
+	{
+		$sql = 'SELECT rowid FROM '.$this->db->prefix().$this->table_element;
+		$sql .= ' WHERE fk_user = '.((int) $fk_user).' AND date_end IS NULL';
+		$sql .= ' ORDER BY date_start DESC';
+		$sql .= $this->db->plimit(1);
+		$resql = $this->db->query($sql);
+		if ($resql && $this->db->num_rows($resql)) {
+			return (int) $this->db->fetch_object($resql)->rowid;
+		}
+		return 0;
+	}
+
+	/**
+	 * Start a timer. Project and task are optional Clockify metadata.
+	 *
+	 * @param int    $fk_user User id
+	 * @param int    $fk_project Project id (0 for no project)
+	 * @param int    $fk_task Task id (0 for no task)
+	 * @param string $note Free-text description
+	 * @param User   $user User executing the action
+	 * @return int New entry id, or a negative value on failure
+	 */
+	public function startTimer($fk_user, $fk_project = 0, $fk_task = 0, $note = '', User $user = null)
+	{
+		if ($this->hasActiveTimer($fk_user) > 0) {
+			$this->error = 'Un chrono est déjà actif pour cet utilisateur';
+			return -1;
+		}
+
+		$this->fk_user = (int) $fk_user;
+		$this->fk_project = ((int) $fk_project > 0) ? (int) $fk_project : null;
+		$this->fk_task = ((int) $fk_task > 0) ? (int) $fk_task : null;
+		$this->note = trim((string) $note);
+		$this->date_start = dol_now();
+		$this->date_end = null;
+		$this->duration = 0;
+		$this->status = self::STATUS_DRAFT;
+
+		return $this->create($user);
+	}
+
+	/** Stop an active timer and calculate its duration. */
+	public function stopTimer($id, User $user)
+	{
+		if ($this->fetch((int) $id) <= 0) {
+			$this->error = 'Entrée introuvable';
+			return -1;
+		}
+		$this->date_end = dol_now();
+		$this->duration = max(0, (int) $this->date_end - (int) $this->date_start);
+		return $this->update($user);
+	}
+
+	/** Update the validation status of an entry. */
+	public function validateEntry($id, User $user, $status)
+	{
+		if ($this->fetch((int) $id) <= 0) {
+			$this->error = 'Entrée introuvable';
+			return -1;
+		}
+		$this->status = (int) $status;
+		$this->fk_user_valid = $user->id;
+		return $this->update($user);
+	}
 }
 
 
