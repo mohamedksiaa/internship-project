@@ -6,10 +6,15 @@ Ce module développe un prototype de suivi du temps inspiré de Clockify, intég
 
 Il permet de :
 - démarrer et arrêter un chrono
+- saisir manuellement une plage horaire
 - associer un temps à un projet et à une tâche Dolibarr
+- marquer une saisie comme billable ou non billable
+- ajouter des tags simples sur les entrées
 - consulter l’historique des entrées de temps
-- valider ou refuser des saisies depuis une logique manager
-- visualiser un tableau de bord simple avec des métriques hebdomadaires
+- soumettre une entrée puis la valider ou la refuser depuis une logique manager
+- visualiser un tableau de bord hebdomadaire avec métriques de base
+- voir une vue calendrier hebdomadaire et des rapports consolidés
+- préparer des lignes de facturation sur les saisies billables
 
 ## Architecture
 
@@ -27,11 +32,16 @@ Il permet de :
 ## Fonctionnalités livrées
 
 - suivi du temps en temps réel
+- saisie manuelle de créneaux
 - sélection d’un projet et d’une tâche
 - ajout d’une note de description
+- gestion d’un statut soumise/validée/refusée
+- affichage de tags et du caractère billable
 - historique des entrées
 - validation/refus des entrées
 - dashboard avec synthèse hebdomadaire
+- vue calendrier hebdomadaire
+- rapports de synthèse et prévisualisation de lignes de facture
 
 ## Installation
 

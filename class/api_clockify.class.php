@@ -28,6 +28,7 @@ class Clockify extends DolibarrApi
         'date_end',
         'duration',
         'note',
+        'tags',
         'billable',
         'status'
     );
@@ -256,8 +257,11 @@ class Clockify extends DolibarrApi
             'date_end',
             'duration',
             'note',
+            'tags',
             'billable',
             'status',
+            'date_submit',
+            'fk_user_submit',
             'fk_user_valid',
             'date_creation',
             'tms'

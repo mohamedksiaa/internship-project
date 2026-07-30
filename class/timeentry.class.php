@@ -52,7 +52,8 @@ class TimeEntry extends CommonObject
 
 
 	const STATUS_DRAFT = 0;
-	const STATUS_VALIDATED = 1;
+	const STATUS_SUBMITTED = 1;
+	const STATUS_VALIDATED = 2;
 	const STATUS_CANCELED = 9;
 
 	/**
@@ -112,8 +113,15 @@ class TimeEntry extends CommonObject
 		"date_end" => array("type" => "datetime", "label" => "DateEnd", "enabled" => "1", 'position' => 30, 'notnull' => 0, "visible" => "1",),
 		"duration" => array("type" => "integer", "label" => "Duration", "enabled" => "1", 'position' => 35, 'notnull' => 0, "visible" => "1",),
 		"note" => array("type" => "text", "label" => "Note", "enabled" => "1", 'position' => 40, 'notnull' => 0, "visible" => "1",),
+		"tags" => array("type" => "text", "label" => "Tags", "enabled" => "1", 'position' => 42, 'notnull' => 0, "visible" => "1",),
 		"billable" => array("type" => "boolean", "label" => "Billable", "enabled" => "1", 'position' => 45, 'notnull' => 0, "visible" => "1",),
-		"status" => array("type" => "integer", "label" => "Status", "enabled" => "1", 'position' => 50, 'notnull' => 1, "visible" => "1", "arrayofkeyval" => array("0" => "Draft", "1" => "Submitted", "2" => "Validated", "3" => "Refused"),),
+		"thm" => array("type" => "double(24,8)", "label" => "HourlyRate", "enabled" => "1", 'position' => 46, 'notnull' => 0, "visible" => "1", "isameasure" => 0, "help" => "HourlyRateCapturedAtEntryTime"),
+		"amount" => array("type" => "price", "label" => "Amount", "enabled" => "1", 'position' => 47, 'notnull' => 0, "visible" => "1", "isameasure" => 1, "help" => "ComputedFromDurationAndHourlyRate"),
+		"fk_facture" => array("type" => "integer:Facture:compta/facture/class/facture.class.php", "label" => "Invoice", "enabled" => "1", 'position' => 48, 'notnull' => 0, "visible" => "1",),
+		"date_invoice" => array("type" => "datetime", "label" => "DateInvoiced", "enabled" => "1", 'position' => 49, 'notnull' => 0, "visible" => "1",),
+		"status" => array("type" => "integer", "label" => "Status", "enabled" => "1", 'position' => 50, 'notnull' => 1, "visible" => "1", "arrayofkeyval" => array("0" => "Draft", "1" => "Submitted", "2" => "Validated", "9" => "Refused"),),
+		"date_submit" => array("type" => "datetime", "label" => "DateSubmit", "enabled" => "1", 'position' => 52, 'notnull' => 0, "visible" => "1",),
+		"fk_user_submit" => array("type" => "integer:User:user/class/user.class.php", "label" => "SubmittedBy", "enabled" => "1", 'position' => 54, 'notnull' => 0, "visible" => "1",),
 		"fk_user_valid" => array("type" => "integer:User:user/class/user.class.php", "label" => "ValidatedBy", "enabled" => "1", 'position' => 55, 'notnull' => 0, "visible" => "1",),
 		"date_creation" => array("type" => "datetime", "label" => "DateCreation", "enabled" => "1", 'position' => 500, 'notnull' => 1, "visible" => "-2",),
 		"tms" => array("type" => "timestamp", "label" => "DateModification", "enabled" => "1", 'position' => 501, 'notnull' => 1, "visible" => "-2",),
@@ -129,8 +137,15 @@ class TimeEntry extends CommonObject
 	public $date_end;
 	public $duration;
 	public $note;
+	public $tags;
 	public $billable;
+	public $thm;
+	public $amount;
+	public $fk_facture;
+	public $date_invoice;
 	public $status;
+	public $date_submit;
+	public $fk_user_submit;
 	public $fk_user_valid;
 	public $date_creation;
 	public $tms;
@@ -208,6 +223,13 @@ class TimeEntry extends CommonObject
 			}
 		}
 
+		$optionalDbFields = array('tags', 'date_submit', 'fk_user_submit');
+		foreach ($optionalDbFields as $fieldName) {
+			if (!$this->hasDatabaseColumn($this->table_element, $fieldName)) {
+				unset($this->fields[$fieldName]);
+			}
+		}
+
 		// Translate some data of arrayofkeyval
 		if (is_object($langs)) {
 			foreach ($this->fields as $key => $val) {
@@ -221,6 +243,16 @@ class TimeEntry extends CommonObject
 	}
 
 	/**
+	 * Check whether a column exists on the live table.
+	 */
+	private function hasDatabaseColumn($table, $column)
+	{
+		$sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$this->db->escape($this->db->prefix().$table)."' AND column_name = '".$this->db->escape($column)."'";
+		$resql = $this->db->query($sql);
+		return ($resql && $this->db->num_rows($resql) > 0);
+	}
+
+	/**
 	 * Create object into database
 	 *
 	 * @param	User		$user		User that creates
@@ -229,6 +261,8 @@ class TimeEntry extends CommonObject
 	 */
 	public function create(User $user, $notrigger = 0)
 	{
+		$this->recalculateAmount();
+
 		$result = $this->createCommon($user, $notrigger);
 
 		// uncomment lines below if you want to validate object after creation
@@ -463,7 +497,28 @@ class TimeEntry extends CommonObject
 	 */
 	public function update(User $user, $notrigger = 0)
 	{
+		$this->recalculateAmount();
+
 		return $this->updateCommon($user, $notrigger);
+	}
+
+	/**
+	 * Recompute the billable amount from duration and hourly rate.
+	 * Called before create/update so amount always reflects the current
+	 * billable flag, duration, and captured hourly rate (thm).
+	 * The rate is captured on the entry at billing time rather than looked
+	 * up live, so past entries keep their historical amount even if a
+	 * user's rate changes later.
+	 *
+	 * @return void
+	 */
+	protected function recalculateAmount()
+	{
+		if (!empty($this->billable) && !empty($this->thm) && !empty($this->duration)) {
+			$this->amount = round(((float) $this->duration / 3600) * (float) $this->thm, 2);
+		} else {
+			$this->amount = 0;
+		}
 	}
 
 	/**
@@ -950,10 +1005,10 @@ class TimeEntry extends CommonObject
 			//$langs->load("clockify@clockify");
 			$this->labelStatus[self::STATUS_DRAFT] = $langs->transnoentitiesnoconv('Draft');
 			$this->labelStatus[self::STATUS_VALIDATED] = $langs->transnoentitiesnoconv('Enabled');
-			$this->labelStatus[self::STATUS_CANCELED] = $langs->transnoentitiesnoconv('Disabled');
+			$this->labelStatus[self::STATUS_CANCELED] = $langs->transnoentitiesnoconv('Refused');
 			$this->labelStatusShort[self::STATUS_DRAFT] = $langs->transnoentitiesnoconv('Draft');
 			$this->labelStatusShort[self::STATUS_VALIDATED] = $langs->transnoentitiesnoconv('Enabled');
-			$this->labelStatusShort[self::STATUS_CANCELED] = $langs->transnoentitiesnoconv('Disabled');
+			$this->labelStatusShort[self::STATUS_CANCELED] = $langs->transnoentitiesnoconv('Refused');
 		}
 
 		$statusType = 'status'.$status;
@@ -1233,7 +1288,7 @@ class TimeEntry extends CommonObject
 	 * @param User   $user User executing the action
 	 * @return int New entry id, or a negative value on failure
 	 */
-	public function startTimer($fk_user, $fk_project = 0, $fk_task = 0, $note = '', User $user = null)
+	public function startTimer($fk_user, $fk_project = 0, $fk_task = 0, $note = '', ?User $user = null)
 	{
 		if ($this->hasActiveTimer($fk_user) > 0) {
 			$this->error = 'Un chrono est déjà actif pour cet utilisateur';
@@ -1244,10 +1299,46 @@ class TimeEntry extends CommonObject
 		$this->fk_project = ((int) $fk_project > 0) ? (int) $fk_project : null;
 		$this->fk_task = ((int) $fk_task > 0) ? (int) $fk_task : null;
 		$this->note = trim((string) $note);
+		$this->tags = null;
 		$this->date_start = dol_now();
 		$this->date_end = null;
 		$this->duration = 0;
+		$this->billable = 0;
+		$this->thm = ($user && !empty($user->thm)) ? (float) $user->thm : 0;
+		$this->amount = 0;
 		$this->status = self::STATUS_DRAFT;
+
+		return $this->create($user);
+	}
+
+	/** Create a manual time block with explicit start/end values. */
+	public function createManualEntry($fk_user, $fk_project = 0, $fk_task = 0, $dateStart = null, $dateEnd = null, $note = '', $tags = '', $billable = 0, ?User $user = null, $thm = null)
+	{
+		$dateStart = !empty($dateStart) ? (is_numeric($dateStart) ? (int) $dateStart : strtotime($dateStart)) : 0;
+		$dateEnd = !empty($dateEnd) ? (is_numeric($dateEnd) ? (int) $dateEnd : strtotime($dateEnd)) : 0;
+		if ($dateStart <= 0 || $dateEnd <= 0 || $dateEnd <= $dateStart) {
+			$this->error = 'Les dates de début et de fin sont invalides';
+			return -1;
+		}
+
+		$this->fk_user = (int) $fk_user;
+		$this->fk_project = ((int) $fk_project > 0) ? (int) $fk_project : null;
+		$this->fk_task = ((int) $fk_task > 0) ? (int) $fk_task : null;
+		$this->date_start = dol_print_date($dateStart, 'dayhour');
+		$this->date_end = dol_print_date($dateEnd, 'dayhour');
+		$this->duration = max(0, (int) ($dateEnd - $dateStart));
+		$this->note = trim((string) $note);
+		$this->tags = trim((string) $tags);
+		$this->billable = (int) !empty($billable);
+		if ($thm !== null && (float) $thm > 0) {
+			$this->thm = (float) $thm;
+		} else {
+			$this->thm = ($user && !empty($user->thm)) ? (float) $user->thm : 0;
+		}
+		$this->status = self::STATUS_VALIDATED;
+		$this->fk_user_submit = (int) $fk_user;
+		$this->date_submit = dol_now();
+		$this->fk_user_valid = (int) $fk_user;
 
 		return $this->create($user);
 	}
@@ -1261,6 +1352,19 @@ class TimeEntry extends CommonObject
 		}
 		$this->date_end = dol_now();
 		$this->duration = max(0, (int) $this->date_end - (int) $this->date_start);
+		return $this->update($user);
+	}
+
+	/** Mark an entry as submitted for approval. */
+	public function submitEntry($id, User $user)
+	{
+		if ($this->fetch((int) $id) <= 0) {
+			$this->error = 'Entrée introuvable';
+			return -1;
+		}
+		$this->status = self::STATUS_SUBMITTED;
+		$this->date_submit = dol_now();
+		$this->fk_user_submit = $user->id;
 		return $this->update($user);
 	}
 

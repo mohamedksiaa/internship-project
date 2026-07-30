@@ -1,4 +1,4 @@
-import Input from '../atoms/input';
+import Input from '../atoms/input.jsx';
 
 export default function NoteField({ value, onChange }) {
   return (

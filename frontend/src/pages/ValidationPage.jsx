@@ -14,7 +14,7 @@ export default function ValidationPage() {
       try {
         const data = await getTimeEntries();
         if (isMounted) {
-          setEntries(Array.isArray(data) ? data : []);
+          setEntries((Array.isArray(data) ? data : []).filter((entry) => Number(entry.status) === 1));
         }
       } catch (err) {
         if (isMounted) {
@@ -46,7 +46,7 @@ export default function ValidationPage() {
         </div>
         {loading && <p className="text-sm text-slate-600">Chargement…</p>}
         {error && <p className="text-sm text-rose-600">{error}</p>}
-        {!loading && !error && <TimeEntryList entries={entries} setEntries={setEntries} />}
+        {!loading && !error && <TimeEntryList entries={entries} setEntries={setEntries} showWorker />}
       </div>
     </div>
   );

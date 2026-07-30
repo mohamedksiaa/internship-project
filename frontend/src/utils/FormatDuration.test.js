@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeWeek } from './FormatDuration';
+import { summarizeWeek } from './FormatDuration.js';
 
 describe('summarizeWeek', () => {
   it('aggregates weekly duration and validation counts', () => {
@@ -10,7 +10,8 @@ describe('summarizeWeek', () => {
 
     expect(summary.totalSeconds).toBe(9000);
     expect(summary.entryCount).toBe(2);
-    expect(summary.validatedCount).toBe(1);
+    expect(summary.submittedCount).toBe(1);
+    expect(summary.validatedCount).toBe(0);
     expect(summary.pendingCount).toBe(1);
   });
 });
