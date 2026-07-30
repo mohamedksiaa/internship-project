@@ -1,62 +1,57 @@
 import { NavLink, Outlet } from 'react-router-dom';
 
 const navigation = [
-  { path: '/dashboard', label: 'Dashboard' },
-  { path: '/timer', label: 'Chrono' },
-  { path: '/history', label: 'Historique' },
-  { path: '/reports', label: 'Rapports' },
-  { path: '/validation', label: 'Validation' },
+  { path: '/timer', label: 'SUIVI DU TEMPS', icon: '◷', section: 'SUIVRE' },
+  { path: '/history', label: 'CALENDRIER', icon: '□', section: 'SUIVRE' },
+  { path: '/dashboard', label: 'TABLEAU DE BORD', icon: '⊞', section: 'ANALYSER' },
+  { path: '/reports', label: 'RAPPORTS', icon: '▥', section: 'ANALYSER' },
+  { path: '/validation', label: 'VALIDATIONS', icon: '✓', section: 'GÉRER' },
 ];
 
-function classNames(...classes) {
-  return classes.filter(Boolean).join(' ');
-}
+function classNames(...classes) { return classes.filter(Boolean).join(' '); }
 
 export default function AppLayout() {
+  let displayedSection = '';
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Clockify SaaS</p>
-            <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">Gestion du temps moderne</h1>
-          </div>
-          <div className="hidden sm:flex items-center gap-3">
-            <span className="text-sm text-slate-500">Module Dolibarr</span>
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-700">Actif</span>
-          </div>
+    <div className="min-h-screen bg-[#f2f6f8] text-[#1f2933]">
+      <header className="flex h-[60px] items-center border-b border-[#dce5ea] bg-white px-5 shadow-sm">
+        <div className="flex items-center gap-3 border-r border-[#dce5ea] pr-6">
+          <span className="grid h-8 w-8 place-items-center text-xl text-[#253746]">⠿</span>
+          <span className="grid h-8 w-8 place-items-center rounded-md bg-[#03a9f4] text-xl font-bold text-white">◷</span>
+          <span className="text-[23px] font-semibold tracking-tight text-[#111827]">clockify</span>
+        </div>
+        <div className="ml-6 hidden items-center gap-4 text-sm text-[#455a64] sm:flex">
+          <span>Mon espace de travail</span><span className="text-[#9aaab5]">•••</span>
+          <span className="border border-[#03a9f4] bg-[#03a9f4] px-3 py-1.5 text-xs font-medium text-white">METTRE À NIVEAU</span>
+        </div>
+        <div className="ml-auto flex items-center gap-5 text-[#78909c]">
+          <span className="hidden text-lg sm:block">♧</span><span className="hidden text-lg sm:block">♧</span><span className="text-lg">?</span>
+          <span className="grid h-8 w-8 place-items-center rounded-md bg-[#4d5fca] text-xs font-medium text-white">AD</span>
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-7xl flex-col lg:flex-row gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <aside className="w-full lg:w-72 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="mb-5 text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Navigation</p>
-          <nav className="space-y-2">
-            {navigation.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  classNames(
-                    'block rounded-2xl px-4 py-3 text-sm font-medium transition',
-                    isActive ? 'bg-slate-900 text-white shadow' : 'text-slate-700 hover:bg-slate-100'
-                  )
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
+      <div className="flex min-h-[calc(100vh-60px)]">
+        <aside className="w-[220px] shrink-0 border-r border-[#dce5ea] bg-white py-2">
+          <nav>
+            {navigation.map((item, index) => {
+              const showSection = item.section !== displayedSection;
+              displayedSection = item.section;
+              return (
+                <div key={item.path}>
+                  {showSection && index > 0 && <p className="px-5 pb-2 pt-6 text-xs tracking-wide text-[#8b9aa5]">{item.section}</p>}
+                  <NavLink key={item.path} to={item.path} className={({ isActive }) => classNames(
+                    'flex items-center gap-3 border-l-[3px] px-5 py-3 text-sm font-medium transition',
+                    isActive ? 'border-[#03a9f4] bg-[#e8f4f9] text-[#263746]' : 'border-transparent text-[#344955] hover:bg-[#f5f8fa]'
+                  )}>
+                    <span className="w-4 text-center text-lg font-normal text-[#607d8b]">{item.icon}</span>{item.label}
+                  </NavLink>
+                </div>
+              );
+            })}
           </nav>
-
-          <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            <p className="font-semibold text-slate-900">Astuce</p>
-            <p className="mt-2">Utilisez le tableau de bord pour suivre vos validations, rapports et sessions en un seul endroit.</p>
-          </div>
         </aside>
-
-        <main className="flex-1">
-          <Outlet />
-        </main>
+        <main className="min-w-0 flex-1"><Outlet /></main>
       </div>
     </div>
   );

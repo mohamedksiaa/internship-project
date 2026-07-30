@@ -4,7 +4,7 @@ import { getActiveTimer, startTimer, stopTimer } from '../api/clockifyApi';
 export function useTimer() {
   const [isRunning, setIsRunning] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  const [activeId, setActiveId] = useState(null);
+  const [activeEntry, setActiveEntry] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const intervalRef = useRef(null);
@@ -14,10 +14,17 @@ export function useTimer() {
     getActiveTimer()
       .then((data) => {
         if (data && data.id) {
-          setActiveId(data.id);
+          setActiveEntry(data);
           setIsRunning(true);
-          const elapsed = Math.floor(Date.now() / 1000) - data.date_start;
-          setSeconds(elapsed);
+
+          const startDate = typeof data.date_start === 'number'
+            ? new Date(data.date_start * 1000)
+            : new Date(data.date_start);
+
+          if (!Number.isNaN(startDate.getTime())) {
+            const elapsed = Math.floor((Date.now() - startDate.getTime()) / 1000);
+            setSeconds(elapsed);
+          }
         }
       })
       .catch((err) => setError(err.message));
@@ -36,30 +43,44 @@ export function useTimer() {
     setError(null);
     try {
       const result = await startTimer(fkProject, fkTask, note);
-      setActiveId(result.id);
+      const activeEntryPayload = {
+        id: result.id,
+        fk_project: fkProject,
+        fk_task: fkTask,
+        note,
+        date_start: new Date().toISOString(),
+        duration: 0,
+        status: 0,
+      };
+
+      setActiveEntry(activeEntryPayload);
       setIsRunning(true);
       setSeconds(0);
+      return activeEntryPayload;
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Impossible de démarrer le chrono.');
+      return null;
     } finally {
       setLoading(false);
     }
   }, []);
 
   const stop = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeEntry?.id) return;
     setLoading(true);
     setError(null);
     try {
-      await stopTimer(activeId);
+      const result = await stopTimer(activeEntry.id);
       setIsRunning(false);
-      setActiveId(null);
+      setActiveEntry(null);
+      return result;
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Impossible d’arrêter le chrono.');
+      return null;
     } finally {
       setLoading(false);
     }
-  }, [activeId]);
+  }, [activeEntry]);
 
   return { isRunning, seconds, loading, error, start, stop };
 }

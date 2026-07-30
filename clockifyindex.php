@@ -109,7 +109,6 @@ if (!empty($user->socid) && $user->socid > 0) {
 
 // None
 
-
 /*
  * View
  */
@@ -117,167 +116,38 @@ if (!empty($user->socid) && $user->socid > 0) {
 $form = new Form($db);
 $formfile = new FormFile($db);
 
-llxHeader("", $langs->trans("ClockifyArea"), '', '', 0, 0, '', '', '', 'mod-clockify page-index');
-
-print load_fiche_titre($langs->trans("ClockifyArea"), '', 'clockify.png@clockify');
-
-print '<div class="fichecenter"><div class="fichethirdleft">';
-
-
-/* BEGIN MODULEBUILDER DRAFT MYOBJECT
-// Draft MyObject
-if (isModEnabled('clockify') && $user->hasRight('clockify', 'read')) {
-	$langs->load("orders");
-
-	$sql = "SELECT c.rowid, c.ref, c.ref_client, c.total_ht, c.tva as total_tva, c.total_ttc, s.rowid as socid, s.nom as name, s.client, s.canvas";
-	$sql.= ", s.code_client";
-	$sql.= " FROM ".$db->prefix()."commande as c";
-	$sql.= ", ".$db->prefix()."societe as s";
-	$sql.= " WHERE c.fk_soc = s.rowid";
-	$sql.= " AND c.fk_statut = 0";
-	$sql.= " AND c.entity IN (".getEntity('commande').")";
-	if ($socid)	$sql.= " AND c.fk_soc = ".((int) $socid);
-
-	$resql = $db->query($sql);
-	if ($resql)
-	{
-		$total = 0;
-		$num = $db->num_rows($resql);
-
-		print '<table class="noborder centpercent">';
-		print '<tr class="liste_titre">';
-		print '<th colspan="3">'.$langs->trans("DraftMyObjects").($num?'<span class="badge marginleftonlyshort">'.$num.'</span>':'').'</th></tr>';
-
-		$var = true;
-		if ($num > 0)
-		{
-			$i = 0;
-			while ($i < $num)
-			{
-
-				$obj = $db->fetch_object($resql);
-				print '<tr class="oddeven"><td class="nowrap">';
-
-				$myobjectstatic->id=$obj->rowid;
-				$myobjectstatic->ref=$obj->ref;
-				$myobjectstatic->ref_client=$obj->ref_client;
-				$myobjectstatic->total_ht = $obj->total_ht;
-				$myobjectstatic->total_tva = $obj->total_tva;
-				$myobjectstatic->total_ttc = $obj->total_ttc;
-
-				print $myobjectstatic->getNomUrl(1);
-				print '</td>';
-				print '<td class="nowrap">';
-				print '</td>';
-				print '<td class="right" class="nowrap">'.price($obj->total_ttc).'</td></tr>';
-				$i++;
-				$total += $obj->total_ttc;
-			}
-			if ($total>0)
-			{
-
-				print '<tr class="liste_total"><td>'.$langs->trans("Total").'</td><td colspan="2" class="right">'.price($total)."</td></tr>";
-			}
-		}
-		else
-		{
-
-			print '<tr class="oddeven"><td colspan="3" class="opacitymedium">'.$langs->trans("NoOrder").'</td></tr>';
-		}
-		print "</table><br>";
-
-		$db->free($resql);
+$distDir = __DIR__.'/frontend/dist';
+$distIndex = $distDir.'/index.html';
+$cssUrl = '';
+$jsUrl = '';
+if (file_exists($distIndex)) {
+	$distHtml = file_get_contents($distIndex);
+	if (preg_match('/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/i', $distHtml, $matches) || preg_match('/<link[^>]+href="([^"]+)"[^>]*rel="stylesheet"/i', $distHtml, $matches)) {
+		$cssPath = $matches[1];
+		$cssPath = preg_replace('/^\.\//', '', $cssPath);
+		$cssUrl = DOL_URL_ROOT.'/custom/clockify/frontend/dist/'.$cssPath;
 	}
-	else
-	{
-		dol_print_error($db);
+	if (preg_match('/<script[^>]+src="([^"]+)"/i', $distHtml, $matches)) {
+		$jsPath = $matches[1];
+		$jsPath = preg_replace('/^\.\//', '', $jsPath);
+		$jsUrl = dol_buildpath('/custom/clockify/frontend/dist/'.$jsPath, 1);
 	}
 }
-END MODULEBUILDER DRAFT MYOBJECT */
 
-
-print '</div><div class="fichetwothirdright">';
-
-
-/* BEGIN MODULEBUILDER LASTMODIFIED MYOBJECT
-// Last modified myobject
-if (isModEnabled('clockify') && $user->hasRight('clockify', 'read')) {
-	$sql = "SELECT s.rowid, s.ref, s.label, s.date_creation, s.tms";
-	$sql.= " FROM ".$db->prefix()."clockify_myobject as s";
-	$sql.= " WHERE s.entity IN (".getEntity($myobjectstatic->element).")";
-	//if ($socid)	$sql.= " AND s.rowid = $socid";
-	$sql .= " ORDER BY s.tms DESC";
-	$sql .= $db->plimit($max, 0);
-
-	$resql = $db->query($sql);
-	if ($resql)
-	{
-		$num = $db->num_rows($resql);
-		$i = 0;
-
-		print '<table class="noborder centpercent">';
-		print '<tr class="liste_titre">';
-		print '<th colspan="2">';
-		print $langs->trans("BoxTitleLatestModifiedMyObjects", $max);
-		print '</th>';
-		print '<th class="right">'.$langs->trans("DateModificationShort").'</th>';
-		print '</tr>';
-		if ($num)
-		{
-			while ($i < $num)
-			{
-				$objp = $db->fetch_object($resql);
-
-				$myobjectstatic->id=$objp->rowid;
-				$myobjectstatic->ref=$objp->ref;
-				$myobjectstatic->label=$objp->label;
-				$myobjectstatic->status = $objp->status;
-
-				print '<tr class="oddeven">';
-				print '<td class="nowrap">'.$myobjectstatic->getNomUrl(1).'</td>';
-				print '<td class="right nowrap">';
-				print "</td>";
-				print '<td class="right nowrap">'.dol_print_date($db->jdate($objp->tms), 'day')."</td>";
-				print '</tr>';
-				$i++;
-			}
-
-			$db->free($resql);
-		} else {
-			print '<tr class="oddeven"><td colspan="3" class="opacitymedium">'.$langs->trans("None").'</td></tr>';
-		}
-		print "</table><br>";
-	}
-}
-*/
-
-print '</div></div>';
-
-// Try to surface the frontend app if it was built into `frontend/dist` or copied to `public`
-$frontendIndex = __DIR__ . '/frontend/dist/index.html';
-$publicIndex = __DIR__ . '/public/index.html';
-$iframeSrc = '';
-if (file_exists($publicIndex)) {
-	// Prefer a public/ copy (recommended for production)
-	$iframeSrc = dol_buildpath('/custom/clockify/public/index.html', 1);
-} elseif (file_exists($frontendIndex)) {
-	// Dev build located inside the frontend folder
-	$iframeSrc = dol_buildpath('/custom/clockify/frontend/dist/index.html', 1);
+$headHtml = '';
+if ($cssUrl) {
+	$headHtml = '<link rel="stylesheet" href="'.$cssUrl.'">';
 }
 
-if ($iframeSrc) {
-	print '<div style="height:calc(100vh - 220px); margin-top: 16px;">';
-	print '<iframe src="' . $iframeSrc . '" style="width:100%;height:100%;border:0"></iframe>';
-	print '</div>';
-} else {
-	print '<div class="opacitymedium" style="margin-top:16px;">Frontend non construit ou introuvable. Pour lier l\'interface React :</div>';
-	print '<ul class="opacitymedium">';
-	print '<li>cd frontend && npm run build</li>';
-	print '<li>cp -r frontend/dist public/</li>';
-	print '<li>Rafraîchir cette page</li>';
-	print '</ul>';
-}
+llxHeader($headHtml, $langs->trans("ClockifyArea"), '', '', 0, 0, '', '', '', 'mod-clockify page-index');
 
-// End of page
+print load_fiche_titre($langs->trans("ClockifyArea"), '');
+print '<div class="fichecenter">';
+print '<div id="root" style="min-height:600px;"></div>';
+print '<script>window.DOL_URL_ROOT = "'.addslashes(DOL_URL_ROOT).'";</script>';
+if ($jsUrl) {
+	print '<script type="module" crossorigin src="'.$jsUrl.'" defer></script>';
+}
+print '</div>';
 llxFooter();
 $db->close();

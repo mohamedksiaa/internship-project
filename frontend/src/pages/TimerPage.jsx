@@ -1,15 +1,12 @@
-import TimerWidget from '../components/organisms/TimerWidget';
 import { useEffect, useState } from 'react';
-import { normalizeProjects, normalizeTasks } from '../api/clockifyApi';
-
-const fallbackProjects = [
-  { id: 1, title: 'Projet Alpha' },
-  { id: 2, title: 'Projet Beta' },
-];
+import TimerWidget from '../components/organisms/TimerWidget';
+import TimeEntryList from '../components/organisms/TimeEntryList';
+import { getProjects, getTasks, getTimeEntries } from '../api/clockifyApi';
 
 export default function TimerPage() {
-  const [projects, setProjects] = useState(fallbackProjects);
+  const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [entries, setEntries] = useState([]);
   const [projectsError, setProjectsError] = useState('');
 
   useEffect(() => {
@@ -17,66 +14,63 @@ export default function TimerPage() {
 
     async function loadProjects() {
       try {
-        const projectResponse = await fetch('/api/index.php/projects?limit=10', {
-          credentials: 'include',
-        });
-
-        if (!projectResponse.ok) {
-          throw new Error('Impossible de charger les projets Dolibarr');
-        }
-
-        const projectData = await projectResponse.json();
-        const mappedProjects = normalizeProjects(projectData);
-
+        const mappedProjects = await getProjects();
         if (!mappedProjects.length) {
           throw new Error('Aucun projet disponible dans Dolibarr');
         }
-
         if (isMounted) {
           setProjects(mappedProjects);
         }
       } catch (err) {
         if (isMounted) {
           setProjectsError(err.message);
-          setProjects(fallbackProjects);
+          setProjects([]);
         }
       }
     }
 
-    async function loadTasks() {
+    async function loadEntries() {
       try {
-        const taskResponse = await fetch('/api/index.php/tasks?limit=20', {
-          credentials: 'include',
-        });
-
-        if (!taskResponse.ok) {
-          return;
-        }
-
-        const taskData = await taskResponse.json();
+        const data = await getTimeEntries();
         if (isMounted) {
-          setTasks(normalizeTasks(taskData));
+          setEntries(Array.isArray(data) ? data : []);
         }
       } catch {
         if (isMounted) {
-          setTasks([]);
+          setEntries([]);
         }
       }
     }
 
     loadProjects();
-    loadTasks();
+    // Tasks are loaded only after the user chooses a project.
+    loadEntries();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
+  const handleProjectChange = async (projectId) => {
+    setTasks([]);
+    if (!projectId) return;
+    try {
+      setTasks(await getTasks(projectId));
+    } catch {
+      setTasks([]);
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-2 text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Chronomètre</div>
-        <TimerWidget projects={projects} projectsError={projectsError} tasks={tasks} />
+    <div className="mx-auto w-full max-w-[1680px] px-5 py-7">
+      <TimerWidget projects={projects} projectsError={projectsError} tasks={tasks} onProjectChange={handleProjectChange} />
+
+      <div className="mt-10">
+        <div className="mb-4 flex items-center justify-between text-sm text-[#52656f]">
+          <h1 className="font-medium text-[#263746]">Historique des tâches</h1>
+          <span>{entries.length} entrée{entries.length > 1 ? 's' : ''}</span>
+        </div>
+        <TimeEntryList entries={entries} setEntries={setEntries} projects={projects} tasks={tasks} />
       </div>
     </div>
   );

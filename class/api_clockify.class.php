@@ -5,6 +5,8 @@ use Luracast\Restler\RestException;
 
 require_once DOL_DOCUMENT_ROOT.'/api/class/api.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/clockify/class/timeentry.class.php';
+require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
+require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
 
 /**
  * API Class for Clockify Module
@@ -71,7 +73,7 @@ class Clockify extends DolibarrApi
      * @param int    $fk_project  ID du projet
      * @param int    $fk_task     ID de la tâche (optionnel)
      * @param string $note        Note / Description
-     * @return int ID de la nouvelle entrée
+     * @return array{id:int} ID de la nouvelle entrée
      *
      * @url POST /timeentrys/start
      */
@@ -85,8 +87,22 @@ class Clockify extends DolibarrApi
         $fk_task = (int) $fk_task;
         $note = trim((string) $note);
 
-        if ($fk_project <= 0) {
-            throw new RestException(400, 'fk_project is required');
+        if ($fk_task > 0 && $fk_project <= 0) {
+            throw new RestException(400, 'A task can only be selected with a project');
+        }
+
+        if ($fk_project > 0) {
+            $project = new Project($this->db);
+            if ($project->fetch($fk_project) <= 0) {
+                throw new RestException(400, 'Selected project was not found');
+            }
+        }
+
+        if ($fk_task > 0) {
+            $task = new Task($this->db);
+            if ($task->fetch($fk_task) <= 0 || (int) $task->fk_project !== $fk_project) {
+                throw new RestException(400, 'Selected task does not belong to the project');
+            }
         }
 
         $timeentry = new TimeEntry($this->db);
@@ -102,7 +118,9 @@ class Clockify extends DolibarrApi
             throw new RestException(500, $timeentry->error ? $timeentry->error : 'Error starting timer');
         }
 
-        return $id;
+        // A structured response is reliable across Dolibarr/Restler versions,
+        // while a scalar return value may be emitted as an empty response.
+        return array('id' => (int) $id);
     }
 
     /**

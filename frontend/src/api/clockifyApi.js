@@ -1,7 +1,10 @@
 // frontend/src/api/clockifyApi.js
 
-const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api/index.php';
-const API_MODE = import.meta.env.VITE_API_MODE || 'mock';
+const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || ((typeof window !== 'undefined' && window.DOL_URL_ROOT) ? `${window.DOL_URL_ROOT.replace(/\/$/, '')}/api/index.php` : '/api/index.php');
+const MODULE_AJAX_URL = (typeof window !== 'undefined' && window.DOL_URL_ROOT)
+  ? `${window.DOL_URL_ROOT.replace(/\/$/, '')}/custom/clockify/ajax/timeentry.php`
+  : '/custom/clockify/ajax/timeentry.php';
+const API_MODE = import.meta.env.VITE_API_MODE || 'real';
 
 let mockActiveTimer = null;
 const mockEntries = [
@@ -27,18 +30,44 @@ function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, '');
 }
 
+function normalizeEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return entry;
+  }
+
+  return {
+    ...entry,
+    id: entry.id ?? entry.rowid ?? null,
+    rowid: entry.rowid ?? entry.id ?? null,
+  };
+}
+
+function normalizeEntries(payload) {
+  if (Array.isArray(payload)) {
+    return payload.map(normalizeEntry);
+  }
+
+  const rows = Array.isArray(payload?.rows)
+    ? payload.rows
+    : Array.isArray(payload?.data)
+    ? payload.data
+    : [];
+
+  return rows.map(normalizeEntry);
+}
+
 export function buildApiUrl(endpoint, base = DEFAULT_BASE_URL) {
   const normalizedBase = normalizeBaseUrl(base);
   const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   return `${normalizedBase}/clockify/timeentrys${normalizedEndpoint}`;
 }
 
-function getApiHeaders() {
+function getApiHeaders(body) {
   const headers = {
     Accept: 'application/json',
   };
 
-  if (API_MODE !== 'mock') {
+  if (body) {
     headers['Content-Type'] = 'application/json';
     headers['DOLAPIKEY'] = import.meta.env.VITE_API_KEY || '';
   }
@@ -65,7 +94,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
   const url = buildApiUrl(endpoint);
   const options = {
     method,
-    headers: getApiHeaders(),
+    headers: getApiHeaders(body),
     credentials: 'include',
   };
 
@@ -79,12 +108,88 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     throw new Error(`Erreur API (${response.status}): ${await readApiError(response)}`);
   }
 
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    return response.json();
+  const responseText = await response.text();
+  if (!responseText) return null;
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    return responseText;
+  }
+}
+
+async function moduleTimerRequest(action, body = null) {
+  const response = await fetch(`${MODULE_AJAX_URL}?action=${encodeURIComponent(action)}`, {
+    method: 'POST',
+    headers: getApiHeaders(body),
+    credentials: 'include',
+    body: body ? JSON.stringify(body) : null,
+  });
+  const responseText = await response.text();
+  let data = null;
+  try {
+    data = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    throw new Error(responseText || 'Réponse invalide du serveur.');
+  }
+  if (!response.ok || data?.status === 'error') {
+    throw new Error(data?.message || data?.error || `Erreur du chrono (${response.status})`);
+  }
+  return data;
+}
+
+function buildDolibarrApiUrl(endpoint, base = DEFAULT_BASE_URL) {
+  const normalizedBase = normalizeBaseUrl(base);
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${normalizedBase}${normalizedEndpoint}`;
+}
+
+async function dolibarrRequest(endpoint, method = 'GET', body = null) {
+  if (API_MODE === 'mock') {
+    return handleMockDolibarrRequest(endpoint, method, body);
   }
 
-  return null;
+  const url = buildDolibarrApiUrl(endpoint);
+  const options = {
+    method,
+    headers: getApiHeaders(body),
+    credentials: 'include',
+  };
+
+  if (body && (method === 'POST' || method === 'PUT')) {
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    throw new Error(`Erreur API (${response.status}): ${await readApiError(response)}`);
+  }
+
+  const responseText = await response.text();
+  if (!responseText) return null;
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    return responseText;
+  }
+}
+
+function handleMockDolibarrRequest(endpoint, method, body) {
+  if (endpoint.startsWith('/projects')) {
+    return Promise.resolve([
+      { id: 1, title: 'Projet Alpha' },
+      { id: 2, title: 'Projet Beta' },
+    ]);
+  }
+
+  if (endpoint.startsWith('/tasks')) {
+    return Promise.resolve([
+      { id: 1, title: 'Tâche analyse' },
+      { id: 2, title: 'Tâche corrective' },
+    ]);
+  }
+
+  return Promise.resolve([]);
 }
 
 function handleMockRequest(endpoint, method, body) {
@@ -141,31 +246,59 @@ function handleMockRequest(endpoint, method, body) {
 }
 
 export async function getActiveTimer() {
-  return apiRequest('/active', 'GET');
+  const data = await apiRequest('/active', 'GET');
+  return normalizeEntry(data);
 }
 
 export async function startTimer(fkProject, fkTask = 0, note = '') {
-  return apiRequest('/start', 'POST', {
+  const data = await moduleTimerRequest('startTimer', {
     fk_project: fkProject,
     fk_task: fkTask,
     note,
   });
+
+  // Support both the current API response ({ id }) and older Dolibarr AJAX
+  // responses ({ status, data }) while installations update their cache.
+  const payload = data?.data ?? data;
+  const numericId = typeof payload === 'number' || (typeof payload === 'string' && /^\d+$/.test(payload.trim()));
+  const entry = normalizeEntry(numericId ? { id: Number(payload) } : payload);
+  if (!entry?.id) {
+    throw new Error('Le serveur n’a pas renvoyé l’identifiant du chrono créé.');
+  }
+  return entry;
 }
 
 export async function stopTimer(id) {
-  return apiRequest('/stop', 'POST', { id });
+  const data = await moduleTimerRequest('stopTimer', { id });
+  return normalizeEntry(data);
 }
 
 export async function getTimeEntries() {
-  return apiRequest('', 'GET');
+  const data = await apiRequest('', 'GET');
+  return normalizeEntries(data);
 }
 
 export async function approveTimeEntry(id) {
-  return apiRequest(`/${id}/validate`, 'POST');
+  const data = await apiRequest(`/${id}/validate`, 'POST');
+  return normalizeEntry(data);
 }
 
 export async function rejectTimeEntry(id) {
-  return apiRequest(`/${id}/reject`, 'POST');
+  const data = await apiRequest(`/${id}/reject`, 'POST');
+  return normalizeEntry(data);
+}
+
+export async function getProjects(limit = 0) {
+  const data = await dolibarrRequest(`/projects?limit=${limit}`, 'GET');
+  return normalizeProjects(data);
+}
+
+export async function getTasks(projectId = 0, limit = 100) {
+  const projectFilter = Number(projectId) > 0
+    ? `&sqlfilters=${encodeURIComponent(`(t.fk_projet:=:${Number(projectId)})`)}`
+    : '';
+  const data = await dolibarrRequest(`/tasks?limit=${limit}${projectFilter}`, 'GET');
+  return normalizeTasks(data);
 }
 
 export function normalizeProjects(payload) {
