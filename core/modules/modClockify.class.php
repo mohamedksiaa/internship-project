@@ -109,7 +109,7 @@ class modClockify extends DolibarrModules
 			'printing' => 0,
 			// Set this to 1 if module has its own theme directory (theme)
 			'theme' => 0,
-		    'api' => 1, // <--- TRÈS IMPORTANT : permet à Dolibarr d'inclure api_clockify.class.php
+			'api' => 0,
 			// Set this to relative path of css file if module has its own css file
 			'css' => array(
 				//    '/clockify/css/clockify.css.php',
@@ -296,27 +296,27 @@ class modClockify extends DolibarrModules
 		$r = 0;
 		// Add here entries to declare new permissions
 		/* BEGIN MODULEBUILDER PERMISSIONS */
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 0 + 1);
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', 1);
 		$this->rights[$r][1] = 'Read TimeEntry object of Clockify';
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'read';
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 0 + 1);
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', 2);
 		$this->rights[$r][1] = 'Read all TimeEntry objects (all users) of Clockify';
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'readall';
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 1 + 1);
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', 3);
 		$this->rights[$r][1] = 'Create/Update TimeEntry object of Clockify';
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'write';
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 1 + 1);
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', 4);
 		$this->rights[$r][1] = 'Validate TimeEntry of Clockify';
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'validate';
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', (0 * 10) + 2 + 1);
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', 5);
 		$this->rights[$r][1] = 'Delete TimeEntry object of Clockify';
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'delete';

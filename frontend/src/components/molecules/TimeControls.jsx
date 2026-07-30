@@ -1,4 +1,4 @@
-import Button from '../atoms/Button';
+import Button from '../atoms/Button.jsx';
 
 export default function TimerControls({ isRunning, onStart, onStop, loading, disabled = false }) {
   return (

@@ -14,6 +14,7 @@ export default function TimeTrackerPage() {
   const [tasks, setTasks] = useState([]);
   const [entries, setEntries] = useState([]);
   const [projectsError, setProjectsError] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -35,19 +36,6 @@ export default function TimeTrackerPage() {
       }
     }
 
-    async function loadTasks() {
-      try {
-        const mappedTasks = await getTasks();
-        if (isMounted) {
-          setTasks(mappedTasks);
-        }
-      } catch {
-        if (isMounted) {
-          setTasks([]);
-        }
-      }
-    }
-
     async function loadEntries() {
       try {
         const data = await getTimeEntries();
@@ -62,7 +50,6 @@ export default function TimeTrackerPage() {
     }
 
     loadProjects();
-    loadTasks();
     loadEntries();
 
     return () => {
@@ -70,9 +57,41 @@ export default function TimeTrackerPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadTasks() {
+      try {
+        const mappedTasks = await getTasks(selectedProjectId);
+        if (isMounted) {
+          setTasks(mappedTasks);
+        }
+      } catch {
+        if (isMounted) {
+          setTasks([]);
+        }
+      }
+    }
+
+    loadTasks();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedProjectId]);
+
+  const handleProjectChange = async (projectId) => {
+    setSelectedProjectId(projectId || 0);
+    try {
+      setTasks(await getTasks(projectId || 0));
+    } catch {
+      setTasks([]);
+    }
+  };
+
   return (
     <DashboardLayout
-      timer={<TimerWidget projects={projects} projectsError={projectsError} tasks={tasks} />}
+      timer={<TimerWidget projects={projects} projectsError={projectsError} tasks={tasks} onProjectChange={handleProjectChange} />}
       entryList={<TimeEntryList entries={entries} setEntries={setEntries} projects={projects} tasks={tasks} />}
       stats={entries}
     />

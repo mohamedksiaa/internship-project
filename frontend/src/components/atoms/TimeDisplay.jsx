@@ -1,4 +1,4 @@
-import { formatDuration } from '../../utils/FormatDuration';
+import { formatDuration } from '../../utils/FormatDuration.js';
 
 export default function TimeDisplay({ seconds }) {
   return (

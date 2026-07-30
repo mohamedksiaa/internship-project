@@ -61,9 +61,16 @@ export default function TimerPage() {
     }
   };
 
+  const handleEntryCreated = (entry) => {
+    setEntries((currentEntries) => {
+      const nextEntries = currentEntries.filter((item) => item.id !== entry.id);
+      return [entry, ...nextEntries];
+    });
+  };
+
   return (
     <div className="mx-auto w-full max-w-[1680px] px-5 py-7">
-      <TimerWidget projects={projects} projectsError={projectsError} tasks={tasks} onProjectChange={handleProjectChange} />
+      <TimerWidget projects={projects} projectsError={projectsError} tasks={tasks} onProjectChange={handleProjectChange} onEntryCreated={handleEntryCreated} />
 
       <div className="mt-10">
         <div className="mb-4 flex items-center justify-between text-sm text-[#52656f]">

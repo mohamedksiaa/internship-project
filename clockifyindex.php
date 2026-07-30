@@ -144,7 +144,11 @@ llxHeader($headHtml, $langs->trans("ClockifyArea"), '', '', 0, 0, '', '', '', 'm
 print load_fiche_titre($langs->trans("ClockifyArea"), '');
 print '<div class="fichecenter">';
 print '<div id="root" style="min-height:600px;"></div>';
-print '<script>window.DOL_URL_ROOT = "'.addslashes(DOL_URL_ROOT).'";</script>';
+print '<script>';
+print 'window.DOL_URL_ROOT = '.json_encode(DOL_URL_ROOT).';';
+print 'window.CLOCKIFY_TOKEN = '.json_encode(currentToken()).';';
+print 'window.CLOCKIFY_AJAX_URL = '.json_encode(dol_buildpath('/custom/clockify/ajax/timeentry.php', 1)).';';
+print '</script>';
 if ($jsUrl) {
 	print '<script type="module" crossorigin src="'.$jsUrl.'" defer></script>';
 }

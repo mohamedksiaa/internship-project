@@ -8,12 +8,16 @@ export function formatDuration(totalSeconds) {
 
 export function summarizeWeek(entries = []) {
   const totalSeconds = entries.reduce((sum, entry) => sum + Number(entry.duration || 0), 0);
-  const validatedCount = entries.filter((entry) => Number(entry.status) === 1).length;
+  const billableSeconds = entries.filter((entry) => Number(entry.billable) === 1).reduce((sum, entry) => sum + Number(entry.duration || 0), 0);
+  const submittedCount = entries.filter((entry) => Number(entry.status) === 1).length;
+  const validatedCount = entries.filter((entry) => Number(entry.status) === 2).length;
   const pendingCount = entries.filter((entry) => Number(entry.status) === 0).length;
 
   return {
     totalSeconds,
+    billableSeconds,
     entryCount: entries.length,
+    submittedCount,
     validatedCount,
     pendingCount,
   };
