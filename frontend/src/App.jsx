@@ -11,7 +11,7 @@ export default function App() {
     <HashRouter>
       <Routes>
         <Route path="/" element={<AppLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route index element={<Navigate to="/timer" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="timer" element={<TimerPage />} />
           <Route path="history" element={<HistoryPage />} />

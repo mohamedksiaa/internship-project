@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/templates/DashboardLayout';
 import TimerWidget from '../components/organisms/TimerWidget';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-import { normalizeProjects, normalizeTasks } from '../api/clockifyApi';
+import { getProjects, getTasks, getTimeEntries } from '../api/clockifyApi';
 
 const fallbackProjects = [
   { id: 1, title: 'Projet Alpha' },
@@ -20,21 +20,10 @@ export default function TimeTrackerPage() {
 
     async function loadProjects() {
       try {
-        const projectResponse = await fetch('/api/index.php/projects?limit=10', {
-          credentials: 'include',
-        });
-
-        if (!projectResponse.ok) {
-          throw new Error('Impossible de charger les projets Dolibarr');
-        }
-
-        const projectData = await projectResponse.json();
-        const mappedProjects = normalizeProjects(projectData);
-
+        const mappedProjects = await getProjects();
         if (!mappedProjects.length) {
           throw new Error('Aucun projet disponible dans Dolibarr');
         }
-
         if (isMounted) {
           setProjects(mappedProjects);
         }
@@ -48,17 +37,9 @@ export default function TimeTrackerPage() {
 
     async function loadTasks() {
       try {
-        const taskResponse = await fetch('/api/index.php/tasks?limit=20', {
-          credentials: 'include',
-        });
-
-        if (!taskResponse.ok) {
-          return;
-        }
-
-        const taskData = await taskResponse.json();
+        const mappedTasks = await getTasks();
         if (isMounted) {
-          setTasks(normalizeTasks(taskData));
+          setTasks(mappedTasks);
         }
       } catch {
         if (isMounted) {
@@ -69,15 +50,7 @@ export default function TimeTrackerPage() {
 
     async function loadEntries() {
       try {
-        const response = await fetch('/api/index.php/clockify/timeentrys', {
-          credentials: 'include',
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const data = await response.json();
+        const data = await getTimeEntries();
         if (isMounted) {
           setEntries(Array.isArray(data) ? data : []);
         }
@@ -100,7 +73,7 @@ export default function TimeTrackerPage() {
   return (
     <DashboardLayout
       timer={<TimerWidget projects={projects} projectsError={projectsError} tasks={tasks} />}
-      entryList={<TimeEntryList entries={entries} setEntries={setEntries} />}
+      entryList={<TimeEntryList entries={entries} setEntries={setEntries} projects={projects} tasks={tasks} />}
       stats={entries}
     />
   );
