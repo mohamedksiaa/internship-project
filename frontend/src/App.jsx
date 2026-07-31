@@ -6,6 +6,8 @@ import HistoryPage from './pages/HistoryPage';
 import ReportsPage from './pages/ReportsPage';
 import ValidationPage from './pages/ValidationPage';
 
+const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
+
 export default function App() {
   return (
     <HashRouter>
@@ -15,8 +17,8 @@ export default function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="timer" element={<TimerPage />} />
           <Route path="history" element={<HistoryPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-          <Route path="validation" element={<ValidationPage />} />
+          <Route path="reports" element={canReadAll ? <ReportsPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="validation" element={canReadAll ? <ValidationPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>

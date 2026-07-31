@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { approveTimeEntry, rejectTimeEntry, startTimer, submitEntry } from '../../api/clockifyApi';
+import { approveTimeEntry, rejectTimeEntry, roundTimeEntry, startTimer, submitEntry } from '../../api/clockifyApi';
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
 
@@ -29,32 +29,6 @@ function endTimeLabel(entry) {
     return timeLabel(new Date(start.getTime() + Number(entry.duration) * 1000));
   }
   return entry.status === 0 ? 'En cours' : '—';
-}
-
-// Safely evaluates string '0', number 0, boolean false, etc.
-function isBillable(entry) {
-  const val = entry.billable ?? entry.is_billable ?? entry.billable_flag;
-  return val === true || val === 1 || val === '1' || val === 'true';
-}
-
-// Safely extracts tags whether string, array of strings, or array of objects
-function formatTags(entry) {
-  const rawTags = entry.tags ?? entry.tag_list ?? entry.tags_labels ?? entry.tagNames;
-  if (!rawTags) return 'Sans tags';
-  
-  if (Array.isArray(rawTags)) {
-    if (rawTags.length === 0) return 'Sans tags';
-    const parsed = rawTags
-      .map((t) => (typeof t === 'object' ? t.name || t.label || t.title : String(t)))
-      .filter(Boolean);
-    return parsed.length > 0 ? parsed.join(', ') : 'Sans tags';
-  }
-  
-  if (typeof rawTags === 'string') {
-    return rawTags.trim() || 'Sans tags';
-  }
-  
-  return 'Sans tags';
 }
 
 export default function TimeEntryList({
@@ -131,7 +105,7 @@ export default function TimeEntryList({
         getTaskId(entry),
         entry.note || '',
         entry.tags || '',
-        isBillable(entry) ? 1 : 0
+        Number(entry.billable) || 0
       );
       const restartedEntry = {
         ...entry,
@@ -167,8 +141,22 @@ export default function TimeEntryList({
     }
   };
 
+  const roundEntry = async (entry) => {
+    setBusyId(entry.id);
+    setError('');
+    try {
+      const updated = await roundTimeEntry(entry.id, 15);
+      const next = entries.map((item) => (item.id === entry.id ? { ...item, ...updated } : item));
+      setEntries(next);
+      setParentEntries?.(next);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const projectName = (entry) => {
-    if (typeof entry.project_label === 'string' && entry.project_label) return entry.project_label;
     if (typeof entry.project_name === 'string' && entry.project_name) return entry.project_name;
     if (typeof entry.project === 'string' && entry.project) return entry.project;
     if (entry.project?.title || entry.project?.label || entry.project?.name) {
@@ -180,7 +168,6 @@ export default function TimeEntryList({
   };
 
   const taskName = (entry) => {
-    if (typeof entry.task_label === 'string' && entry.task_label) return entry.task_label;
     if (typeof entry.task_name === 'string' && entry.task_name) return entry.task_name;
     if (typeof entry.task === 'string' && entry.task) return entry.task;
     if (entry.task?.title || entry.task?.label || entry.task?.name) {
@@ -233,7 +220,7 @@ export default function TimeEntryList({
                     <td className="px-5 py-3 min-w-[180px]">
                       <p className="font-medium text-[#2c3e49] truncate">{entry.note || 'Sans description'}</p>
                       <p className="mt-0.5 text-xs text-[#71838f]">
-                        {formatTags(entry)}{isBillable(entry) ? ' · Billable' : ' · Non billable'}
+                        {entry.tags || 'Sans tags'}{entry.billable ? ' · Billable' : ' · Non billable'}
                       </p>
                     </td>
                     <td className="px-3 py-3 text-[#03a9f4] font-medium truncate min-w-[120px]">
@@ -306,6 +293,14 @@ export default function TimeEntryList({
                         >
                           ×{sessionCounts.get(sessionIdentity(entry)) || 1}
                         </span>
+                        <button
+                          title="Arrondir à 15 minutes"
+                          onClick={() => roundEntry(entry)}
+                          disabled={busyId === entry.id}
+                          className="text-xs text-[#78909c]"
+                        >
+                          ≈15
+                        </button>
                         <button title="Plus d’options">⋮</button>
                       </div>
                     </td>

@@ -101,10 +101,6 @@ function clockifyExportTimeEntry($object)
         $cleaned['project_label'] = clockifyResolveProjectLabel((int) $object->fk_project);
     }
 
-    if (property_exists($object, 'fk_task')) {
-        $cleaned['task_label'] = clockifyResolveTaskLabel((int) $object->fk_task);
-    }
-
     return $cleaned;
 }
 
@@ -140,37 +136,6 @@ function clockifyResolveProjectLabel($projectId)
     }
 
     $cache[$projectId] = $label;
-    return $label;
-}
-
-function clockifyResolveTaskLabel($taskId)
-{
-    global $db;
-
-    static $cache = array();
-
-    $taskId = (int) $taskId;
-    if ($taskId <= 0) {
-        return '';
-    }
-    if (array_key_exists($taskId, $cache)) {
-        return $cache[$taskId];
-    }
-
-    $label = 'Tâche #'.$taskId;
-    $sql = 'SELECT rowid, ref, label';
-    $sql .= ' FROM '.$db->prefix().'projet_task';
-    $sql .= ' WHERE rowid = '.$taskId;
-    $resql = $db->query($sql);
-    if ($resql) {
-        $obj = $db->fetch_object($resql);
-        if ($obj) {
-            $label = clockifyTaskLabel($obj);
-        }
-        $db->free($resql);
-    }
-
-    $cache[$taskId] = $label;
     return $label;
 }
 

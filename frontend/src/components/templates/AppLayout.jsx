@@ -11,6 +11,8 @@ const navigation = [
 function classNames(...classes) { return classes.filter(Boolean).join(' '); }
 
 export default function AppLayout() {
+  const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
+  const visibleNavigation = navigation.filter((item) => canReadAll || (item.path !== '/reports' && item.path !== '/validation'));
   let displayedSection = '';
 
   return (
@@ -34,7 +36,7 @@ export default function AppLayout() {
       <div className="flex min-h-[calc(100vh-60px)]">
         <aside className="w-[220px] shrink-0 border-r border-[#dce5ea] bg-white py-2">
           <nav>
-            {navigation.map((item, index) => {
+            {visibleNavigation.map((item, index) => {
               const showSection = item.section !== displayedSection;
               displayedSection = item.section;
               return (

@@ -40,3 +40,36 @@ MyPageName = My page name
 #
 MyWidget = My widget
 MyWidgetDescription = My widget description
+
+CLOCKIFY_WEEKLY_WORK_HOURS = Weekly work hours
+CLOCKIFY_WEEKLY_WORK_HOURS_TOOLTIP = Default number of work hours expected per week.
+CLOCKIFY_MANDATORY_TASK_BEFORE_TIMER = Task required before timer
+CLOCKIFY_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP = Ask for a task before allowing the timer to start.
+CLOCKIFY_TIMER_ROUNDING_STEP = Timer rounding step (minutes)
+CLOCKIFY_TIMER_ROUNDING_STEP_TOOLTIP = Round time entries to this number of minutes.
+CLOCKIFY_VALIDATE_RIGHT = Validation permission
+CLOCKIFY_VALIDATE_RIGHT_TOOLTIP = Choose which Clockify right can validate time entries.
+ClockifyRightRead = Read time entries
+ClockifyRightReadAll = Read all time entries
+ClockifyRightWrite = Create/update time entries
+ClockifyRightValidate = Validate time entries
+ClockifyRightDelete = Delete time entries
+
+User = User
+Project = Project
+Task = Task
+DateStart = Start date
+DateEnd = End date
+Duration = Duration
+Note = Note
+Tags = Tags
+Billable = Billable
+Status = Status
+SubmittedBy = Submitted by
+ValidatedBy = Validated by
+Draft = Draft
+Submitted = Submitted
+Validated = Validated
+Refused = Refused
+TimeEntry = Time entry
+TimeEntrys = Time entries

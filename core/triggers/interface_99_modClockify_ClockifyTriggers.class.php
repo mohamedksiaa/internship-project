@@ -65,7 +65,7 @@ class InterfaceClockifyTriggers extends DolibarrTriggers
 	public function runTrigger($action, $object, User $user, Translate $langs, Conf $conf)
 	{
 		if ($action == 'TASK_CLOSE') {
-			require_once DOL_DOCUMENT_ROOT.'/custom/clockify/class/timeentry.class.php';
+			dol_include_once('/clockify/class/timeentry.class.php');
 			$timeentry = new TimeEntry($this->db);
 			$activeId = $timeentry->hasActiveTimer($user->id);
 			if ($activeId > 0) {

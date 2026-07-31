@@ -110,82 +110,41 @@ if (!$user->admin) {
 
 // Enter here all parameters in your setup page
 
-// Setup conf for selection of an URL
-$item = $formSetup->newItem('CLOCKIFY_MYPARAM1');
-$item->fieldParams['isMandatory'] = 1;
-$item->fieldAttr['placeholder'] = (empty($_SERVER['HTTPS']) ? 'http://' : 'https://') . $_SERVER['HTTP_HOST'];
-$item->cssClass = 'minwidth500';
+// Default weekly work hours
+$item = $formSetup->newItem('CLOCKIFY_WEEKLY_WORK_HOURS');
+$item->defaultFieldValue = 35;
+$item->fieldAttr['type'] = 'number';
+$item->fieldAttr['min'] = 1;
+$item->fieldAttr['step'] = 1;
+$item->cssClass = 'minwidth100';
+$item->helpText = $langs->transnoentities('CLOCKIFY_WEEKLY_WORK_HOURS_TOOLTIP');
 
-// Setup conf for selection of a simple string input
-$item = $formSetup->newItem('CLOCKIFY_MYPARAM2');
-$item->defaultFieldValue = 'default value';
-$item->fieldAttr['placeholder'] = 'A placeholder here';
-$item->helpText = 'Tooltip text';
+// Ask for a task before starting the timer
+$item = $formSetup->newItem('CLOCKIFY_MANDATORY_TASK_BEFORE_TIMER');
+$item->setAsYesNo();
+$item->helpText = $langs->transnoentities('CLOCKIFY_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP');
 
-// Setup conf for selection of a simple textarea input but we replace the text of field title
-$item = $formSetup->newItem('CLOCKIFY_MYPARAM3');
-$item->nameText = $item->getNameText().' more html text ';
+// Time rounding step in minutes
+$item = $formSetup->newItem('CLOCKIFY_TIMER_ROUNDING_STEP');
+$item->defaultFieldValue = 15;
+$item->fieldAttr['type'] = 'number';
+$item->fieldAttr['min'] = 1;
+$item->fieldAttr['step'] = 1;
+$item->cssClass = 'minwidth100';
+$item->helpText = $langs->transnoentities('CLOCKIFY_TIMER_ROUNDING_STEP_TOOLTIP');
 
-// Setup conf for a selection of a Thirdparty
-$item = $formSetup->newItem('CLOCKIFY_MYPARAM4');
-$item->setAsThirdpartyType();
-
-// Setup conf for a selection of a boolean
-$formSetup->newItem('CLOCKIFY_MYPARAM5')->setAsYesNo();	 // ->fieldParams['alertifoff'] = 1 or ->fieldParams['alertifon'] = 1;
-
-// Setup conf for a selection of an Email template of type thirdparty
-$formSetup->newItem('CLOCKIFY_MYPARAM6')->setAsEmailTemplate('thirdparty');
-
-// Setup conf for a selection of a secured key
-//$formSetup->newItem('CLOCKIFY_MYPARAM7')->setAsSecureKey();
-
-// Setup conf for a selection of a Product
-$formSetup->newItem('CLOCKIFY_MYPARAM8')->setAsProduct();
-
-// Add a title for a new section
-$formSetup->newItem('NewSection')->setAsTitle();
-
-$TField = array(
-	'test01' => $langs->trans('test01'),
-	'test02' => $langs->trans('test02'),
-	'test03' => $langs->trans('test03'),
-	'test04' => $langs->trans('test04'),
-	'test05' => $langs->trans('test05'),
-	'test06' => $langs->trans('test06'),
+// Permission used to validate entries
+$validationRights = array(
+	'read' => $langs->trans('ClockifyRightRead'),
+	'readall' => $langs->trans('ClockifyRightReadAll'),
+	'write' => $langs->trans('ClockifyRightWrite'),
+	'validate' => $langs->trans('ClockifyRightValidate'),
+	'delete' => $langs->trans('ClockifyRightDelete'),
 );
-
-// Setup conf for a simple combo list
-$formSetup->newItem('CLOCKIFY_MYPARAM9')->setAsSelect($TField);
-
-// Setup conf for a multiselect combo list
-$item = $formSetup->newItem('CLOCKIFY_MYPARAM10');
-$item->setAsMultiSelect($TField);
-$item->helpText = $langs->transnoentities('CLOCKIFY_MYPARAM10');
-
-// Setup conf for a category selection
-$formSetup->newItem('CLOCKIFY_CATEGORY_ID_XXX')->setAsCategory('product');
-
-// Setup conf CLOCKIFY_MYPARAM10
-$item = $formSetup->newItem('CLOCKIFY_MYPARAM10');
-$item->setAsColor();
-$item->defaultFieldValue = '#FF0000';
-//$item->fieldValue = '';
-//$item->fieldAttr = array() ; // fields attribute only for compatible fields like input text
-//$item->fieldOverride = false; // set this var to override field output will override $fieldInputOverride and $fieldOutputOverride too
-//$item->fieldInputOverride = false; // set this var to override field input
-//$item->fieldOutputOverride = false; // set this var to override field output
-
-$item = $formSetup->newItem('CLOCKIFY_MYPARAM11')->setAsHtml();
-$item->nameText = $item->getNameText().' more html text ';
-$item->fieldInputOverride = '';
-$item->helpText = $langs->transnoentities('HelpMessage');
-$item->cssClass = 'minwidth500';
-
-$item = $formSetup->newItem('CLOCKIFY_MYPARAM12');
-$item->fieldOverride = "Value forced, can't be modified";
-$item->cssClass = 'minwidth500';
-
-//$item = $formSetup->newItem('CLOCKIFY_MYPARAM13')->setAsDate();	// Not yet implemented
+$item = $formSetup->newItem('CLOCKIFY_VALIDATE_RIGHT');
+$item->setAsSelect($validationRights);
+$item->defaultFieldValue = 'validate';
+$item->helpText = $langs->transnoentities('CLOCKIFY_VALIDATE_RIGHT_TOOLTIP');
 
 // End of definition of parameters
 
