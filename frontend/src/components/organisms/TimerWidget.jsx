@@ -15,7 +15,6 @@ export default function TimerWidget({ projects = [], projectsError = '', tasks =
   const [manualStart, setManualStart] = useState('');
   const [manualEnd, setManualEnd] = useState('');
   const [manualBusy, setManualBusy] = useState(false);
-  const [manualError, setManualError] = useState('');
 
   const pushEntry = (entry) => {
     if (entry) {
@@ -25,15 +24,7 @@ export default function TimerWidget({ projects = [], projectsError = '', tasks =
 
   const handleStart = async () => {
     if (manualMode) {
-      const start = new Date(manualStart);
-      const end = new Date(manualEnd);
-      if (!manualStart || !manualEnd || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-        setManualError('Renseignez une date de début et une date de fin postérieure.');
-        return;
-      }
-
       setManualBusy(true);
-      setManualError('');
       try {
         const entry = await createManualEntry({
           fk_project: projectId ? Number(projectId) : 0,
@@ -51,8 +42,6 @@ export default function TimerWidget({ projects = [], projectsError = '', tasks =
         setManualStart('');
         setManualEnd('');
         setManualMode(false);
-      } catch (err) {
-        setManualError(err instanceof Error ? err.message : 'Impossible d’enregistrer cette saisie manuelle.');
       } finally {
         setManualBusy(false);
       }
@@ -90,7 +79,6 @@ export default function TimerWidget({ projects = [], projectsError = '', tasks =
       </div>
       </div>
       {error && <p className="mt-2 text-sm text-[#d64c4c]">{error}</p>}
-      {manualError && <p className="mt-2 text-sm text-[#d64c4c]">{manualError}</p>}
       {projectsError && <p className="mt-2 text-sm text-[#78909c]">{projectsError}. Vous pouvez tout de même démarrer un chrono sans projet.</p>}
     </section>
   );

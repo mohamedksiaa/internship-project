@@ -13,16 +13,12 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 --
--- Adds the columns introduced after the first release for installs that were
--- created before time-entry enrichment, billing and approval support were
--- added. Safe to re-run: uses
+-- Adds hourly-rate/amount/invoice-link columns for installs that were
+-- created before billing support was added. Safe to re-run: uses
 -- IF NOT EXISTS so it is a no-op on fresh installs where the base
 -- llx_clockify_timeentry.sql script already created these columns.
 
-ALTER TABLE llx_clockify_timeentry ADD COLUMN IF NOT EXISTS tags text DEFAULT NULL;
 ALTER TABLE llx_clockify_timeentry ADD COLUMN IF NOT EXISTS thm double(24,8) DEFAULT NULL;
 ALTER TABLE llx_clockify_timeentry ADD COLUMN IF NOT EXISTS amount double(24,8) DEFAULT NULL;
 ALTER TABLE llx_clockify_timeentry ADD COLUMN IF NOT EXISTS fk_facture integer DEFAULT NULL;
 ALTER TABLE llx_clockify_timeentry ADD COLUMN IF NOT EXISTS date_invoice datetime DEFAULT NULL;
-ALTER TABLE llx_clockify_timeentry ADD COLUMN IF NOT EXISTS date_submit datetime DEFAULT NULL;
-ALTER TABLE llx_clockify_timeentry ADD COLUMN IF NOT EXISTS fk_user_submit integer DEFAULT NULL;
