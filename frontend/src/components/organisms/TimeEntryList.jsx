@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { approveTimeEntry, rejectTimeEntry, startTimer, submitEntry } from '../../api/clockifyApi';
+import { approveTimeEntry, rejectTimeEntry, roundTimeEntry, startTimer, submitEntry } from '../../api/clockifyApi';
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
 
@@ -167,6 +167,21 @@ export default function TimeEntryList({
     }
   };
 
+  const roundEntry = async (entry) => {
+    setBusyId(entry.id);
+    setError('');
+    try {
+      const updated = await roundTimeEntry(entry.id, 15);
+      const next = entries.map((item) => (item.id === entry.id ? { ...item, ...updated } : item));
+      setEntries(next);
+      setParentEntries?.(next);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const projectName = (entry) => {
     if (typeof entry.project_label === 'string' && entry.project_label) return entry.project_label;
     if (typeof entry.project_name === 'string' && entry.project_name) return entry.project_name;
@@ -292,6 +307,14 @@ export default function TimeEntryList({
                           </>
                         )}
                         {entry.status === 2 && <span title="Validée" className="text-[#35a66f]">✓</span>}
+                        <button
+                          title="Arrondir à 15 minutes"
+                          onClick={() => roundEntry(entry)}
+                          disabled={busyId === entry.id}
+                          className="text-xs text-[#78909c]"
+                        >
+                          ≈15
+                        </button>
                         <button
                           title="Démarrer à nouveau"
                           onClick={() => restartEntry(entry)}

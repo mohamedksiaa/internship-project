@@ -351,21 +351,7 @@ class modClockify extends DolibarrModules
         /* END MODULEBUILDER TOPMENU */
 
         /* BEGIN MODULEBUILDER LEFTMENU TIMEENTRY */
-        $this->menu[$r++] = array(
-            'fk_menu' => 'fk_mainmenu=clockify',
-            'type' => 'left',
-            'titre' => 'TimeEntry',
-            'mainmenu' => 'clockify',
-            'leftmenu' => 'timeentry',
-            'url' => '/clockify/clockifyindex.php',
-            'langs' => 'clockify@clockify',
-            'position' => 1000,
-            'enabled' => 'isModEnabled(\'clockify\')',
-            'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'read\')',
-            'target' => '',
-            'user' => 2,
-            'object' => 'TimeEntry',
-        );
+        // Removed: TimeEntry left menu entry. The React frontend (clockifyindex.php) handles all navigation.
         /* END MODULEBUILDER LEFTMENU TIMEENTRY */
 
         /* BEGIN MODULEBUILDER LEFTMENU LIST TIMEENTRY */
@@ -373,21 +359,7 @@ class modClockify extends DolibarrModules
         /* END MODULEBUILDER LEFTMENU LIST TIMEENTRY */
 
         /* BEGIN MODULEBUILDER LEFTMENU NEW TIMEENTRY */
-        $this->menu[$r++] = array(
-            'fk_menu' => 'fk_mainmenu=clockify,fk_leftmenu=timeentry',
-            'type' => 'left',
-            'titre' => 'New TimeEntry',
-            'mainmenu' => 'clockify',
-            'leftmenu' => 'clockify_timeentry_new',
-            'url' => '/clockify/timeentry_card.php?action=create',
-            'langs' => 'clockify@clockify',
-            'position' => 1000,
-            'enabled' => 'isModEnabled(\'clockify\')',
-            'perms' => '$user->hasRight(\'clockify\', \'timeentry\', \'write\')',
-            'target' => '',
-            'user' => 2,
-            'object' => '',
-        );
+        // Removed: New TimeEntry menu entry. Creation is handled via the React frontend (TimerWidget).
         /* END MODULEBUILDER LEFTMENU NEW TIMEENTRY */
 		/* END MODULEBUILDER LEFTMENU TIMEENTRY */
 
