@@ -150,9 +150,15 @@ class TimeEntry extends CommonObject
 	public $date_creation;
 	public $tms;
 	public $fk_user_creat;
-	public $fk_user_modif;
-	public $import_key;
-	// END MODULEBUILDER PROPERTIES
+public $fk_user_modif;
+    public $import_key;
+    // END MODULEBUILDER PROPERTIES
+
+    const MOD_ACTION_EDIT = 'edit';
+    const MOD_ACTION_SUBMIT = 'submit';
+    const MOD_ACTION_VALIDATE = 'validate';
+    const MOD_ACTION_REJECT = 'reject';
+    const MOD_ACTION_REOPEN = 'reopen';
 
 
 	// If this object has a subtable with lines
@@ -508,12 +514,66 @@ class TimeEntry extends CommonObject
 	 * @param	int<0,1>	$notrigger	0=launch triggers after, 1=disable triggers
 	 * @return	int<-1,1>				Return integer <0 if KO, >0 if OK
 	 */
-	public function update(User $user, $notrigger = 0)
-	{
-		$this->recalculateAmount();
+public function update(User $user, $notrigger = 0, $reason = '')
+    {
+        $this->recalculateAmount();
 
-		return $this->updateCommon($user, $notrigger);
-	}
+        $oldValues = array();
+        $fieldsToAudit = array('fk_project', 'fk_task', 'date_start', 'date_end', 'duration', 'note', 'tags', 'billable', 'thm', 'status');
+        foreach ($fieldsToAudit as $field) {
+            if (isset($this->fields[$field])) {
+                $oldValues[$field] = null;
+            }
+        }
+
+        if ($this->id > 0) {
+            $existing = new self($this->db);
+            if ($existing->fetch($this->id) > 0) {
+                foreach ($fieldsToAudit as $field) {
+                    $oldValues[$field] = isset($existing->$field) ? $existing->$field : null;
+                }
+            }
+        }
+
+        $result = $this->updateCommon($user, $notrigger);
+
+        if ($result > 0 && !empty($reason) && $this->id > 0) {
+            $this->logModifications($user, $oldValues, $reason);
+        }
+
+        return $result;
+    }
+
+    protected function logModifications(User $user, array $oldValues, string $reason)
+    {
+        $now = dol_now();
+        $fieldsToAudit = array('fk_project', 'fk_task', 'date_start', 'date_end', 'duration', 'note', 'tags', 'billable', 'thm', 'status');
+
+        foreach ($fieldsToAudit as $field) {
+            $oldVal = isset($oldValues[$field]) ? $oldValues[$field] : null;
+            $newVal = isset($this->$field) ? $this->$field : null;
+
+            $oldStr = is_array($oldVal) ? json_encode($oldVal) : (string) $oldVal;
+            $newStr = is_array($newVal) ? json_encode($newVal) : (string) $newVal;
+
+            if ($oldStr !== $newStr) {
+                $sql = 'INSERT INTO '.$this->db->prefix().'clockify_timeentry_modification';
+                $sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat)';
+                $sql .= ' VALUES ('.$this->entity.',';
+                $sql .= ' '.((int) $this->id).',';
+                $sql .= ' '.((int) $user->id).',';
+                $sql .= " '".$this->db->escape(self::MOD_ACTION_EDIT)."',";
+                $sql .= " '".$this->db->escape($field)."',";
+                $sql .= " '".$this->db->escape($oldStr)."',";
+                $sql .= " '".$this->db->escape($newStr)."',";
+                $sql .= " '".$this->db->escape($reason)."',";
+                $sql .= " '".$this->db->idate($now)."',";
+                $sql .= ' '.((int) $user->id);
+                $sql .= ')';
+                $this->db->query($sql);
+            }
+        }
+    }
 
 	/**
 	 * Recompute the billable amount from duration and hourly rate.

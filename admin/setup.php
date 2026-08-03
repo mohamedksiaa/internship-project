@@ -124,14 +124,11 @@ $item = $formSetup->newItem('CLOCKIFY_MANDATORY_TASK_BEFORE_TIMER');
 $item->setAsYesNo();
 $item->helpText = $langs->transnoentities('CLOCKIFY_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP');
 
-// Time rounding step in minutes
-$item = $formSetup->newItem('CLOCKIFY_TIMER_ROUNDING_STEP');
-$item->defaultFieldValue = 15;
-$item->fieldAttr['type'] = 'number';
-$item->fieldAttr['min'] = 1;
-$item->fieldAttr['step'] = 1;
-$item->cssClass = 'minwidth100';
-$item->helpText = $langs->transnoentities('CLOCKIFY_TIMER_ROUNDING_STEP_TOOLTIP');
+// Project management mode
+$item = $formSetup->newItem('CLOCKIFY_PROJECT_MODE');
+$item->setAsSelect(array('internal' => 'Internal projects only', 'dolibarr_only' => 'Dolibarr Projects only', 'both' => 'Both modes'));
+$item->defaultFieldValue = 'internal';
+$item->helpText = $langs->transnoentities('CLOCKIFY_PROJECT_MODE_TOOLTIP');
 
 // Permission used to validate entries
 $validationRights = array(
