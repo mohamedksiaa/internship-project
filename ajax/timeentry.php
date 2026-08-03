@@ -461,6 +461,26 @@ switch ($action) {
         clockifyJsonResponse(array('status' => 'success', 'data' => clockifyFetchProjects($db)));
         break;
 
+    case 'getClockifyProjects':
+        clockifyJsonResponse(array('status' => 'success', 'data' => clockifyFetchClockifyProjects($db, $user)));
+        break;
+
+    case 'createClockifyProject':
+        if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $title = trim($postData['title'] ?? GETPOST('title', 'alphanohtml'));
+        if ($title === '') {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Le titre du projet est requis'), 400);
+        }
+        $fkSoc = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
+        $res = clockifyCreateProject($db, $user, $title, $fkSoc);
+        if ($res > 0) {
+            clockifyJsonResponse(array('status' => 'success', 'data' => array('id' => $res, 'title' => $title)));
+        }
+        clockifyJsonResponse(array('status' => 'error', 'message' => 'Erreur à la création du projet'), 400);
+        break;
+
     case 'getTasks':
         $projectId = !empty($postData['projectId']) ? (int) $postData['projectId'] : (int) GETPOST('projectId', 'int');
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
@@ -676,25 +696,6 @@ switch ($action) {
         )));
         break;
 
-    case 'roundTimeEntry':
-        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        $stepMinutes = !empty($postData['stepMinutes']) ? (int) $postData['stepMinutes'] : (int) GETPOST('stepMinutes', 'int');
-        $stepMinutes = $stepMinutes > 0 ? $stepMinutes : 15;
-        if ($timeentry->fetch($id) <= 0) {
-            clockifyJsonResponse(array('status' => 'error', 'message' => 'Entrée introuvable'), 404);
-        }
-        $duration = (int) $timeentry->duration;
-        $rounded = (int) (ceil($duration / ($stepMinutes * 60)) * $stepMinutes * 60);
-        $timeentry->duration = $rounded;
-        if (!empty($timeentry->date_start)) {
-            $timeentry->date_end = date('Y-m-d H:i:s', strtotime($timeentry->date_start) + $rounded);
-        }
-        if ($timeentry->update($user) > 0) {
-            clockifyJsonResponse(array('status' => 'success', 'data' => clockifyExportTimeEntry($timeentry)));
-        }
-        clockifyJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur de arrondi'), 400);
-        break;
-
     case 'validateEntry':
     case 'approveTimeEntry':
         if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
@@ -741,8 +742,154 @@ switch ($action) {
         clockifyJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur au refus'), 400);
         break;
 
+    case 'updateEntry':
+        if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        $reason = $postData['reason'] ?? GETPOST('reason', 'restricthtml');
+        if ($reason === '') {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'La raison de la modification est requise'), 400);
+        }
+        if ($timeentry->fetch($id) <= 0) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Entrée introuvable'), 404);
+        }
+        // Store old values for audit
+        $oldValues = array(
+            'fk_project' => $timeentry->fk_project,
+            'fk_task' => $timeentry->fk_task,
+            'date_start' => $timeentry->date_start,
+            'date_end' => $timeentry->date_end,
+            'duration' => $timeentry->duration,
+            'note' => $timeentry->note,
+            'tags' => $timeentry->tags,
+            'billable' => $timeentry->billable,
+            'thm' => $timeentry->thm,
+        );
+        // Apply updates
+        if (isset($postData['fk_project'])) {
+            $timeentry->fk_project = (int) $postData['fk_project'] > 0 ? (int) $postData['fk_project'] : null;
+        }
+        if (isset($postData['fk_task'])) {
+            $timeentry->fk_task = (int) $postData['fk_task'] > 0 ? (int) $postData['fk_task'] : null;
+        }
+        if (isset($postData['date_start'])) {
+            $timeentry->date_start = $postData['date_start'];
+        }
+        if (isset($postData['date_end'])) {
+            $timeentry->date_end = $postData['date_end'];
+        }
+        if (isset($postData['note'])) {
+            $timeentry->note = trim((string) $postData['note']);
+        }
+        if (isset($postData['tags'])) {
+            $timeentry->tags = clockifyNormalizeTags($postData['tags']);
+        }
+        if (isset($postData['billable'])) {
+            $timeentry->billable = (int) $postData['billable'];
+        }
+        if (isset($postData['thm'])) {
+            $timeentry->thm = (float) $postData['thm'];
+        }
+        // Recalculate duration if dates changed
+        if (!empty($timeentry->date_start) && !empty($timeentry->date_end)) {
+            $timeentry->duration = max(0, (int) strtotime($timeentry->date_end) - (int) strtotime($timeentry->date_start));
+        }
+        $timeentry->recalculateAmount();
+        $res = $timeentry->update($user, 0, $reason);
+        if ($res > 0) {
+            clockifyJsonResponse(array('status' => 'success', 'data' => clockifyExportTimeEntry($timeentry)));
+        }
+        clockifyJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur lors de la modification'), 400);
+        break;
+
+    case 'getModificationHistory':
+        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        $history = array();
+        $sql = 'SELECT m.rowid, m.fk_timeentry, m.fk_user, m.action, m.field_name, m.old_value, m.new_value, m.reason, m.date_creation, u.login as user_login, u.firstname, u.lastname';
+        $sql .= ' FROM ' . $db->prefix() . 'clockify_timeentry_modification as m';
+        $sql .= ' LEFT JOIN ' . $db->prefix() . 'user as u ON u.rowid = m.fk_user';
+        $sql .= ' WHERE m.fk_timeentry = ' . ((int) $id);
+        $sql .= ' ORDER BY m.date_creation DESC';
+        $resql = $db->query($sql);
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $history[] = array(
+                    'rowid' => (int) $obj->rowid,
+                    'fk_timeentry' => (int) $obj->fk_timeentry,
+                    'fk_user' => (int) $obj->fk_user,
+                    'action' => $obj->action,
+                    'field_name' => $obj->field_name,
+                    'old_value' => $obj->old_value,
+                    'new_value' => $obj->new_value,
+                    'reason' => $obj->reason,
+                    'date_creation' => $obj->date_creation,
+                    'user_label' => clockifyResolveUserLabel((int) $obj->fk_user),
+                );
+            }
+        }
+        clockifyJsonResponse(array('status' => 'success', 'data' => $history));
+        break;
+
     default:
         http_response_code(404);
         echo json_encode(array('error' => 'Action non reconnue'));
         break;
+}
+
+function clockifyFetchClockifyProjects($db, $user)
+{
+    $projects = array();
+    $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.source, p.fk_dolibarr_project, p.fk_soc, s.nom as soc_name';
+    $sql .= ' FROM '.$db->prefix().'clockify_project AS p';
+    $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
+    $sql .= ' WHERE p.entity IN ('.getEntity('clockify_project').')';
+    $sql .= ' ORDER BY p.title ASC, p.rowid DESC';
+
+    $resql = $db->query($sql);
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $projects[] = array(
+                'id' => (int) $obj->rowid,
+                'rowid' => (int) $obj->rowid,
+                'title' => $obj->title,
+                'ref' => !empty($obj->ref) ? $obj->ref : '',
+                'description' => !empty($obj->description) ? $obj->description : '',
+                'source' => $obj->source,
+                'fk_dolibarr_project' => (int) $obj->fk_dolibarr_project,
+                'fk_soc' => (int) $obj->fk_soc,
+                'client' => !empty($obj->soc_name) ? $obj->soc_name : '',
+            );
+        }
+    }
+
+    return $projects;
+}
+
+function clockifyCreateProject($db, $user, $title, $fkSoc = 0)
+{
+    global $conf;
+
+    $now = dol_now();
+    $ref = 'CPJ-'.date('YmdHis');
+
+    $sql = 'INSERT INTO '.$db->prefix().'clockify_project';
+    $sql .= ' (entity, ref, title, description, source, fk_dolibarr_project, fk_soc, fk_user_creat, date_creation)';
+    $sql .= ' VALUES ('.getEntity('clockify_project').',';
+    $sql .= " '".$db->escape($ref)."',";
+    $sql .= " '".$db->escape($title)."',";
+    $sql .= " '',";
+    $sql .= " 'manual',";
+    $sql .= ' NULL,';
+    $sql .= ' '.((int) $fkSoc).',';
+    $sql .= ' '.((int) $user->id).',';
+    $sql .= " '".$db->idate($now)."'";
+    $sql .= ')';
+
+    $resql = $db->query($sql);
+    if ($resql) {
+        return $db->last_insert_id;
+    }
+
+    return -1;
 }
