@@ -138,12 +138,12 @@ $headHtml = '';
 if ($cssUrl) {
 	$headHtml = '<link rel="stylesheet" href="'.$cssUrl.'">';
 }
+$headHtml .= '<link rel="stylesheet" href="'.dol_buildpath('/custom/clockify/css/clockify_fullscreen.css', 1).'">';
+
+$conf->global->MAIN_MENU_LEFT_HIDDEN = '1';
 
 llxHeader($headHtml, $langs->trans("ClockifyArea"), '', '', 0, 0, '', '', '', 'mod-clockify page-index');
-
-print load_fiche_titre($langs->trans("ClockifyArea"), '');
-print '<div class="fichecenter">';
-print '<div id="root" style="min-height:600px;"></div>';
+print '<div id="root" style="width:100%;min-height:calc(100vh - 60px);"></div>';
 print '<script>';
 print 'window.DOL_URL_ROOT = '.json_encode(DOL_URL_ROOT).';';
 print 'window.CLOCKIFY_TOKEN = '.json_encode(currentToken()).';';
