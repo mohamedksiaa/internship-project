@@ -11,6 +11,7 @@ export default function TimerWidget({ projects = [], projectsError = '', tasks =
   const [note, setNote] = useState('');
   const [tags, setTags] = useState('');
   const [billable, setBillable] = useState(false);
+  const [reason, setReason] = useState('');
   const [manualMode, setManualMode] = useState(false);
   const [manualStart, setManualStart] = useState('');
   const [manualEnd, setManualEnd] = useState('');
@@ -34,11 +35,13 @@ export default function TimerWidget({ projects = [], projectsError = '', tasks =
           note: note.trim(),
           tags,
           billable: billable ? 1 : 0,
+          reason: reason.trim(),
         });
         pushEntry(entry);
         setNote('');
         setTags('');
         setBillable(false);
+        setReason('');
         setManualStart('');
         setManualEnd('');
         setManualMode(false);
@@ -73,7 +76,7 @@ export default function TimerWidget({ projects = [], projectsError = '', tasks =
       </div>
       <div className="grid gap-2 md:grid-cols-4">
         <label className="flex items-center gap-2 text-sm text-[#52656f]"><input type="checkbox" checked={manualMode} onChange={(e) => setManualMode(e.target.checked)} /> Saisie manuelle</label>
-        {manualMode && <><input type="datetime-local" value={manualStart} onChange={(e) => setManualStart(e.target.value)} className="border border-[#dce5ea] px-3 py-2 text-sm" /><input type="datetime-local" value={manualEnd} onChange={(e) => setManualEnd(e.target.value)} className="border border-[#dce5ea] px-3 py-2 text-sm" /></>}
+        {manualMode && <><input type="datetime-local" value={manualStart} onChange={(e) => setManualStart(e.target.value)} className="border border-[#dce5ea] px-3 py-2 text-sm" /><input type="datetime-local" value={manualEnd} onChange={(e) => setManualEnd(e.target.value)} className="border border-[#dce5ea] px-3 py-2 text-sm" /><input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Raison de la modification" className="border border-[#dce5ea] px-3 py-2 text-sm col-span-2" /></>}
         <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags, séparés par virgules" className="border border-[#dce5ea] px-3 py-2 text-sm" />
         <label className="flex items-center gap-2 text-sm text-[#52656f]"><input type="checkbox" checked={billable} onChange={(e) => setBillable(e.target.checked)} /> Billable</label>
       </div>
