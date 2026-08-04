@@ -173,8 +173,7 @@ function handleMockRequest(action, body) {
       return Promise.resolve({ status: 'success', data: { total_seconds: mockEntries.reduce((sum, entry) => sum + Number(entry.duration || 0), 0), billable_seconds: 0, non_billable_seconds: 0, by_project: {}, by_tag: {}, by_status: {} } });
     case 'generateInvoiceLines':
       return Promise.resolve({ status: 'success', data: [] });
-    case 'roundTimeEntry':
-      return Promise.resolve({ status: 'success', data: normalizeEntry(body || {}) });
+
     case 'submitWeeklyApproval':
       return Promise.resolve({ status: 'success', data: [] });
     default:
@@ -259,9 +258,15 @@ export async function generateInvoiceLines(fkSoc = 0) {
   return data?.data ?? data;
 }
 
-export async function roundTimeEntry(id, stepMinutes = 15) {
-  const data = await moduleTimerRequest('roundTimeEntry', { id, stepMinutes });
+
+export async function updateEntry(id, updates) {
+  const data = await moduleTimerRequest('updateEntry', { id, ...updates });
   return normalizeEntry(data?.data ?? data);
+}
+
+export async function getModificationHistory(entryId) {
+  const data = await moduleTimerRequest('getModificationHistory', { entryId });
+  return data?.data ?? [];
 }
 
 export async function submitWeeklyApproval(ids = []) {

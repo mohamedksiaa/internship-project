@@ -497,12 +497,12 @@ class modClockify extends DolibarrModules
 
 		// Create tables of module at module activation
 		//$result = $this->_load_tables('/install/mysql/', 'clockify');
-		$result = $this->_load_tables('/clockify/sql/');
-		if ($result < 0) {
-			return -1; // Do not activate module if error 'not allowed' returned when loading module SQL queries (the _load_table run sql with run_sql with the error allowed parameter set to 'default')
-		}
+$result = $this->_load_tables('/clockify/sql/');
+        if ($result < 0) {
+            return -1;
+        }
 
-		// Create extrafields during init
+        // Create extrafields during init
 		//include_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		//$extrafields = new ExtraFields($this->db);
 		//$result0=$extrafields->addExtraField('clockify_separator1', "Separator 1", 'separator', 1,  0, 'thirdparty',   0, 0, '', array('options'=>array(1=>1)), 1, '', 1, 0, '', '', 'clockify@clockify', 'isModEnabled("clockify")');
