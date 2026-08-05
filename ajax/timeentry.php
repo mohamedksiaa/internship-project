@@ -124,7 +124,7 @@ function clockifyResolveProjectLabel($projectId)
 
     $label = 'Projet #'.$projectId;
     $sql = 'SELECT rowid, ref, title';
-    $sql .= ' FROM '.$db->prefix().'projet';
+    $sql .= ' FROM '.$db->prefix().'clockify_project';
     $sql .= ' WHERE rowid = '.$projectId;
     $resql = $db->query($sql);
     if ($resql) {
@@ -253,9 +253,9 @@ function clockifyFetchProjects($db)
 {
     $projects = array();
     $sql = 'SELECT p.rowid, p.ref, p.title, p.fk_soc, s.nom as soc_name';
-    $sql .= ' FROM '.$db->prefix().'projet AS p';
+    $sql .= ' FROM '.$db->prefix().'clockify_project AS p';
     $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
-    $sql .= ' WHERE p.entity IN ('.getEntity('project').')';
+    $sql .= ' WHERE p.entity IN ('.getEntity('clockify_project').')';
     $sql .= ' ORDER BY p.title ASC, p.ref ASC, p.rowid DESC';
 
     $resql = $db->query($sql);
@@ -278,11 +278,26 @@ function clockifyFetchProjects($db)
 function clockifyFetchTasks($db, $projectId = 0, $limit = 100)
 {
     $tasks = array();
+    $dolibarrProjectId = 0;
+
+    if ((int) $projectId > 0) {
+        $sql = 'SELECT fk_dolibarr_project FROM '.$db->prefix().'clockify_project';
+        $sql .= ' WHERE rowid = '.((int) $projectId);
+        $sql .= ' AND entity IN ('.getEntity('clockify_project').')';
+        $resql = $db->query($sql);
+        if ($resql) {
+            $obj = $db->fetch_object($resql);
+            if ($obj) {
+                $dolibarrProjectId = (int) $obj->fk_dolibarr_project;
+            }
+        }
+    }
+
     $sql = 'SELECT rowid, fk_projet, ref, label';
     $sql .= ' FROM '.$db->prefix().'projet_task';
     $sql .= ' WHERE entity IN ('.getEntity('project').')';
-    if ((int) $projectId > 0) {
-        $sql .= ' AND fk_projet = '.((int) $projectId);
+    if ($dolibarrProjectId > 0) {
+        $sql .= ' AND fk_projet = '.$dolibarrProjectId;
     }
     $sql .= ' ORDER BY rowid DESC';
     $sql .= $db->plimit((int) $limit > 0 ? (int) $limit : 100);
@@ -387,29 +402,52 @@ switch ($action) {
         $fk_project = !empty($postData['fk_project']) ? (int)$postData['fk_project'] : (int)GETPOST('fk_project', 'int');
         $fk_task = !empty($postData['fk_task']) ? (int)$postData['fk_task'] : (int)GETPOST('fk_task', 'int');
         $note = !empty($postData['note']) ? $postData['note'] : GETPOST('note', 'restricthtml');
+        $projectLabel = trim((string) ($postData['project_label'] ?? GETPOST('project_label', 'restricthtml')));
         $tags = clockifyNormalizeTags($postData['tags'] ?? GETPOST('tags', 'alphanohtml'));
         $billable = !empty($postData['billable']) ? 1 : (int) GETPOST('billable', 'int');
 
-        if ($fk_task > 0 && $fk_project <= 0) {
+        if ($fk_task > 0 && $fk_project <= 0 && $projectLabel === '') {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Une tâche nécessite un projet'), 400);
         }
 
+        if ($projectLabel !== '' && $fk_project <= 0) {
+            $fk_project = clockifyResolveOrCreateProjectByLabel($db, $user, $projectLabel);
+        }
+
         if ($fk_project > 0) {
-            $project = new Project($db);
-            if ($project->fetch($fk_project) <= 0) {
+            $sql = 'SELECT rowid FROM '.$db->prefix().'clockify_project';
+            $sql .= ' WHERE rowid = '.((int) $fk_project);
+            $sql .= ' AND entity IN ('.getEntity('clockify_project').')';
+            $resql = $db->query($sql);
+            if (!$resql || $db->num_rows($resql) <= 0) {
                 clockifyJsonResponse(array('status' => 'error', 'message' => 'Projet introuvable'), 400);
             }
         }
 
         if ($fk_task > 0) {
             $task = new Task($db);
-            if ($task->fetch($fk_task) <= 0 || (int) $task->fk_project !== $fk_project) {
-                clockifyJsonResponse(array('status' => 'error', 'message' => 'Tâche introuvable ou rattachée à un autre projet'), 400);
+            if ($task->fetch($fk_task) <= 0) {
+                clockifyJsonResponse(array('status' => 'error', 'message' => 'Tâche introuvable'), 400);
+            }
+            if ($fk_project > 0) {
+                $sql = 'SELECT fk_dolibarr_project FROM '.$db->prefix().'clockify_project';
+                $sql .= ' WHERE rowid = '.((int) $fk_project);
+                $sql .= ' AND entity IN ('.getEntity('clockify_project').')';
+                $resql = $db->query($sql);
+                if ($resql && $cp = $db->fetch_object($resql)) {
+                    if ((int) $task->fk_project !== (int) $cp->fk_dolibarr_project) {
+                        clockifyJsonResponse(array('status' => 'error', 'message' => 'Tâche introuvable ou rattachée à un autre projet'), 400);
+                    }
+                }
             }
         }
 
         $id = $timeentry->startTimer($user->id, $fk_project, $fk_task, $note, $user, $tags, $billable);
         if ($id > 0) {
+            clockifyStoreTaskText($db, $user, $id, $note, $note);
+            if ($projectLabel !== '') {
+                clockifyStoreProjectText($db, $user, $id, $projectLabel, $note);
+            }
             // Return only stable scalar data. Serializing a Dolibarr object may
             // include non-serializable internals and result in an empty body.
             clockifyJsonResponse(array('status' => 'success', 'id' => (int) $id));
@@ -425,12 +463,21 @@ switch ($action) {
         $date_start = $postData['date_start'] ?? GETPOST('date_start', 'alphanohtml');
         $date_end = $postData['date_end'] ?? GETPOST('date_end', 'alphanohtml');
         $note = $postData['note'] ?? GETPOST('note', 'restricthtml');
+        $projectLabel = trim((string) ($postData['project_label'] ?? GETPOST('project_label', 'restricthtml')));
         $tags = clockifyNormalizeTags($postData['tags'] ?? GETPOST('tags', 'alphanohtml'));
         $billable = !empty($postData['billable']) ? 1 : (int) GETPOST('billable', 'int');
         $thm = !empty($postData['thm']) ? (float) $postData['thm'] : (float) GETPOST('thm', 'alphanohtml');
 
+        if ($projectLabel !== '' && $fk_project <= 0) {
+            $fk_project = clockifyResolveOrCreateProjectByLabel($db, $user, $projectLabel);
+        }
+
         $res = $timeentry->createManualEntry($user->id, $fk_project, $fk_task, $date_start, $date_end, $note, $tags, $billable, $user, $thm);
         if ($res > 0) {
+            clockifyStoreTaskText($db, $user, $res, $note, $note);
+            if ($projectLabel !== '') {
+                clockifyStoreProjectText($db, $user, $res, $projectLabel, $note);
+            }
             $timeentry->fetch($res);
             clockifyJsonResponse(array('status' => 'success', 'data' => clockifyExportTimeEntry($timeentry)));
         }
@@ -557,9 +604,13 @@ switch ($action) {
                     continue;
                 }
                 if ($clientId > 0) {
-                    $project = new Project($db);
-                    if ($project->fetch((int) $obj->fk_project) > 0 && (int) $project->socid !== $clientId) {
-                        continue;
+                    $sql = 'SELECT fk_soc FROM '.$db->prefix().'clockify_project';
+                    $sql .= ' WHERE rowid = '.(int) $obj->fk_project;
+                    $resql = $db->query($sql);
+                    if ($resql && $proj = $db->fetch_object($resql)) {
+                        if ((int) $proj->fk_soc !== (int) $clientId) {
+                            continue;
+                        }
                     }
                 }
                 $lines[] = array(
@@ -781,6 +832,7 @@ switch ($action) {
         }
         if (isset($postData['note'])) {
             $timeentry->note = trim((string) $postData['note']);
+            clockifyStoreTaskText($db, $user, (int) $timeentry->id, $timeentry->note, $timeentry->note);
         }
         if (isset($postData['tags'])) {
             $timeentry->tags = clockifyNormalizeTags($postData['tags']);
@@ -864,6 +916,74 @@ function clockifyFetchClockifyProjects($db, $user)
     }
 
     return $projects;
+}
+
+function clockifyResolveOrCreateProjectByLabel($db, $user, $projectLabel, $fkSoc = 0)
+{
+    $label = trim((string) $projectLabel);
+    if ($label === '') {
+        return 0;
+    }
+
+    $sql = 'SELECT rowid';
+    $sql .= ' FROM '.$db->prefix().'clockify_project';
+    $sql .= ' WHERE entity IN ('.getEntity('clockify_project').')';
+    $sql .= " AND title = '".$db->escape($label)."'";
+    $sql .= ' ORDER BY rowid DESC';
+    $sql .= $db->plimit(1);
+    $resql = $db->query($sql);
+    if ($resql && $db->num_rows($resql) > 0) {
+        $obj = $db->fetch_object($resql);
+        $db->free($resql);
+        return (int) $obj->rowid;
+    }
+
+    return clockifyCreateProject($db, $user, $label, $fkSoc);
+}
+
+function clockifyStoreTaskText($db, $user, $fkTimeentry, $label, $description = '')
+{
+    $label = trim((string) $label);
+    if ($label === '') {
+        return false;
+    }
+
+    $sql = 'INSERT INTO '.$db->prefix().'clockify_task';
+    $sql .= ' (entity, fk_user, fk_timeentry, label, description, fk_user_creat, date_creation)';
+    $sql .= ' VALUES (';
+    $sql .= getEntity('clockify_task').',';
+    $sql .= (int) $user->id.',';
+    $sql .= (int) $fkTimeentry.',';
+    $sql .= "'".$db->escape($label)."',";
+    $sql .= "'".$db->escape(trim((string) $description))."',";
+    $sql .= (int) $user->id.',';
+    $sql .= "'".$db->idate(dol_now())."'";
+    $sql .= ')';
+
+    $resql = $db->query($sql);
+    return $resql ? true : false;
+}
+
+function clockifyStoreProjectText($db, $user, $fkTimeentry, $projectLabel, $description = '')
+{
+    $projectLabel = trim((string) $projectLabel);
+    if ($projectLabel === '') {
+        return false;
+    }
+
+    $sql = 'INSERT INTO '.$db->prefix().'clockify_project_text';
+    $sql .= ' (entity, fk_timeentry, project_label, description, fk_user_creat, date_creation)';
+    $sql .= ' VALUES (';
+    $sql .= getEntity('clockify_project_text').',';
+    $sql .= (int) $fkTimeentry.',';
+    $sql .= "'".$db->escape($projectLabel)."',";
+    $sql .= "'".$db->escape(trim((string) $description))."',";
+    $sql .= (int) $user->id.',';
+    $sql .= "'".$db->idate(dol_now())."'";
+    $sql .= ')';
+
+    $resql = $db->query($sql);
+    return $resql ? true : false;
 }
 
 function clockifyCreateProject($db, $user, $title, $fkSoc = 0)

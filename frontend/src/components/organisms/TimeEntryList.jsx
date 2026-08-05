@@ -126,8 +126,9 @@ export default function TimeEntryList({
     setBusyId(entry.id);
     setError('');
     try {
+      const projectLabel = entry.project_label || entry.project_name || entry.project?.title || entry.project?.label || entry.project?.name || '';
       const created = await startTimer(
-        getProjectId(entry),
+        projectLabel,
         getTaskId(entry),
         entry.note || '',
         entry.tags || '',
