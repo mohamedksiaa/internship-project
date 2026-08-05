@@ -40,3 +40,38 @@ CREATE TABLE IF NOT EXISTS llx_clockify_project(
     INDEX idx_cfp_source (source),
     INDEX idx_cfp_fk_dolibarr (fk_dolibarr_project)
 ) ENGINE=innodb;
+
+-- Add free-text project table for custom project labels
+CREATE TABLE IF NOT EXISTS llx_clockify_project_text(
+    rowid         integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
+    entity        integer DEFAULT 1 NOT NULL,
+    fk_timeentry  integer DEFAULT NULL,
+    project_label varchar(255) NOT NULL,
+    description   text,
+    fk_user_creat integer NOT NULL,
+    date_creation datetime NOT NULL,
+    tms           timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    import_key    varchar(14),
+    INDEX idx_ccpt_entity (entity),
+    INDEX idx_ccpt_fk_timeentry (fk_timeentry),
+    INDEX idx_ccpt_project_label (project_label),
+    INDEX idx_ccpt_fk_user_creat (fk_user_creat)
+) ENGINE=innodb;
+
+-- Add task table for free-text task descriptions
+CREATE TABLE IF NOT EXISTS llx_clockify_task(
+    rowid         integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
+    entity        integer DEFAULT 1 NOT NULL,
+    fk_user       integer NOT NULL,
+    fk_timeentry  integer DEFAULT NULL,
+    label         text NOT NULL,
+    description   text,
+    fk_user_creat integer NOT NULL,
+    date_creation datetime NOT NULL,
+    tms           timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    import_key    varchar(14),
+    INDEX idx_cct_entity (entity),
+    INDEX idx_cct_fk_user (fk_user),
+    INDEX idx_cct_fk_timeentry (fk_timeentry),
+    INDEX idx_cct_date_creation (date_creation)
+) ENGINE=innodb;

@@ -35,6 +35,7 @@ function normalizeEntry(entry) {
     id: entry.id ?? entry.rowid ?? null,
     rowid: entry.rowid ?? entry.id ?? null,
     tags: entry.tags ?? '',
+    project_label: entry.project_label ?? entry.project_name ?? entry.project?.title ?? entry.project?.label ?? entry.project?.name ?? '',
   };
 }
 
@@ -158,7 +159,7 @@ function handleMockRequest(action, body) {
             note: body?.note ?? '',
             tags: body?.tags ?? '',
             billable: body?.billable ? 1 : 0,
-            duration: Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(0, Math.round((endMs - startMs) / 1000)) : 0,
+            duration: Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(0, (endMs - startMs) / 1000) : 0,
             status: 2,
             date_start: body?.date_start,
             date_end: body?.date_end,
@@ -186,11 +187,12 @@ export async function getActiveTimer() {
   return normalizeEntry(data?.data ?? null);
 }
 
-export async function startTimer(fkProject, fkTask = 0, note = '', tags = '', billable = 0) {
+export async function startTimer(projectLabel = '', fkTask = 0, note = '', tags = '', billable = 0) {
   const data = await moduleTimerRequest('startTimer', {
-    fk_project: fkProject,
+    fk_project: 0,
     fk_task: fkTask,
     note,
+    project_label: projectLabel,
     tags,
     billable,
   });

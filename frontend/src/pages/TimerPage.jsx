@@ -7,7 +7,6 @@ const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL 
 
 export default function TimerPage() {
   const [projects, setProjects] = useState([]);
-  const [widgetTasks, setWidgetTasks] = useState([]);
   const [historyTasks, setHistoryTasks] = useState([]); // Master list of tasks for the history
   const [entries, setEntries] = useState([]);
   const [projectsError, setProjectsError] = useState('');
@@ -71,16 +70,9 @@ export default function TimerPage() {
     };
   }, []);
 
-  const handleProjectChange = async (projectId) => {
-    setWidgetTasks([]);
-    if (!projectId) return;
-
-    try {
-      const fetchedTasks = await getTasks(projectId);
-      setWidgetTasks(fetchedTasks);
-    } catch {
-      setWidgetTasks([]);
-    }
+  const handleProjectChange = () => {
+    // Le projet est désormais saisi librement en texte. Aucune charge de tâches
+    // n’est déclenchée depuis ce champ.
   };
 
   const handleEntryCreated = (entry) => {
@@ -90,8 +82,8 @@ export default function TimerPage() {
     });
     
     // Optional: If a new entry has a brand new task, add it to historyTasks so it shows up immediately
-    if (entry.taskId && widgetTasks.length > 0) {
-      const newTask = widgetTasks.find(t => t.id === entry.taskId);
+    if (entry.taskId && historyTasks.length > 0) {
+      const newTask = historyTasks.find(t => t.id === entry.taskId);
       if (newTask) {
         setHistoryTasks(prev => [...prev, newTask]);
       }
@@ -103,7 +95,6 @@ export default function TimerPage() {
       <TimerWidget 
         projects={projects} 
         projectsError={projectsError} 
-        tasks={widgetTasks} 
         onProjectChange={handleProjectChange} 
         onEntryCreated={handleEntryCreated} 
       />
