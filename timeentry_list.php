@@ -148,10 +148,6 @@ if (!$sortorder) {
 	$sortorder = "ASC";
 }
 
-if (!$user->hasRight('clockify', 'timeentry', 'readall')) {
-    $sql .= " AND fk_user = ".((int) $user->id); // ne voit que ses propres entrées
-}
-
 // Initialize array of search criteria
 $search_all = trim(GETPOST('search_all', 'alphanohtml'));
 $search = array();
@@ -346,6 +342,12 @@ if (!empty($object->ismultientitymanaged) && (int) $object->ismultientitymanaged
 	$sql .= " WHERE pt.entity IN (".getEntity($object->element, (GETPOSTINT('search_current_entity') ? 0 : 1)).")";
 } else {
 	$sql .= " WHERE 1 = 1";
+}
+
+// An employee may only list their own time entries. Admins and users granted
+// the dedicated Clockify "readall" right retain the global list.
+if (empty($user->admin) && !$user->hasRight('clockify', 'timeentry', 'readall')) {
+	$sql .= " AND t.fk_user = ".((int) $user->id);
 }
 foreach ($search as $key => $val) {
 	if (array_key_exists($key, $object->fields)) {

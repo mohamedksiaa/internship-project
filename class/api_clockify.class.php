@@ -218,7 +218,9 @@ class Clockify extends DolibarrApi
         }
 
         $timeentry = new TimeEntry($this->db);
-        $filter = "(t.fk_user:=:".((int) DolibarrApiAccess::$user->id).")";
+        $canReadAll = !empty(DolibarrApiAccess::$user->admin)
+            || DolibarrApiAccess::$user->hasRight('clockify', 'timeentry', 'readall');
+        $filter = $canReadAll ? '' : "(t.fk_user:=:".((int) DolibarrApiAccess::$user->id).")";
         $result = $timeentry->fetchAll('DESC', 't.date_start', (int) $limit, (int) $offset, $filter);
 
         if (is_array($result)) {

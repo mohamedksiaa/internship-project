@@ -70,6 +70,39 @@ function clockifyCanValidate($user)
     return !empty($user->admin) || $user->hasRight('clockify', 'valider');
 }
 
+/**
+ * A manager may receive this dedicated permission without becoming a Dolibarr
+ * administrator. Every non-validation list must use this server-side scope.
+ */
+function clockifyCanReadAllTimeEntries($user)
+{
+    return !empty($user->admin) || $user->hasRight('clockify', 'timeentry', 'readall');
+}
+
+/**
+ * Returns a small fingerprint for the entries visible in a given view.
+ * The browser polls this instead of reloading the full list on every interval.
+ */
+function clockifyGetUpdateMarker($db, $user, $scope = 'entries')
+{
+    $sql = 'SELECT COUNT(t.rowid) AS row_count, COALESCE(MAX(t.tms), \'\') AS last_tms, COALESCE(MAX(t.rowid), 0) AS last_id';
+    $sql .= ' FROM '.$db->prefix().'clockify_timeentry AS t';
+    $sql .= ' WHERE t.entity IN ('.getEntity('timeentry').')';
+    if ($scope === 'validation') {
+        $sql .= ' AND t.status = '.TimeEntry::STATUS_SUBMITTED;
+    }
+    if (!clockifyCanReadAllTimeEntries($user)) {
+        $sql .= ' AND t.fk_user = '.((int) $user->id);
+    }
+
+    $resql = $db->query($sql);
+    if (!$resql || !($obj = $db->fetch_object($resql))) {
+        return '';
+    }
+
+    return ((int) $obj->row_count).'|'.$obj->last_tms.'|'.((int) $obj->last_id);
+}
+
 function clockifyExportTimeEntry($object)
 {
     if (!is_object($object)) {
@@ -334,15 +367,13 @@ function clockifyFetchWeeklyTimesheet($timeentry, $user, $weekStart = null)
 {
     $weekStart = !empty($weekStart) ? strtotime($weekStart) : strtotime('monday this week');
     $weekEnd = strtotime('+7 days', $weekStart);
-    $result = $timeentry->fetchAll('ASC', 't.date_start', 1000, 0, '');
+    $filter = clockifyCanReadAllTimeEntries($user) ? '' : '(t.fk_user:=:'.((int) $user->id).')';
+    $result = $timeentry->fetchAll('ASC', 't.date_start', 1000, 0, $filter);
     $rows = array();
     if (is_array($result)) {
         foreach ($result as $obj) {
             $start = is_numeric($obj->date_start) ? (int) $obj->date_start : strtotime((string) $obj->date_start);
             if (!$start || $start < $weekStart || $start >= $weekEnd) {
-                continue;
-            }
-            if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write') && (int) $obj->fk_user !== (int) $user->id) {
                 continue;
             }
             $row = clockifyExportTimeEntry($obj);
@@ -416,8 +447,8 @@ switch ($action) {
         $fk_task = !empty($postData['fk_task']) ? (int)$postData['fk_task'] : (int)GETPOST('fk_task', 'int');
         $note = !empty($postData['note']) ? $postData['note'] : GETPOST('note', 'restricthtml');
         $projectLabel = trim((string) ($postData['project_label'] ?? GETPOST('project_label', 'restricthtml')));
-        $tags = clockifyNormalizeTags($postData['tags'] ?? GETPOST('tags', 'alphanohtml'));
-        $billable = !empty($postData['billable']) ? 1 : (int) GETPOST('billable', 'int');
+        $tags = '';
+        $billable = 0;
 
         if ($fk_task > 0 && $fk_project <= 0 && $projectLabel === '') {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Une tâche nécessite un projet'), 400);
@@ -561,14 +592,21 @@ switch ($action) {
         clockifyJsonResponse(array('status' => 'success', 'data' => clockifyFetchTasks($db, $projectId, $limit)));
         break;
 
+    case 'getUpdateMarker':
+        $scope = $postData['scope'] ?? GETPOST('scope', 'aZ09');
+        $scope = $scope === 'validation' ? 'validation' : 'entries';
+        if ($scope === 'validation' && !clockifyCanValidate($user)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        clockifyJsonResponse(array('status' => 'success', 'data' => array(
+            'marker' => clockifyGetUpdateMarker($db, $user, $scope),
+        )));
+        break;
+
     case 'getTimeEntries':
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
         $limit = $limit > 0 ? $limit : 100;
-        if ($user->admin || $user->hasRight('clockify', 'timeentry', 'write') || $user->hasRight('clockify', 'valider')) {
-            $filter = '';
-        } else {
-            $filter = '(t.fk_user:=:'.((int) $user->id).')';
-        }
+        $filter = clockifyCanReadAllTimeEntries($user) ? '' : '(t.fk_user:=:'.((int) $user->id).')';
         $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
         if (is_array($result)) {
             $rows = array();
@@ -588,7 +626,11 @@ switch ($action) {
         }
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
         $limit = $limit > 0 ? $limit : 100;
-        $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, 't.status:=:1');
+        $filter = 't.status:=:1';
+        if (!clockifyCanReadAllTimeEntries($user)) {
+            $filter .= ' AND (t.fk_user:=:'.((int) $user->id).')';
+        }
+        $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
         $rows = array();
         if (is_array($result)) {
             foreach ($result as $obj) {
@@ -614,7 +656,7 @@ switch ($action) {
         }
 
         $filters = array();
-        if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
+        if (!clockifyCanReadAllTimeEntries($user)) {
             $filters[] = '(t.fk_user:=:'.((int) $user->id).')';
         }
         if ($dateFrom !== '') {
@@ -636,11 +678,7 @@ switch ($action) {
 
     case 'generateInvoiceLines':
         $clientId = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        if ($user->admin || $user->hasRight('clockify', 'timeentry', 'write')) {
-            $filter = '';
-        } else {
-            $filter = '(t.fk_user:=:'.((int) $user->id).')';
-        }
+        $filter = clockifyCanReadAllTimeEntries($user) ? '' : '(t.fk_user:=:'.((int) $user->id).')';
         $result = $timeentry->fetchAll('DESC', 't.date_start', 1000, 0, $filter);
         $lines = array();
         if (is_array($result)) {
@@ -708,7 +746,7 @@ switch ($action) {
             if ((int) $candidate->billable <= 0 || (int) $candidate->duration <= 0 || !empty($candidate->fk_facture)) {
                 continue;
             }
-            if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'readall') && (int) $candidate->fk_user !== (int) $user->id) {
+            if (!clockifyCanReadAllTimeEntries($user) && (int) $candidate->fk_user !== (int) $user->id) {
                 continue;
             }
             $entriesToInvoice[] = $candidate;
@@ -905,8 +943,13 @@ switch ($action) {
         $history = array();
         $sql = 'SELECT m.rowid, m.fk_timeentry, m.fk_user, m.action, m.field_name, m.old_value, m.new_value, m.reason, m.date_creation, u.login as user_login, u.firstname, u.lastname';
         $sql .= ' FROM ' . $db->prefix() . 'clockify_timeentry_modification as m';
+        $sql .= ' INNER JOIN ' . $db->prefix() . 'clockify_timeentry as t ON t.rowid = m.fk_timeentry';
         $sql .= ' LEFT JOIN ' . $db->prefix() . 'user as u ON u.rowid = m.fk_user';
         $sql .= ' WHERE m.fk_timeentry = ' . ((int) $id);
+        $sql .= ' AND t.entity IN ('.getEntity('timeentry').')';
+        if (!clockifyCanReadAllTimeEntries($user)) {
+            $sql .= ' AND t.fk_user = ' . ((int) $user->id);
+        }
         $sql .= ' ORDER BY m.date_creation DESC';
         $resql = $db->query($sql);
         if ($resql) {
