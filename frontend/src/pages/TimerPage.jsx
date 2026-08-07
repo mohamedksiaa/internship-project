@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import TimerWidget from '../components/organisms/TimerWidget';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-import { getProjects, getTasks, getTimeEntries, getUpdateMarker } from '../api/clockifyApi';
+import { getProjects, getTasks, getTimeEntries, getTimeEntryUpdates } from '../api/clockifyApi';
 import { useTimer } from '../hooks/UseTimer.js';
 
 const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
@@ -67,22 +67,17 @@ export default function TimerPage() {
       }
     }
 
-    loadInitialData();
-
     async function checkForUpdates() {
       if (polling || document.visibilityState !== 'visible') return;
       polling = true;
       try {
-        const nextMarker = await getUpdateMarker('entries');
+        const update = await getTimeEntryUpdates('entries', marker || '');
         if (!isMounted) return;
         if (marker === null) {
-          marker = nextMarker;
-        } else if (marker !== nextMarker) {
-          marker = nextMarker;
-          const refreshedEntries = await getTimeEntries();
-          if (isMounted) {
-            setEntries(Array.isArray(refreshedEntries) ? refreshedEntries : []);
-          }
+          marker = update.marker;
+        } else if (update.changed) {
+          marker = update.marker;
+          setEntries(update.entries);
         }
       } catch {
         // Keep the current history visible if a background check fails.
@@ -91,7 +86,28 @@ export default function TimerPage() {
       }
     }
 
-    checkForUpdates();
+    async function initialize() {
+      // See ValidationPage: protect the initial list load from the race where
+      // a new entry is written between the list query and marker capture.
+      let markerBefore = null;
+      try {
+        markerBefore = (await getTimeEntryUpdates('entries')).marker;
+      } catch {
+        // Keep loading the page if only the marker request is unavailable.
+      }
+      await loadInitialData();
+      try {
+        const update = await getTimeEntryUpdates('entries', markerBefore || '');
+        marker = update.marker;
+        if (markerBefore !== null && update.changed && isMounted) {
+          setEntries(update.entries);
+        }
+      } catch {
+        // The interval will retry without disturbing the displayed list.
+      }
+    }
+
+    initialize();
     const intervalId = window.setInterval(checkForUpdates, 15000);
     window.addEventListener('focus', checkForUpdates);
     document.addEventListener('visibilitychange', checkForUpdates);

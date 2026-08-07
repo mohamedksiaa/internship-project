@@ -132,6 +132,12 @@ function handleMockRequest(action, body) {
       return Promise.resolve({ status: 'success', data: mockEntries.filter((entry) => Number(entry.status) === 1) });
     case 'getUpdateMarker':
       return Promise.resolve({ status: 'success', data: { marker: mockEntries.map((entry) => `${entry.id}:${entry.status}`).join('|') } });
+    case 'getTimeEntryUpdates': {
+      const marker = mockEntries.map((entry) => `${entry.id}:${entry.date_end || ''}:${entry.duration}:${entry.status}`).join('|');
+      const scope = body?.scope === 'validation' ? 'validation' : 'entries';
+      const entries = scope === 'validation' ? mockEntries.filter((entry) => Number(entry.status) === 1) : mockEntries;
+      return Promise.resolve({ status: 'success', data: { marker, changed: Boolean(body?.marker) && body.marker !== marker, entries } });
+    }
     case 'validateEntry': {
       const entry = mockEntries.find((item) => item.id === Number(body?.id));
       if (entry) entry.status = 2;
@@ -248,6 +254,16 @@ export async function getValidationEntries(limit = 100) {
 export async function getUpdateMarker(scope = 'entries') {
   const data = await moduleTimerRequest('getUpdateMarker', { scope });
   return String(data?.data?.marker ?? data?.marker ?? '');
+}
+
+export async function getTimeEntryUpdates(scope = 'entries', marker = '') {
+  const data = await moduleTimerRequest('getTimeEntryUpdates', { scope, marker });
+  const payload = data?.data ?? data ?? {};
+  return {
+    marker: String(payload.marker ?? ''),
+    changed: Boolean(payload.changed),
+    entries: normalizeEntries(payload.entries),
+  };
 }
 
 export async function approveTimeEntry(id) {

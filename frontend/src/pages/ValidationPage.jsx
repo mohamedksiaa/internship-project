@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-import { getUpdateMarker, getValidationEntries } from '../api/clockifyApi';
+import { getTimeEntryUpdates, getValidationEntries } from '../api/clockifyApi';
 
 export default function ValidationPage() {
   const [entries, setEntries] = useState([]);
@@ -34,13 +34,13 @@ export default function ValidationPage() {
       if (polling || document.visibilityState !== 'visible') return;
       polling = true;
       try {
-        const nextMarker = await getUpdateMarker('validation');
+        const update = await getTimeEntryUpdates('validation', marker || '');
         if (!isMounted) return;
         if (marker === null) {
-          marker = nextMarker;
-        } else if (marker !== nextMarker) {
-          marker = nextMarker;
-          await loadEntries();
+          marker = update.marker;
+        } else if (update.changed) {
+          marker = update.marker;
+          setEntries(update.entries);
         }
       } catch {
         // A failed background check must not replace the currently displayed list.
@@ -50,8 +50,26 @@ export default function ValidationPage() {
     }
 
     async function initialize() {
+      // Capture a marker on both sides of the first list request. Without
+      // this, an entry created between loadEntries() and the first marker
+      // check can become the baseline and remain invisible until another
+      // change happens or the user navigates away and back.
+      let markerBefore = null;
+      try {
+        markerBefore = (await getTimeEntryUpdates('validation')).marker;
+      } catch {
+        // The list remains usable even if the lightweight marker is temporary unavailable.
+      }
       await loadEntries();
-      await checkForUpdates();
+      try {
+        const update = await getTimeEntryUpdates('validation', markerBefore || '');
+        marker = update.marker;
+        if (markerBefore !== null && update.changed) {
+          setEntries(update.entries);
+        }
+      } catch {
+        // The next interval will establish the marker and retry normally.
+      }
     }
 
     initialize();

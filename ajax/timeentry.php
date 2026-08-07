@@ -80,27 +80,84 @@ function clockifyCanReadAllTimeEntries($user)
 }
 
 /**
- * Returns a small fingerprint for the entries visible in a given view.
- * The browser polls this instead of reloading the full list on every interval.
+ * The validation screen is a manager view. A user who can validate must see
+ * the team entries in that view and in the manager's time-tracking view, even
+ * when the separate "read all" permission was not assigned.
+ *
+ * Keep this deliberately separate from clockifyCanReadAllTimeEntries(): the
+ * latter is also used by invoice operations, where validation rights alone
+ * must not expose all billable entries.
+ */
+function clockifyCanViewTeamTimeEntries($user)
+{
+    return clockifyCanReadAllTimeEntries($user) || clockifyCanValidate($user);
+}
+
+/** Build the SQL visibility rule shared by list and polling endpoints. */
+function clockifyTimeEntryScopeFilter($user, $scope = 'entries')
+{
+    $filter = 't.entity IN ('.getEntity('timeentry').')';
+    if ($scope === 'validation') {
+        $filter .= ' AND t.status = '.TimeEntry::STATUS_SUBMITTED;
+    }
+    if (!clockifyCanViewTeamTimeEntries($user)) {
+        $filter .= ' AND t.fk_user = '.((int) $user->id);
+    }
+
+    return $filter;
+}
+
+/**
+ * Return a fingerprint of every value rendered by a time-entry table row.
+ *
+ * COUNT/MAX(tms) is insufficient: an update to an existing row can leave
+ * both maxima unchanged (timestamps have second precision). Hashing each
+ * visible record makes changes to duration, end date, status, etc. reliable.
  */
 function clockifyGetUpdateMarker($db, $user, $scope = 'entries')
 {
-    $sql = 'SELECT COUNT(t.rowid) AS row_count, COALESCE(MAX(t.tms), \'\') AS last_tms, COALESCE(MAX(t.rowid), 0) AS last_id';
+    $sql = 'SELECT t.rowid, t.tms, t.fk_user, t.fk_project, t.fk_task,';
+    $sql .= ' t.date_start, t.date_end, t.duration, t.note, t.tags,';
+    $sql .= ' t.billable, t.status, t.date_submit, t.fk_user_submit, t.fk_user_valid';
     $sql .= ' FROM '.$db->prefix().'clockify_timeentry AS t';
-    $sql .= ' WHERE t.entity IN ('.getEntity('timeentry').')';
-    if ($scope === 'validation') {
-        $sql .= ' AND t.status = '.TimeEntry::STATUS_SUBMITTED;
-    }
-    if (!clockifyCanReadAllTimeEntries($user)) {
-        $sql .= ' AND t.fk_user = '.((int) $user->id);
-    }
+    $sql .= ' WHERE '.clockifyTimeEntryScopeFilter($user, $scope);
+    $sql .= ' ORDER BY t.rowid ASC';
 
     $resql = $db->query($sql);
-    if (!$resql || !($obj = $db->fetch_object($resql))) {
+    if (!$resql) {
         return '';
     }
 
-    return ((int) $obj->row_count).'|'.$obj->last_tms.'|'.((int) $obj->last_id);
+    $rows = array();
+    while ($obj = $db->fetch_object($resql)) {
+        $rows[] = implode(':', array(
+            $obj->rowid, $obj->tms, $obj->fk_user, $obj->fk_project, $obj->fk_task,
+            $obj->date_start, $obj->date_end, $obj->duration, $obj->note, $obj->tags,
+            $obj->billable, $obj->status, $obj->date_submit, $obj->fk_user_submit, $obj->fk_user_valid,
+        ));
+    }
+    $db->free($resql);
+
+    return hash('sha256', implode('|', $rows));
+}
+
+/** Return the complete visible list so React can add, update, and remove rows. */
+function clockifyFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', $limit = 100)
+{
+    $filter = $scope === 'validation' ? 't.status:=:'.TimeEntry::STATUS_SUBMITTED : '';
+    if (!clockifyCanViewTeamTimeEntries($user)) {
+        $filter .= ($filter !== '' ? ' AND ' : '').'(t.fk_user:=:'.((int) $user->id).')';
+    }
+
+    $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
+    $rows = array();
+    if (is_array($result)) {
+        foreach ($result as $obj) {
+            $rows[] = clockifyExportTimeEntry($obj);
+        }
+    }
+
+    return $rows;
 }
 
 function clockifyExportTimeEntry($object)
@@ -603,19 +660,28 @@ switch ($action) {
         )));
         break;
 
+    // The polling endpoint returns the full current view only when its marker
+    // changed. This includes changed existing rows as well as new/deleted rows.
+    case 'getTimeEntryUpdates':
+        $scope = $postData['scope'] ?? GETPOST('scope', 'aZ09');
+        $scope = $scope === 'validation' ? 'validation' : 'entries';
+        if ($scope === 'validation' && !clockifyCanValidate($user)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $previousMarker = (string) ($postData['marker'] ?? GETPOST('marker', 'alphanohtml'));
+        $marker = clockifyGetUpdateMarker($db, $user, $scope);
+        $changed = $previousMarker !== '' && !hash_equals($previousMarker, $marker);
+        clockifyJsonResponse(array('status' => 'success', 'data' => array(
+            'marker' => $marker,
+            'changed' => $changed,
+            'entries' => $changed ? clockifyFetchVisibleTimeEntries($timeentry, $user, $scope) : array(),
+        )));
+        break;
+
     case 'getTimeEntries':
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
         $limit = $limit > 0 ? $limit : 100;
-        $filter = clockifyCanReadAllTimeEntries($user) ? '' : '(t.fk_user:=:'.((int) $user->id).')';
-        $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
-        if (is_array($result)) {
-            $rows = array();
-            foreach ($result as $obj) {
-                $rows[] = clockifyExportTimeEntry($obj);
-            }
-            clockifyJsonResponse(array('status' => 'success', 'data' => $rows));
-        }
-        clockifyJsonResponse(array('status' => 'success', 'data' => array()));
+        clockifyJsonResponse(array('status' => 'success', 'data' => clockifyFetchVisibleTimeEntries($timeentry, $user, 'entries', $limit)));
         break;
 
     // Data source for the dedicated validation view.  Unlike the normal timer
@@ -626,18 +692,7 @@ switch ($action) {
         }
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
         $limit = $limit > 0 ? $limit : 100;
-        $filter = 't.status:=:1';
-        if (!clockifyCanReadAllTimeEntries($user)) {
-            $filter .= ' AND (t.fk_user:=:'.((int) $user->id).')';
-        }
-        $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
-        $rows = array();
-        if (is_array($result)) {
-            foreach ($result as $obj) {
-                $rows[] = clockifyExportTimeEntry($obj);
-            }
-        }
-        clockifyJsonResponse(array('status' => 'success', 'data' => $rows));
+        clockifyJsonResponse(array('status' => 'success', 'data' => clockifyFetchVisibleTimeEntries($timeentry, $user, 'validation', $limit)));
         break;
 
     case 'getWeeklyTimesheet':
