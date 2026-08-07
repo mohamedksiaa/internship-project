@@ -60,6 +60,26 @@ function clockifyJsonResponse($payload, $status = 200)
 }
 
 /**
+ * Temporary diagnostic trace for the controlled time-correction flow.
+ * Remove once the investigation is complete.
+ */
+function clockifyCorrectionTrace($event, array $context = array())
+{
+    dol_syslog('clockify.correctTimeEntry '.$event.' '.json_encode($context), LOG_INFO);
+}
+
+/** Format conflicting entries for the correction error message. */
+function clockifyFormatOverlapMessage(array $overlaps)
+{
+    $lines = array('La modification ne peut pas être enregistrée car la plage horaire choisie chevauche une ou plusieurs entrées existantes.', '', 'Conflits détectés :');
+    foreach ($overlaps as $overlap) {
+        $end = !empty($overlap['date_end']) ? $overlap['date_end'] : 'En cours';
+        $lines[] = '- Entrée #'.((int) $overlap['rowid']).' : '.$overlap['date_start'].' → '.$end;
+    }
+    return implode("\n", $lines);
+}
+
+/**
  * Returns whether the connected user may validate or reject time entries.
  *
  * This server-side check is deliberately shared by every validation endpoint:
@@ -91,6 +111,56 @@ function clockifyCanReadAllTimeEntries($user)
 function clockifyCanViewTeamTimeEntries($user)
 {
     return clockifyCanReadAllTimeEntries($user) || clockifyCanValidate($user);
+}
+
+/** Employee policy: draft entries from today; yesterday only to correct a missed stop. */
+function clockifyEmployeeManualEditPolicy($entry)
+{
+    if ((int) $entry->status !== TimeEntry::STATUS_DRAFT) {
+        return array('allowed' => false, 'message' => 'Cette entrée a été soumise ou traitée : contactez votre manager.', 'end_only' => false, 'reason_required' => true);
+    }
+
+    $start = is_numeric($entry->date_start) ? (int) $entry->date_start : strtotime((string) $entry->date_start);
+    $today = strtotime(gmdate('Y-m-d 00:00:00', dol_now()).' UTC');
+    if ($start >= $today) {
+        return array('allowed' => true, 'message' => '', 'end_only' => false, 'reason_required' => false);
+    }
+    if ($start >= ($today - 86400)) {
+        return array('allowed' => true, 'message' => 'Pour une entrée d’hier, seule l’heure de fin peut être corrigée et une raison est obligatoire.', 'end_only' => true, 'reason_required' => true);
+    }
+
+    return array('allowed' => false, 'message' => 'Cette entrée est hors délai de correction : contactez votre manager.', 'end_only' => false, 'reason_required' => true);
+}
+
+function clockifyManualEntryDateAllowed($dateStart, $dateEnd)
+{
+    $start = is_numeric($dateStart) ? (int) $dateStart : strtotime((string) $dateStart);
+    $end = is_numeric($dateEnd) ? (int) $dateEnd : strtotime((string) $dateEnd);
+    $today = strtotime(gmdate('Y-m-d 00:00:00', dol_now()).' UTC');
+
+    return $start >= ($today - 86400) && $end > $start && $end <= dol_now();
+}
+
+function clockifyManualAuditInfo($entryId)
+{
+    global $db;
+    static $cache = array();
+    $entryId = (int) $entryId;
+    if (isset($cache[$entryId])) {
+        return $cache[$entryId];
+    }
+
+    $info = array('manual_modified' => false, 'manual_reason' => '', 'manual_modified_at' => '', 'manual_modified_by' => 0);
+    $sql = 'SELECT reason, date_creation, fk_user FROM '.$db->prefix().'clockify_timeentry_modification';
+    $sql .= ' WHERE fk_timeentry = '.$entryId;
+    $sql .= " AND action IN ('".TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE."','".TimeEntry::MOD_ACTION_MANUAL_MANAGER."','".TimeEntry::MOD_ACTION_MANUAL_CREATE."')";
+    $sql .= ' ORDER BY rowid DESC'.$db->plimit(1);
+    $resql = $db->query($sql);
+    if ($resql && ($obj = $db->fetch_object($resql))) {
+        $info = array('manual_modified' => true, 'manual_reason' => (string) $obj->reason, 'manual_modified_at' => $obj->date_creation, 'manual_modified_by' => (int) $obj->fk_user);
+    }
+    $cache[$entryId] = $info;
+    return $info;
 }
 
 /** Build the SQL visibility rule shared by list and polling endpoints. */
@@ -206,6 +276,14 @@ function clockifyExportTimeEntry($object)
 
     if (property_exists($object, 'fk_task')) {
         $cleaned['task_label'] = clockifyResolveTaskLabel((int) $object->fk_task);
+    }
+
+    if (property_exists($object, 'id')) {
+        $cleaned = array_merge($cleaned, clockifyManualAuditInfo((int) $object->id));
+        $policy = clockifyEmployeeManualEditPolicy($object);
+        $cleaned['manual_editable'] = $policy['allowed'];
+        $cleaned['manual_edit_end_only'] = $policy['end_only'];
+        $cleaned['manual_edit_message'] = $policy['message'];
     }
 
     return $cleaned;
@@ -570,6 +648,14 @@ switch ($action) {
         $tags = clockifyNormalizeTags($postData['tags'] ?? GETPOST('tags', 'alphanohtml'));
         $billable = !empty($postData['billable']) ? 1 : (int) GETPOST('billable', 'int');
         $thm = !empty($postData['thm']) ? (float) $postData['thm'] : (float) GETPOST('thm', 'alphanohtml');
+        $reason = trim((string) ($postData['reason'] ?? GETPOST('reason', 'restricthtml')));
+
+        if ($reason === '') {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'La raison est obligatoire pour une saisie manuelle'), 400);
+        }
+        if (!clockifyCanValidate($user) && !clockifyManualEntryDateAllowed($date_start, $date_end)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Une saisie manuelle est autorisée uniquement pour aujourd’hui ou hier.'), 403);
+        }
 
         if ($projectLabel !== '' && $fk_project <= 0) {
             $fk_project = clockifyResolveOrCreateProjectByLabel($db, $user, $projectLabel);
@@ -578,13 +664,19 @@ switch ($action) {
             }
         }
 
-        $res = $timeentry->createManualEntry($user->id, $fk_project, $fk_task, $date_start, $date_end, $note, $tags, $billable, $user, $thm);
+        $startTimestamp = strtotime((string) $date_start);
+        $endTimestamp = strtotime((string) $date_end);
+        if ($timeentry->hasTimeOverlap($user->id, $startTimestamp, $endTimestamp)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Cette période chevauche déjà une autre entrée de temps.'), 400);
+        }
+        $res = $timeentry->createManualEntry($user->id, $fk_project, $fk_task, $date_start, $date_end, $note, $tags, $billable, $user, $thm, TimeEntry::STATUS_DRAFT);
         if ($res > 0) {
             clockifyStoreTaskText($db, $user, $res, $note, $note);
             if ($projectLabel !== '') {
                 clockifyStoreProjectText($db, $user, $res, $projectLabel, $note);
             }
             $timeentry->fetch($res);
+            $timeentry->logManualCreation($user, $reason);
             clockifyJsonResponse(array('status' => 'success', 'data' => clockifyExportTimeEntry($timeentry)));
         }
         clockifyJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à la création manuelle'), 400);
@@ -932,64 +1024,76 @@ switch ($action) {
         break;
 
     case 'updateEntry':
-        if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
-            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
+    case 'correctTimeEntry':
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        $reason = $postData['reason'] ?? GETPOST('reason', 'restricthtml');
-        if ($reason === '') {
-            clockifyJsonResponse(array('status' => 'error', 'message' => 'La raison de la modification est requise'), 400);
-        }
+        $reason = trim((string) ($postData['reason'] ?? GETPOST('reason', 'restricthtml')));
+        clockifyCorrectionTrace('request_received', array('action' => $action, 'rowid' => $id, 'user_id' => (int) $user->id));
         if ($timeentry->fetch($id) <= 0) {
+            clockifyCorrectionTrace('response_not_found', array('rowid' => $id, 'http_status' => 404));
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Entrée introuvable'), 404);
         }
-        // Store old values for audit
-        $oldValues = array(
-            'fk_project' => $timeentry->fk_project,
-            'fk_task' => $timeentry->fk_task,
-            'date_start' => $timeentry->date_start,
-            'date_end' => $timeentry->date_end,
-            'duration' => $timeentry->duration,
-            'note' => $timeentry->note,
-            'tags' => $timeentry->tags,
-            'billable' => $timeentry->billable,
-            'thm' => $timeentry->thm,
-        );
-        // Apply updates
-        if (isset($postData['fk_project'])) {
-            $timeentry->fk_project = (int) $postData['fk_project'] > 0 ? (int) $postData['fk_project'] : null;
+        $isManager = clockifyCanValidate($user);
+        if (!$isManager && (!$user->hasRight('clockify', 'timeentry', 'write') || (int) $timeentry->fk_user !== (int) $user->id)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
-        if (isset($postData['fk_task'])) {
-            $timeentry->fk_task = (int) $postData['fk_task'] > 0 ? (int) $postData['fk_task'] : null;
+
+        $policy = clockifyEmployeeManualEditPolicy($timeentry);
+        if (!$isManager && !$policy['allowed']) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => $policy['message']), 403);
         }
-        if (isset($postData['date_start'])) {
-            $timeentry->date_start = $postData['date_start'];
+
+        $oldStart = is_numeric($timeentry->date_start) ? (int) $timeentry->date_start : strtotime((string) $timeentry->date_start);
+        $oldEnd = empty($timeentry->date_end) ? 0 : (is_numeric($timeentry->date_end) ? (int) $timeentry->date_end : strtotime((string) $timeentry->date_end));
+        $newStart = isset($postData['date_start']) ? strtotime((string) $postData['date_start']) : $oldStart;
+        $newEnd = isset($postData['date_end']) ? strtotime((string) $postData['date_end']) : $oldEnd;
+        clockifyCorrectionTrace('values_prepared', array(
+            'rowid' => (int) $timeentry->id,
+            'old_start' => $oldStart,
+            'old_end' => $oldEnd,
+            'old_duration' => (int) $timeentry->duration,
+            'old_status' => (int) $timeentry->status,
+            'new_start' => $newStart,
+            'new_end' => $newEnd,
+            'reason' => $reason,
+            'transaction' => 'none',
+        ));
+        if ($newStart <= 0 || ($newEnd > 0 && $newEnd <= $newStart)) {
+            clockifyCorrectionTrace('response_invalid_dates', array('rowid' => (int) $timeentry->id, 'http_status' => 400));
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Les heures de début et de fin sont invalides.'), 400);
         }
-        if (isset($postData['date_end'])) {
-            $timeentry->date_end = $postData['date_end'];
+        if (!$isManager && $policy['end_only'] && $newStart !== $oldStart) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Seule l’heure de fin d’une entrée d’hier peut être corrigée.'), 403);
         }
-        if (isset($postData['note'])) {
-            $timeentry->note = trim((string) $postData['note']);
-            clockifyStoreTaskText($db, $user, (int) $timeentry->id, $timeentry->note, $timeentry->note);
+        $difference = max(abs($newStart - $oldStart), abs($newEnd - $oldEnd));
+        if (($isManager || $policy['reason_required'] || $difference > 900) && $reason === '') {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'La raison de la modification est requise.'), 400);
         }
-        if (isset($postData['tags'])) {
-            $timeentry->tags = clockifyNormalizeTags($postData['tags']);
+        $auditReason = $reason !== '' ? $reason : 'Correction mineure (15 minutes ou moins).';
+        $effectiveEnd = $newEnd > 0 ? $newEnd : dol_now();
+        clockifyCorrectionTrace('overlap_check_started', array('rowid' => (int) $timeentry->id, 'start' => $newStart, 'end' => $effectiveEnd));
+        $overlaps = $timeentry->getTimeOverlaps($timeentry->fk_user, $newStart, $effectiveEnd, $timeentry->id);
+        if ($overlaps === false) {
+            clockifyCorrectionTrace('response_overlap_check_error', array('rowid' => (int) $timeentry->id, 'http_status' => 400, 'update_executed' => false, 'audit_insert_executed' => false, 'transaction' => 'none'));
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Impossible de vérifier les conflits de temps. Aucune modification n’a été enregistrée.'), 400);
         }
-        if (isset($postData['billable'])) {
-            $timeentry->billable = (int) $postData['billable'];
+        $hasOverlap = is_array($overlaps) && !empty($overlaps);
+        clockifyCorrectionTrace('overlap_check_result', array('rowid' => (int) $timeentry->id, 'has_overlap' => $hasOverlap, 'conflicts' => is_array($overlaps) ? $overlaps : array()));
+        if ($hasOverlap) {
+            clockifyCorrectionTrace('response_overlap_refused', array('rowid' => (int) $timeentry->id, 'http_status' => 400, 'update_executed' => false, 'audit_insert_executed' => false, 'transaction' => 'none'));
+            clockifyJsonResponse(array('status' => 'error', 'message' => clockifyFormatOverlapMessage($overlaps), 'conflicts' => $overlaps), 400);
         }
-        if (isset($postData['thm'])) {
-            $timeentry->thm = (float) $postData['thm'];
-        }
-        // Recalculate duration if dates changed
-        if (!empty($timeentry->date_start) && !empty($timeentry->date_end)) {
-            $timeentry->duration = max(0, (int) strtotime($timeentry->date_end) - (int) strtotime($timeentry->date_start));
-        }
-        $timeentry->recalculateAmount();
-        $res = $timeentry->update($user, 0, $reason);
+
+        clockifyCorrectionTrace('update_started', array('rowid' => (int) $timeentry->id, 'transaction' => 'will_be_opened_by_updateCommon'));
+        $timeentry->date_start = $newStart;
+        $timeentry->date_end = $newEnd > 0 ? $newEnd : null;
+        $timeentry->duration = $newEnd > 0 ? $newEnd - $newStart : 0;
+        $res = $timeentry->update($user, 0, $auditReason, $isManager ? TimeEntry::MOD_ACTION_MANUAL_MANAGER : TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE);
+        clockifyCorrectionTrace('update_finished', array('rowid' => (int) $timeentry->id, 'result' => $res, 'audit_insert_attempted' => $res > 0));
         if ($res > 0) {
+            clockifyCorrectionTrace('response_success', array('rowid' => (int) $timeentry->id, 'http_status' => 200));
             clockifyJsonResponse(array('status' => 'success', 'data' => clockifyExportTimeEntry($timeentry)));
         }
+        clockifyCorrectionTrace('response_update_error', array('rowid' => (int) $timeentry->id, 'http_status' => 400));
         clockifyJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur lors de la modification'), 400);
         break;
 

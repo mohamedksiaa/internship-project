@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { approveTimeEntry, rejectTimeEntry, submitEntry } from '../../api/clockifyApi';
+import { approveTimeEntry, correctTimeEntry, rejectTimeEntry, submitEntry } from '../../api/clockifyApi';
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
 
@@ -31,6 +31,15 @@ function endTimeLabel(entry) {
   return entry.status === 0 ? 'En cours' : '—';
 }
 
+function toDateTimeLocal(value) {
+  const date = entryDate(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (number) => String(number).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+const canValidate = typeof window !== 'undefined' && window.CLOCKIFY_CAN_VALIDATE === true;
+
 export default function TimeEntryList({
   entries: initialEntries = [],
   setEntries: setParentEntries,
@@ -44,6 +53,8 @@ export default function TimeEntryList({
   const [entries, setEntries] = useState(initialEntries);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [entryToCorrect, setEntryToCorrect] = useState(null);
+  const [correction, setCorrection] = useState({ date_start: '', date_end: '', reason: '' });
 
   useEffect(() => setEntries(initialEntries), [initialEntries]);
 
@@ -124,6 +135,34 @@ export default function TimeEntryList({
     }
   };
 
+  const openCorrection = (entry) => {
+    setError('');
+    setEntryToCorrect(entry);
+    setCorrection({
+      date_start: toDateTimeLocal(entry.date_start),
+      date_end: toDateTimeLocal(entry.date_end),
+      reason: '',
+    });
+  };
+
+  const saveCorrection = async (event) => {
+    event.preventDefault();
+    if (!entryToCorrect) return;
+    setBusyId(entryToCorrect.id);
+    setError('');
+    try {
+      const updated = await correctTimeEntry(entryToCorrect.id, correction);
+      const next = entries.map((entry) => (entry.id === entryToCorrect.id ? { ...entry, ...updated } : entry));
+      setEntries(next);
+      setParentEntries?.(next);
+      setEntryToCorrect(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const projectName = (entry) => {
     if (typeof entry.project_label === 'string' && entry.project_label) return entry.project_label;
     if (typeof entry.project_name === 'string' && entry.project_name) return entry.project_name;
@@ -146,7 +185,7 @@ export default function TimeEntryList({
 
   return (
     <section className="space-y-6">
-      {error && <p className="text-sm text-[#d64c4c]">{error}</p>}
+      {error && <p className="whitespace-pre-line text-sm text-[#d64c4c]">{error}</p>}
       {Object.entries(groups).map(([key, group]) => {
         const total = group.reduce((sum, entry) => sum + displayedDuration(entry), 0);
         return (
@@ -237,6 +276,26 @@ export default function TimeEntryList({
                         >
                           ▷
                         </button>
+                        {(canValidate || entry.manual_editable) && (
+                          <button
+                            type="button"
+                            title="Modifier cette entrée"
+                            aria-label="Modifier cette entrée"
+                            onClick={() => openCorrection(entry)}
+                            disabled={busyId !== null}
+                            className="text-[#03a9f4]"
+                          >
+                            Modifier
+                          </button>
+                        )}
+                        {showWorker && entry.manual_modified && (
+                          <span
+                            title={entry.manual_reason ? `Temps corrigé : ${entry.manual_reason}` : 'Temps corrigé et tracé'}
+                            className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                          >
+                            Corrigé
+                          </span>
+                        )}
                         <span
                           title="Nombre de reprises de cette entrée"
                           className="rounded-full bg-[#eaf6fd] px-2 py-0.5 text-xs font-medium text-[#03a9f4]"
@@ -252,6 +311,54 @@ export default function TimeEntryList({
           </div>
         );
       })}
+      {entryToCorrect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="correction-title">
+          <form onSubmit={saveCorrection} className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-xl">
+            <div>
+              <h2 id="correction-title" className="text-lg font-semibold text-[#263746]">Modifier l’entrée de temps</h2>
+              <p className="mt-1 text-sm text-[#52656f]">
+                {canValidate ? 'Cette correction sera tracée et visible aux managers.' : (entryToCorrect.manual_edit_message || 'Cette correction sera tracée.')}
+              </p>
+            </div>
+            <label className="block text-sm font-medium text-[#2c3e49]">
+              Début
+              <input
+                type="datetime-local"
+                value={correction.date_start}
+                disabled={!canValidate && entryToCorrect.manual_edit_end_only}
+                onChange={(event) => setCorrection((current) => ({ ...current, date_start: event.target.value }))}
+                className="mt-1 w-full rounded border border-[#cfd9df] px-3 py-2 disabled:bg-slate-100"
+                required
+              />
+            </label>
+            <label className="block text-sm font-medium text-[#2c3e49]">
+              Fin
+              <input
+                type="datetime-local"
+                value={correction.date_end}
+                onChange={(event) => setCorrection((current) => ({ ...current, date_end: event.target.value }))}
+                className="mt-1 w-full rounded border border-[#cfd9df] px-3 py-2"
+                required
+              />
+            </label>
+            <label className="block text-sm font-medium text-[#2c3e49]">
+              Raison {canValidate || entryToCorrect.manual_edit_end_only ? '(obligatoire)' : '(obligatoire au-delà de 15 minutes)'}
+              <textarea
+                value={correction.reason}
+                onChange={(event) => setCorrection((current) => ({ ...current, reason: event.target.value }))}
+                className="mt-1 w-full rounded border border-[#cfd9df] px-3 py-2"
+                rows="3"
+              />
+            </label>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="text-sm text-[#52656f]">Annuler</button>
+              <button type="submit" disabled={busyId === entryToCorrect.id} className="rounded bg-[#03a9f4] px-4 py-2 text-sm font-medium text-white">
+                {busyId === entryToCorrect.id ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </section>
   );
 }

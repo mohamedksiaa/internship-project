@@ -163,6 +163,9 @@ public $fk_user_modif;
     const MOD_ACTION_VALIDATE = 'validate';
     const MOD_ACTION_REJECT = 'reject';
     const MOD_ACTION_REOPEN = 'reopen';
+    const MOD_ACTION_MANUAL_EMPLOYEE = 'manual_employee';
+    const MOD_ACTION_MANUAL_MANAGER = 'manual_manager';
+    const MOD_ACTION_MANUAL_CREATE = 'manual_create';
 
 
 	// If this object has a subtable with lines
@@ -518,8 +521,9 @@ public $fk_user_modif;
 	 * @param	int<0,1>	$notrigger	0=launch triggers after, 1=disable triggers
 	 * @return	int<-1,1>				Return integer <0 if KO, >0 if OK
 	 */
-public function update(User $user, $notrigger = 0, $reason = '')
+	public function update(User $user, $notrigger = 0, $reason = '', $auditAction = self::MOD_ACTION_EDIT)
     {
+		$isManualCorrection = in_array($auditAction, array(self::MOD_ACTION_MANUAL_EMPLOYEE, self::MOD_ACTION_MANUAL_MANAGER), true);
         $this->recalculateAmount();
 
         $oldValues = array();
@@ -539,16 +543,28 @@ public function update(User $user, $notrigger = 0, $reason = '')
             }
         }
 
-        $result = $this->updateCommon($user, $notrigger);
+		if ($isManualCorrection) {
+			dol_syslog('clockify.correctTimeEntry updateCommon_transaction_begin rowid='.(int) $this->id, LOG_INFO);
+		}
+		$result = $this->updateCommon($user, $notrigger);
+		if ($isManualCorrection) {
+			dol_syslog('clockify.correctTimeEntry updateCommon_transaction_'.($result > 0 ? 'commit' : 'rollback').' rowid='.(int) $this->id.' result='.(int) $result, LOG_INFO);
+		}
 
         if ($result > 0 && !empty($reason) && $this->id > 0) {
-            $this->logModifications($user, $oldValues, $reason);
+			if ($isManualCorrection) {
+				dol_syslog('clockify.correctTimeEntry audit_insert_started rowid='.(int) $this->id, LOG_INFO);
+			}
+            $this->logModifications($user, $oldValues, $reason, $auditAction);
+			if ($isManualCorrection) {
+				dol_syslog('clockify.correctTimeEntry audit_insert_finished rowid='.(int) $this->id, LOG_INFO);
+			}
         }
 
         return $result;
     }
 
-    protected function logModifications(User $user, array $oldValues, string $reason)
+    protected function logModifications(User $user, array $oldValues, string $reason, string $action = self::MOD_ACTION_EDIT)
     {
         $now = dol_now();
         $fieldsToAudit = array('fk_project', 'fk_task', 'date_start', 'date_end', 'duration', 'note', 'tags', 'billable', 'thm', 'status');
@@ -566,7 +582,7 @@ public function update(User $user, $notrigger = 0, $reason = '')
                 $sql .= ' VALUES ('.$this->entity.',';
                 $sql .= ' '.((int) $this->id).',';
                 $sql .= ' '.((int) $user->id).',';
-                $sql .= " '".$this->db->escape(self::MOD_ACTION_EDIT)."',";
+                $sql .= " '".$this->db->escape($action)."',";
                 $sql .= " '".$this->db->escape($field)."',";
                 $sql .= " '".$this->db->escape($oldStr)."',";
                 $sql .= " '".$this->db->escape($newStr)."',";
@@ -574,10 +590,73 @@ public function update(User $user, $notrigger = 0, $reason = '')
                 $sql .= " '".$this->db->idate($now)."',";
                 $sql .= ' '.((int) $user->id);
                 $sql .= ')';
-                $this->db->query($sql);
+                $isManualCorrection = in_array($action, array(self::MOD_ACTION_MANUAL_EMPLOYEE, self::MOD_ACTION_MANUAL_MANAGER), true);
+                if ($isManualCorrection) {
+                    dol_syslog('clockify.correctTimeEntry audit_insert_query rowid='.(int) $this->id.' field='.$field, LOG_INFO);
+                }
+                $insertResult = $this->db->query($sql);
+                if ($isManualCorrection) {
+                    dol_syslog('clockify.correctTimeEntry audit_insert_result rowid='.(int) $this->id.' field='.$field.' result='.($insertResult ? 'success' : 'failure'), LOG_INFO);
+                }
             }
         }
     }
+
+    /** Record the initial values of a manually created time entry. */
+    public function logManualCreation(User $user, string $reason, string $action = self::MOD_ACTION_MANUAL_CREATE)
+    {
+        $oldValues = array('date_start' => '', 'date_end' => '', 'duration' => '');
+        $this->logModifications($user, $oldValues, $reason, $action);
+    }
+
+	/** Return true when the requested time range overlaps another user entry. */
+	public function hasTimeOverlap($fkUser, $dateStart, $dateEnd, $excludeId = 0)
+	{
+		$overlaps = $this->getTimeOverlaps($fkUser, $dateStart, $dateEnd, $excludeId);
+		return $overlaps === false || !empty($overlaps);
+	}
+
+	/**
+	 * Return the existing entries that overlap a requested time range.
+	 *
+	 * @return array<int,array{rowid:int,date_start:string,date_end:string|null}>|false
+	 */
+	public function getTimeOverlaps($fkUser, $dateStart, $dateEnd, $excludeId = 0)
+	{
+		$start = is_numeric($dateStart) ? (int) $dateStart : strtotime((string) $dateStart);
+		$end = is_numeric($dateEnd) ? (int) $dateEnd : strtotime((string) $dateEnd);
+		if ($start <= 0 || $end <= $start) {
+			return false;
+		}
+
+		$sql = 'SELECT rowid, date_start, date_end FROM '.$this->db->prefix().$this->table_element;
+		$sql .= ' WHERE entity IN ('.getEntity($this->element).')';
+		$sql .= ' AND fk_user = '.((int) $fkUser);
+		$sql .= " AND date_start < '".$this->db->idate($end)."'";
+        $sql .= " AND (date_end IS NULL OR date_end > '".$this->db->idate($start)."')";
+		if ((int) $excludeId > 0) {
+			$sql .= ' AND rowid <> '.((int) $excludeId);
+		}
+		$sql .= ' ORDER BY date_start ASC, rowid ASC';
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return false;
+		}
+
+		$overlaps = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$overlaps[] = array(
+				'rowid' => (int) $obj->rowid,
+				'date_start' => (string) $obj->date_start,
+				'date_end' => $obj->date_end !== null ? (string) $obj->date_end : null,
+			);
+		}
+		$this->db->free($resql);
+
+		return $overlaps;
+	}
 
 	/**
 	 * Recompute the billable amount from duration and hourly rate.
@@ -1391,7 +1470,7 @@ public function update(User $user, $notrigger = 0, $reason = '')
 	}
 
 	/** Create a manual time block with explicit start/end values. */
-	public function createManualEntry($fk_user, $fk_project = 0, $fk_task = 0, $dateStart = null, $dateEnd = null, $note = '', $tags = '', $billable = 0, ?User $user = null, $thm = null)
+	public function createManualEntry($fk_user, $fk_project = 0, $fk_task = 0, $dateStart = null, $dateEnd = null, $note = '', $tags = '', $billable = 0, ?User $user = null, $thm = null, $status = self::STATUS_VALIDATED)
 	{
 		$dateStart = !empty($dateStart) ? (is_numeric($dateStart) ? (int) $dateStart : strtotime($dateStart)) : 0;
 		$dateEnd = !empty($dateEnd) ? (is_numeric($dateEnd) ? (int) $dateEnd : strtotime($dateEnd)) : 0;
@@ -1416,10 +1495,14 @@ public function update(User $user, $notrigger = 0, $reason = '')
 		} else {
 			$this->thm = ($user && !empty($user->thm)) ? (float) $user->thm : 0;
 		}
-		$this->status = self::STATUS_VALIDATED;
-		$this->fk_user_submit = (int) $fk_user;
-		$this->date_submit = dol_now();
-		$this->fk_user_valid = (int) $fk_user;
+		$this->status = (int) $status;
+		if ($this->status >= self::STATUS_SUBMITTED) {
+			$this->fk_user_submit = (int) $fk_user;
+			$this->date_submit = dol_now();
+		}
+		if ($this->status >= self::STATUS_VALIDATED) {
+			$this->fk_user_valid = (int) $fk_user;
+		}
 
 		return $this->create($user);
 	}
