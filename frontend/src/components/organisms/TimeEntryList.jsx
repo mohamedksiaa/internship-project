@@ -31,37 +31,10 @@ function endTimeLabel(entry) {
   return entry.status === 0 ? 'En cours' : '—';
 }
 
-// Safely evaluates string '0', number 0, boolean false, etc.
-function isBillable(entry) {
-  const val = entry.billable ?? entry.is_billable ?? entry.billable_flag;
-  return val === true || val === 1 || val === '1' || val === 'true';
-}
-
-// Safely extracts tags whether string, array of strings, or array of objects
-function formatTags(entry) {
-  const rawTags = entry.tags ?? entry.tag_list ?? entry.tags_labels ?? entry.tagNames;
-  if (!rawTags) return 'Sans tags';
-  
-  if (Array.isArray(rawTags)) {
-    if (rawTags.length === 0) return 'Sans tags';
-    const parsed = rawTags
-      .map((t) => (typeof t === 'object' ? t.name || t.label || t.title : String(t)))
-      .filter(Boolean);
-    return parsed.length > 0 ? parsed.join(', ') : 'Sans tags';
-  }
-  
-  if (typeof rawTags === 'string') {
-    return rawTags.trim() || 'Sans tags';
-  }
-  
-  return 'Sans tags';
-}
-
 export default function TimeEntryList({
   entries: initialEntries = [],
   setEntries: setParentEntries,
   projects = [],
-  tasks = [],
   showWorker = false,
   showValidationActions = false,
   onRestartEntry,
@@ -94,7 +67,6 @@ export default function TimeEntryList({
     [entries]
   );
 
-  const getTaskId = (entry) => Number(entry.fk_task || entry.taskId || entry.task_id || entry.task?.id || 0);
   const getProjectId = (entry) => Number(entry.fk_project || entry.projectId || entry.project_id || entry.project?.id || 0);
 
   const decide = async (id, status) => {
@@ -164,18 +136,6 @@ export default function TimeEntryList({
     return found ? (found.title || found.label || found.name || found.ref) : 'Sans projet';
   };
 
-  const taskName = (entry) => {
-    if (typeof entry.task_label === 'string' && entry.task_label) return entry.task_label;
-    if (typeof entry.task_name === 'string' && entry.task_name) return entry.task_name;
-    if (typeof entry.task === 'string' && entry.task) return entry.task;
-    if (entry.task?.title || entry.task?.label || entry.task?.name) {
-      return entry.task.title || entry.task.label || entry.task.name;
-    }
-    const targetId = getTaskId(entry);
-    const found = tasks.find((t) => Number(t.id || t.rowid || t.value) === targetId);
-    return found ? (found.title || found.label || found.name || found.ref) : '—';
-  };
-
   if (!entries.length) {
     return (
       <div className="border border-[#dce5ea] bg-white px-5 py-6 text-sm text-[#71838f]">
@@ -201,9 +161,8 @@ export default function TimeEntryList({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#dce5ea] bg-white text-[11px] font-medium uppercase tracking-wide text-[#8a9aa4]">
-                  <th className="px-5 py-2">Description</th>
+                  <th className="px-5 py-2">Tâche</th>
                   <th className="px-3 py-2">Projet</th>
-                  <th className="px-3 py-2">Tâche</th>
                   {showWorker && <th className="px-3 py-2">Qui</th>}
                   <th className="px-3 py-2">Début</th>
                   <th className="px-3 py-2">Fin</th>
@@ -217,15 +176,9 @@ export default function TimeEntryList({
                   <tr key={entry.id} className="border-b border-[#dce5ea] hover:bg-[#f9fbfd] text-sm text-[#2c3e49]">
                     <td className="px-5 py-3 min-w-[180px]">
                       <p className="font-medium text-[#2c3e49] truncate">{entry.note || 'Sans description'}</p>
-                      <p className="mt-0.5 text-xs text-[#71838f]">
-                        {formatTags(entry)}{isBillable(entry) ? ' · Billable' : ' · Non billable'}
-                      </p>
                     </td>
                     <td className="px-3 py-3 text-[#03a9f4] font-medium truncate min-w-[120px]">
                       {projectName(entry)}
-                    </td>
-                    <td className="px-3 py-3 text-[#52656f] truncate min-w-[120px]">
-                      {taskName(entry)}
                     </td>
                     {showWorker && (
                       <td className="px-3 py-3 text-[#52656f] truncate">

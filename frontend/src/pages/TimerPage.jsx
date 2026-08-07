@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import TimerWidget from '../components/organisms/TimerWidget';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-import { getProjects, getTasks, getTimeEntries } from '../api/clockifyApi';
+import { getProjects, getTasks, getTimeEntries, getUpdateMarker } from '../api/clockifyApi';
 import { useTimer } from '../hooks/UseTimer.js';
 
 const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
@@ -15,6 +15,8 @@ export default function TimerPage() {
 
   useEffect(() => {
     let isMounted = true;
+    let marker = null;
+    let polling = false;
 
     async function loadInitialData() {
       // Load projects and time entries in parallel
@@ -67,8 +69,38 @@ export default function TimerPage() {
 
     loadInitialData();
 
+    async function checkForUpdates() {
+      if (polling || document.visibilityState !== 'visible') return;
+      polling = true;
+      try {
+        const nextMarker = await getUpdateMarker('entries');
+        if (!isMounted) return;
+        if (marker === null) {
+          marker = nextMarker;
+        } else if (marker !== nextMarker) {
+          marker = nextMarker;
+          const refreshedEntries = await getTimeEntries();
+          if (isMounted) {
+            setEntries(Array.isArray(refreshedEntries) ? refreshedEntries : []);
+          }
+        }
+      } catch {
+        // Keep the current history visible if a background check fails.
+      } finally {
+        polling = false;
+      }
+    }
+
+    checkForUpdates();
+    const intervalId = window.setInterval(checkForUpdates, 15000);
+    window.addEventListener('focus', checkForUpdates);
+    document.addEventListener('visibilitychange', checkForUpdates);
+
     return () => {
       isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', checkForUpdates);
+      document.removeEventListener('visibilitychange', checkForUpdates);
     };
   }, []);
 

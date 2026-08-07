@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-import { getValidationEntries } from '../api/clockifyApi';
+import { getUpdateMarker, getValidationEntries } from '../api/clockifyApi';
 
 export default function ValidationPage() {
   const [entries, setEntries] = useState([]);
@@ -9,6 +9,8 @@ export default function ValidationPage() {
 
   useEffect(() => {
     let isMounted = true;
+    let marker = null;
+    let polling = false;
 
     async function loadEntries() {
       try {
@@ -28,9 +30,39 @@ export default function ValidationPage() {
       }
     }
 
-    loadEntries();
+    async function checkForUpdates() {
+      if (polling || document.visibilityState !== 'visible') return;
+      polling = true;
+      try {
+        const nextMarker = await getUpdateMarker('validation');
+        if (!isMounted) return;
+        if (marker === null) {
+          marker = nextMarker;
+        } else if (marker !== nextMarker) {
+          marker = nextMarker;
+          await loadEntries();
+        }
+      } catch {
+        // A failed background check must not replace the currently displayed list.
+      } finally {
+        polling = false;
+      }
+    }
+
+    async function initialize() {
+      await loadEntries();
+      await checkForUpdates();
+    }
+
+    initialize();
+    const intervalId = window.setInterval(checkForUpdates, 15000);
+    window.addEventListener('focus', checkForUpdates);
+    document.addEventListener('visibilitychange', checkForUpdates);
     return () => {
       isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', checkForUpdates);
+      document.removeEventListener('visibilitychange', checkForUpdates);
     };
   }, []);
 

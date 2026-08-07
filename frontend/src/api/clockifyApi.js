@@ -130,6 +130,8 @@ function handleMockRequest(action, body) {
     }
     case 'getValidationEntries':
       return Promise.resolve({ status: 'success', data: mockEntries.filter((entry) => Number(entry.status) === 1) });
+    case 'getUpdateMarker':
+      return Promise.resolve({ status: 'success', data: { marker: mockEntries.map((entry) => `${entry.id}:${entry.status}`).join('|') } });
     case 'validateEntry': {
       const entry = mockEntries.find((item) => item.id === Number(body?.id));
       if (entry) entry.status = 2;
@@ -197,14 +199,12 @@ export async function getActiveTimer() {
   return normalizeEntry(data?.data ?? null);
 }
 
-export async function startTimer(projectLabel = '', fkTask = 0, note = '', tags = '', billable = 0) {
+export async function startTimer(projectLabel = '', fkTask = 0, note = '') {
   const data = await moduleTimerRequest('startTimer', {
     fk_project: 0,
     fk_task: fkTask,
     note,
     project_label: projectLabel,
-    tags,
-    billable,
   });
   const payload = data?.data ?? data;
   const numericId = typeof payload === 'number' || (typeof payload === 'string' && /^\d+$/.test(payload.trim()));
@@ -243,6 +243,11 @@ export async function getTimeEntries(limit = 100) {
 export async function getValidationEntries(limit = 100) {
   const data = await moduleTimerRequest('getValidationEntries', { limit });
   return normalizeEntries(data?.data ?? data);
+}
+
+export async function getUpdateMarker(scope = 'entries') {
+  const data = await moduleTimerRequest('getUpdateMarker', { scope });
+  return String(data?.data?.marker ?? data?.marker ?? '');
 }
 
 export async function approveTimeEntry(id) {
