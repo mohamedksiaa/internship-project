@@ -126,6 +126,7 @@ function clockifyResolveProjectLabel($projectId)
     $sql = 'SELECT rowid, ref, title';
     $sql .= ' FROM '.$db->prefix().'clockify_project';
     $sql .= ' WHERE rowid = '.$projectId;
+    $sql .= ' AND entity IN ('.getEntity('clockify_project').')';
     $resql = $db->query($sql);
     if ($resql) {
         $obj = $db->fetch_object($resql);
@@ -247,6 +248,62 @@ function clockifyTaskLabel($object)
         return $object->ref;
     }
     return 'Tâche';
+}
+
+function clockifyUserCanValidate($user)
+{
+    if (empty($user)) {
+        return false;
+    }
+    if (!empty($user->admin)) {
+        return true;
+    }
+    if (!empty($user->rights->clockify->validate)) {
+        return true;
+    }
+    if (!empty($user->hasRight('clockify', 'clockify', 'validate'))) {
+        return true;
+    }
+    if (!empty($user->hasRight('clockify', 'timeentry', 'validate'))) {
+        return true;
+    }
+    return false;
+}
+
+function clockifyCanSeeEntry($db, $user, $entry)
+{
+    if (empty($entry)) {
+        return false;
+    }
+    if (!empty($user->admin) || $user->hasRight('clockify', 'timeentry', 'write')) {
+        return true;
+    }
+
+    $entryUserId = (int) ($entry->fk_user ?? 0);
+    if ($entryUserId === (int) $user->id) {
+        return true;
+    }
+
+    if (clockifyUserCanValidate($user)) {
+        return true;
+    }
+
+    $sql = 'SELECT rowid FROM '.$db->prefix().'user';
+    $sql .= ' WHERE fk_user = '.((int) $user->id);
+    $sql .= ' AND entity IN ('.getEntity('user').')';
+
+    $resql = $db->query($sql);
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            if ((int) $obj->rowid === $entryUserId) {
+                $db->free($resql);
+                return true;
+            }
+        }
+        $db->free($resql);
+    }
+
+    return false;
 }
 
 function clockifyFetchProjects($db)
@@ -537,20 +594,18 @@ switch ($action) {
     case 'getTimeEntries':
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
         $limit = $limit > 0 ? $limit : 100;
-        if ($user->admin || $user->hasRight('clockify', 'timeentry', 'write')) {
-            $filter = '';
-        } else {
-            $filter = '(t.fk_user:=:'.((int) $user->id).')';
-        }
-        $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
+        $result = $timeentry->fetchAll('DESC', 't.date_start', 1000, 0, '');
+        $rows = array();
         if (is_array($result)) {
-            $rows = array();
             foreach ($result as $obj) {
+                if (!clockifyCanSeeEntry($db, $user, $obj)) {
+                    continue;
+                }
                 $rows[] = clockifyExportTimeEntry($obj);
             }
-            clockifyJsonResponse(array('status' => 'success', 'data' => $rows));
         }
-        clockifyJsonResponse(array('status' => 'success', 'data' => array()));
+        $rows = array_slice($rows, 0, $limit);
+        clockifyJsonResponse(array('status' => 'success', 'data' => $rows));
         break;
 
     case 'getWeeklyTimesheet':
@@ -749,7 +804,7 @@ switch ($action) {
 
     case 'validateEntry':
     case 'approveTimeEntry':
-        if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
+        if (empty($user->rights->clockify->validate) && empty($user->admin) && !$user->hasRight('clockify', 'timeentry', 'validate')) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
@@ -782,7 +837,7 @@ switch ($action) {
 
     case 'rejectEntry':
     case 'rejectTimeEntry':
-        if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
+        if (empty($user->rights->clockify->validate) && empty($user->admin) && !$user->hasRight('clockify', 'timeentry', 'validate')) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');

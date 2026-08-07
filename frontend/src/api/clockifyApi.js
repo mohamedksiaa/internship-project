@@ -187,9 +187,9 @@ export async function getActiveTimer() {
   return normalizeEntry(data?.data ?? null);
 }
 
-export async function startTimer(projectLabel = '', fkTask = 0, note = '', tags = '', billable = 0) {
+export async function startTimer(projectLabel = '', fkTask = 0, note = '', tags = '', billable = 0, projectId = 0) {
   const data = await moduleTimerRequest('startTimer', {
-    fk_project: 0,
+    fk_project: Number(projectId || 0),
     fk_task: fkTask,
     note,
     project_label: projectLabel,

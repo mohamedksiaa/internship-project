@@ -144,11 +144,17 @@ $conf->global->MAIN_MENU_LEFT_HIDDEN = '1';
 
 llxHeader($headHtml, $langs->trans("ClockifyArea"), '', '', 0, 0, '', '', '', 'mod-clockify page-index');
 print '<div id="root" style="width:100%;min-height:calc(100vh - 60px);"></div>';
+$canValidate = !empty($user->admin)
+	|| !empty($user->rights->clockify->validate)
+	|| $user->hasRight('clockify', 'clockify', 'validate')
+	|| $user->hasRight('clockify', 'timeentry', 'validate');
+
 print '<script>';
 print 'window.DOL_URL_ROOT = '.json_encode(DOL_URL_ROOT).';';
 print 'window.CLOCKIFY_TOKEN = '.json_encode(currentToken()).';';
 print 'window.CLOCKIFY_AJAX_URL = '.json_encode(dol_buildpath('/custom/clockify/ajax/timeentry.php', 1)).';';
-print 'window.CLOCKIFY_CAN_READALL = '.json_encode((bool) ($user->admin || $user->hasRight('clockify', 'timeentry', 'readall'))).';';
+print 'window.CLOCKIFY_CAN_VALIDATE = '.json_encode((bool) $canValidate).';';
+print 'window.CLOCKIFY_CAN_READALL = '.json_encode((bool) ($user->admin || $user->hasRight('clockify', 'timeentry', 'readall') || $canValidate)).';';
 print '</script>';
 if ($jsUrl) {
 	print '<script type="module" crossorigin src="'.$jsUrl.'" defer></script>';

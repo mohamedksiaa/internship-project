@@ -1,4 +1,17 @@
 import { useState } from 'react';
+
+function resolveProjectIdFromLabel(projects, projectLabel) {
+  const normalized = String(projectLabel || '').trim().toLowerCase();
+  if (!normalized) {
+    return 0;
+  }
+  const exactMatch = projects.find((project) => String(project.title || project.name || project.label || project.ref || '').trim().toLowerCase() === normalized);
+  if (exactMatch) {
+    return Number(exactMatch.id ?? exactMatch.rowid ?? 0);
+  }
+  const containsMatch = projects.find((project) => String(project.title || project.name || project.label || project.ref || '').trim().toLowerCase().includes(normalized));
+  return containsMatch ? Number(containsMatch.id ?? containsMatch.rowid ?? 0) : 0;
+}
 import { createManualEntry } from '../../api/clockifyApi';
 import { useTimer } from '../../hooks/UseTimer.js';
 import TimeDisplay from '../atoms/TimeDisplay';
@@ -25,8 +38,9 @@ export default function TimerWidget({ projects = [], projectsError = '', onProje
     if (manualMode) {
       setManualBusy(true);
       try {
+        const projectId = resolveProjectIdFromLabel(projects, projectLabel);
         const entry = await createManualEntry({
-          fk_project: 0,
+          fk_project: projectId,
           fk_task: 0,
           date_start: manualStart,
           date_end: manualEnd,
@@ -50,7 +64,8 @@ export default function TimerWidget({ projects = [], projectsError = '', onProje
       return;
     }
 
-    const entry = await start(projectLabel.trim(), 0, note.trim(), tags, billable ? 1 : 0);
+    const projectId = resolveProjectIdFromLabel(projects, projectLabel);
+    const entry = await start(projectLabel.trim(), 0, note.trim(), tags, billable ? 1 : 0, projectId);
     pushEntry(entry);
   };
 

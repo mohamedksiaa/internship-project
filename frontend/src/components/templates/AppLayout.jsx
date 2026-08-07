@@ -12,7 +12,17 @@ function classNames(...classes) { return classes.filter(Boolean).join(' '); }
 
 export default function AppLayout() {
   const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
-  const visibleNavigation = navigation.filter((item) => canReadAll || (item.path !== '/reports' && item.path !== '/validation'));
+  const canValidate = typeof window !== 'undefined' && window.CLOCKIFY_CAN_VALIDATE === true;
+  const visibleNavigation = navigation.filter((item) => (canReadAll || item.path === '/validation' ? true : false) || (item.path !== '/reports' && item.path !== '/validation'));
+  const visibleNavigationFiltered = navigation.filter((item) => {
+    if (item.path === '/reports') {
+      return canReadAll;
+    }
+    if (item.path === '/validation') {
+      return canValidate;
+    }
+    return true;
+  });
   let displayedSection = '';
 
   return (
@@ -36,7 +46,7 @@ export default function AppLayout() {
       <div className="flex min-h-[calc(100vh-60px)]">
         <aside className="w-[220px] shrink-0 border-r border-[#dce5ea] bg-white py-2">
           <nav>
-            {visibleNavigation.map((item, index) => {
+            {visibleNavigationFiltered.map((item, index) => {
               const showSection = item.section !== displayedSection;
               displayedSection = item.section;
               return (

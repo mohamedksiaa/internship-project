@@ -317,6 +317,11 @@ class modClockify extends DolibarrModules
 		$this->rights[$r][5] = 'validate';
 		$r++;
 		$this->rights[$r][0] = $this->numero . sprintf('%02d', 5);
+		$this->rights[$r][1] = 'Validate or refuse submitted times of Clockify';
+		$this->rights[$r][4] = 'clockify';
+		$this->rights[$r][5] = 'validate';
+		$r++;
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', 6);
 		$this->rights[$r][1] = 'Delete TimeEntry object of Clockify';
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'delete';

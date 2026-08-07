@@ -38,14 +38,14 @@ export function useTimer() {
     return () => clearInterval(intervalRef.current); // nettoyage, évite les fuites mémoire
   }, [isRunning]);
 
-  const start = useCallback(async (projectLabel, fkTask, note, tags = '', billable = 0) => {
+  const start = useCallback(async (projectLabel, fkTask, note, tags = '', billable = 0, projectId = 0) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await startTimer(projectLabel, fkTask, note, tags, billable);
+      const result = await startTimer(projectLabel, fkTask, note, tags, billable, projectId);
       const activeEntryPayload = {
         id: result.id,
-        fk_project: 0,
+        fk_project: Number(projectId || 0),
         project_label: projectLabel,
         fk_task: fkTask,
         note,
