@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { createManualEntry } from '../../api/clockifyApi';
-import { useTimer } from '../../hooks/UseTimer.js';
 import TimeDisplay from '../atoms/TimeDisplay';
 
-export default function TimerWidget({ projects = [], projectsError = '', onProjectChange = () => {}, onEntryCreated = () => {} }) {
-  const { isRunning, seconds, loading, error, start, stop } = useTimer();
+export default function TimerWidget({ timer, projects = [], projectsError = '', onProjectChange = () => {}, onEntryCreated = () => {} }) {
+  const { isRunning, seconds, loading, error, start, stop } = timer;
   const [projectLabel, setProjectLabel] = useState('');
   const [note, setNote] = useState('');
   const [tags, setTags] = useState('');
@@ -54,6 +53,11 @@ export default function TimerWidget({ projects = [], projectsError = '', onProje
     pushEntry(entry);
   };
 
+  const handleStop = async () => {
+    const entry = await stop();
+    pushEntry(entry);
+  };
+
   const handleProjectChange = (nextProjectLabel) => {
     setProjectLabel(nextProjectLabel);
     onProjectChange(nextProjectLabel.trim());
@@ -69,7 +73,7 @@ export default function TimerWidget({ projects = [], projectsError = '', onProje
             <input id="clockify-project" name="project" value={projectLabel} onChange={(e) => handleProjectChange(e.target.value)} aria-label="Projet" placeholder="Projet" className="min-w-[160px] bg-transparent text-sm text-[#03a9f4] outline-none placeholder:text-[#98a5ad]" />
           </div>
         <div className="flex items-center justify-center px-5 font-semibold text-[#37474f]"><TimeDisplay seconds={seconds} /></div>
-        <button type="button" onClick={isRunning ? stop : handleStart} disabled={loading || manualBusy} className="min-h-[44px] bg-[#03a9f4] px-7 text-sm font-medium text-white transition hover:bg-[#0398dc] disabled:cursor-not-allowed disabled:bg-[#a9c9d8]">{loading || manualBusy ? '…' : isRunning ? 'ARRÊTER' : manualMode ? 'ENREGISTRER' : 'DÉMARRER'}</button>
+        <button type="button" onClick={isRunning ? handleStop : handleStart} disabled={loading || manualBusy} className="min-h-[44px] bg-[#03a9f4] px-7 text-sm font-medium text-white transition hover:bg-[#0398dc] disabled:cursor-not-allowed disabled:bg-[#a9c9d8]">{loading || manualBusy ? '…' : isRunning ? 'ARRÊTER' : manualMode ? 'ENREGISTRER' : 'DÉMARRER'}</button>
       </div>
       <div className="grid gap-2 md:grid-cols-4">
         <label className="flex items-center gap-2 text-sm text-[#52656f]"><input type="checkbox" checked={manualMode} onChange={(e) => setManualMode(e.target.checked)} /> Saisie manuelle</label>

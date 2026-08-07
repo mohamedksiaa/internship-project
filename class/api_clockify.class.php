@@ -161,7 +161,7 @@ class Clockify extends DolibarrApi
         if (!DolibarrApiAccess::$user->id) {
             throw new RestException(401, 'Unauthorized');
         }
-        if (!DolibarrApiAccess::$user->hasRight('clockify', 'timeentry', 'write')) {
+        if (empty(DolibarrApiAccess::$user->admin) && !DolibarrApiAccess::$user->hasRight('clockify', 'valider')) {
             throw new RestException(403, 'Forbidden');
         }
 
@@ -188,7 +188,7 @@ class Clockify extends DolibarrApi
         if (!DolibarrApiAccess::$user->id) {
             throw new RestException(401, 'Unauthorized');
         }
-        if (!DolibarrApiAccess::$user->hasRight('clockify', 'timeentry', 'write')) {
+        if (empty(DolibarrApiAccess::$user->admin) && !DolibarrApiAccess::$user->hasRight('clockify', 'valider')) {
             throw new RestException(403, 'Forbidden');
         }
 

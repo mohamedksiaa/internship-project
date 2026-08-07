@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import TimerWidget from '../components/organisms/TimerWidget';
 import TimeEntryList from '../components/organisms/TimeEntryList';
 import { getProjects, getTasks, getTimeEntries } from '../api/clockifyApi';
+import { useTimer } from '../hooks/UseTimer.js';
 
 const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
 
 export default function TimerPage() {
+  const timer = useTimer();
   const [projects, setProjects] = useState([]);
   const [historyTasks, setHistoryTasks] = useState([]); // Master list of tasks for the history
   const [entries, setEntries] = useState([]);
@@ -90,9 +92,14 @@ export default function TimerPage() {
     }
   };
 
+  const handleRestartEntry = async (entry) => {
+    return timer.resume(entry.id);
+  };
+
   return (
     <div className="mx-auto w-full max-w-[1680px] px-5 py-7">
       <TimerWidget 
+        timer={timer}
         projects={projects} 
         projectsError={projectsError} 
         onProjectChange={handleProjectChange} 
@@ -111,7 +118,10 @@ export default function TimerPage() {
           setEntries={setEntries} 
           projects={projects} 
           tasks={historyTasks} // Pass the newly fetched master list here!
-          showWorker={canReadAll} 
+          showWorker={canReadAll}
+          onRestartEntry={handleRestartEntry}
+          activeEntryId={timer.activeEntry?.id}
+          activeSeconds={timer.seconds}
         />
       </div>
     </div>

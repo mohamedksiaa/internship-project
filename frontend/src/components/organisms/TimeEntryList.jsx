@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { approveTimeEntry, rejectTimeEntry, startTimer, submitEntry } from '../../api/clockifyApi';
+import { approveTimeEntry, rejectTimeEntry, submitEntry } from '../../api/clockifyApi';
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
 
@@ -63,6 +63,10 @@ export default function TimeEntryList({
   projects = [],
   tasks = [],
   showWorker = false,
+  showValidationActions = false,
+  onRestartEntry,
+  activeEntryId = null,
+  activeSeconds = 0,
 }) {
   const [entries, setEntries] = useState(initialEntries);
   const [error, setError] = useState('');
@@ -75,6 +79,10 @@ export default function TimeEntryList({
     entry.user_name ||
     entry.user_login ||
     (Number(entry.fk_user) > 0 ? `Utilisateur #${entry.fk_user}` : '—');
+
+  const displayedDuration = (entry) => (
+    Number(entry.id) === Number(activeEntryId) ? Number(activeSeconds || 0) : Number(entry.duration || 0)
+  );
 
   const groups = useMemo(
     () =>
@@ -126,24 +134,17 @@ export default function TimeEntryList({
     setBusyId(entry.id);
     setError('');
     try {
-      const projectLabel = entry.project_label || entry.project_name || entry.project?.title || entry.project?.label || entry.project?.name || '';
-      const created = await startTimer(
-        projectLabel,
-        getTaskId(entry),
-        entry.note || '',
-        entry.tags || '',
-        isBillable(entry) ? 1 : 0
-      );
-      const restartedEntry = {
+      if (!onRestartEntry) throw new Error('Relance du chrono indisponible.');
+      const resumed = await onRestartEntry(entry);
+      if (!resumed?.id) throw new Error('Le serveur n’a pas renvoyé le chrono repris.');
+      const resumedEntry = {
         ...entry,
-        id: created.id,
-        rowid: created.id,
-        status: 0,
-        duration: 0,
-        date_start: new Date().toISOString(),
-        date_end: null,
+        ...resumed,
+        id: resumed.id,
+        rowid: resumed.rowid ?? resumed.id,
       };
-      const next = [restartedEntry, ...entries.filter((item) => item.id !== entry.id)];
+      // The server resumes this same row. Move it to the top without a duplicate.
+      const next = [resumedEntry, ...entries.filter((item) => item.id !== entry.id)];
       setEntries(next);
       setParentEntries?.(next);
     } catch (err) {
@@ -204,7 +205,7 @@ export default function TimeEntryList({
     <section className="space-y-6">
       {error && <p className="text-sm text-[#d64c4c]">{error}</p>}
       {Object.entries(groups).map(([key, group]) => {
-        const total = group.reduce((sum, entry) => sum + Number(entry.duration || 0), 0);
+        const total = group.reduce((sum, entry) => sum + displayedDuration(entry), 0);
         return (
           <div key={key} className="border-b-4 border-[#e3ebef] bg-white overflow-x-auto">
             <div className="flex items-center justify-between bg-[#e5edf1] px-5 py-2 text-sm text-[#52656f]">
@@ -258,7 +259,7 @@ export default function TimeEntryList({
                       <StatusBadge status={Number(entry.status)} />
                     </td>
                     <td className="px-3 py-3 text-right font-bold text-[#2b3d48] whitespace-nowrap">
-                      {formatDuration(entry.duration || 0)}
+                      {formatDuration(displayedDuration(entry))}
                     </td>
                     <td className="px-5 py-3 text-right whitespace-nowrap">
                       <div className="flex justify-end items-center gap-2 text-[#78909c]">
@@ -272,7 +273,7 @@ export default function TimeEntryList({
                             {busyId === entry.id ? '…' : '⇪'}
                           </button>
                         )}
-                        {entry.status === 1 && (
+                        {showValidationActions && entry.status === 1 && (
                           <>
                             <button
                               title="Valider"
@@ -292,11 +293,10 @@ export default function TimeEntryList({
                             </button>
                           </>
                         )}
-                        {entry.status === 2 && <span title="Validée" className="text-[#35a66f]">✓</span>}
                         <button
                           title="Démarrer à nouveau"
                           onClick={() => restartEntry(entry)}
-                          disabled={busyId === entry.id}
+                          disabled={busyId !== null}
                           className="text-[#03a9f4]"
                         >
                           ▷
@@ -305,7 +305,7 @@ export default function TimeEntryList({
                           title="Nombre de sessions sur cette tâche pour cet utilisateur"
                           className="rounded-full bg-[#eaf6fd] px-2 py-0.5 text-xs font-medium text-[#03a9f4]"
                         >
-                          ×{sessionCounts.get(sessionIdentity(entry)) || 1}
+                          ×{Math.max(1, Number(sessionCounts.get(sessionIdentity(entry)) || 0))}
                         </span>
                                               </div>
                     </td>

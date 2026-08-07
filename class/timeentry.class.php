@@ -1423,8 +1423,39 @@ public function update(User $user, $notrigger = 0, $reason = '')
 			$this->error = 'Entrée introuvable';
 			return -1;
 		}
+		if ((int) $this->fk_user !== (int) $user->id && empty($user->admin)) {
+			$this->error = 'Accès refusé';
+			return -1;
+		}
+		if (!empty($this->date_end)) {
+			$this->error = 'Ce chrono est déjà arrêté';
+			return -1;
+		}
 		$this->date_end = dol_now();
-		$this->duration = max(0, (int) $this->date_end - (int) $this->date_start);
+		$this->duration = max(0, (int) $this->duration) + max(0, (int) $this->date_end - (int) $this->date_start);
+		return $this->update($user);
+	}
+
+	/** Resume an existing stopped entry without creating a second row. */
+	public function restartTimer($id, User $user)
+	{
+		if ($this->fetch((int) $id) <= 0) {
+			$this->error = 'Entrée introuvable';
+			return -1;
+		}
+		if ((int) $this->fk_user !== (int) $user->id && empty($user->admin)) {
+			$this->error = 'Accès refusé';
+			return -1;
+		}
+		if ($this->hasActiveTimer($user->id) > 0) {
+			$this->error = 'Un chrono est déjà actif pour cet utilisateur';
+			return -1;
+		}
+
+		// Keep the accumulated duration and start a new active segment on this row.
+		$this->date_start = dol_now();
+		$this->date_end = null;
+		$this->status = self::STATUS_DRAFT;
 		return $this->update($user);
 	}
 
