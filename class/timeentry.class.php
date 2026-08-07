@@ -1408,7 +1408,7 @@ public function update(User $user, $notrigger = 0, $reason = '')
 		} else {
 			$this->thm = ($user && !empty($user->thm)) ? (float) $user->thm : 0;
 		}
-		$this->status = self::STATUS_VALIDATED;
+		$this->status = self::STATUS_SUBMITTED;
 		$this->fk_user_submit = (int) $fk_user;
 		$this->date_submit = dol_now();
 		$this->fk_user_valid = (int) $fk_user;
@@ -1424,7 +1424,7 @@ public function update(User $user, $notrigger = 0, $reason = '')
 			return -1;
 		}
 		$this->date_end = dol_now();
-		$this->duration = max(0, (int) $this->date_end - (int) $this->date_start);
+		$this->duration = max(0, (int) strtotime($this->date_end) - (int) strtotime($this->date_start));
 		return $this->update($user);
 	}
 
@@ -1448,6 +1448,34 @@ public function update(User $user, $notrigger = 0, $reason = '')
 			$this->error = 'Entrée introuvable';
 			return -1;
 		}
+
+		if (empty($user->admin) && empty($user->rights->clockify->validate) && empty($user->hasRight('clockify', 'timeentry', 'validate'))) {
+			$this->error = 'Permission insuffisante';
+			return -2;
+		}
+
+		$employeeUserId = (int) $this->fk_user;
+		$managerUserId = (int) $user->id;
+		$employeeManagerId = 0;
+
+		if ($employeeUserId > 0) {
+			$sql = 'SELECT fk_user FROM '.MAIN_DB_PREFIX.'user WHERE rowid = '.((int) $employeeUserId);
+			$resql = $this->db->query($sql);
+			if ($resql) {
+				$obj = $this->db->fetch_object($resql);
+				if ($obj) {
+					$employeeManagerId = (int) $obj->fk_user;
+				}
+				$this->db->free($resql);
+			}
+		}
+
+		$isGlobalValidator = !empty($user->admin) || !empty($user->rights->clockify->validate) || $user->hasRight('clockify', 'timeentry', 'validate');
+		if (!$isGlobalValidator && $managerUserId !== $employeeManagerId) {
+			$this->error = 'Vous ne pouvez valider que les temps de vos collaborateurs directs';
+			return -3;
+		}
+
 		$this->status = (int) $status;
 		$this->fk_user_valid = $user->id;
 		return $this->update($user);

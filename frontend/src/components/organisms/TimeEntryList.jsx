@@ -3,6 +3,8 @@ import { approveTimeEntry, rejectTimeEntry, startTimer, submitEntry } from '../.
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
 
+const canValidate = typeof window !== 'undefined' && window.DOL_URL_ROOT ? true : true;
+
 function entryDate(value) {
   if (!value) return new Date(0);
   const raw = String(value);
@@ -132,7 +134,8 @@ export default function TimeEntryList({
         getTaskId(entry),
         entry.note || '',
         entry.tags || '',
-        isBillable(entry) ? 1 : 0
+        isBillable(entry) ? 1 : 0,
+        getProjectId(entry)
       );
       const restartedEntry = {
         ...entry,
@@ -272,7 +275,7 @@ export default function TimeEntryList({
                             {busyId === entry.id ? '…' : '⇪'}
                           </button>
                         )}
-                        {entry.status === 1 && (
+                        {entry.status === 1 && window.CLOCKIFY_CAN_VALIDATE === true && (
                           <>
                             <button
                               title="Valider"
