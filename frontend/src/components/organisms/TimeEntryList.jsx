@@ -97,23 +97,6 @@ export default function TimeEntryList({
   const getTaskId = (entry) => Number(entry.fk_task || entry.taskId || entry.task_id || entry.task?.id || 0);
   const getProjectId = (entry) => Number(entry.fk_project || entry.projectId || entry.project_id || entry.project?.id || 0);
 
-  const sessionIdentity = (entry) => {
-    const who = entry.fk_user ?? entry.user_login ?? entry.user_label ?? 'unknown';
-    const taskId = getTaskId(entry);
-    const projectId = getProjectId(entry);
-    const what = taskId > 0 ? `task:${taskId}` : projectId > 0 ? `project:${projectId}` : `note:${(entry.note || '').trim().toLowerCase()}`;
-    return `${who}__${what}`;
-  };
-
-  const sessionCounts = useMemo(() => {
-    const counts = new Map();
-    for (const entry of entries) {
-      const key = sessionIdentity(entry);
-      counts.set(key, (counts.get(key) || 0) + 1);
-    }
-    return counts;
-  }, [entries]);
-
   const decide = async (id, status) => {
     setBusyId(id);
     setError('');
@@ -302,10 +285,10 @@ export default function TimeEntryList({
                           ▷
                         </button>
                         <span
-                          title="Nombre de sessions sur cette tâche pour cet utilisateur"
+                          title="Nombre de reprises de cette entrée"
                           className="rounded-full bg-[#eaf6fd] px-2 py-0.5 text-xs font-medium text-[#03a9f4]"
                         >
-                          ×{Math.max(1, Number(sessionCounts.get(sessionIdentity(entry)) || 0))}
+                          ×{Math.max(1, Number(entry.occurrence_count || 1))}
                         </span>
                                               </div>
                     </td>

@@ -2,6 +2,12 @@
 -- Script run when an upgrade of Dolibarr is done. Whatever is the Dolibarr version.
 --
 
+-- A resumed timer remains on its original row.  These fields persist its resume count
+-- and the beginning of its current segment; existing entries start at one occurrence.
+ALTER TABLE llx_clockify_timeentry ADD COLUMN IF NOT EXISTS occurrence_count integer DEFAULT 1 NOT NULL AFTER duration;
+ALTER TABLE llx_clockify_timeentry ADD COLUMN IF NOT EXISTS date_reprise datetime DEFAULT NULL AFTER occurrence_count;
+UPDATE llx_clockify_timeentry SET occurrence_count = 1 WHERE occurrence_count IS NULL OR occurrence_count < 1;
+
 -- Add audit trail table for manual time adjustments
 CREATE TABLE IF NOT EXISTS llx_clockify_timeentry_modification(
     rowid         integer AUTO_INCREMENT PRIMARY KEY NOT NULL,

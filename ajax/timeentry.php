@@ -86,6 +86,8 @@ function clockifyExportTimeEntry($object)
         'date_start',
         'date_end',
         'duration',
+		'occurrence_count',
+		'date_reprise',
         'note',
         'tags',
         'billable',
