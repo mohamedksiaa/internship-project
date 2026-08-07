@@ -126,11 +126,19 @@ if (file_exists($distIndex)) {
 		$cssPath = $matches[1];
 		$cssPath = preg_replace('/^\.\//', '', $cssPath);
 		$cssUrl = DOL_URL_ROOT.'/custom/clockify/frontend/dist/'.$cssPath;
+		$cssFile = $distDir.'/'.$cssPath;
+		if (file_exists($cssFile)) {
+			$cssUrl .= '?v='.filemtime($cssFile);
+		}
 	}
 	if (preg_match('/<script[^>]+src="([^"]+)"/i', $distHtml, $matches)) {
 		$jsPath = $matches[1];
 		$jsPath = preg_replace('/^\.\//', '', $jsPath);
 		$jsUrl = dol_buildpath('/custom/clockify/frontend/dist/'.$jsPath, 1);
+		$jsFile = $distDir.'/'.$jsPath;
+		if (file_exists($jsFile)) {
+			$jsUrl .= '?v='.filemtime($jsFile);
+		}
 	}
 }
 
@@ -149,6 +157,7 @@ print 'window.DOL_URL_ROOT = '.json_encode(DOL_URL_ROOT).';';
 print 'window.CLOCKIFY_TOKEN = '.json_encode(currentToken()).';';
 print 'window.CLOCKIFY_AJAX_URL = '.json_encode(dol_buildpath('/custom/clockify/ajax/timeentry.php', 1)).';';
 print 'window.CLOCKIFY_CAN_READALL = '.json_encode((bool) ($user->admin || $user->hasRight('clockify', 'timeentry', 'readall'))).';';
+print 'window.CLOCKIFY_CAN_VALIDATE = '.json_encode((bool) ($user->admin || !empty($user->rights->clockify->valider) || $user->hasRight('clockify', 'valider'))).';';
 print '</script>';
 if ($jsUrl) {
 	print '<script type="module" crossorigin src="'.$jsUrl.'" defer></script>';

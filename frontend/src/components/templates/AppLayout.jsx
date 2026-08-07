@@ -12,7 +12,12 @@ function classNames(...classes) { return classes.filter(Boolean).join(' '); }
 
 export default function AppLayout() {
   const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
-  const visibleNavigation = navigation.filter((item) => canReadAll || (item.path !== '/reports' && item.path !== '/validation'));
+  const canValidate = typeof window !== 'undefined' && window.CLOCKIFY_CAN_VALIDATE === true;
+  const visibleNavigation = navigation.filter((item) => {
+    if (item.path === '/validation') return canValidate;
+    if (item.path === '/reports') return canReadAll;
+    return true;
+  });
   let displayedSection = '';
 
   return (

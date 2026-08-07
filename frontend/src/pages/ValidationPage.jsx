@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-import { getTimeEntries } from '../api/clockifyApi';
+import { getValidationEntries } from '../api/clockifyApi';
 
 export default function ValidationPage() {
   const [entries, setEntries] = useState([]);
@@ -12,9 +12,9 @@ export default function ValidationPage() {
 
     async function loadEntries() {
       try {
-        const data = await getTimeEntries();
+        const data = await getValidationEntries();
         if (isMounted) {
-          setEntries((Array.isArray(data) ? data : []).filter((entry) => Number(entry.status) === 1));
+          setEntries(Array.isArray(data) ? data : []);
         }
       } catch (err) {
         if (isMounted) {
@@ -46,7 +46,7 @@ export default function ValidationPage() {
         </div>
         {loading && <p className="text-sm text-slate-600">Chargement…</p>}
         {error && <p className="text-sm text-rose-600">{error}</p>}
-        {!loading && !error && <TimeEntryList entries={entries} setEntries={setEntries} showWorker />}
+        {!loading && !error && <TimeEntryList entries={entries} setEntries={setEntries} showWorker showValidationActions />}
       </div>
     </div>
   );

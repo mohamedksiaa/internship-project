@@ -59,6 +59,17 @@ function clockifyJsonResponse($payload, $status = 200)
     exit;
 }
 
+/**
+ * Returns whether the connected user may validate or reject time entries.
+ *
+ * This server-side check is deliberately shared by every validation endpoint:
+ * hiding an action in the frontend must never grant the underlying operation.
+ */
+function clockifyCanValidate($user)
+{
+    return !empty($user->admin) || $user->hasRight('clockify', 'valider');
+}
+
 function clockifyExportTimeEntry($object)
 {
     if (!is_object($object)) {
@@ -412,6 +423,9 @@ switch ($action) {
 
         if ($projectLabel !== '' && $fk_project <= 0) {
             $fk_project = clockifyResolveOrCreateProjectByLabel($db, $user, $projectLabel);
+            if ($fk_project <= 0) {
+                clockifyJsonResponse(array('status' => 'error', 'message' => 'Impossible de créer ou retrouver le projet'), 400);
+            }
         }
 
         if ($fk_project > 0) {
@@ -448,9 +462,8 @@ switch ($action) {
             if ($projectLabel !== '') {
                 clockifyStoreProjectText($db, $user, $id, $projectLabel, $note);
             }
-            // Return only stable scalar data. Serializing a Dolibarr object may
-            // include non-serializable internals and result in an empty body.
-            clockifyJsonResponse(array('status' => 'success', 'id' => (int) $id));
+            $timeentry->fetch($id);
+            clockifyJsonResponse(array('status' => 'success', 'data' => clockifyExportTimeEntry($timeentry)));
         } else {
             http_response_code(400);
             clockifyJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur au démarrage'), 400);
@@ -470,6 +483,9 @@ switch ($action) {
 
         if ($projectLabel !== '' && $fk_project <= 0) {
             $fk_project = clockifyResolveOrCreateProjectByLabel($db, $user, $projectLabel);
+            if ($fk_project <= 0) {
+                clockifyJsonResponse(array('status' => 'error', 'message' => 'Impossible de créer ou retrouver le projet'), 400);
+            }
         }
 
         $res = $timeentry->createManualEntry($user->id, $fk_project, $fk_task, $date_start, $date_end, $note, $tags, $billable, $user, $thm);
@@ -502,6 +518,15 @@ switch ($action) {
             http_response_code(400);
             clockifyJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à l\'arrêt'), 400);
         }
+        break;
+
+    case 'restartTimer':
+        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        $res = $timeentry->restartTimer($id, $user);
+        if ($res > 0) {
+            clockifyJsonResponse(array('status' => 'success', 'data' => clockifyExportTimeEntry($timeentry)));
+        }
+        clockifyJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à la reprise'), 400);
         break;
 
     case 'getProjects':
@@ -537,7 +562,7 @@ switch ($action) {
     case 'getTimeEntries':
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
         $limit = $limit > 0 ? $limit : 100;
-        if ($user->admin || $user->hasRight('clockify', 'timeentry', 'write')) {
+        if ($user->admin || $user->hasRight('clockify', 'timeentry', 'write') || $user->hasRight('clockify', 'valider')) {
             $filter = '';
         } else {
             $filter = '(t.fk_user:=:'.((int) $user->id).')';
@@ -551,6 +576,24 @@ switch ($action) {
             clockifyJsonResponse(array('status' => 'success', 'data' => $rows));
         }
         clockifyJsonResponse(array('status' => 'success', 'data' => array()));
+        break;
+
+    // Data source for the dedicated validation view.  Unlike the normal timer
+    // history, it is inaccessible without the Clockify "valider" permission.
+    case 'getValidationEntries':
+        if (!clockifyCanValidate($user)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
+        $limit = $limit > 0 ? $limit : 100;
+        $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, 't.status:=:1');
+        $rows = array();
+        if (is_array($result)) {
+            foreach ($result as $obj) {
+                $rows[] = clockifyExportTimeEntry($obj);
+            }
+        }
+        clockifyJsonResponse(array('status' => 'success', 'data' => $rows));
         break;
 
     case 'getWeeklyTimesheet':
@@ -749,7 +792,7 @@ switch ($action) {
 
     case 'validateEntry':
     case 'approveTimeEntry':
-        if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
+        if (!clockifyCanValidate($user)) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
@@ -761,7 +804,7 @@ switch ($action) {
         break;
 
     case 'submitWeeklyApproval':
-        if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
+        if (!clockifyCanValidate($user)) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         $ids = $postData['ids'] ?? GETPOST('ids', 'array:int');
@@ -782,7 +825,7 @@ switch ($action) {
 
     case 'rejectEntry':
     case 'rejectTimeEntry':
-        if (!$user->admin && !$user->hasRight('clockify', 'timeentry', 'write')) {
+        if (!clockifyCanValidate($user)) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
@@ -1008,7 +1051,7 @@ function clockifyCreateProject($db, $user, $title, $fkSoc = 0)
 
     $resql = $db->query($sql);
     if ($resql) {
-        return $db->last_insert_id;
+        return (int) $db->last_insert_id($db->prefix().'clockify_project');
     }
 
     return -1;

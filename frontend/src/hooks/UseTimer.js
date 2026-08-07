@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getActiveTimer, startTimer, stopTimer } from '../api/clockifyApi';
+import { getActiveTimer, restartTimer, startTimer, stopTimer } from '../api/clockifyApi';
 
 export function useTimer() {
   const [isRunning, setIsRunning] = useState(false);
@@ -23,19 +23,29 @@ export function useTimer() {
 
           if (!Number.isNaN(startDate.getTime())) {
             const elapsed = Math.floor((Date.now() - startDate.getTime()) / 1000);
-            setSeconds(elapsed);
+            setSeconds(Number(data.duration || 0) + elapsed);
           }
         }
       })
       .catch((err) => setError(err.message));
   }, []);
 
+  const setRunningEntry = useCallback((entry) => {
+    setActiveEntry(entry);
+    setIsRunning(true);
+    setSeconds(Number(entry.duration || 0));
+  }, []);
+
   // Fait défiler le compteur affiché chaque seconde, seulement si un chrono tourne
   useEffect(() => {
     if (isRunning) {
+      clearInterval(intervalRef.current);
       intervalRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
     }
-    return () => clearInterval(intervalRef.current); // nettoyage, évite les fuites mémoire
+    return () => {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    };
   }, [isRunning]);
 
   const start = useCallback(async (projectLabel, fkTask, note, tags = '', billable = 0) => {
@@ -44,21 +54,15 @@ export function useTimer() {
     try {
       const result = await startTimer(projectLabel, fkTask, note, tags, billable);
       const activeEntryPayload = {
-        id: result.id,
-        fk_project: 0,
-        project_label: projectLabel,
-        fk_task: fkTask,
-        note,
-        tags,
-        billable,
-        date_start: new Date().toISOString(),
-        duration: 0,
-        status: 0,
+        ...result,
+        project_label: result.project_label || projectLabel,
+        fk_task: result.fk_task ?? fkTask,
+        note: result.note ?? note,
+        tags: result.tags ?? tags,
+        billable: result.billable ?? billable,
       };
 
-      setActiveEntry(activeEntryPayload);
-      setIsRunning(true);
-      setSeconds(0);
+      setRunningEntry(activeEntryPayload);
       return activeEntryPayload;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible de démarrer le chrono.');
@@ -67,6 +71,21 @@ export function useTimer() {
       setLoading(false);
     }
   }, []);
+
+  const resume = useCallback(async (id) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const entry = await restartTimer(id);
+      setRunningEntry(entry);
+      return entry;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de reprendre le chrono.');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [setRunningEntry]);
 
   const stop = useCallback(async () => {
     if (!activeEntry?.id) return;
@@ -85,5 +104,5 @@ export function useTimer() {
     }
   }, [activeEntry]);
 
-  return { isRunning, seconds, loading, error, start, stop };
+  return { activeEntry, isRunning, seconds, loading, error, start, resume, stop };
 }

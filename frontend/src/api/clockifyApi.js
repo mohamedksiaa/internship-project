@@ -120,6 +120,16 @@ function handleMockRequest(action, body) {
       return Promise.resolve({ status: 'success', data: {} });
     case 'getTimeEntries':
       return Promise.resolve({ status: 'success', data: mockEntries });
+    case 'restartTimer': {
+      const entry = mockEntries.find((item) => item.id === Number(body?.id));
+      if (!entry) return Promise.reject(new Error('Entrée introuvable.'));
+      entry.date_start = new Date().toISOString();
+      entry.date_end = null;
+      entry.status = 0;
+      return Promise.resolve({ status: 'success', data: entry });
+    }
+    case 'getValidationEntries':
+      return Promise.resolve({ status: 'success', data: mockEntries.filter((entry) => Number(entry.status) === 1) });
     case 'validateEntry': {
       const entry = mockEntries.find((item) => item.id === Number(body?.id));
       if (entry) entry.status = 2;
@@ -220,8 +230,18 @@ export async function stopTimer(id) {
   return normalizeEntry(data?.data ?? data);
 }
 
+export async function restartTimer(id) {
+  const data = await moduleTimerRequest('restartTimer', { id });
+  return normalizeEntry(data?.data ?? data);
+}
+
 export async function getTimeEntries(limit = 100) {
   const data = await moduleTimerRequest('getTimeEntries', { limit });
+  return normalizeEntries(data?.data ?? data);
+}
+
+export async function getValidationEntries(limit = 100) {
+  const data = await moduleTimerRequest('getValidationEntries', { limit });
   return normalizeEntries(data?.data ?? data);
 }
 

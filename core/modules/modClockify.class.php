@@ -321,6 +321,10 @@ class modClockify extends DolibarrModules
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'delete';
 		$r++;
+		$this->rights[$r][0] = $this->numero . sprintf('%02d', 6);
+		$this->rights[$r][1] = 'Valider les entrées de temps';
+		$this->rights[$r][4] = 'valider';
+		$r++;
 
 		/* END MODULEBUILDER PERMISSIONS */
 
