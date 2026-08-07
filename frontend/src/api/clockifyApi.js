@@ -186,6 +186,23 @@ function handleMockRequest(action, body) {
       }
     case 'submitEntry':
       return Promise.resolve({ status: 'success', data: { ...(body || {}), status: 1 } });
+    case 'correctTimeEntry': {
+      const entry = mockEntries.find((item) => item.id === Number(body?.id));
+      if (!entry) return Promise.reject(new Error('Entrée introuvable.'));
+      const startMs = new Date(body?.date_start).getTime();
+      const endMs = new Date(body?.date_end).getTime();
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+        return Promise.reject(new Error('Les heures de début et de fin sont invalides.'));
+      }
+      Object.assign(entry, {
+        date_start: body.date_start,
+        date_end: body.date_end,
+        duration: Math.round((endMs - startMs) / 1000),
+        manual_modified: true,
+        manual_reason: body?.reason || 'Correction mineure (15 minutes ou moins).',
+      });
+      return Promise.resolve({ status: 'success', data: entry });
+    }
     case 'getWeeklyTimesheet':
       return Promise.resolve({ status: 'success', data: { weekStart: '2026-07-28', weekEnd: '2026-08-04', rows: mockEntries.map(normalizeEntry) } });
     case 'getSummaryReports':
@@ -304,6 +321,15 @@ export async function generateInvoiceLines(fkSoc = 0) {
 
 export async function updateEntry(id, updates) {
   const data = await moduleTimerRequest('updateEntry', { id, ...updates });
+  return normalizeEntry(data?.data ?? data);
+}
+
+/**
+ * The only client-side entry point for changing an existing time range.
+ * The server applies the employee tolerance policy and writes the audit log.
+ */
+export async function correctTimeEntry(id, updates) {
+  const data = await moduleTimerRequest('correctTimeEntry', { id, ...updates });
   return normalizeEntry(data?.data ?? data);
 }
 
