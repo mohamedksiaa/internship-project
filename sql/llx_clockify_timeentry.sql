@@ -22,6 +22,8 @@ CREATE TABLE llx_clockify_timeentry(
     date_start datetime NOT NULL,
     date_end datetime DEFAULT NULL,
     duration integer DEFAULT 0,
+    occurrence_count integer DEFAULT 1 NOT NULL,
+    date_reprise datetime DEFAULT NULL,
     note text,
     tags text,
     billable tinyint DEFAULT 0,

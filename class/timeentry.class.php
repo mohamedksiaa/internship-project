@@ -112,6 +112,8 @@ class TimeEntry extends CommonObject
 		"date_start" => array("type" => "datetime", "label" => "DateStart", "enabled" => "1", 'position' => 25, 'notnull' => 1, "visible" => "1",),
 		"date_end" => array("type" => "datetime", "label" => "DateEnd", "enabled" => "1", 'position' => 30, 'notnull' => 0, "visible" => "1",),
 		"duration" => array("type" => "integer", "label" => "Duration", "enabled" => "1", 'position' => 35, 'notnull' => 0, "visible" => "1",),
+		"occurrence_count" => array("type" => "integer", "label" => "OccurrenceCount", "enabled" => "1", 'position' => 36, 'notnull' => 1, "visible" => "-2",),
+		"date_reprise" => array("type" => "datetime", "label" => "DateResume", "enabled" => "1", 'position' => 37, 'notnull' => 0, "visible" => "-2",),
 		"note" => array("type" => "text", "label" => "Note", "enabled" => "1", 'position' => 40, 'notnull' => 0, "visible" => "1",),
 		"tags" => array("type" => "text", "label" => "Tags", "enabled" => "1", 'position' => 42, 'notnull' => 0, "visible" => "1",),
 		"billable" => array("type" => "boolean", "label" => "Billable", "enabled" => "1", 'position' => 45, 'notnull' => 0, "visible" => "1",),
@@ -136,6 +138,8 @@ class TimeEntry extends CommonObject
 	public $date_start;
 	public $date_end;
 	public $duration;
+	public $occurrence_count;
+	public $date_reprise;
 	public $note;
 	public $tags;
 	public $billable;
@@ -229,7 +233,7 @@ public $fk_user_modif;
 			}
 		}
 
-		$optionalDbFields = array('tags', 'date_submit', 'fk_user_submit');
+		$optionalDbFields = array('tags', 'date_submit', 'fk_user_submit', 'occurrence_count', 'date_reprise');
 		foreach ($optionalDbFields as $fieldName) {
 			if (!$this->hasDatabaseColumn($this->table_element, $fieldName)) {
 				unset($this->fields[$fieldName]);
@@ -1376,6 +1380,8 @@ public function update(User $user, $notrigger = 0, $reason = '')
 		$this->date_start = dol_now();
 		$this->date_end = null;
 		$this->duration = 0;
+		$this->occurrence_count = 1;
+		$this->date_reprise = null;
 		$this->billable = (int) !empty($billable);
 		$this->thm = ($user && !empty($user->thm)) ? (float) $user->thm : 0;
 		$this->amount = 0;
@@ -1400,6 +1406,8 @@ public function update(User $user, $notrigger = 0, $reason = '')
 		$this->date_start = dol_print_date($dateStart, 'dayhour');
 		$this->date_end = dol_print_date($dateEnd, 'dayhour');
 		$this->duration = max(0, (int) ($dateEnd - $dateStart));
+		$this->occurrence_count = 1;
+		$this->date_reprise = null;
 		$this->note = trim((string) $note);
 		$this->tags = trim((string) $tags);
 		$this->billable = (int) !empty($billable);
@@ -1452,11 +1460,31 @@ public function update(User $user, $notrigger = 0, $reason = '')
 			return -1;
 		}
 
-		// Keep the accumulated duration and start a new active segment on this row.
-		$this->date_start = dol_now();
-		$this->date_end = null;
-		$this->status = self::STATUS_DRAFT;
-		return $this->update($user);
+		// Keep the accumulated duration and start a new active segment on this same row.
+		// The primary key passed by the client is the only record selector: a resume never creates a row.
+		$now = dol_now();
+		$sql = 'UPDATE '.$this->db->prefix().$this->table_element;
+		$sql .= " SET date_start = '".$this->db->idate($now)."'";
+		$sql .= ', date_end = NULL';
+		$sql .= ', status = '.self::STATUS_DRAFT;
+		$sql .= ", date_reprise = '".$this->db->idate($now)."'";
+		$sql .= ', occurrence_count = GREATEST(1, COALESCE(occurrence_count, 1)) + 1';
+		$sql .= ', fk_user_modif = '.((int) $user->id);
+		$sql .= ' WHERE rowid = '.((int) $id);
+		$sql .= ' AND fk_user = '.((int) $this->fk_user);
+		$sql .= ' AND date_end IS NOT NULL';
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		if ($this->db->affected_rows($resql) < 1) {
+			$this->error = 'Ce chrono ne peut pas être repris';
+			return -1;
+		}
+
+		return $this->fetch((int) $id) > 0 ? 1 : -1;
 	}
 
 	/** Mark an entry as submitted for approval. */
