@@ -632,9 +632,12 @@ public $fk_user_modif;
 		$sql = 'SELECT rowid, date_start, date_end FROM '.$this->db->prefix().$this->table_element;
 		$sql .= ' WHERE entity IN ('.getEntity($this->element).')';
 		$sql .= ' AND fk_user = '.((int) $fkUser);
+		// Overlap logic: new.start < existing.end AND (existing.start < new.end)
+		// Implemented as: existing.date_start < new_end AND (date_end IS NULL OR date_end > new_start)
 		$sql .= " AND date_start < '".$this->db->idate($end)."'";
-        $sql .= " AND (date_end IS NULL OR date_end > '".$this->db->idate($start)."')";
+		$sql .= " AND (date_end IS NULL OR date_end > '".$this->db->idate($start)."')";
 		if ((int) $excludeId > 0) {
+			// Exclude the entry currently being edited to avoid self-conflict
 			$sql .= ' AND rowid <> '.((int) $excludeId);
 		}
 		$sql .= ' ORDER BY date_start ASC, rowid ASC';
@@ -654,6 +657,19 @@ public $fk_user_modif;
 			);
 		}
 		$this->db->free($resql);
+
+		// Defensive filter: some DB/driver combinations may return the edited row despite the
+		// WHERE rowid <> ... clause (type casting, collation, or view misalignment). Ensure the
+		// currently edited entry is never reported as an overlap.
+		if ((int) $excludeId > 0 && !empty($overlaps)) {
+			$filtered = array();
+			foreach ($overlaps as $ov) {
+				if ((int) $ov['rowid'] !== (int) $excludeId) {
+					$filtered[] = $ov;
+				}
+			}
+			$overlaps = $filtered;
+		}
 
 		return $overlaps;
 	}
