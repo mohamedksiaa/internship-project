@@ -317,6 +317,22 @@ function clockifyExportTimeEntry($object)
         $cleaned['manual_edit_message'] = $policy['message'];
     }
 
+    // Normalize date fields to ISO8601 Zulu (UTC) to avoid ambiguous parsing on clients.
+    foreach (array('date_start', 'date_end', 'date_submit', 'date_creation') as $dtField) {
+        if (isset($cleaned[$dtField]) && $cleaned[$dtField] !== null && $cleaned[$dtField] !== '') {
+            // If value is numeric, assume it's a unix timestamp (seconds)
+            if (is_numeric($cleaned[$dtField])) {
+                $ts = (int) $cleaned[$dtField];
+                $cleaned[$dtField] = gmdate('Y-m-d\TH:i:s\Z', $ts);
+            } else {
+                $ts = @strtotime((string) $cleaned[$dtField]);
+                if ($ts !== false) {
+                    $cleaned[$dtField] = gmdate('Y-m-d\TH:i:s\Z', $ts);
+                }
+            }
+        }
+    }
+
     return $cleaned;
 }
 
