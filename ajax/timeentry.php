@@ -68,6 +68,37 @@ function clockifyCorrectionTrace($event, array $context = array())
     dol_syslog('clockify.correctTimeEntry '.$event.' '.json_encode($context), LOG_INFO);
 }
 
+/**
+ * Parse an incoming date value from the frontend into a Unix timestamp (seconds).
+ * Accepts numeric timestamps, ISO8601 strings with timezone (recommended), or other
+ * formats parseable by DateTime/strtotime. Returns false on failure.
+ */
+function clockifyParseIncomingDate($value)
+{
+    if ($value === null || $value === '') {
+        return false;
+    }
+    // Numeric timestamps (seconds or milliseconds)
+    if (is_numeric($value)) {
+        $num = (int) $value;
+        // Heuristic: if value looks like milliseconds (>= 1e12) convert to seconds
+        if ($num > 1000000000000) {
+            return (int) floor($num / 1000);
+        }
+        return $num;
+    }
+
+    // Try timezone-aware DateTime parsing first (handles ISO strings with Z or offsets)
+    try {
+        $dt = new DateTime((string) $value);
+        return (int) $dt->getTimestamp();
+    } catch (Exception $e) {
+        // Fallback to strtotime for lenient formats
+        $ts = @strtotime((string) $value);
+        return $ts === false ? false : (int) $ts;
+    }
+}
+
 /** Format conflicting entries for the correction error message. */
 function clockifyFormatOverlapMessage(array $overlaps)
 {
@@ -664,8 +695,11 @@ switch ($action) {
             }
         }
 
-        $startTimestamp = strtotime((string) $date_start);
-        $endTimestamp = strtotime((string) $date_end);
+        $startTimestamp = clockifyParseIncomingDate($date_start);
+        $endTimestamp = clockifyParseIncomingDate($date_end);
+        if ($startTimestamp === false || $endTimestamp === false) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Les heures de début et de fin sont invalides.'), 400);
+        }
         if ($timeentry->hasTimeOverlap($user->id, $startTimestamp, $endTimestamp)) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Cette période chevauche déjà une autre entrée de temps.'), 400);
         }
@@ -1042,10 +1076,12 @@ switch ($action) {
             clockifyJsonResponse(array('status' => 'error', 'message' => $policy['message']), 403);
         }
 
-        $oldStart = is_numeric($timeentry->date_start) ? (int) $timeentry->date_start : strtotime((string) $timeentry->date_start);
-        $oldEnd = empty($timeentry->date_end) ? 0 : (is_numeric($timeentry->date_end) ? (int) $timeentry->date_end : strtotime((string) $timeentry->date_end));
-        $newStart = isset($postData['date_start']) ? strtotime((string) $postData['date_start']) : $oldStart;
-        $newEnd = isset($postData['date_end']) ? strtotime((string) $postData['date_end']) : $oldEnd;
+        // Parse stored dates (DB values may be strings or numeric timestamps)
+        $oldStart = is_numeric($timeentry->date_start) ? (int) $timeentry->date_start : (is_string($timeentry->date_start) ? @strtotime((string) $timeentry->date_start) : false);
+        $oldEnd = empty($timeentry->date_end) ? 0 : (is_numeric($timeentry->date_end) ? (int) $timeentry->date_end : (is_string($timeentry->date_end) ? @strtotime((string) $timeentry->date_end) : false));
+        // Parse incoming (client) dates using the timezone-aware helper
+        $newStart = isset($postData['date_start']) ? clockifyParseIncomingDate($postData['date_start']) : $oldStart;
+        $newEnd = isset($postData['date_end']) ? clockifyParseIncomingDate($postData['date_end']) : $oldEnd;
         clockifyCorrectionTrace('values_prepared', array(
             'rowid' => (int) $timeentry->id,
             'old_start' => $oldStart,

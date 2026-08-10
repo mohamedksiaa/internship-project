@@ -151,7 +151,13 @@ export default function TimeEntryList({
     setBusyId(entryToCorrect.id);
     setError('');
     try {
-      const updated = await correctTimeEntry(entryToCorrect.id, correction);
+      // Ensure date strings include timezone information so the server parses them unambiguously.
+      const payload = {
+        ...correction,
+        date_start: correction.date_start ? new Date(correction.date_start).toISOString() : correction.date_start,
+        date_end: correction.date_end ? new Date(correction.date_end).toISOString() : correction.date_end,
+      };
+      const updated = await correctTimeEntry(entryToCorrect.id, payload);
       const next = entries.map((entry) => (entry.id === entryToCorrect.id ? { ...entry, ...updated } : entry));
       setEntries(next);
       setParentEntries?.(next);
