@@ -22,6 +22,7 @@ CREATE TABLE llx_clockify_timeentry(
     date_start datetime NOT NULL,
     date_end datetime DEFAULT NULL,
     duration integer DEFAULT 0,
+    is_manually_edited tinyint DEFAULT 0 NOT NULL,
     occurrence_count integer DEFAULT 1 NOT NULL,
     date_reprise datetime DEFAULT NULL,
     note text,

@@ -1,18 +1,28 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ReportsPage from './ReportsPage';
-import { generateInvoiceLines, getSummaryReports } from '../api/clockifyApi';
+import { generateInvoiceLines, getDailyReports, getMyDailyReports, getSummaryReports, markDailyReportRead, saveDailyReport } from '../api/clockifyApi';
 
 vi.mock('../api/clockifyApi', () => ({
   generateInvoiceLines: vi.fn(),
+  getDailyReports: vi.fn(),
+  getMyDailyReports: vi.fn(),
   getSummaryReports: vi.fn(),
+  markDailyReportRead: vi.fn(),
+  saveDailyReport: vi.fn(),
 }));
 
 describe('ReportsPage', () => {
   beforeEach(() => {
     getSummaryReports.mockReset();
     generateInvoiceLines.mockReset();
+    getDailyReports.mockReset();
+    getMyDailyReports.mockReset();
+    markDailyReportRead.mockReset();
+    saveDailyReport.mockReset();
     generateInvoiceLines.mockResolvedValue([]);
+    getDailyReports.mockResolvedValue({ reports: [], employees: [] });
+    getMyDailyReports.mockResolvedValue([]);
   });
 
   it('refetches the summary and updates the breakdown when the date range changes', async () => {

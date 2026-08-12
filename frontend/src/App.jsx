@@ -5,8 +5,9 @@ import TimerPage from './pages/TimerPage';
 import HistoryPage from './pages/HistoryPage';
 import ReportsPage from './pages/ReportsPage';
 import ValidationPage from './pages/ValidationPage';
+import ProcessedHistoryPage from './pages/ProcessedHistoryPage';
+import DailyReportPage from './pages/DailyReportPage';
 
-const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
 const canValidate = typeof window !== 'undefined' && window.CLOCKIFY_CAN_VALIDATE === true;
 
 export default function App() {
@@ -18,8 +19,10 @@ export default function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="timer" element={<TimerPage />} />
           <Route path="history" element={<HistoryPage />} />
-          <Route path="reports" element={canReadAll ? <ReportsPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="daily-report" element={<DailyReportPage />} />
+          <Route path="reports" element={canValidate ? <ReportsPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="validation" element={canValidate ? <ValidationPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="processed-history" element={canValidate ? <ProcessedHistoryPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>

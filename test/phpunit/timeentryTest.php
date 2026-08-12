@@ -189,6 +189,78 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 	}
 
 	/**
+	 * testStartTimerValidation
+	 *
+	 * Vérifie que startTimer rejette un projet vide et une description
+	 * de moins de 3 caractères, même en appel direct (défense en profondeur).
+	 *
+	 * @return void
+	 * @phan-suppress PhanUndeclaredMethod
+	 */
+	public function testStartTimerValidation()
+	{
+		global $conf, $user, $langs, $db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
+
+		$localobject = new TimeEntry($this->savdb);
+
+		// Cas 1 : projet vide + description vide → refusé
+		$result = $localobject->startTimer($user->id, 0, 0, '');
+		print __METHOD__." empty project/note result=".$result."\n";
+		$this->assertLessThan($result, 0);
+		$this->assertNotEquals('', $localobject->error);
+
+		// Cas 2 : projet vide + description valide → refusé
+		$result = $localobject->startTimer($user->id, 0, 0, 'Analyse');
+		print __METHOD__." empty project result=".$result."\n";
+		$this->assertLessThan($result, 0);
+		$this->assertNotEquals('', $localobject->error);
+
+		// Cas 3 : projet valide + description < 3 caractères → refusé
+		$result = $localobject->startTimer($user->id, 1, 0, 'ab');
+		print __METHOD__." short note result=".$result."\n";
+		$this->assertLessThan($result, 0);
+		$this->assertNotEquals('', $localobject->error);
+
+		// Cas 4 : description avec uniquement des espaces → refusé
+		$result = $localobject->startTimer($user->id, 1, 0, '   ');
+		print __METHOD__." whitespace note result=".$result."\n";
+		$this->assertLessThan($result, 0);
+		$this->assertNotEquals('', $localobject->error);
+	}
+
+	/**
+	 * A valid timer start must initialize the non-null manual-edit flag to zero.
+	 *
+	 * @return void
+	 * @phan-suppress PhanUndeclaredMethod
+	 */
+	public function testStartTimerInitializesManualEditFlag()
+	{
+		global $conf, $user, $langs, $db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
+
+		$projectSql = 'SELECT rowid FROM '.$db->prefix().'clockify_project WHERE entity IN ('.getEntity('clockify_project').') ORDER BY rowid ASC'.$db->plimit(1);
+		$projectRes = $db->query($projectSql);
+		$project = $projectRes ? $db->fetch_object($projectRes) : null;
+		if (!$project) {
+			$this->markTestSkipped('Aucun projet Clockify disponible pour tester le démarrage du chrono.');
+		}
+
+		$localobject = new TimeEntry($db);
+		$result = $localobject->startTimer($user->id, (int) $project->rowid, 0, 'Test timer valide', $user);
+		$this->assertGreaterThan(0, $result, $localobject->error ?: implode(', ', $localobject->errors));
+		$this->assertSame(0, (int) $localobject->is_manually_edited);
+		$localobject->stopTimer($result, $user);
+	}
+
+	/**
 	 * testTimeEntryDelete
 	 *
 	 * @param	int		$id		Id of object

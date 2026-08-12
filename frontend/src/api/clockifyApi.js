@@ -7,6 +7,7 @@ const CLOCKIFY_TOKEN = (typeof window !== 'undefined' && window.CLOCKIFY_TOKEN) 
 const API_MODE = import.meta.env.VITE_API_MODE || 'real';
 
 let mockActiveTimer = null;
+let mockDailyReports = [];
 const mockEntries = [
   {
     id: 101,
@@ -210,6 +211,20 @@ function handleMockRequest(action, body) {
     case 'generateInvoiceLines':
       return Promise.resolve({ status: 'success', data: [] });
 
+    case 'saveDailyReport': {
+      const existing = mockDailyReports.find((report) => report.date_report === body?.date_report);
+      const report = { id: existing?.id || Date.now(), fk_user: 1, user_label: 'Utilisateur courant', date_report: body?.date_report, content: body?.content, is_read: false, read_at: null };
+      mockDailyReports = existing ? mockDailyReports.map((item) => item.id === existing.id ? report : item) : [report, ...mockDailyReports];
+      return Promise.resolve({ status: 'success', data: report });
+    }
+    case 'getMyDailyReports':
+      return Promise.resolve({ status: 'success', data: mockDailyReports });
+    case 'getDailyReports':
+      return Promise.resolve({ status: 'success', data: { reports: mockDailyReports, employees: [] } });
+    case 'markDailyReportRead':
+      mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, is_read: true, read_at: new Date().toISOString() } : report);
+      return Promise.resolve({ status: 'success' });
+
     case 'submitWeeklyApproval':
       return Promise.resolve({ status: 'success', data: [] });
     default:
@@ -268,6 +283,18 @@ export async function getValidationEntries(limit = 100) {
   return normalizeEntries(data?.data ?? data);
 }
 
+export async function getProcessedHistory(filters = {}) {
+  const data = await moduleTimerRequest('getProcessedHistory', filters);
+  const payload = data?.data ?? data ?? {};
+  return { ...payload, rows: normalizeEntries(payload.rows), employees: Array.isArray(payload.employees) ? payload.employees : [] };
+}
+
+export async function exportProcessedHistory(filters = {}) {
+  const data = await moduleTimerRequest('exportProcessedHistory', filters);
+  const payload = data?.data ?? data ?? {};
+  return normalizeEntries(payload.rows);
+}
+
 export async function getUpdateMarker(scope = 'entries') {
   const data = await moduleTimerRequest('getUpdateMarker', { scope });
   return String(data?.data?.marker ?? data?.marker ?? '');
@@ -316,6 +343,25 @@ export async function getSummaryReports(limit = 1000, dateFrom = '', dateTo = ''
 export async function generateInvoiceLines(fkSoc = 0) {
   const data = await moduleTimerRequest('generateInvoiceLines', { fk_soc: fkSoc });
   return data?.data ?? data;
+}
+
+export async function saveDailyReport(dateReport, content) {
+  const data = await moduleTimerRequest('saveDailyReport', { date_report: dateReport, content });
+  return data?.data ?? data;
+}
+
+export async function getMyDailyReports(filters = {}) {
+  const data = await moduleTimerRequest('getMyDailyReports', filters);
+  return data?.data ?? [];
+}
+
+export async function getDailyReports(filters = {}) {
+  const data = await moduleTimerRequest('getDailyReports', filters);
+  return data?.data ?? { reports: [], employees: [] };
+}
+
+export async function markDailyReportRead(id) {
+  return moduleTimerRequest('markDailyReportRead', { id });
 }
 
 
