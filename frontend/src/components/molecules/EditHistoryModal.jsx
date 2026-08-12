@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getTimeEditHistory } from '../../api/clockifyApi';
+import { getModificationHistory } from '../../api/clockifyApi';
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -10,9 +10,39 @@ function formatDateTime(value) {
   return raw;
 }
 
+function formatChangedValue(fieldName, value) {
+  if (fieldName !== 'date_start' && fieldName !== 'date_end') return formatDateTime(value);
+  const raw = String(value ?? '');
+  // MySQL audit datetimes are stored as the local wall-clock values entered
+  // in Clockify. Do not append "Z": that would reinterpret 14:24 as UTC and
+  // display it two hours late in the browser (16:24 in the manager popup).
+  const date = /^\d+$/.test(raw) ? new Date(Number(raw) * 1000) : new Date(raw.replace(' ', 'T'));
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+  const match = raw.match(/\b(\d{2}:\d{2})/);
+  return match ? match[1] : raw || '—';
+}
+
+function isActualChange(row) {
+  const oldValue = String(row.old_value ?? '');
+  const newValue = String(row.new_value ?? '');
+  if (row.field_name !== 'date_start' && row.field_name !== 'date_end') return oldValue !== newValue;
+
+  // The popup renders times (not raw DB representations). Older rows can
+  // contain the same instant once as a MySQL datetime and once as a timestamp;
+  // hide them when their displayed values are identical.
+  if (formatChangedValue(row.field_name, oldValue) === formatChangedValue(row.field_name, newValue)) return false;
+
+  const asLocalTime = (value) => (/^\d+$/.test(value) ? Number(value) * 1000 : Date.parse(value.replace(' ', 'T')));
+  const oldTime = asLocalTime(oldValue);
+  const newTime = asLocalTime(newValue);
+  return Number.isNaN(oldTime) || Number.isNaN(newTime) ? oldValue !== newValue : oldTime !== newTime;
+}
+
 function editorName(row) {
   const fullName = [row.user_firstname, row.user_lastname].filter(Boolean).join(' ').trim();
-  return fullName || row.user_label || row.user_login || (Number(row.fk_user_editor) > 0 ? `Utilisateur #${row.fk_user_editor}` : '—');
+  return fullName || row.user_label || row.user_login || (Number(row.fk_user || row.fk_user_editor) > 0 ? `Utilisateur #${row.fk_user || row.fk_user_editor}` : '—');
 }
 
 /**
@@ -26,9 +56,9 @@ export default function EditHistoryModal({ entry, onClose }) {
 
   useEffect(() => {
     let isMounted = true;
-    getTimeEditHistory(entry.id)
+    getModificationHistory(entry.id)
       .then((rows) => {
-        if (isMounted) setHistory(Array.isArray(rows) ? rows : []);
+        if (isMounted) setHistory(Array.isArray(rows) ? rows.filter(isActualChange) : []);
       })
       .catch((err) => {
         if (isMounted) setError(err.message);
@@ -67,24 +97,14 @@ export default function EditHistoryModal({ entry, onClose }) {
         {history && history.length > 0 && (
           <ul className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
             {history.map((row) => (
-              <li key={row.id} className="rounded border border-[#e3ebef] bg-[#fbfdfe] p-4 text-sm">
+              <li key={row.id || row.rowid} className="rounded border border-[#e3ebef] bg-[#fbfdfe] p-4 text-sm">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium text-[#2c3e49]">{editorName(row)}</span>
-                  <span className="text-xs text-[#71838f]">{formatDateTime(row.date_modification)}</span>
+                  <span className="text-xs text-[#71838f]">{formatDateTime(row.date_modification || row.date_creation)}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[#4d606b]">
-                  <span>Début</span>
-                  <span className="text-right">
-                    <span className="line-through text-[#a08]">{formatDateTime(row.old_start)}</span>
-                    {' → '}
-                    <span className="font-medium text-[#2c3e49]">{formatDateTime(row.new_start)}</span>
-                  </span>
-                  <span>Fin</span>
-                  <span className="text-right">
-                    <span className="line-through text-[#a08]">{formatDateTime(row.old_end)}</span>
-                    {' → '}
-                    <span className="font-medium text-[#2c3e49]">{formatDateTime(row.new_end)}</span>
-                  </span>
+                  <span>{row.field_name === 'date_start' ? 'Début' : row.field_name === 'date_end' ? 'Fin' : row.field_name}</span>
+                  <span className="text-right"><span className="line-through text-[#a08]">{formatChangedValue(row.field_name, row.old_value)}</span>{' → '}<span className="font-medium text-[#2c3e49]">{formatChangedValue(row.field_name, row.new_value)}</span></span>
                 </div>
                 <p className="mt-2 border-t border-[#e3ebef] pt-2 text-[#52656f]">
                   <span className="font-medium text-[#2c3e49]">Raison :</span> {row.reason}

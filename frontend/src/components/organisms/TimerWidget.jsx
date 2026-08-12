@@ -1,10 +1,16 @@
 import { useState } from 'react';
 import TimeDisplay from '../atoms/TimeDisplay';
 
-export default function TimerWidget({ timer, projects = [], projectsError = '', onProjectChange = () => {}, onEntryCreated = () => {} }) {
+export default function TimerWidget({ timer, projects: _projects = [], projectsError = '', onProjectChange = () => {}, onEntryCreated = () => {} }) {
   const { isRunning, seconds, loading, error, start, stop } = timer;
   const [projectLabel, setProjectLabel] = useState('');
   const [note, setNote] = useState('');
+
+  const projectTrimmed = projectLabel.trim();
+  const noteTrimmed = note.trim();
+  const isProjectValid = projectTrimmed !== '';
+  const isNoteValid = noteTrimmed.length >= 3;
+  const isDisabled = loading || (!isRunning && (!isProjectValid || !isNoteValid));
 
   const pushEntry = (entry) => {
     if (entry) {
@@ -13,13 +19,19 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
   };
 
   const handleStart = async () => {
-    const entry = await start(projectLabel.trim(), 0, note.trim());
+    if (isDisabled) return;
+    const entry = await start(projectTrimmed, 0, noteTrimmed);
     pushEntry(entry);
   };
 
   const handleStop = async () => {
     const entry = await stop();
-    pushEntry(entry);
+    if (entry) {
+      setNote('');
+      setProjectLabel('');
+      onProjectChange('');
+      pushEntry(entry);
+    }
   };
 
   const handleProjectChange = (nextProjectLabel) => {
@@ -29,19 +41,44 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
 
   return (
     <section>
-      <div className="space-y-2 bg-white p-2 shadow-[0_3px_12px_rgba(35,61,79,.12)]">
-        <div className="flex min-h-[60px] flex-col md:flex-row md:items-stretch">
-          <input id="clockify-description" name="description" value={note} onChange={(e) => setNote(e.target.value)} aria-label="What are you working on?" placeholder="What are you working on?" className="min-w-0 flex-1 border border-[#9eafb9] px-3 text-sm outline-none placeholder:text-[#98a5ad] focus:border-[#03a9f4]" />
-          <div className="flex min-h-[44px] items-center border-b border-[#dce5ea] px-3 md:border-b-0 md:border-l">
-            <span className="mr-2 text-xl text-[#03a9f4]">⊕</span>
-            <input id="clockify-project" name="project" value={projectLabel} onChange={(e) => handleProjectChange(e.target.value)} aria-label="Projet" placeholder="Projet" className="min-w-[160px] bg-transparent text-sm text-[#03a9f4] outline-none placeholder:text-[#98a5ad]" />
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_3px_rgba(35,61,79,0.08)]">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <input
+            id="clockify-description"
+            name="description"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            aria-label="What are you working on?"
+            placeholder="Que faites-vous ?"
+            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#03a9f4] focus:bg-white focus:ring-2 focus:ring-[#03a9f4]/10"
+          />
+          <input
+            id="clockify-project"
+            name="project"
+            value={projectLabel}
+            onChange={(e) => handleProjectChange(e.target.value)}
+            aria-label="Projet"
+            placeholder="Projet"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#03a9f4] focus:bg-white focus:ring-2 focus:ring-[#03a9f4]/10 md:w-48"
+          />
+          <div className="flex items-center justify-center md:w-32">
+            <TimeDisplay seconds={seconds} />
           </div>
-        <div className="flex items-center justify-center px-5 font-semibold text-[#37474f]"><TimeDisplay seconds={seconds} /></div>
-        <button type="button" onClick={isRunning ? handleStop : handleStart} disabled={loading} className="min-h-[44px] bg-[#03a9f4] px-7 text-sm font-medium text-white transition hover:bg-[#0398dc] disabled:cursor-not-allowed disabled:bg-[#a9c9d8]">{loading ? '…' : isRunning ? 'ARRÊTER' : 'DÉMARRER'}</button>
+          <button
+            type="button"
+            onClick={isRunning ? handleStop : handleStart}
+            disabled={isDisabled}
+            className="w-full rounded-xl bg-[#03a9f4] px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-[#0398dc] hover:shadow-lg hover:shadow-[#03a9f4]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none md:w-auto"
+          >
+            {loading ? '...' : isRunning ? 'ARRÊTER' : 'DÉMARRER'}
+          </button>
+        </div>
       </div>
-      </div>
-      {error && <p className="mt-2 text-sm text-[#d64c4c]">{error}</p>}
-      {projectsError && <p className="mt-2 text-sm text-[#78909c]">{projectsError}. Vous pouvez tout de même démarrer un chrono sans projet.</p>}
+      {error && <p className="mt-3 text-sm text-[#d64c4c]">{error}</p>}
+      {!isRunning && !isDisabled && !error && (
+        <p className="mt-2 text-sm text-slate-500">Prêt à démarrer.</p>
+      )}
+      {projectsError && <p className="mt-2 text-sm text-slate-500">{projectsError}. Vous pouvez tout de même démarrer un chrono sans projet.</p>}
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { generateInvoiceLines, getSummaryReports } from '../api/clockifyApi';
+import { generateInvoiceLines, getDailyReports, getSummaryReports, markDailyReportRead } from '../api/clockifyApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 
 function currentMonthRange() {
@@ -24,6 +24,10 @@ export default function ReportsPage() {
   const [invoiceLines, setInvoiceLines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [dailyReports, setDailyReports] = useState([]);
+  const [dailyEmployees, setDailyEmployees] = useState([]);
+  const [dailyEmployeeId, setDailyEmployeeId] = useState('');
+  const [dailyError, setDailyError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -68,6 +72,28 @@ export default function ReportsPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    getDailyReports({ date_from: dateRange.from, date_to: dateRange.to, employee_id: dailyEmployeeId })
+      .then((data) => {
+        if (!isMounted) return;
+        setDailyReports(Array.isArray(data?.reports) ? data.reports : []);
+        setDailyEmployees(Array.isArray(data?.employees) ? data.employees : []);
+        setDailyError('');
+      })
+      .catch((err) => isMounted && setDailyError(err.message));
+    return () => { isMounted = false; };
+  }, [dateRange, dailyEmployeeId]);
+
+  async function markRead(id) {
+    try {
+      await markDailyReportRead(id);
+      setDailyReports((items) => items.map((report) => report.id === id ? { ...report, is_read: true } : report));
+    } catch (err) {
+      setDailyError(err.message);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -134,6 +160,14 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-6"><p className="text-sm font-semibold uppercase tracking-[.24em] text-slate-500">Rapports journaliers</p><h2 className="text-2xl font-semibold text-slate-900">Comptes-rendus des employés</h2><p className="mt-2 text-sm text-slate-600">Lecture et suivi des rapports textuels, indépendamment des statistiques de temps ci-dessus.</p></div>
+        <div>
+          <div className="mb-4 flex flex-wrap items-end gap-4"><label className="flex flex-col gap-1 text-sm font-medium text-slate-700">Employé<select aria-label="Filtrer les rapports par employé" value={dailyEmployeeId} onChange={(event) => setDailyEmployeeId(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2"><option value="">Tous les employés</option>{dailyEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}</select></label><span className="text-sm text-slate-500">Période : {dateRange.from} → {dateRange.to}</span></div>
+          {dailyError && <p className="mb-3 text-sm text-rose-600">{dailyError}</p>}
+          {dailyReports.length === 0 ? <p className="text-sm text-slate-500">Aucun rapport journalier sur cette période.</p> : <div className="space-y-3">{dailyReports.map((report) => <article key={report.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><strong className="text-slate-900">{report.user_label}</strong><span className="ml-3 text-sm text-slate-500">{report.date_report}</span></div>{report.is_read ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">Lu</span> : <button type="button" onClick={() => markRead(report.id)} className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">Nouveau — marquer comme lu</button>}</div><details className="mt-3" open={report.content.length <= 280}><summary className="cursor-pointer text-sm font-medium text-slate-600">Lire le rapport</summary><p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{report.content}</p></details></article>)}</div>}
+        </div>
+      </section>
     </div>
   );
 }

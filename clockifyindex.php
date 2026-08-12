@@ -102,6 +102,11 @@ if (!empty($user->socid) && $user->socid > 0) {
 //	accessforbidden('Must be admin');
 //}
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Cache-Control: post-check=0, pre-check=0', false);
+header('Pragma: no-cache');
+clearstatcache(true, __DIR__.'/frontend/dist');
+
 
 /*
  * Actions
@@ -128,7 +133,7 @@ if (file_exists($distIndex)) {
 		$cssUrl = DOL_URL_ROOT.'/custom/clockify/frontend/dist/'.$cssPath;
 		$cssFile = $distDir.'/'.$cssPath;
 		if (file_exists($cssFile)) {
-			$cssUrl .= '?v='.filemtime($cssFile);
+			$cssUrl .= '?v=20250812v3&t='.filemtime($cssFile);
 		}
 	}
 	if (preg_match('/<script[^>]+src="([^"]+)"/i', $distHtml, $matches)) {
@@ -137,7 +142,7 @@ if (file_exists($distIndex)) {
 		$jsUrl = dol_buildpath('/custom/clockify/frontend/dist/'.$jsPath, 1);
 		$jsFile = $distDir.'/'.$jsPath;
 		if (file_exists($jsFile)) {
-			$jsUrl .= '?v='.filemtime($jsFile);
+			$jsUrl .= '?v=20250812v3&t='.filemtime($jsFile);
 		}
 	}
 }
@@ -157,7 +162,7 @@ print 'window.DOL_URL_ROOT = '.json_encode(DOL_URL_ROOT).';';
 print 'window.CLOCKIFY_TOKEN = '.json_encode(currentToken()).';';
 print 'window.CLOCKIFY_AJAX_URL = '.json_encode(dol_buildpath('/custom/clockify/ajax/timeentry.php', 1)).';';
 print 'window.CLOCKIFY_CAN_READALL = '.json_encode((bool) ($user->admin || $user->hasRight('clockify', 'timeentry', 'readall'))).';';
-print 'window.CLOCKIFY_CAN_VALIDATE = '.json_encode((bool) ($user->admin || !empty($user->rights->clockify->valider) || $user->hasRight('clockify', 'valider'))).';';
+	print 'window.CLOCKIFY_CAN_VALIDATE = '.json_encode((bool) ($user->admin || !empty($user->rights->clockify->valider) || $user->hasRight('clockify', 'valider') || $user->hasRight('clockify', 'timeentry', 'validate'))).';';
 print '</script>';
 if ($jsUrl) {
 	print '<script type="module" crossorigin src="'.$jsUrl.'" defer></script>';

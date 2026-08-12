@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { approveTimeEntry, correctTimeEntry, rejectTimeEntry, submitEntry } from '../../api/clockifyApi';
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
+import EditHistoryModal from '../molecules/EditHistoryModal.jsx';
 
 function entryDate(value) {
   if (!value) return new Date(0);
@@ -38,8 +39,6 @@ function toDateTimeLocal(value) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-const canValidate = typeof window !== 'undefined' && window.CLOCKIFY_CAN_VALIDATE === true;
-
 export default function TimeEntryList({
   entries: initialEntries = [],
   setEntries: setParentEntries,
@@ -55,6 +54,8 @@ export default function TimeEntryList({
   const [busyId, setBusyId] = useState(null);
   const [entryToCorrect, setEntryToCorrect] = useState(null);
   const [correction, setCorrection] = useState({ date_start: '', date_end: '', reason: '' });
+  const [historyEntry, setHistoryEntry] = useState(null);
+  const [correctionError, setCorrectionError] = useState('');
 
   useEffect(() => setEntries(initialEntries), [initialEntries]);
 
@@ -137,6 +138,7 @@ export default function TimeEntryList({
 
   const openCorrection = (entry) => {
     setError('');
+    setCorrectionError('');
     setEntryToCorrect(entry);
     setCorrection({
       date_start: toDateTimeLocal(entry.date_start),
@@ -148,14 +150,24 @@ export default function TimeEntryList({
   const saveCorrection = async (event) => {
     event.preventDefault();
     if (!entryToCorrect) return;
+    const start = new Date(correction.date_start);
+    const end = new Date(correction.date_end);
+    const reason = correction.reason.trim();
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      setCorrectionError('L’heure de fin doit être postérieure à l’heure de début.');
+      return;
+    }
+    if (reason.length < 5) {
+      setCorrectionError('La raison est obligatoire et doit contenir au moins 5 caractères.');
+      return;
+    }
     setBusyId(entryToCorrect.id);
-    setError('');
+    setCorrectionError('');
     try {
-      // Ensure date strings include timezone information so the server parses them unambiguously.
       const payload = {
         ...correction,
-        date_start: correction.date_start ? new Date(correction.date_start).toISOString() : correction.date_start,
-        date_end: correction.date_end ? new Date(correction.date_end).toISOString() : correction.date_end,
+        date_start: correction.date_start,
+        date_end: correction.date_end,
       };
       const updated = await correctTimeEntry(entryToCorrect.id, payload);
       const next = entries.map((entry) => (entry.id === entryToCorrect.id ? { ...entry, ...updated } : entry));
@@ -163,7 +175,7 @@ export default function TimeEntryList({
       setParentEntries?.(next);
       setEntryToCorrect(null);
     } catch (err) {
-      setError(err.message);
+      setCorrectionError(err.message);
     } finally {
       setBusyId(null);
     }
@@ -213,6 +225,7 @@ export default function TimeEntryList({
                   <th className="px-3 py-2">Fin</th>
                   <th className="px-3 py-2">État</th>
                   <th className="px-3 py-2 text-right">Durée</th>
+                  <th className="px-3 py-2 text-center">Modification</th>
                   <th className="px-5 py-2 text-right">Actions</th>
                 </tr>
               </thead>
@@ -241,6 +254,18 @@ export default function TimeEntryList({
                     </td>
                     <td className="px-3 py-3 text-right font-bold text-[#2b3d48] whitespace-nowrap">
                       {formatDuration(displayedDuration(entry))}
+                    </td>
+                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                      {entry.manual_modified ? (
+                        <button
+                          type="button"
+                          onClick={() => setHistoryEntry(entry)}
+                          title={entry.manual_reason ? `Temps corrigé : ${entry.manual_reason}` : 'Temps corrigé et tracé'}
+                          className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                        >
+                          Modifié manuellement
+                        </button>
+                      ) : '—'}
                     </td>
                     <td className="px-5 py-3 text-right whitespace-nowrap">
                       <div className="flex justify-end items-center gap-2 text-[#78909c]">
@@ -274,15 +299,18 @@ export default function TimeEntryList({
                             </button>
                           </>
                         )}
-                        <button
+                        {onRestartEntry && <button
                           title="Démarrer à nouveau"
                           onClick={() => restartEntry(entry)}
                           disabled={busyId !== null}
                           className="text-[#03a9f4]"
                         >
                           ▷
-                        </button>
-                        {(canValidate || entry.manual_editable) && (
+                        </button>}
+                        {/* Validation is a strictly read/approve/reject manager view.
+                            Never render a manual-edit control there, even if an API
+                            payload incorrectly flags an entry as editable. */}
+                        {!showValidationActions && entry.manual_editable && (
                           <button
                             type="button"
                             title="Modifier cette entrée"
@@ -293,14 +321,6 @@ export default function TimeEntryList({
                           >
                             Modifier
                           </button>
-                        )}
-                        {showWorker && entry.manual_modified && (
-                          <span
-                            title={entry.manual_reason ? `Temps corrigé : ${entry.manual_reason}` : 'Temps corrigé et tracé'}
-                            className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
-                          >
-                            Corrigé
-                          </span>
                         )}
                         <span
                           title="Nombre de reprises de cette entrée"
@@ -323,15 +343,18 @@ export default function TimeEntryList({
             <div>
               <h2 id="correction-title" className="text-lg font-semibold text-[#263746]">Modifier l’entrée de temps</h2>
               <p className="mt-1 text-sm text-[#52656f]">
-                {canValidate ? 'Cette correction sera tracée et visible aux managers.' : (entryToCorrect.manual_edit_message || 'Cette correction sera tracée.')}
+                {entryToCorrect.manual_edit_message || 'Cette correction sera tracée.'}
               </p>
             </div>
+            {correctionError && (
+              <p className="whitespace-pre-line rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-600">{correctionError}</p>
+            )}
             <label className="block text-sm font-medium text-[#2c3e49]">
               Début
               <input
                 type="datetime-local"
                 value={correction.date_start}
-                disabled={!canValidate && entryToCorrect.manual_edit_end_only}
+                disabled={entryToCorrect.manual_edit_end_only}
                 onChange={(event) => setCorrection((current) => ({ ...current, date_start: event.target.value }))}
                 className="mt-1 w-full rounded border border-[#cfd9df] px-3 py-2 disabled:bg-slate-100"
                 required
@@ -348,7 +371,7 @@ export default function TimeEntryList({
               />
             </label>
             <label className="block text-sm font-medium text-[#2c3e49]">
-              Raison {canValidate || entryToCorrect.manual_edit_end_only ? '(obligatoire)' : '(obligatoire au-delà de 15 minutes)'}
+              Raison (obligatoire, 5 caractères minimum)
               <textarea
                 value={correction.reason}
                 onChange={(event) => setCorrection((current) => ({ ...current, reason: event.target.value }))}
@@ -358,13 +381,14 @@ export default function TimeEntryList({
             </label>
             <div className="flex justify-end gap-3">
               <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="text-sm text-[#52656f]">Annuler</button>
-              <button type="submit" disabled={busyId === entryToCorrect.id} className="rounded bg-[#03a9f4] px-4 py-2 text-sm font-medium text-white">
+              <button type="submit" disabled={busyId === entryToCorrect.id || correction.reason.trim().length < 5} className="rounded bg-[#03a9f4] px-4 py-2 text-sm font-medium text-white">
                 {busyId === entryToCorrect.id ? 'Enregistrement…' : 'Enregistrer'}
               </button>
             </div>
           </form>
         </div>
       )}
+      {historyEntry && <EditHistoryModal entry={historyEntry} onClose={() => setHistoryEntry(null)} />}
     </section>
   );
 }

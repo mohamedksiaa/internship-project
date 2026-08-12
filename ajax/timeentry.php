@@ -104,8 +104,15 @@ function clockifyFormatOverlapMessage(array $overlaps)
 {
     $lines = array('La modification ne peut pas être enregistrée car la plage horaire choisie chevauche une ou plusieurs entrées existantes.', '', 'Conflits détectés :');
     foreach ($overlaps as $overlap) {
-        $end = !empty($overlap['date_end']) ? $overlap['date_end'] : 'En cours';
-        $lines[] = '- Entrée #'.((int) $overlap['rowid']).' : '.$overlap['date_start'].' → '.$end;
+        $start = strtotime((string) $overlap['date_start']);
+        $end = !empty($overlap['date_end']) ? strtotime((string) $overlap['date_end']) : false;
+        $task = trim((string) ($overlap['note'] ?? '')) ?: 'Sans description';
+        $project = trim((string) ($overlap['project_label'] ?? '')) ?: 'Sans projet';
+        // dayhourss is not a Dolibarr predefined date format and is expanded
+        // as literal tokens, producing corrupted strings in the conflict UI.
+        $startLabel = $start ? dol_print_date($start, 'dayhour') : (string) $overlap['date_start'];
+        $endLabel = $end ? dol_print_date($end, 'dayhour') : 'En cours';
+        $lines[] = '- '.$task.' ('.$project.') — '.((int) $overlap['rowid']).' : '.$startLabel.' → '.$endLabel;
     }
     return implode("\n", $lines);
 }
@@ -118,7 +125,9 @@ function clockifyFormatOverlapMessage(array $overlaps)
  */
 function clockifyCanValidate($user)
 {
-    return !empty($user->admin) || $user->hasRight('clockify', 'valider');
+    return !empty($user->admin)
+        || $user->hasRight('clockify', 'valider')
+        || $user->hasRight('clockify', 'timeentry', 'validate');
 }
 
 /**
@@ -182,13 +191,32 @@ function clockifyManualAuditInfo($entryId)
     }
 
     $info = array('manual_modified' => false, 'manual_reason' => '', 'manual_modified_at' => '', 'manual_modified_by' => 0);
+    // is_manually_edited is the display contract: it belongs to the entry,
+    // not to SuperAdmin or to the user who performed the edit.
+    $flagSql = 'SELECT is_manually_edited FROM '.$db->prefix().'clockify_timeentry WHERE rowid = '.$entryId;
+    $flagRes = $db->query($flagSql);
+    if ($flagRes && ($flag = $db->fetch_object($flagRes))) {
+        $info['manual_modified'] = !empty($flag->is_manually_edited);
+    }
     $sql = 'SELECT reason, date_creation, fk_user FROM '.$db->prefix().'clockify_timeentry_modification';
+    // The audit is attached to the time-entry id, never to the editor id.
+    // This makes the manager badge independent of who performed the correction.
     $sql .= ' WHERE fk_timeentry = '.$entryId;
     $sql .= " AND action IN ('".TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE."','".TimeEntry::MOD_ACTION_MANUAL_MANAGER."','".TimeEntry::MOD_ACTION_MANUAL_CREATE."')";
     $sql .= ' ORDER BY rowid DESC'.$db->plimit(1);
     $resql = $db->query($sql);
     if ($resql && ($obj = $db->fetch_object($resql))) {
         $info = array('manual_modified' => true, 'manual_reason' => (string) $obj->reason, 'manual_modified_at' => $obj->date_creation, 'manual_modified_by' => (int) $obj->fk_user);
+    }
+    // Corrections saved before the field-level audit migration live in the
+    // legacy log.  Keep them visible to managers as manual corrections too.
+    if ($info['manual_reason'] === '') {
+        $legacySql = 'SELECT reason, date_modification, fk_user_editor FROM '.$db->prefix().'clockify_time_edit_log';
+        $legacySql .= ' WHERE fk_time_entry = '.$entryId.' ORDER BY id DESC'.$db->plimit(1);
+        $legacyRes = $db->query($legacySql);
+        if ($legacyRes && ($legacy = $db->fetch_object($legacyRes))) {
+            $info = array('manual_modified' => true, 'manual_reason' => (string) $legacy->reason, 'manual_modified_at' => $legacy->date_modification, 'manual_modified_by' => (int) $legacy->fk_user_editor);
+        }
     }
     $cache[$entryId] = $info;
     return $info;
@@ -201,7 +229,9 @@ function clockifyTimeEntryScopeFilter($user, $scope = 'entries')
     if ($scope === 'validation') {
         $filter .= ' AND t.status = '.TimeEntry::STATUS_SUBMITTED;
     }
-    if (!clockifyCanViewTeamTimeEntries($user)) {
+    // The timer page is always personal, including for administrators and
+    // managers.  The validation scope is the only team scope here.
+    if ($scope !== 'validation') {
         $filter .= ' AND t.fk_user = '.((int) $user->id);
     }
 
@@ -246,7 +276,7 @@ function clockifyGetUpdateMarker($db, $user, $scope = 'entries')
 function clockifyFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', $limit = 100)
 {
     $filter = $scope === 'validation' ? 't.status:=:'.TimeEntry::STATUS_SUBMITTED : '';
-    if (!clockifyCanViewTeamTimeEntries($user)) {
+    if ($scope !== 'validation') {
         $filter .= ($filter !== '' ? ' AND ' : '').'(t.fk_user:=:'.((int) $user->id).')';
     }
 
@@ -263,6 +293,7 @@ function clockifyFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', 
 
 function clockifyExportTimeEntry($object)
 {
+    global $user;
     if (!is_object($object)) {
         return $object;
     }
@@ -312,6 +343,9 @@ function clockifyExportTimeEntry($object)
     if (property_exists($object, 'id')) {
         $cleaned = array_merge($cleaned, clockifyManualAuditInfo((int) $object->id));
         $policy = clockifyEmployeeManualEditPolicy($object);
+        if ((int) $object->fk_user !== (int) $user->id) {
+            $policy = array('allowed' => false, 'end_only' => false, 'message' => 'Seul le propriétaire peut modifier cette entrée.');
+        }
         $cleaned['manual_editable'] = $policy['allowed'];
         $cleaned['manual_edit_end_only'] = $policy['end_only'];
         $cleaned['manual_edit_message'] = $policy['message'];
@@ -613,6 +647,121 @@ function clockifyBuildSummary($entries)
     return $summary;
 }
 
+/** Build the shared, server-side WHERE clause for the manager read-only history. */
+function clockifyProcessedHistoryWhere($input)
+{
+    global $db;
+    $where = array('t.entity IN ('.getEntity('timeentry').')', 't.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')');
+    $status = (string) ($input['status'] ?? 'all');
+    if ($status === 'validated') $where[] = 't.status = '.TimeEntry::STATUS_VALIDATED;
+    if ($status === 'refused') $where[] = 't.status = '.TimeEntry::STATUS_CANCELED;
+    if (!empty($input['employee_id'])) $where[] = 't.fk_user = '.((int) $input['employee_id']);
+    if (!empty($input['project_id'])) $where[] = 't.fk_project = '.((int) $input['project_id']);
+    if (!empty($input['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['date_from'])) $where[] = "t.date_start >= '".$db->escape($input['date_from'])." 00:00:00'";
+    if (!empty($input['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['date_to'])) $where[] = "t.date_start < DATE_ADD('".$db->escape($input['date_to'])." 00:00:00', INTERVAL 1 DAY)";
+    if (!empty($input['manual_only'])) {
+        $where[] = 'EXISTS (SELECT 1 FROM '.$db->prefix().'clockify_timeentry_modification m WHERE m.fk_timeentry = t.rowid'
+            ." AND m.action IN ('".TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE."','".TimeEntry::MOD_ACTION_MANUAL_MANAGER."','".TimeEntry::MOD_ACTION_MANUAL_CREATE."'))";
+    }
+    return implode(' AND ', $where);
+}
+
+function clockifyGetProcessedHistory($input)
+{
+    global $db;
+    $where = clockifyProcessedHistoryWhere($input);
+    $page = max(1, (int) ($input['page'] ?? 1));
+    $perPage = min(!empty($input['export']) ? 10000 : 100, max(1, (int) ($input['per_page'] ?? 50)));
+    $offset = ($page - 1) * $perPage;
+    $countSql = 'SELECT COUNT(*) AS total FROM '.$db->prefix().'clockify_timeentry t WHERE '.$where;
+    $countRes = $db->query($countSql); $countObj = $countRes ? $db->fetch_object($countRes) : null;
+    $total = $countObj ? (int) $countObj->total : 0;
+    $statsSql = 'SELECT COALESCE(SUM(CASE WHEN t.status = '.TimeEntry::STATUS_VALIDATED.' THEN t.duration ELSE 0 END),0) AS validated_seconds,'
+        .' SUM(CASE WHEN t.status = '.TimeEntry::STATUS_CANCELED.' THEN 1 ELSE 0 END) AS refused_count,'
+        .' SUM(CASE WHEN EXISTS (SELECT 1 FROM '.$db->prefix().'clockify_timeentry_modification m WHERE m.fk_timeentry=t.rowid AND m.action IN (\''.TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE.'\',\''.TimeEntry::MOD_ACTION_MANUAL_MANAGER.'\',\''.TimeEntry::MOD_ACTION_MANUAL_CREATE.'\')) THEN 1 ELSE 0 END) AS manual_count'
+        .' FROM '.$db->prefix().'clockify_timeentry t WHERE '.$where;
+    $statsRes = $db->query($statsSql); $statsObj = $statsRes ? $db->fetch_object($statsRes) : null;
+    $sql = 'SELECT t.rowid, t.fk_user, t.fk_project, t.fk_task, t.date_start, t.date_end, t.duration, t.note, t.status, t.fk_user_valid, t.tms,'
+        .' u.login, u.firstname, u.lastname, validator.login AS validator_login, validator.firstname AS validator_firstname, validator.lastname AS validator_lastname'
+        .' FROM '.$db->prefix().'clockify_timeentry t'
+        .' LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user'
+        .' LEFT JOIN '.$db->prefix().'user validator ON validator.rowid=t.fk_user_valid'
+        .' WHERE '.$where.' ORDER BY t.date_start DESC, t.rowid DESC'.$db->plimit($perPage, $offset);
+    $resql = $db->query($sql); $rows = array();
+    while ($resql && ($obj = $db->fetch_object($resql))) {
+        $entry = new TimeEntry($db); $entry->fetch((int) $obj->rowid);
+        $row = clockifyExportTimeEntry($entry);
+        $row['processed_by_label'] = trim($obj->validator_firstname.' '.$obj->validator_lastname) ?: ($obj->validator_login ?: '—');
+        $row['processed_at'] = $obj->tms;
+        $rows[] = $row;
+    }
+    $employees = array();
+    $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'clockify_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.') ORDER BY u.lastname, u.firstname, u.login';
+    $employeeRes = $db->query($employeeSql);
+    while ($employeeRes && ($obj = $db->fetch_object($employeeRes))) $employees[] = array('id'=>(int) $obj->fk_user, 'label'=>trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));
+    return array('rows'=>$rows, 'employees'=>$employees, 'pagination'=>array('page'=>$page, 'per_page'=>$perPage, 'total'=>$total, 'pages'=>max(1, (int) ceil($total / $perPage))), 'stats'=>array('validated_seconds'=>(int) ($statsObj->validated_seconds ?? 0), 'refused_count'=>(int) ($statsObj->refused_count ?? 0), 'manual_count'=>(int) ($statsObj->manual_count ?? 0)));
+}
+
+/** Return daily free-text reports, scoped either to one user or to the whole team. */
+function clockifyFetchDailyReports($input, $allUsers = false, $userId = 0)
+{
+    global $db, $conf;
+    $where = array('r.entity = '.((int) $conf->entity));
+    if ($allUsers) {
+        if (!empty($input['employee_id'])) {
+            $where[] = 'r.fk_user = '.((int) $input['employee_id']);
+        }
+    } else {
+        $where[] = 'r.fk_user = '.((int) $userId);
+    }
+    foreach (array('date_from' => '>=', 'date_to' => '<=') as $key => $operator) {
+        $date = (string) ($input[$key] ?? '');
+        if ($date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $where[] = "r.date_report ".$operator." '".$db->escape($date)."'";
+        }
+    }
+
+    $sql = 'SELECT r.rowid, r.fk_user, r.date_report, r.content, r.date_creation, r.tms, r.read_at, r.fk_user_read,';
+    $sql .= ' u.login, u.firstname, u.lastname, reader.login AS reader_login, reader.firstname AS reader_firstname, reader.lastname AS reader_lastname';
+    $sql .= ' FROM '.$db->prefix().'clockify_daily_report AS r';
+    $sql .= ' LEFT JOIN '.$db->prefix().'user AS u ON u.rowid = r.fk_user';
+    $sql .= ' LEFT JOIN '.$db->prefix().'user AS reader ON reader.rowid = r.fk_user_read';
+    $sql .= ' WHERE '.implode(' AND ', $where).' ORDER BY r.date_report DESC, r.tms DESC, r.rowid DESC';
+    $resql = $db->query($sql);
+    $reports = array();
+    while ($resql && ($obj = $db->fetch_object($resql))) {
+        $label = trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user));
+        $readerLabel = trim($obj->reader_firstname.' '.$obj->reader_lastname) ?: ($obj->reader_login ?: '');
+        $reports[] = array(
+            'id' => (int) $obj->rowid,
+            'fk_user' => (int) $obj->fk_user,
+            'user_label' => $label,
+            'date_report' => $obj->date_report,
+            'content' => $obj->content,
+            'date_creation' => $obj->date_creation,
+            'date_modification' => $obj->tms,
+            'read_at' => $obj->read_at,
+            'read_by_label' => $readerLabel,
+            'is_read' => !empty($obj->read_at),
+        );
+    }
+    return $reports;
+}
+
+function clockifyDailyReportEmployees()
+{
+    global $db, $conf;
+    $sql = 'SELECT DISTINCT r.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'clockify_daily_report AS r';
+    $sql .= ' LEFT JOIN '.$db->prefix().'user AS u ON u.rowid = r.fk_user';
+    $sql .= ' WHERE r.entity = '.((int) $conf->entity).' ORDER BY u.lastname, u.firstname, u.login';
+    $resql = $db->query($sql);
+    $employees = array();
+    while ($resql && ($obj = $db->fetch_object($resql))) {
+        $employees[] = array('id' => (int) $obj->fk_user, 'label' => trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));
+    }
+    return $employees;
+}
+
 switch ($action) {
     case 'getActiveTimer':
         $id = $timeentry->hasActiveTimer($user->id);
@@ -631,6 +780,17 @@ switch ($action) {
         $projectLabel = trim((string) ($postData['project_label'] ?? GETPOST('project_label', 'restricthtml')));
         $tags = '';
         $billable = 0;
+
+        // Validation métier : un projet et une description (3 caractères minimum) sont obligatoires
+        // pour démarrer un chrono. Cette vérification est faite côté serveur pour bloquer aussi
+        // les requêtes directes qui contourneraient la désactivation du bouton côté client.
+        $noteTrimmed = trim((string) $note);
+        if ($fk_project <= 0 && $projectLabel === '') {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Veuillez sélectionner un projet et décrire votre tâche (3 caractères minimum) avant de démarrer.'), 400);
+        }
+        if (mb_strlen($noteTrimmed) < 3) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Veuillez décrire votre tâche (3 caractères minimum) avant de démarrer.'), 400);
+        }
 
         if ($fk_task > 0 && $fk_project <= 0 && $projectLabel === '') {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Une tâche nécessite un projet'), 400);
@@ -835,6 +995,79 @@ switch ($action) {
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
         $limit = $limit > 0 ? $limit : 100;
         clockifyJsonResponse(array('status' => 'success', 'data' => clockifyFetchVisibleTimeEntries($timeentry, $user, 'validation', $limit)));
+        break;
+
+    case 'getProcessedHistory':
+        if (!clockifyCanValidate($user)) clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        clockifyJsonResponse(array('status' => 'success', 'data' => clockifyGetProcessedHistory($postData ?: $_REQUEST)));
+        break;
+
+    case 'exportProcessedHistory':
+        if (!clockifyCanValidate($user)) clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        $input = $postData ?: $_REQUEST; $input['page'] = 1; $input['per_page'] = 10000; $input['export'] = true;
+        clockifyJsonResponse(array('status' => 'success', 'data' => clockifyGetProcessedHistory($input)));
+        break;
+
+    case 'saveDailyReport':
+        $dateReport = trim((string) ($postData['date_report'] ?? GETPOST('date_report', 'alphanohtml')));
+        $content = trim((string) ($postData['content'] ?? GETPOST('content', 'restricthtml')));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateReport)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'La date du rapport est invalide.'), 400);
+        }
+        if ($content === '') {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Le contenu du rapport est obligatoire.'), 400);
+        }
+        $entity = (int) $conf->entity;
+        $existingSql = 'SELECT rowid, read_at FROM '.$db->prefix().'clockify_daily_report';
+        $existingSql .= ' WHERE entity = '.$entity.' AND fk_user = '.((int) $user->id);
+        $existingSql .= " AND date_report = '".$db->escape($dateReport)."'";
+        $existingRes = $db->query($existingSql);
+        $existing = $existingRes ? $db->fetch_object($existingRes) : null;
+        if ($existing && !empty($existing->read_at)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Ce rapport a déjà été lu par le manager et ne peut plus être modifié.'), 409);
+        }
+        if ($existing) {
+            $sql = 'UPDATE '.$db->prefix().'clockify_daily_report SET content = \''.$db->escape($content).'\',';
+            $sql .= ' fk_user_modif = '.((int) $user->id).' WHERE rowid = '.((int) $existing->rowid);
+        } else {
+            $sql = 'INSERT INTO '.$db->prefix().'clockify_daily_report';
+            $sql .= ' (entity, fk_user, date_report, content, date_creation, fk_user_creat) VALUES (';
+            $sql .= $entity.','.((int) $user->id).", '".$db->escape($dateReport)."', '".$db->escape($content)."', '".$db->idate(dol_now())."', ".((int) $user->id).')';
+        }
+        if (!$db->query($sql)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Impossible d’enregistrer le rapport : '.$db->lasterror()), 500);
+        }
+        $saved = clockifyFetchDailyReports(array('date_from' => $dateReport, 'date_to' => $dateReport), false, (int) $user->id);
+        clockifyJsonResponse(array('status' => 'success', 'data' => !empty($saved) ? $saved[0] : null));
+        break;
+
+    case 'getMyDailyReports':
+        $input = is_array($postData) ? $postData : $_REQUEST;
+        clockifyJsonResponse(array('status' => 'success', 'data' => clockifyFetchDailyReports($input, false, (int) $user->id)));
+        break;
+
+    case 'getDailyReports':
+        if (!clockifyCanValidate($user)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $input = is_array($postData) ? $postData : $_REQUEST;
+        clockifyJsonResponse(array('status' => 'success', 'data' => array(
+            'reports' => clockifyFetchDailyReports($input, true),
+            'employees' => clockifyDailyReportEmployees(),
+        )));
+        break;
+
+    case 'markDailyReportRead':
+        if (!clockifyCanValidate($user)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        $sql = 'UPDATE '.$db->prefix().'clockify_daily_report SET read_at = \''.$db->idate(dol_now()).'\',';
+        $sql .= ' fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity);
+        if (!$db->query($sql)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Impossible de marquer le rapport comme lu.'), 500);
+        }
+        clockifyJsonResponse(array('status' => 'success'));
         break;
 
     case 'getWeeklyTimesheet':
@@ -1083,12 +1316,14 @@ switch ($action) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Entrée introuvable'), 404);
         }
         $isManager = clockifyCanValidate($user);
-        if (!$isManager && (!$user->hasRight('clockify', 'timeentry', 'write') || (int) $timeentry->fk_user !== (int) $user->id)) {
+        // A manager validates team entries but never manually changes them.
+        // This ownership check is intentionally independent of UI visibility.
+        if ((int) $timeentry->fk_user !== (int) $user->id || !$user->hasRight('clockify', 'timeentry', 'write')) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
 
         $policy = clockifyEmployeeManualEditPolicy($timeentry);
-        if (!$isManager && !$policy['allowed']) {
+        if (!$policy['allowed']) {
             clockifyJsonResponse(array('status' => 'error', 'message' => $policy['message']), 403);
         }
 
@@ -1113,12 +1348,12 @@ switch ($action) {
             clockifyCorrectionTrace('response_invalid_dates', array('rowid' => (int) $timeentry->id, 'http_status' => 400));
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Les heures de début et de fin sont invalides.'), 400);
         }
-        if (!$isManager && $policy['end_only'] && $newStart !== $oldStart) {
+        if ($policy['end_only'] && $newStart !== $oldStart) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Seule l’heure de fin d’une entrée d’hier peut être corrigée.'), 403);
         }
         $difference = max(abs($newStart - $oldStart), abs($newEnd - $oldEnd));
-        if (($isManager || $policy['reason_required'] || $difference > 900) && $reason === '') {
-            clockifyJsonResponse(array('status' => 'error', 'message' => 'La raison de la modification est requise.'), 400);
+        if (mb_strlen($reason) < 5) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'La raison de la modification est obligatoire (5 caractères minimum).'), 400);
         }
         $auditReason = $reason !== '' ? $reason : 'Correction mineure (15 minutes ou moins).';
         $effectiveEnd = $newEnd > 0 ? $newEnd : dol_now();
@@ -1150,15 +1385,18 @@ switch ($action) {
         break;
 
     case 'getModificationHistory':
-        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        $id = !empty($postData['entryId']) ? (int) $postData['entryId'] : (!empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int'));
         $history = array();
         $sql = 'SELECT m.rowid, m.fk_timeentry, m.fk_user, m.action, m.field_name, m.old_value, m.new_value, m.reason, m.date_creation, u.login as user_login, u.firstname, u.lastname';
         $sql .= ' FROM ' . $db->prefix() . 'clockify_timeentry_modification as m';
         $sql .= ' INNER JOIN ' . $db->prefix() . 'clockify_timeentry as t ON t.rowid = m.fk_timeentry';
         $sql .= ' LEFT JOIN ' . $db->prefix() . 'user as u ON u.rowid = m.fk_user';
         $sql .= ' WHERE m.fk_timeentry = ' . ((int) $id);
+        // Duration is recomputed from the two times; it is not a separately
+        // edited field and should not clutter the manual-correction popup.
+        $sql .= " AND (m.action NOT IN ('".TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE."','".TimeEntry::MOD_ACTION_MANUAL_MANAGER."') OR m.field_name <> 'duration')";
         $sql .= ' AND t.entity IN ('.getEntity('timeentry').')';
-        if (!clockifyCanReadAllTimeEntries($user)) {
+        if (!clockifyCanReadAllTimeEntries($user) && !clockifyCanValidate($user)) {
             $sql .= ' AND t.fk_user = ' . ((int) $user->id);
         }
         $sql .= ' ORDER BY m.date_creation DESC';
@@ -1177,6 +1415,27 @@ switch ($action) {
                     'date_creation' => $obj->date_creation,
                     'user_label' => clockifyResolveUserLabel((int) $obj->fk_user),
                 );
+            }
+        }
+        // Backward compatibility for corrections recorded before
+        // clockify_timeentry_modification existed.
+        if (empty($history)) {
+            $legacySql = 'SELECT l.id, l.fk_time_entry, l.fk_user_editor, l.old_start, l.new_start, l.old_end, l.new_end, l.reason, l.date_modification,';
+            $legacySql .= ' u.login, u.firstname, u.lastname FROM '.$db->prefix().'clockify_time_edit_log AS l';
+            $legacySql .= ' INNER JOIN '.$db->prefix().'clockify_timeentry AS t ON t.rowid = l.fk_time_entry';
+            $legacySql .= ' LEFT JOIN '.$db->prefix().'user AS u ON u.rowid = l.fk_user_editor';
+            $legacySql .= ' WHERE l.fk_time_entry = '.((int) $id).' AND t.entity IN ('.getEntity('timeentry').')';
+            if (!clockifyCanReadAllTimeEntries($user) && !clockifyCanValidate($user)) {
+                $legacySql .= ' AND t.fk_user = '.((int) $user->id);
+            }
+            $legacySql .= ' ORDER BY l.date_modification DESC';
+            $legacyRes = $db->query($legacySql);
+            while ($legacyRes && ($obj = $db->fetch_object($legacyRes))) {
+                foreach (array('date_start' => array($obj->old_start, $obj->new_start), 'date_end' => array($obj->old_end, $obj->new_end)) as $field => $values) {
+                    if ((string) $values[0] !== (string) $values[1]) {
+                        $history[] = array('rowid' => (int) $obj->id, 'fk_timeentry' => (int) $obj->fk_time_entry, 'fk_user' => (int) $obj->fk_user_editor, 'action' => 'manual_legacy', 'field_name' => $field, 'old_value' => $values[0], 'new_value' => $values[1], 'reason' => $obj->reason, 'date_creation' => $obj->date_modification, 'user_label' => clockifyResolveUserLabel((int) $obj->fk_user_editor));
+                    }
+                }
             }
         }
         clockifyJsonResponse(array('status' => 'success', 'data' => $history));

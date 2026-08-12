@@ -112,6 +112,7 @@ class TimeEntry extends CommonObject
 		"date_start" => array("type" => "datetime", "label" => "DateStart", "enabled" => "1", 'position' => 25, 'notnull' => 1, "visible" => "1",),
 		"date_end" => array("type" => "datetime", "label" => "DateEnd", "enabled" => "1", 'position' => 30, 'notnull' => 0, "visible" => "1",),
 		"duration" => array("type" => "integer", "label" => "Duration", "enabled" => "1", 'position' => 35, 'notnull' => 0, "visible" => "1",),
+		"is_manually_edited" => array("type" => "boolean", "label" => "ManuallyEdited", "enabled" => "1", 'position' => 35, 'notnull' => 1, "visible" => "-2",),
 		"occurrence_count" => array("type" => "integer", "label" => "OccurrenceCount", "enabled" => "1", 'position' => 36, 'notnull' => 1, "visible" => "-2",),
 		"date_reprise" => array("type" => "datetime", "label" => "DateResume", "enabled" => "1", 'position' => 37, 'notnull' => 0, "visible" => "-2",),
 		"note" => array("type" => "text", "label" => "Note", "enabled" => "1", 'position' => 40, 'notnull' => 0, "visible" => "1",),
@@ -138,6 +139,7 @@ class TimeEntry extends CommonObject
 	public $date_start;
 	public $date_end;
 	public $duration;
+	public $is_manually_edited;
 	public $occurrence_count;
 	public $date_reprise;
 	public $note;
@@ -524,6 +526,7 @@ public $fk_user_modif;
 	public function update(User $user, $notrigger = 0, $reason = '', $auditAction = self::MOD_ACTION_EDIT)
     {
 		$isManualCorrection = in_array($auditAction, array(self::MOD_ACTION_MANUAL_EMPLOYEE, self::MOD_ACTION_MANUAL_MANAGER), true);
+		$manualNewValues = array('date_start' => $this->date_start, 'date_end' => $this->date_end);
         $this->recalculateAmount();
 
         $oldValues = array();
@@ -540,6 +543,17 @@ public $fk_user_modif;
                 foreach ($fieldsToAudit as $field) {
                     $oldValues[$field] = isset($existing->$field) ? $existing->$field : null;
                 }
+
+                // fetch() converts date fields to timestamps using Dolibarr's
+                // timezone rules.  Audit values must preserve the exact SQL
+                // wall-clock time that existed before this update, otherwise
+                // old_start/old_end can gain an hour during a round trip.
+                $oldDateSql = 'SELECT date_start, date_end FROM '.$this->db->prefix().$this->table_element.' WHERE rowid = '.((int) $this->id);
+                $oldDateRes = $this->db->query($oldDateSql);
+                if ($oldDateRes && ($oldDate = $this->db->fetch_object($oldDateRes))) {
+                    $oldValues['date_start'] = $oldDate->date_start;
+                    $oldValues['date_end'] = $oldDate->date_end;
+                }
             }
         }
 
@@ -551,11 +565,16 @@ public $fk_user_modif;
 			dol_syslog('clockify.correctTimeEntry updateCommon_transaction_'.($result > 0 ? 'commit' : 'rollback').' rowid='.(int) $this->id.' result='.(int) $result, LOG_INFO);
 		}
 
-        if ($result > 0 && !empty($reason) && $this->id > 0) {
+		if ($result > 0 && !empty($reason) && $this->id > 0) {
 			if ($isManualCorrection) {
 				dol_syslog('clockify.correctTimeEntry audit_insert_started rowid='.(int) $this->id, LOG_INFO);
 			}
-            $this->logModifications($user, $oldValues, $reason, $auditAction);
+			$this->logModifications($user, $oldValues, $reason, $auditAction);
+			if ($isManualCorrection) {
+				if (!$this->recordManualTimeEdit($user, $oldValues, $manualNewValues, $reason)) {
+					return -1;
+				}
+			}
 			if ($isManualCorrection) {
 				dol_syslog('clockify.correctTimeEntry audit_insert_finished rowid='.(int) $this->id, LOG_INFO);
 			}
@@ -564,17 +583,87 @@ public $fk_user_modif;
         return $result;
     }
 
+    /**
+     * Persist the manual-edit marker and the legacy correction record together.
+     *
+     * The manager list uses is_manually_edited as the authoritative badge flag;
+     * llx_clockify_time_edit_log remains the one-row correction summary used by
+     * the popup and by installations upgraded from the original audit feature.
+     */
+    protected function recordManualTimeEdit(User $user, array $oldValues, array $newValues, string $reason)
+    {
+        $now = dol_now();
+        $oldStart = $oldValues['date_start'] ?? null;
+        $oldEnd = $oldValues['date_end'] ?? null;
+        $toDatabaseDate = function ($value) {
+            if ($value === null || $value === '') {
+                return null;
+            }
+            // Preserve a raw SQL datetime captured before updateCommon.
+            if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value)) {
+                return $value;
+            }
+            return $this->db->idate((int) $value);
+        };
+
+        $flagSql = 'UPDATE '.$this->db->prefix().'clockify_timeentry SET is_manually_edited = 1';
+        $flagSql .= ' WHERE rowid = '.((int) $this->id);
+        if (!$this->db->query($flagSql)) {
+            $this->error = 'Impossible de marquer la correction manuelle : '.$this->db->lasterror();
+            dol_syslog(__METHOD__.' '.$this->error, LOG_ERR);
+            return false;
+        }
+
+        $sql = 'INSERT INTO '.$this->db->prefix().'clockify_time_edit_log';
+        $sql .= ' (entity, fk_time_entry, fk_user_editor, date_modification, old_start, new_start, old_end, new_end, reason, ip, user_agent) VALUES (';
+        $sql .= ((int) $this->entity).',' . ((int) $this->id).',' . ((int) $user->id).',';
+        $sql .= "'".$this->db->idate($now)."',";
+        $sql .= "'".$this->db->escape($toDatabaseDate($oldStart))."',";
+        $sql .= "'".$this->db->escape($toDatabaseDate($newValues['date_start'] ?? null))."',";
+        $sql .= empty($oldEnd) ? 'NULL,' : "'".$this->db->escape($toDatabaseDate($oldEnd))."',";
+        $sql .= empty($newValues['date_end']) ? 'NULL,' : "'".$this->db->escape($toDatabaseDate($newValues['date_end']))."',";
+        $sql .= "'".$this->db->escape($reason)."',";
+        $sql .= "'".$this->db->escape($_SERVER['REMOTE_ADDR'] ?? '')."',";
+        $sql .= "'".$this->db->escape($_SERVER['HTTP_USER_AGENT'] ?? '')."')";
+        if (!$this->db->query($sql)) {
+            $this->error = 'Impossible d’enregistrer le journal de correction : '.$this->db->lasterror();
+            dol_syslog(__METHOD__.' '.$this->error, LOG_ERR);
+            return false;
+        }
+
+        return true;
+    }
+
     protected function logModifications(User $user, array $oldValues, string $reason, string $action = self::MOD_ACTION_EDIT)
     {
         $now = dol_now();
         $fieldsToAudit = array('fk_project', 'fk_task', 'date_start', 'date_end', 'duration', 'note', 'tags', 'billable', 'thm', 'status');
+        $normalizeDateForAudit = function ($value) {
+            if ($value === null || $value === '') {
+                return '';
+            }
+
+            if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value)) {
+                return $value;
+            }
+            $timestamp = is_numeric($value) ? (int) $value : $this->db->jdate($value);
+            return $timestamp > 0 ? $this->db->idate($timestamp) : (string) $value;
+        };
 
         foreach ($fieldsToAudit as $field) {
             $oldVal = isset($oldValues[$field]) ? $oldValues[$field] : null;
             $newVal = isset($this->$field) ? $this->$field : null;
 
-            $oldStr = is_array($oldVal) ? json_encode($oldVal) : (string) $oldVal;
-            $newStr = is_array($newVal) ? json_encode($newVal) : (string) $newVal;
+            // updateCommon receives dates as timestamps while fetch() returns
+            // database datetime strings. Compare their canonical DB values so
+            // an unchanged start is never recorded as a fake correction.
+            if ($field === 'date_start' || $field === 'date_end') {
+                $oldStr = $normalizeDateForAudit($oldVal);
+                $newStr = $normalizeDateForAudit($newVal);
+            } else {
+                $oldStr = is_array($oldVal) ? json_encode($oldVal) : (string) $oldVal;
+                $newStr = is_array($newVal) ? json_encode($newVal) : (string) $newVal;
+            }
 
             if ($oldStr !== $newStr) {
                 $sql = 'INSERT INTO '.$this->db->prefix().'clockify_timeentry_modification';
@@ -619,7 +708,7 @@ public $fk_user_modif;
 	/**
 	 * Return the existing entries that overlap a requested time range.
 	 *
-	 * @return array<int,array{rowid:int,date_start:string,date_end:string|null}>|false
+	 * @return array<int,array{rowid:int,date_start:string,date_end:string|null,note:string,project_label:string}>|false
 	 */
 	public function getTimeOverlaps($fkUser, $dateStart, $dateEnd, $excludeId = 0)
 	{
@@ -629,18 +718,20 @@ public $fk_user_modif;
 			return false;
 		}
 
-		$sql = 'SELECT rowid, date_start, date_end FROM '.$this->db->prefix().$this->table_element;
-		$sql .= ' WHERE entity IN ('.getEntity($this->element).')';
-		$sql .= ' AND fk_user = '.((int) $fkUser);
+		$sql = 'SELECT t.rowid, t.date_start, t.date_end, t.note, p.title AS project_label';
+		$sql .= ' FROM '.$this->db->prefix().$this->table_element.' AS t';
+		$sql .= ' LEFT JOIN '.$this->db->prefix().'clockify_project AS p ON p.rowid = t.fk_project';
+		$sql .= ' WHERE t.entity IN ('.getEntity($this->element).')';
+		$sql .= ' AND t.fk_user = '.((int) $fkUser);
 		// Overlap logic: new.start < existing.end AND (existing.start < new.end)
 		// Implemented as: existing.date_start < new_end AND (date_end IS NULL OR date_end > new_start)
-		$sql .= " AND date_start < '".$this->db->idate($end)."'";
-		$sql .= " AND (date_end IS NULL OR date_end > '".$this->db->idate($start)."')";
+		$sql .= " AND t.date_start < '".$this->db->idate($end)."'";
+		$sql .= " AND (t.date_end IS NULL OR t.date_end > '".$this->db->idate($start)."')";
 		if ((int) $excludeId > 0) {
 			// Exclude the entry currently being edited to avoid self-conflict
-			$sql .= ' AND rowid <> '.((int) $excludeId);
+			$sql .= ' AND t.rowid <> '.((int) $excludeId);
 		}
-		$sql .= ' ORDER BY date_start ASC, rowid ASC';
+		$sql .= ' ORDER BY t.date_start ASC, t.rowid ASC';
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -654,6 +745,8 @@ public $fk_user_modif;
 				'rowid' => (int) $obj->rowid,
 				'date_start' => (string) $obj->date_start,
 				'date_end' => $obj->date_end !== null ? (string) $obj->date_end : null,
+				'note' => trim((string) $obj->note),
+				'project_label' => trim((string) $obj->project_label),
 			);
 		}
 		$this->db->free($resql);
@@ -1462,6 +1555,17 @@ public $fk_user_modif;
 	 */
 	public function startTimer($fk_user, $fk_project = 0, $fk_task = 0, $note = '', ?User $user = null, $tags = '', $billable = 0)
 	{
+		// Défense en profondeur : un projet et une description (3 caractères minimum)
+		// sont obligatoires pour démarrer un chrono, quel que soit l'appelant.
+		if ((int) $fk_project <= 0) {
+			$this->error = 'Veuillez sélectionner un projet avant de démarrer.';
+			return -1;
+		}
+		if (mb_strlen(trim((string) $note)) < 3) {
+			$this->error = 'Veuillez décrire votre tâche (3 caractères minimum) avant de démarrer.';
+			return -1;
+		}
+
 		if ($this->hasActiveTimer($fk_user) > 0) {
 			$this->error = 'Un chrono est déjà actif pour cet utilisateur';
 			return -1;
@@ -1475,6 +1579,10 @@ public $fk_user_modif;
 		$this->date_start = dol_now();
 		$this->date_end = null;
 		$this->duration = 0;
+		// Explicitly set the non-null database flag.  CommonObject includes
+		// declared fields in its INSERT, so relying on the SQL DEFAULT would
+		// otherwise send NULL and reject a valid timer start.
+		$this->is_manually_edited = 0;
 		$this->occurrence_count = 1;
 		$this->date_reprise = null;
 		$this->billable = (int) !empty($billable);
@@ -1501,6 +1609,7 @@ public $fk_user_modif;
 		$this->date_start = dol_print_date($dateStart, 'dayhour');
 		$this->date_end = dol_print_date($dateEnd, 'dayhour');
 		$this->duration = max(0, (int) ($dateEnd - $dateStart));
+		$this->is_manually_edited = 0;
 		$this->occurrence_count = 1;
 		$this->date_reprise = null;
 		$this->note = trim((string) $note);
@@ -1530,7 +1639,7 @@ public $fk_user_modif;
 			$this->error = 'Entrée introuvable';
 			return -1;
 		}
-		if ((int) $this->fk_user !== (int) $user->id && empty($user->admin)) {
+			if ((int) $this->fk_user !== (int) $user->id) {
 			$this->error = 'Accès refusé';
 			return -1;
 		}
@@ -1550,7 +1659,7 @@ public $fk_user_modif;
 			$this->error = 'Entrée introuvable';
 			return -1;
 		}
-		if ((int) $this->fk_user !== (int) $user->id && empty($user->admin)) {
+			if ((int) $this->fk_user !== (int) $user->id) {
 			$this->error = 'Accès refusé';
 			return -1;
 		}

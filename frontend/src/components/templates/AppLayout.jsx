@@ -3,19 +3,20 @@ import { NavLink, Outlet } from 'react-router-dom';
 const navigation = [
   { path: '/timer', label: 'SUIVI DU TEMPS', icon: '◷', section: 'SUIVRE' },
   { path: '/history', label: 'CALENDRIER', icon: '□', section: 'SUIVRE' },
+  { path: '/daily-report', label: 'MON RAPPORT', icon: '✎', section: 'SUIVRE' },
   { path: '/dashboard', label: 'TABLEAU DE BORD', icon: '⊞', section: 'ANALYSER' },
   { path: '/reports', label: 'RAPPORTS', icon: '▥', section: 'ANALYSER' },
   { path: '/validation', label: 'VALIDATIONS', icon: '✓', section: 'GÉRER' },
+  { path: '/processed-history', label: 'HISTORIQUE', icon: '◫', section: 'GÉRER' },
 ];
 
 function classNames(...classes) { return classes.filter(Boolean).join(' '); }
 
 export default function AppLayout() {
-  const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
   const canValidate = typeof window !== 'undefined' && window.CLOCKIFY_CAN_VALIDATE === true;
   const visibleNavigation = navigation.filter((item) => {
-    if (item.path === '/validation') return canValidate;
-    if (item.path === '/reports') return canReadAll;
+    if (item.path === '/validation' || item.path === '/processed-history') return canValidate;
+    if (item.path === '/reports') return canValidate;
     return true;
   });
   let displayedSection = '';
@@ -33,8 +34,7 @@ export default function AppLayout() {
           <span className="border border-[#03a9f4] bg-[#03a9f4] px-3 py-1.5 text-xs font-medium text-white">METTRE À NIVEAU</span>
         </div>
         <div className="ml-auto flex items-center gap-5 text-[#78909c]">
-          <span className="hidden text-lg sm:block">♧</span><span className="hidden text-lg sm:block">♧</span><span className="text-lg">?</span>
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-[#4d5fca] text-xs font-medium text-white">AD</span>
+          <span className="hidden text-lg sm:block">♧</span><span className="hidden text-lg sm:block">♧</span>
         </div>
       </header>
 

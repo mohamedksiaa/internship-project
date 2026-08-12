@@ -68,7 +68,7 @@ export function useTimer() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setRunningEntry]);
 
   const resume = useCallback(async (id) => {
     setLoading(true);
@@ -91,8 +91,11 @@ export function useTimer() {
     setError(null);
     try {
       const result = await stopTimer(activeEntry.id);
+      // Reset the local timer only after the server has confirmed the stop.
+      // This also makes the interval effect clean up its active interval.
       setIsRunning(false);
       setActiveEntry(null);
+      setSeconds(0);
       return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible d’arrêter le chrono.');
