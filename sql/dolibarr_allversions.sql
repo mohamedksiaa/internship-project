@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS llx_clockify_daily_report(
     INDEX idx_cdr_date (entity, date_report),
     INDEX idx_cdr_user (entity, fk_user)
 ) ENGINE=innodb;
+ALTER TABLE llx_clockify_daily_report DROP INDEX IF EXISTS uk_cdr_user_date;
 
 -- A resumed timer remains on its original row.  These fields persist its resume count
 -- and the beginning of its current segment; existing entries start at one occurrence.

@@ -99,6 +99,20 @@ function clockifyParseIncomingDate($value)
     }
 }
 
+/** Convert a database datetime (server timezone) to an unambiguous API ISO value. */
+function clockifyExportAuditDate($value)
+{
+    global $db;
+    if ($value === null || $value === '') {
+        return $value;
+    }
+    if (is_numeric($value)) {
+        return gmdate('Y-m-d\\TH:i:s\\Z', (int) $value);
+    }
+    $timestamp = $db->jdate((string) $value);
+    return $timestamp > 0 ? gmdate('Y-m-d\\TH:i:s\\Z', $timestamp) : $value;
+}
+
 /** Format conflicting entries for the correction error message. */
 function clockifyFormatOverlapMessage(array $overlaps)
 {
@@ -1018,27 +1032,27 @@ switch ($action) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Le contenu du rapport est obligatoire.'), 400);
         }
         $entity = (int) $conf->entity;
-        $existingSql = 'SELECT rowid, read_at FROM '.$db->prefix().'clockify_daily_report';
-        $existingSql .= ' WHERE entity = '.$entity.' AND fk_user = '.((int) $user->id);
-        $existingSql .= " AND date_report = '".$db->escape($dateReport)."'";
-        $existingRes = $db->query($existingSql);
-        $existing = $existingRes ? $db->fetch_object($existingRes) : null;
-        if ($existing && !empty($existing->read_at)) {
-            clockifyJsonResponse(array('status' => 'error', 'message' => 'Ce rapport a déjà été lu par le manager et ne peut plus être modifié.'), 409);
-        }
-        if ($existing) {
-            $sql = 'UPDATE '.$db->prefix().'clockify_daily_report SET content = \''.$db->escape($content).'\',';
-            $sql .= ' fk_user_modif = '.((int) $user->id).' WHERE rowid = '.((int) $existing->rowid);
-        } else {
-            $sql = 'INSERT INTO '.$db->prefix().'clockify_daily_report';
-            $sql .= ' (entity, fk_user, date_report, content, date_creation, fk_user_creat) VALUES (';
-            $sql .= $entity.','.((int) $user->id).", '".$db->escape($dateReport)."', '".$db->escape($content)."', '".$db->idate(dol_now())."', ".((int) $user->id).')';
-        }
+        $now = dol_now();
+        $sql = 'INSERT INTO '.$db->prefix().'clockify_daily_report';
+        $sql .= ' (entity, fk_user, date_report, content, date_creation, fk_user_creat) VALUES (';
+        $sql .= $entity.','.((int) $user->id).", '".$db->escape($dateReport)."', '".$db->escape($content)."', '".$db->idate($now)."', ".((int) $user->id).')';
         if (!$db->query($sql)) {
             clockifyJsonResponse(array('status' => 'error', 'message' => 'Impossible d’enregistrer le rapport : '.$db->lasterror()), 500);
         }
-        $saved = clockifyFetchDailyReports(array('date_from' => $dateReport, 'date_to' => $dateReport), false, (int) $user->id);
-        clockifyJsonResponse(array('status' => 'success', 'data' => !empty($saved) ? $saved[0] : null));
+        $insertedId = (int) $db->last_insert_id($db->prefix().'clockify_daily_report');
+        $saved = array(
+            'id' => $insertedId,
+            'fk_user' => (int) $user->id,
+            'user_label' => clockifyResolveUserLabel((int) $user->id),
+            'date_report' => $dateReport,
+            'content' => $content,
+            'date_creation' => $db->idate($now),
+            'date_modification' => $db->idate($now),
+            'read_at' => null,
+            'read_by_label' => '',
+            'is_read' => false,
+        );
+        clockifyJsonResponse(array('status' => 'success', 'data' => $saved));
         break;
 
     case 'getMyDailyReports':
@@ -1328,11 +1342,14 @@ switch ($action) {
         }
 
         // Parse stored dates (DB values may be strings or numeric timestamps)
-        $oldStart = is_numeric($timeentry->date_start) ? (int) $timeentry->date_start : (is_string($timeentry->date_start) ? @strtotime((string) $timeentry->date_start) : false);
-        $oldEnd = empty($timeentry->date_end) ? 0 : (is_numeric($timeentry->date_end) ? (int) $timeentry->date_end : (is_string($timeentry->date_end) ? @strtotime((string) $timeentry->date_end) : false));
-        // Parse incoming (client) dates using the timezone-aware helper
-        $newStart = isset($postData['date_start']) ? clockifyParseIncomingDate($postData['date_start']) : $oldStart;
-        $newEnd = isset($postData['date_end']) ? clockifyParseIncomingDate($postData['date_end']) : $oldEnd;
+        $oldStart = (int) $timeentry->date_start;
+        $oldEnd = empty($timeentry->date_end) ? 0 : (int) $timeentry->date_end;
+        // A correction is a partial update. The frontend sends ISO8601 only for
+        // fields changed by the employee; omitted values stay exactly as stored.
+        $hasNewStart = array_key_exists('date_start', $postData);
+        $hasNewEnd = array_key_exists('date_end', $postData);
+        $newStart = $hasNewStart ? clockifyParseIncomingDate($postData['date_start']) : $oldStart;
+        $newEnd = $hasNewEnd ? clockifyParseIncomingDate($postData['date_end']) : $oldEnd;
         clockifyCorrectionTrace('values_prepared', array(
             'rowid' => (int) $timeentry->id,
             'old_start' => $oldStart,
@@ -1409,8 +1426,8 @@ switch ($action) {
                     'fk_user' => (int) $obj->fk_user,
                     'action' => $obj->action,
                     'field_name' => $obj->field_name,
-                    'old_value' => $obj->old_value,
-                    'new_value' => $obj->new_value,
+                    'old_value' => in_array($obj->field_name, array('date_start', 'date_end'), true) ? clockifyExportAuditDate($obj->old_value) : $obj->old_value,
+                    'new_value' => in_array($obj->field_name, array('date_start', 'date_end'), true) ? clockifyExportAuditDate($obj->new_value) : $obj->new_value,
                     'reason' => $obj->reason,
                     'date_creation' => $obj->date_creation,
                     'user_label' => clockifyResolveUserLabel((int) $obj->fk_user),
@@ -1433,7 +1450,7 @@ switch ($action) {
             while ($legacyRes && ($obj = $db->fetch_object($legacyRes))) {
                 foreach (array('date_start' => array($obj->old_start, $obj->new_start), 'date_end' => array($obj->old_end, $obj->new_end)) as $field => $values) {
                     if ((string) $values[0] !== (string) $values[1]) {
-                        $history[] = array('rowid' => (int) $obj->id, 'fk_timeentry' => (int) $obj->fk_time_entry, 'fk_user' => (int) $obj->fk_user_editor, 'action' => 'manual_legacy', 'field_name' => $field, 'old_value' => $values[0], 'new_value' => $values[1], 'reason' => $obj->reason, 'date_creation' => $obj->date_modification, 'user_label' => clockifyResolveUserLabel((int) $obj->fk_user_editor));
+                        $history[] = array('rowid' => (int) $obj->id, 'fk_timeentry' => (int) $obj->fk_time_entry, 'fk_user' => (int) $obj->fk_user_editor, 'action' => 'manual_legacy', 'field_name' => $field, 'old_value' => clockifyExportAuditDate($values[0]), 'new_value' => clockifyExportAuditDate($values[1]), 'reason' => $obj->reason, 'date_creation' => $obj->date_modification, 'user_label' => clockifyResolveUserLabel((int) $obj->fk_user_editor));
                     }
                 }
             }
