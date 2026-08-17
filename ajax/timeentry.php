@@ -1055,6 +1055,66 @@ switch ($action) {
         clockifyJsonResponse(array('status' => 'success', 'data' => $saved));
         break;
 
+    case 'updateDailyReport':
+        $id = !empty($postData['id']) ? (int) $postData['id'] : 0;
+        $content = trim((string) ($postData['content'] ?? GETPOST('content', 'restricthtml')));
+        if ($id <= 0) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Identifiant du rapport invalide.'), 400);
+        }
+        if ($content === '') {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Le contenu du rapport est obligatoire.'), 400);
+        }
+        // Ensure the report exists and belongs to the user (or allow admins/validators)
+        $sql = 'SELECT rowid, fk_user, date_report FROM '.$db->prefix().'clockify_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
+        $res = $db->query($sql);
+        if (!$res || $db->num_rows($res) <= 0) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
+        }
+        $obj = $db->fetch_object($res);
+        if ((int) $obj->fk_user !== (int) $user->id && !clockifyCanValidate($user) && !$user->admin) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé.'), 403);
+        }
+        $now = dol_now();
+        $sql = 'UPDATE '.$db->prefix().'clockify_daily_report SET content = "'.$db->escape($content).'", fk_user_modif = '.((int) $user->id).', tms = "'.$db->idate($now).'" WHERE rowid = '.((int) $id);
+        if (!$db->query($sql)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Impossible de mettre à jour le rapport : '.$db->lasterror()), 500);
+        }
+        $saved = array(
+            'id' => (int) $obj->rowid,
+            'fk_user' => (int) $obj->fk_user,
+            'user_label' => clockifyResolveUserLabel((int) $obj->fk_user),
+            'date_report' => $obj->date_report,
+            'content' => $content,
+            'date_creation' => null,
+            'date_modification' => $db->idate($now),
+            'read_at' => null,
+            'read_by_label' => '',
+            'is_read' => false,
+        );
+        clockifyJsonResponse(array('status' => 'success', 'data' => $saved));
+        break;
+
+    case 'deleteDailyReport':
+        $id = !empty($postData['id']) ? (int) $postData['id'] : 0;
+        if ($id <= 0) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Identifiant du rapport invalide.'), 400);
+        }
+        $sql = 'SELECT rowid, fk_user FROM '.$db->prefix().'clockify_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
+        $res = $db->query($sql);
+        if (!$res || $db->num_rows($res) <= 0) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
+        }
+        $obj = $db->fetch_object($res);
+        if ((int) $obj->fk_user !== (int) $user->id && !clockifyCanValidate($user) && !$user->admin) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Accès refusé.'), 403);
+        }
+        $sql = 'DELETE FROM '.$db->prefix().'clockify_daily_report WHERE rowid = '.((int) $id);
+        if (!$db->query($sql)) {
+            clockifyJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer le rapport : '.$db->lasterror()), 500);
+        }
+        clockifyJsonResponse(array('status' => 'success'));
+        break;
+
     case 'getMyDailyReports':
         $input = is_array($postData) ? $postData : $_REQUEST;
         clockifyJsonResponse(array('status' => 'success', 'data' => clockifyFetchDailyReports($input, false, (int) $user->id)));
