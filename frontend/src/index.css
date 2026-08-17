@@ -31,3 +31,22 @@ button {
 ::selection {
   background: rgba(59, 130, 246, 0.25);
 }
+
+/* Accordion animation for report content */
+.accordion-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 260ms ease, opacity 200ms ease;
+  opacity: 0;
+}
+.accordion-content.open {
+  /* large enough to contain long reports; adjust if needed */
+  max-height: 1200px;
+  opacity: 1;
+}
+.accordion-toggle {
+  transition: transform 180ms ease;
+}
+.accordion-toggle.open {
+  transform: rotate(180deg);
+}

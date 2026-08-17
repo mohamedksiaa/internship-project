@@ -15,11 +15,13 @@ CREATE TABLE IF NOT EXISTS llx_clockify_daily_report(
     fk_user_modif  integer DEFAULT NULL,
     read_at        datetime DEFAULT NULL,
     fk_user_read   integer DEFAULT NULL,
-    UNIQUE KEY uk_cdr_user_date (entity, fk_user, date_report),
     INDEX idx_cdr_date (entity, date_report),
     INDEX idx_cdr_user (entity, fk_user)
 ) ENGINE=innodb;
-ALTER TABLE llx_clockify_daily_report DROP INDEX IF EXISTS uk_cdr_user_date;
+-- Note: multiple daily reports per user and date are allowed. Older installs
+-- might have created a UNIQUE index on (entity,fk_user,date_report). If you
+-- still have such an index in your database, remove it manually with:
+--     ALTER TABLE llx_clockify_daily_report DROP INDEX uk_cdr_user_date;
 
 -- A resumed timer remains on its original row.  These fields persist its resume count
 -- and the beginning of its current segment; existing entries start at one occurrence.
