@@ -13,10 +13,9 @@ function formatDateTime(value) {
 function formatChangedValue(fieldName, value) {
   if (fieldName !== 'date_start' && fieldName !== 'date_end') return formatDateTime(value);
   const raw = String(value ?? '');
-  // MySQL audit datetimes are stored as the local wall-clock values entered
-  // in Clockify. Do not append "Z": that would reinterpret 14:24 as UTC and
-  // display it two hours late in the browser (16:24 in the manager popup).
-  const date = /^\d+$/.test(raw) ? new Date(Number(raw) * 1000) : new Date(raw.replace(' ', 'T'));
+  // The API returns date audit values as ISO8601. This keeps the server and
+  // browser timezones from being applied twice.
+  const date = /^\d+$/.test(raw) ? new Date(Number(raw) * 1000) : new Date(raw);
   if (!Number.isNaN(date.getTime())) {
     return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   }
