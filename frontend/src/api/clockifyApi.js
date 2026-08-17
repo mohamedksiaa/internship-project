@@ -216,6 +216,15 @@ function handleMockRequest(action, body) {
       mockDailyReports = [report, ...mockDailyReports];
       return Promise.resolve({ status: 'success', data: report });
     }
+    case 'updateDailyReport': {
+      mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, content: body?.content, date_modification: new Date().toISOString() } : report);
+      const updated = mockDailyReports.find((r) => r.id === Number(body?.id));
+      return Promise.resolve({ status: 'success', data: updated || {} });
+    }
+    case 'deleteDailyReport': {
+      mockDailyReports = mockDailyReports.filter((report) => report.id !== Number(body?.id));
+      return Promise.resolve({ status: 'success' });
+    }
     case 'getMyDailyReports':
       return Promise.resolve({ status: 'success', data: mockDailyReports });
     case 'getDailyReports':
@@ -346,6 +355,16 @@ export async function generateInvoiceLines(fkSoc = 0) {
 
 export async function saveDailyReport(dateReport, content) {
   const data = await moduleTimerRequest('saveDailyReport', { date_report: dateReport, content });
+  return data?.data ?? data;
+}
+
+export async function updateDailyReport(id, content) {
+  const data = await moduleTimerRequest('updateDailyReport', { id, content });
+  return data?.data ?? data;
+}
+
+export async function deleteDailyReport(id) {
+  const data = await moduleTimerRequest('deleteDailyReport', { id });
   return data?.data ?? data;
 }
 
