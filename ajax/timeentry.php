@@ -36,6 +36,15 @@ if (empty($user->id)) {
 
 $token = GETPOST('token', 'alphanohtml');
 if (empty($token) || $token !== currentToken()) {
+    // Do not log the token itself: it is a credential.  This trace makes it
+    // possible to distinguish a CSRF rejection (403) from a business 400.
+    dol_syslog('clockify.startTimer csrf_rejected '.json_encode(array(
+        'action' => GETPOST('action', 'aZ09'),
+        'user_id' => (int) $user->id,
+        'token_present' => !empty($token),
+        'token_length' => strlen((string) $token),
+        'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+    )), LOG_WARNING);
     http_response_code(403);
     echo json_encode(array('error' => 'Jeton invalide'));
     exit;
@@ -46,7 +55,9 @@ $timeentry = new TimeEntry($db);
 
 // Gestion des requêtes POST JSON
 $postData = json_decode(file_get_contents('php://input'), true);
-if (is_array($postData)) {
+if (!is_array($postData)) {
+    $postData = array();
+} else {
     if (!empty($postData['action'])) {
         $action = $postData['action'];
     }
@@ -57,6 +68,20 @@ function clockifyJsonResponse($payload, $status = 200)
     http_response_code($status);
     echo json_encode($payload);
     exit;
+}
+
+/**
+ * Temporary diagnostic trace for startTimer rejections.  It deliberately
+ * records only the fields needed to reproduce the validation, never the CSRF
+ * token or the whole request body.
+ */
+function clockifyStartTimerRejected($reason, array $context = array())
+{
+    dol_syslog('clockify.startTimer rejected '.json_encode(array_merge(array(
+        'reason' => $reason,
+        'user_id' => (int) $GLOBALS['user']->id,
+    ), $context)), LOG_WARNING);
+    clockifyJsonResponse(array('status' => 'error', 'message' => $reason), 400);
 }
 
 /**
@@ -781,25 +806,36 @@ switch ($action) {
         $tags = '';
         $billable = 0;
 
+        dol_syslog('clockify.startTimer received '.json_encode(array(
+            'user_id' => (int) $user->id,
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'content_type' => $_SERVER['CONTENT_TYPE'] ?? '',
+            'json_keys' => array_keys($postData),
+            'fk_project' => $fk_project,
+            'fk_task' => $fk_task,
+            'project_label' => $projectLabel,
+            'note_length' => mb_strlen(trim((string) $note)),
+        )), LOG_INFO);
+
         // Validation métier : un projet et une description (3 caractères minimum) sont obligatoires
         // pour démarrer un chrono. Cette vérification est faite côté serveur pour bloquer aussi
         // les requêtes directes qui contourneraient la désactivation du bouton côté client.
         $noteTrimmed = trim((string) $note);
         if ($fk_project <= 0 && $projectLabel === '') {
-            clockifyJsonResponse(array('status' => 'error', 'message' => 'Veuillez sélectionner un projet et décrire votre tâche (3 caractères minimum) avant de démarrer.'), 400);
+            clockifyStartTimerRejected('Veuillez sélectionner un projet et décrire votre tâche (3 caractères minimum) avant de démarrer.', array('stage' => 'missing_project'));
         }
         if (mb_strlen($noteTrimmed) < 3) {
-            clockifyJsonResponse(array('status' => 'error', 'message' => 'Veuillez décrire votre tâche (3 caractères minimum) avant de démarrer.'), 400);
+            clockifyStartTimerRejected('Veuillez décrire votre tâche (3 caractères minimum) avant de démarrer.', array('stage' => 'short_note'));
         }
 
         if ($fk_task > 0 && $fk_project <= 0 && $projectLabel === '') {
-            clockifyJsonResponse(array('status' => 'error', 'message' => 'Une tâche nécessite un projet'), 400);
+            clockifyStartTimerRejected('Une tâche nécessite un projet', array('stage' => 'task_without_project', 'fk_task' => $fk_task));
         }
 
         if ($projectLabel !== '' && $fk_project <= 0) {
             $fk_project = clockifyResolveOrCreateProjectByLabel($db, $user, $projectLabel);
             if ($fk_project <= 0) {
-                clockifyJsonResponse(array('status' => 'error', 'message' => 'Impossible de créer ou retrouver le projet'), 400);
+                clockifyStartTimerRejected('Impossible de créer ou retrouver le projet', array('stage' => 'resolve_project', 'project_label' => $projectLabel, 'db_error' => $db->lasterror()));
             }
         }
 
@@ -809,14 +845,14 @@ switch ($action) {
             $sql .= ' AND entity IN ('.getEntity('clockify_project').')';
             $resql = $db->query($sql);
             if (!$resql || $db->num_rows($resql) <= 0) {
-                clockifyJsonResponse(array('status' => 'error', 'message' => 'Projet introuvable'), 400);
+                clockifyStartTimerRejected('Projet introuvable', array('stage' => 'project_not_found', 'fk_project' => $fk_project, 'db_error' => !$resql ? $db->lasterror() : ''));
             }
         }
 
         if ($fk_task > 0) {
             $task = new Task($db);
             if ($task->fetch($fk_task) <= 0) {
-                clockifyJsonResponse(array('status' => 'error', 'message' => 'Tâche introuvable'), 400);
+                clockifyStartTimerRejected('Tâche introuvable', array('stage' => 'task_not_found', 'fk_task' => $fk_task));
             }
             if ($fk_project > 0) {
                 $sql = 'SELECT fk_dolibarr_project FROM '.$db->prefix().'clockify_project';
@@ -825,7 +861,7 @@ switch ($action) {
                 $resql = $db->query($sql);
                 if ($resql && $cp = $db->fetch_object($resql)) {
                     if ((int) $task->fk_project !== (int) $cp->fk_dolibarr_project) {
-                        clockifyJsonResponse(array('status' => 'error', 'message' => 'Tâche introuvable ou rattachée à un autre projet'), 400);
+                        clockifyStartTimerRejected('Tâche introuvable ou rattachée à un autre projet', array('stage' => 'task_project_mismatch', 'fk_task' => $fk_task, 'fk_project' => $fk_project));
                     }
                 }
             }
@@ -840,8 +876,7 @@ switch ($action) {
             $timeentry->fetch($id);
             clockifyJsonResponse(array('status' => 'success', 'data' => clockifyExportTimeEntry($timeentry)));
         } else {
-            http_response_code(400);
-            clockifyJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur au démarrage'), 400);
+            clockifyStartTimerRejected($timeentry->error ?: 'Erreur au démarrage', array('stage' => 'timeentry_create', 'fk_project' => $fk_project, 'fk_task' => $fk_task, 'db_error' => $db->lasterror()));
         }
         break;
 
