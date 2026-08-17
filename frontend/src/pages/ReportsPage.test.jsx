@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ReportsPage from './ReportsPage';
-import { generateInvoiceLines, getDailyReports, getMyDailyReports, getSummaryReports, markDailyReportRead, saveDailyReport } from '../api/clockifyApi';
+import { generateInvoiceLines, getDailyReports, getMyDailyReports, getSummaryReports, markDailyReportRead, saveDailyReport } from '../api/timeflowApi';
 
-vi.mock('../api/clockifyApi', () => ({
+vi.mock('../api/timeflowApi', () => ({
   generateInvoiceLines: vi.fn(),
   getDailyReports: vi.fn(),
   getMyDailyReports: vi.fn(),

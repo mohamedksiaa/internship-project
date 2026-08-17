@@ -13,7 +13,7 @@ const navigation = [
 function classNames(...classes) { return classes.filter(Boolean).join(' '); }
 
 export default function AppLayout() {
-  const canValidate = typeof window !== 'undefined' && window.CLOCKIFY_CAN_VALIDATE === true;
+  const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
   const visibleNavigation = navigation.filter((item) => {
     if (item.path === '/validation' || item.path === '/processed-history') return canValidate;
     if (item.path === '/reports') return canValidate;
@@ -27,7 +27,7 @@ export default function AppLayout() {
         <div className="flex items-center gap-3 border-r border-[#dce5ea] pr-6">
           <span className="grid h-8 w-8 place-items-center text-xl text-[#253746]">⠿</span>
           <span className="grid h-8 w-8 place-items-center rounded-md bg-[#03a9f4] text-xl font-bold text-white">◷</span>
-          <span className="text-[23px] font-semibold tracking-tight text-[#111827]">clockify</span>
+          <span className="text-[23px] font-semibold tracking-tight text-[#111827]">TimeFlow</span>
         </div>
         <div className="ml-6 hidden items-center gap-4 text-sm text-[#455a64] sm:flex">
           <span>Mon espace de travail</span><span className="text-[#9aaab5]">•••</span>

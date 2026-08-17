@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-import { getTimeEntryUpdates, getValidationEntries } from '../api/clockifyApi';
+import { getTimeEntryUpdates, getValidationEntries } from '../api/timeflowApi';
 
 export default function ValidationPage() {
   const [entries, setEntries] = useState([]);

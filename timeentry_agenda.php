@@ -19,7 +19,7 @@
 
 /**
  *  \file       timeentry_agenda.php
- *  \ingroup    clockify
+ *  \ingroup    timeflow
  *  \brief      Tab of events on TimeEntry
  */
 
@@ -87,11 +87,11 @@ if (!$res) {
 include_once DOL_DOCUMENT_ROOT.'/contact/class/contact.class.php';
 include_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
-dol_include_once('/clockify/class/timeentry.class.php');
-dol_include_once('/clockify/lib/clockify_timeentry.lib.php');
+dol_include_once('/timeflow/class/timeentry.class.php');
+dol_include_once('/timeflow/lib/timeflow_timeentry.lib.php');
 
 // Load translation files required by the page
-$langs->loadLangs(array("clockify@clockify", "other"));
+$langs->loadLangs(array("timeflow@timeflow", "other"));
 
 // Get parameters
 $id = GETPOSTINT('id');
@@ -137,7 +137,7 @@ if (!$sortorder) {
 // Initialize a technical objects
 $object = new TimeEntry($db);
 $extrafields = new ExtraFields($db);
-$diroutputmassaction = $conf->clockify->dir_output.'/temp/massgeneration/'.$user->id;
+$diroutputmassaction = $conf->timeflow->dir_output.'/temp/massgeneration/'.$user->id;
 $hookmanager->initHooks(array($object->element.'agenda', 'globalcard')); // Note that conf->hooks_modules contains array
 // Fetch optionals attributes and labels
 $extrafields->fetch_name_optionals_label($object->table_element);
@@ -145,15 +145,15 @@ $extrafields->fetch_name_optionals_label($object->table_element);
 // Load object
 include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be 'include', not 'include_once'. Include fetch and fetch_thirdparty but not fetch_optionals
 if ($id > 0 || !empty($ref)) {
-	$upload_dir = $conf->clockify->multidir_output[!empty($object->entity) ? $object->entity : $conf->entity]."/".$object->id;
+	$upload_dir = $conf->timeflow->multidir_output[!empty($object->entity) ? $object->entity : $conf->entity]."/".$object->id;
 }
 
 // There is several ways to check permission.
 // Set $enablepermissioncheck to 1 to enable a minimum low level of checks
-$enablepermissioncheck = getDolGlobalInt('CLOCKIFY_ENABLE_PERMISSION_CHECK');
+$enablepermissioncheck = getDolGlobalInt('TIMEFLOW_ENABLE_PERMISSION_CHECK');
 if ($enablepermissioncheck) {
-	$permissiontoread = $user->hasRight('clockify', 'timeentry', 'read');
-	$permissiontoadd = $user->hasRight('clockify', 'timeentry', 'write');
+	$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
+	$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write');
 } else {
 	$permissiontoread = 1;
 	$permissiontoadd = 1;
@@ -164,7 +164,7 @@ if ($enablepermissioncheck) {
 //if ($user->socid > 0) $socid = $user->socid;
 //$isdraft = (($object->status == $object::STATUS_DRAFT) ? 1 : 0);
 //restrictedArea($user, $object->module, $object->id, $object->table_element, $object->element, 'fk_soc', 'rowid', $isdraft);
-if (!isModEnabled("clockify")) {
+if (!isModEnabled("timeflow")) {
 	accessforbidden();
 }
 if (!$permissiontoread) {
@@ -212,7 +212,7 @@ if ($object->id > 0) {
 	//$title = $object->ref." - ".$langs->trans("Agenda");
 	$help_url = 'EN:Module_Agenda_En|DE:Modul_Terminplanung';
 
-	llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-clockify page-card_agenda');
+	llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-card_agenda');
 
 	if (isModEnabled('notification')) {
 		$langs->load("mails");
@@ -224,7 +224,7 @@ if ($object->id > 0) {
 
 	// Object card
 	// ------------------------------------------------------------
-	$linkback = '<a href="'.dol_buildpath('/clockify/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
+	$linkback = '<a href="'.dol_buildpath('/timeflow/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
 
 	$morehtmlref = '<div class="refidno">';
 	/*

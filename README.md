@@ -1,8 +1,8 @@
-# Clockify pour Dolibarr
+# TimeFlow pour Dolibarr
 
 ## Présentation
 
-Ce module développe un prototype de suivi du temps inspiré de Clockify, intégré à Dolibarr avec une interface React/Vite et une API REST dédiée.
+Ce module développe un prototype de suivi du temps inspiré de TimeFlow, intégré à Dolibarr avec une interface React/Vite et une API REST dédiée.
 
 Il permet de :
 - démarrer et arrêter un chrono
@@ -20,8 +20,8 @@ Il permet de :
 
 ### Backend Dolibarr
 - objet métier : TimeEntry
-- table : llx_clockify_timeentry
-- API REST : endpoints Clockify pour le timer, l’historique et la validation
+- table : llx_timeflow_timeentry
+- API REST : endpoints TimeFlow pour le timer, l’historique et la validation
 
 ### Frontend React
 - Vite + React
@@ -53,7 +53,7 @@ Il permet de :
 ### Backend
 1. Copier le module dans le répertoire custom de Dolibarr.
 2. Activer le module depuis l’interface Dolibarr.
-3. Vérifier que la table llx_clockify_timeentry est bien créée.
+3. Vérifier que la table llx_timeflow_timeentry est bien créée.
 
 ### Frontend
 1. Se placer dans le dossier frontend.

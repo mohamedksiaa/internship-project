@@ -1,0 +1,84 @@
+# Translation file
+
+#
+# Generic
+#
+
+# Module label 'ModuleTimeFlowName'
+ModuleTimeFlowName = TimeFlow
+# Module description 'ModuleTimeFlowDesc'
+ModuleTimeFlowDesc = Description TimeFlow
+
+#
+# Admin page
+#
+TimeFlowSetup = Configuration TimeFlow
+Settings = Paramètres
+TimeFlowSetupPage = Page de configuration TimeFlow
+NewSection=Nouvelle section
+TIMEFLOW_MYPARAM1 = Mon paramètre 1
+TIMEFLOW_MYPARAM1Tooltip = Info-bulle de mon paramètre 1
+TIMEFLOW_MYPARAM2=Mon paramètre 2
+TIMEFLOW_MYPARAM2Tooltip=Info-bulle de mon paramètre 2
+
+#
+# About page
+#
+About = À propos
+TimeFlowAbout = À propos de TimeFlow
+TimeFlowAboutPage = Page À propos de TimeFlow
+
+#
+# Sample page
+#
+TimeFlowArea = Accueil TimeFlow
+MyPageName = Nom de ma page
+
+#
+# Sample widget
+#
+MyWidget = Mon widget
+MyWidgetDescription = Description de mon widget
+
+TIMEFLOW_WEEKLY_WORK_HOURS = Heures de travail hebdomadaires
+TIMEFLOW_WEEKLY_WORK_HOURS_TOOLTIP = Nombre d'heures de travail attendu par défaut chaque semaine.
+TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER = Tâche obligatoire avant le chronomètre
+TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP = Demander une tâche avant d'autoriser le démarrage du chronomètre.
+TIMEFLOW_PROJECT_MODE = Mode de gestion des projets
+TIMEFLOW_PROJECT_MODE_TOOLTIP = Choisir comment les projets sont gérés : projets internes créés dans TimeFlow, Dolibarr Projects uniquement, ou les deux modes.
+TIMEFLOW_VALIDATE_RIGHT = Droit de validation
+TIMEFLOW_VALIDATE_RIGHT_TOOLTIP = Choisir quel droit TimeFlow peut valider les saisies de temps.
+TimeFlowRightRead = Lire les saisies de temps
+TimeFlowRightReadAll = Lire toutes les saisies de temps
+TimeFlowRightWrite = Créer / modifier les saisies de temps
+TimeFlowRightValidate = Valider les saisies de temps
+TimeFlowRightDelete = Supprimer les saisies de temps
+
+User = Utilisateur
+Project = Projet
+Task = Tâche
+DateStart = Date de début
+DateEnd = Date de fin
+Duration = Durée
+Note = Note
+Tags = Tags
+Billable = Facturable
+Status = Statut
+SubmittedBy = Soumis par
+ValidatedBy = Validé par
+Draft = Brouillon
+Submitted = Soumis
+Validated = Validé
+Refused = Refusé
+TimeEntry = Entrée de temps
+TimeEntrys = Entrées de temps
+Edit = Modifier
+Reason = Raison
+ReasonForEdit = Raison de la modification
+OriginalValue = Valeur originale
+NewValue = Nouvelle valeur
+ModificationDate = Date de modification
+ModifiedBy = Modifié par
+ProjectModeInternal = Projets internes
+ProjectModeDolibarr = Dolibarr Projects uniquement
+ProjectModeBoth = Les deux modes

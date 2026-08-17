@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getModificationHistory } from '../../api/clockifyApi';
+import { getModificationHistory } from '../../api/timeflowApi';
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -47,7 +47,7 @@ function editorName(row) {
 /**
  * Popup showing the full manual-correction history of a time entry.
  * Each entry displays the original vs corrected times, the reason, the
- * editor and the modification date, straight from llx_clockify_time_edit_log.
+ * editor and the modification date, straight from llx_timeflow_time_edit_log.
  */
 export default function EditHistoryModal({ entry, onClose }) {
   const [history, setHistory] = useState(null);

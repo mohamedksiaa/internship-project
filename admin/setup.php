@@ -18,9 +18,9 @@
  */
 
 /**
- * \file    clockify/admin/setup.php
- * \ingroup clockify
- * \brief   Clockify setup page.
+ * \file    timeflow/admin/setup.php
+ * \ingroup timeflow
+ * \brief   TimeFlow setup page.
  */
 
 // Load Dolibarr environment
@@ -57,7 +57,7 @@ if (!$res) {
 
 // Libraries
 require_once DOL_DOCUMENT_ROOT."/core/lib/admin.lib.php";
-require_once '../lib/clockify.lib.php';
+require_once '../lib/timeflow.lib.php';
 //require_once "../class/myclass.class.php";
 
 /**
@@ -69,11 +69,11 @@ require_once '../lib/clockify.lib.php';
  */
 
 // Translations
-$langs->loadLangs(array("admin", "clockify@clockify"));
+$langs->loadLangs(array("admin", "timeflow@timeflow"));
 
 // Initialize a technical object to manage hooks of page. Note that conf->hooks_modules contains an array of hook context
 /** @var HookManager $hookmanager */
-$hookmanager->initHooks(array('clockifysetup', 'globalsetup'));
+$hookmanager->initHooks(array('timeflowsetup', 'globalsetup'));
 
 // Parameters
 $action = GETPOST('action', 'aZ09');
@@ -111,37 +111,37 @@ if (!$user->admin) {
 // Enter here all parameters in your setup page
 
 // Default weekly work hours
-$item = $formSetup->newItem('CLOCKIFY_WEEKLY_WORK_HOURS');
+$item = $formSetup->newItem('TIMEFLOW_WEEKLY_WORK_HOURS');
 $item->defaultFieldValue = 35;
 $item->fieldAttr['type'] = 'number';
 $item->fieldAttr['min'] = 1;
 $item->fieldAttr['step'] = 1;
 $item->cssClass = 'minwidth100';
-$item->helpText = $langs->transnoentities('CLOCKIFY_WEEKLY_WORK_HOURS_TOOLTIP');
+$item->helpText = $langs->transnoentities('TIMEFLOW_WEEKLY_WORK_HOURS_TOOLTIP');
 
 // Ask for a task before starting the timer
-$item = $formSetup->newItem('CLOCKIFY_MANDATORY_TASK_BEFORE_TIMER');
+$item = $formSetup->newItem('TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER');
 $item->setAsYesNo();
-$item->helpText = $langs->transnoentities('CLOCKIFY_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP');
+$item->helpText = $langs->transnoentities('TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP');
 
 // Project management mode
-$item = $formSetup->newItem('CLOCKIFY_PROJECT_MODE');
+$item = $formSetup->newItem('TIMEFLOW_PROJECT_MODE');
 $item->setAsSelect(array('internal' => 'Internal projects only', 'dolibarr_only' => 'Dolibarr Projects only', 'both' => 'Both modes'));
 $item->defaultFieldValue = 'internal';
-$item->helpText = $langs->transnoentities('CLOCKIFY_PROJECT_MODE_TOOLTIP');
+$item->helpText = $langs->transnoentities('TIMEFLOW_PROJECT_MODE_TOOLTIP');
 
 // Permission used to validate entries
 $validationRights = array(
-	'read' => $langs->trans('ClockifyRightRead'),
-	'readall' => $langs->trans('ClockifyRightReadAll'),
-	'write' => $langs->trans('ClockifyRightWrite'),
-	'validate' => $langs->trans('ClockifyRightValidate'),
-	'delete' => $langs->trans('ClockifyRightDelete'),
+	'read' => $langs->trans('TimeFlowRightRead'),
+	'readall' => $langs->trans('TimeFlowRightReadAll'),
+	'write' => $langs->trans('TimeFlowRightWrite'),
+	'validate' => $langs->trans('TimeFlowRightValidate'),
+	'delete' => $langs->trans('TimeFlowRightDelete'),
 );
-$item = $formSetup->newItem('CLOCKIFY_VALIDATE_RIGHT');
+$item = $formSetup->newItem('TIMEFLOW_VALIDATE_RIGHT');
 $item->setAsSelect($validationRights);
 $item->defaultFieldValue = 'validate';
-$item->helpText = $langs->transnoentities('CLOCKIFY_VALIDATE_RIGHT_TOOLTIP');
+$item->helpText = $langs->transnoentities('TIMEFLOW_VALIDATE_RIGHT_TOOLTIP');
 
 // End of definition of parameters
 
@@ -151,7 +151,7 @@ $setupnotempty += count($formSetup->items);
 
 $dirmodels = array_merge(array('/'), (array) $conf->modules_parts['models']);
 
-$moduledir = 'clockify';
+$moduledir = 'timeflow';
 $myTmpObjects = array();
 // TODO Scan list of objects to fill this array
 $myTmpObjects['myobject'] = array('label' => 'MyObject', 'includerefgeneration' => 0, 'includedocgeneration' => 0, 'class' => 'MyObject');
@@ -202,7 +202,7 @@ if ($action == 'updateMask') {
 	$className = '';
 	$dirmodels = array_merge(array('/'), (array) $conf->modules_parts['models']);
 	foreach ($dirmodels as $reldir) {
-		$file = dol_buildpath($reldir."core/modules/clockify/doc/pdf_".$modele."_".strtolower($tmpobjectkey).".modules.php", 0);
+		$file = dol_buildpath($reldir."core/modules/timeflow/doc/pdf_".$modele."_".strtolower($tmpobjectkey).".modules.php", 0);
 		if (file_exists($file)) {
 			$className = "pdf_".$modele."_".strtolower($tmpobjectkey);
 			break;
@@ -218,7 +218,7 @@ if ($action == 'updateMask') {
 		'@phan-var-force ModelePDFMyObject $module';
 
 		if ($module->write_file($tmpobject, $langs) > 0) {
-			header("Location: ".DOL_URL_ROOT."/document.php?modulepart=clockify-".strtolower($tmpobjectkey)."&file=SPECIMEN.pdf");
+			header("Location: ".DOL_URL_ROOT."/document.php?modulepart=timeflow-".strtolower($tmpobjectkey)."&file=SPECIMEN.pdf");
 			return;
 		} else {
 			setEventMessages($module->error, null, 'errors');
@@ -231,7 +231,7 @@ if ($action == 'updateMask') {
 } elseif ($action == 'setmod') {
 	// TODO Check if numbering module chosen can be activated by calling method canBeActivated
 	if (!empty($tmpobjectkey)) {
-		$constforval = 'CLOCKIFY_'.strtoupper($tmpobjectkey)."_ADDON";
+		$constforval = 'TIMEFLOW_'.strtoupper($tmpobjectkey)."_ADDON";
 		dolibarr_set_const($db, $constforval, $value, 'chaine', 0, '', $conf->entity);
 	}
 } elseif ($action == 'set') {
@@ -241,7 +241,7 @@ if ($action == 'updateMask') {
 	$ret = delDocumentModel($value, $type);
 	if ($ret > 0) {
 		if (!empty($tmpobjectkey)) {
-			$constforval = 'CLOCKIFY_'.strtoupper($tmpobjectkey).'_ADDON_PDF';
+			$constforval = 'TIMEFLOW_'.strtoupper($tmpobjectkey).'_ADDON_PDF';
 			if (getDolGlobalString($constforval) == "$value") {
 				dolibarr_del_const($db, $constforval, $conf->entity);
 			}
@@ -250,7 +250,7 @@ if ($action == 'updateMask') {
 } elseif ($action == 'setdoc') {
 	// Set or unset default model
 	if (!empty($tmpobjectkey)) {
-		$constforval = 'CLOCKIFY_'.strtoupper($tmpobjectkey).'_ADDON_PDF';
+		$constforval = 'TIMEFLOW_'.strtoupper($tmpobjectkey).'_ADDON_PDF';
 		if (dolibarr_set_const($db, $constforval, $value, 'chaine', 0, '', $conf->entity)) {
 			// The constant that was read before the new set
 			// We therefore requires a variable to have a coherent view
@@ -265,7 +265,7 @@ if ($action == 'updateMask') {
 	}
 } elseif ($action == 'unsetdoc') {
 	if (!empty($tmpobjectkey)) {
-		$constforval = 'CLOCKIFY_'.strtoupper($tmpobjectkey).'_ADDON_PDF';
+		$constforval = 'TIMEFLOW_'.strtoupper($tmpobjectkey).'_ADDON_PDF';
 		dolibarr_del_const($db, $constforval, $conf->entity);
 	}
 }
@@ -280,9 +280,9 @@ $action = 'edit';
 $form = new Form($db);
 
 $help_url = '';
-$title = "ClockifySetup";
+$title = "TimeFlowSetup";
 
-llxHeader('', $langs->trans($title), $help_url, '', 0, 0, '', '', '', 'mod-clockify page-admin');
+llxHeader('', $langs->trans($title), $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-admin');
 
 // Subheader
 $linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1').'">'.img_picto($langs->trans("BackToModuleList"), 'back', 'class="pictofixedwidth"').'<span class="hideonsmartphone">'.$langs->trans("BackToModuleList").'</span></a>';
@@ -290,11 +290,11 @@ $linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/module
 print load_fiche_titre($langs->trans($title), $linkback, 'title_setup');
 
 // Configuration header
-$head = clockifyAdminPrepareHead();
-print dol_get_fiche_head($head, 'settings', $langs->trans($title), -1, "clockify@clockify");
+$head = timeflowAdminPrepareHead();
+print dol_get_fiche_head($head, 'settings', $langs->trans($title), -1, "timeflow@timeflow");
 
 // Setup page goes here
-echo '<span class="opacitymedium">'.$langs->trans("ClockifySetupPage").'</span><br><br>';
+echo '<span class="opacitymedium">'.$langs->trans("TimeFlowSetupPage").'</span><br><br>';
 
 
 /*if ($action == 'edit') {
@@ -376,7 +376,7 @@ foreach ($myTmpObjects as $myTmpObjectKey => $myTmpObjectArray) {
 								print '</td>'."\n";
 
 								print '<td class="center">';
-								$constforvar = 'CLOCKIFY_'.strtoupper($myTmpObjectKey).'_ADDON';
+								$constforvar = 'TIMEFLOW_'.strtoupper($myTmpObjectKey).'_ADDON';
 								$defaultifnotset = 'thevaluetousebydefault';
 								$activenumberingmodel = getDolGlobalString($constforvar, $defaultifnotset);
 								if ($activenumberingmodel == $file) {
@@ -525,7 +525,7 @@ foreach ($myTmpObjects as $myTmpObjectKey => $myTmpObjectArray) {
 
 										// Default
 										print '<td class="center">';
-										$constforvar = 'CLOCKIFY_'.strtoupper($myTmpObjectKey).'_ADDON_PDF';
+										$constforvar = 'TIMEFLOW_'.strtoupper($myTmpObjectKey).'_ADDON_PDF';
 										if (getDolGlobalString($constforvar) == $name) {
 											//print img_picto($langs->trans("Default"), 'on');
 											// Even if choice is the default value, we allow to disable it. Replace this with previous line if you need to disable unset

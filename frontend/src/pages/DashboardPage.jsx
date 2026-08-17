@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../components/templates/DashboardLayout';
-import { getSummaryReports, getWeeklyTimesheet } from '../api/clockifyApi';
+import { getSummaryReports, getWeeklyTimesheet } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 import {
   Bar,
@@ -75,7 +75,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
+  const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
 
   const weeklyChartData = useMemo(() => {
     const rows = Array.isArray(week.rows) ? week.rows : [];

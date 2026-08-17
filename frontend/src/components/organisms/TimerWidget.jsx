@@ -44,7 +44,7 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_3px_rgba(35,61,79,0.08)]">
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
           <input
-            id="clockify-description"
+            id="timeflow-description"
             name="description"
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -53,7 +53,7 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#03a9f4] focus:bg-white focus:ring-2 focus:ring-[#03a9f4]/10"
           />
           <input
-            id="clockify-project"
+            id="timeflow-project"
             name="project"
             value={projectLabel}
             onChange={(e) => handleProjectChange(e.target.value)}

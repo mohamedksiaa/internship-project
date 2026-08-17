@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { generateInvoiceLines, getDailyReports, getSummaryReports, markDailyReportRead } from '../api/clockifyApi';
+import { generateInvoiceLines, getDailyReports, getSummaryReports, markDailyReportRead } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 
 function currentMonthRange() {

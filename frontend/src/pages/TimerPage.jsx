@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import TimerWidget from '../components/organisms/TimerWidget';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-import { getProjects, getTasks, getTimeEntries, getTimeEntryUpdates } from '../api/clockifyApi';
+import { getProjects, getTasks, getTimeEntries, getTimeEntryUpdates } from '../api/timeflowApi';
 import { useTimer } from '../hooks/UseTimer.js';
 
-const canReadAll = typeof window !== 'undefined' && window.CLOCKIFY_CAN_READALL === true;
+const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
 
 export default function TimerPage() {
   const timer = useTimer();

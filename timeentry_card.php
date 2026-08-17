@@ -19,7 +19,7 @@
 
 /**
  *    \file       timeentry_card.php
- *    \ingroup    clockify
+ *    \ingroup    timeflow
  *    \brief      Page to create/edit/view timeentry
  */
 
@@ -92,11 +92,11 @@ if (!$res) {
 include_once DOL_DOCUMENT_ROOT.'/core/class/html.formcompany.class.php';
 include_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
 include_once DOL_DOCUMENT_ROOT.'/core/class/html.formprojet.class.php';
-dol_include_once('/clockify/class/timeentry.class.php');
-dol_include_once('/clockify/lib/clockify_timeentry.lib.php');
+dol_include_once('/timeflow/class/timeentry.class.php');
+dol_include_once('/timeflow/lib/timeflow_timeentry.lib.php');
 
 // Load translation files required by the page
-$langs->loadLangs(array("clockify@clockify", "other"));
+$langs->loadLangs(array("timeflow@timeflow", "other"));
 
 // Get parameters
 $id = GETPOSTINT('id');
@@ -116,7 +116,7 @@ $dol_openinpopup = GETPOST('dol_openinpopup', 'aZ09');
 // Initialize a technical objects
 $object = new TimeEntry($db);
 $extrafields = new ExtraFields($db);
-$diroutputmassaction = $conf->clockify->dir_output.'/temp/massgeneration/'.$user->id;
+$diroutputmassaction = $conf->timeflow->dir_output.'/temp/massgeneration/'.$user->id;
 $hookmanager->initHooks(array($object->element.'card', 'globalcard')); // Note that conf->hooks_modules contains array
 $soc = null;
 
@@ -144,13 +144,13 @@ include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be 'inclu
 
 // There is several ways to check permission.
 // Set $enablepermissioncheck to 1 to enable a minimum low level of checks
-$enablepermissioncheck = getDolGlobalInt('CLOCKIFY_ENABLE_PERMISSION_CHECK');
+$enablepermissioncheck = getDolGlobalInt('TIMEFLOW_ENABLE_PERMISSION_CHECK');
 if ($enablepermissioncheck) {
-	$permissiontoread = $user->hasRight('clockify', 'timeentry', 'read');
-	$permissiontoadd = $user->hasRight('clockify', 'timeentry', 'write'); // Used by the include of actions_addupdatedelete.inc.php and actions_lineupdown.inc.php
-	$permissiontodelete = $user->hasRight('clockify', 'timeentry', 'delete') || ($permissiontoadd && isset($object->status) && $object->status == $object::STATUS_DRAFT);
-	$permissionnote = $user->hasRight('clockify', 'timeentry', 'write'); // Used by the include of actions_setnotes.inc.php
-	$permissiondellink = $user->hasRight('clockify', 'timeentry', 'write'); // Used by the include of actions_dellink.inc.php
+	$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
+	$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_addupdatedelete.inc.php and actions_lineupdown.inc.php
+	$permissiontodelete = $user->hasRight('timeflow', 'timeentry', 'delete') || ($permissiontoadd && isset($object->status) && $object->status == $object::STATUS_DRAFT);
+	$permissionnote = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_setnotes.inc.php
+	$permissiondellink = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_dellink.inc.php
 } else {
 	$permissiontoread = 1;
 	$permissiontoadd = 1; // Used by the include of actions_addupdatedelete.inc.php and actions_lineupdown.inc.php
@@ -159,9 +159,9 @@ if ($enablepermissioncheck) {
 	$permissiondellink = 1;
 }
 
-$permissiontovalidate = !empty($user->rights->clockify->timeentry->validate) || $user->hasRight('clockify', 'timeentry', 'validate') || !empty($user->admin);
+$permissiontovalidate = !empty($user->rights->timeflow->timeentry->validate) || $user->hasRight('timeflow', 'timeentry', 'validate') || !empty($user->admin);
 
-$upload_dir = $conf->clockify->multidir_output[isset($object->entity) ? $object->entity : 1].'/timeentry';
+$upload_dir = $conf->timeflow->multidir_output[isset($object->entity) ? $object->entity : 1].'/timeentry';
 
 // Security check (enable at least one, the most restrictive one)
 //if ($user->socid > 0) accessforbidden();
@@ -189,14 +189,14 @@ if ($reshook < 0) {
 }
 
 if (empty($reshook)) {
-	$backurlforlist = dol_buildpath('/clockify/timeentry_list.php', 1);
+	$backurlforlist = dol_buildpath('/timeflow/timeentry_list.php', 1);
 
 	if (empty($backtopage) || ($cancel && empty($id))) {
 		if (empty($backtopage) || ($cancel && strpos($backtopage, '__ID__'))) {
 			if (empty($id) && (($action != 'add' && $action != 'create') || $cancel)) {
 				$backtopage = $backurlforlist;
 			} else {
-				$backtopage = dol_buildpath('/clockify/timeentry_card.php', 1).'?id='.((!empty($id) && $id > 0) ? $id : '__ID__');
+				$backtopage = dol_buildpath('/timeflow/timeentry_card.php', 1).'?id='.((!empty($id) && $id > 0) ? $id : '__ID__');
 			}
 		}
 	}
@@ -229,7 +229,7 @@ if (empty($reshook)) {
 	*/
 
 	// Actions to send emails
-	$triggersendname = 'CLOCKIFY_MYOBJECT_SENTBYMAIL';
+	$triggersendname = 'TIMEFLOW_MYOBJECT_SENTBYMAIL';
 	$autocopy = 'MAIN_MAIL_AUTOCOPY_MYOBJECT_TO';
 	$trackid = 'timeentry'.$object->id;
 	include DOL_DOCUMENT_ROOT.'/core/actions_sendmails.inc.php';
@@ -251,7 +251,7 @@ if ($action == 'create') {
 }
 $help_url = '';
 
-llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-clockify page-card');
+llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-card');
 
 // Example : Adding jquery code
 // print '<script type="text/javascript">
@@ -408,7 +408,7 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 
 	// Object card
 	// ------------------------------------------------------------
-	$linkback = '<a href="'.dol_buildpath('/clockify/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
+	$linkback = '<a href="'.dol_buildpath('/timeflow/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
 
 	$morehtmlref = '<div class="refidno">';
 	/*
@@ -611,11 +611,11 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 		if ($includedocgeneration) {
 			$objref = dol_sanitizeFileName($object->ref);
 			$relativepath = $objref.'/'.$objref.'.pdf';
-			$filedir = $conf->clockify->dir_output.'/'.$object->element.'/'.$objref;
+			$filedir = $conf->timeflow->dir_output.'/'.$object->element.'/'.$objref;
 			$urlsource = $_SERVER["PHP_SELF"]."?id=".$object->id;
 			$genallowed = $permissiontoread; // If you can read, you can build the PDF to read content
 			$delallowed = $permissiontoadd; // If you can create/edit, you can remove a file on card
-			print $formfile->showdocuments('clockify:TimeEntry', $object->element.'/'.$objref, $filedir, $urlsource, $genallowed, $delallowed, $object->model_pdf, 1, 0, 0, 28, 0, '', '', '', $langs->defaultlang);
+			print $formfile->showdocuments('timeflow:TimeEntry', $object->element.'/'.$objref, $filedir, $urlsource, $genallowed, $delallowed, $object->model_pdf, 1, 0, 0, 28, 0, '', '', '', $langs->defaultlang);
 		}
 
 		// Show links to link elements
@@ -634,7 +634,7 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 
 		$MAXEVENT = 10;
 
-		$morehtmlcenter = dolGetButtonTitle($langs->trans('SeeAll'), '', 'fa fa-bars imgforviewmode', dol_buildpath('/clockify/timeentry_agenda.php', 1).'?id='.$object->id);
+		$morehtmlcenter = dolGetButtonTitle($langs->trans('SeeAll'), '', 'fa fa-bars imgforviewmode', dol_buildpath('/timeflow/timeentry_agenda.php', 1).'?id='.$object->id);
 
 		$includeeventlist = 0;
 
@@ -656,7 +656,7 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 	// Presend form
 	$modelmail = 'timeentry';
 	$defaulttopic = 'InformationMessage';
-	$diroutput = $conf->clockify->dir_output;
+	$diroutput = $conf->timeflow->dir_output;
 	$trackid = 'timeentry'.$object->id;
 
 	include DOL_DOCUMENT_ROOT.'/core/tpl/card_presend.tpl.php';

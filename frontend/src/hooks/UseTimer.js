@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getActiveTimer, restartTimer, startTimer, stopTimer } from '../api/clockifyApi';
+import { getActiveTimer, restartTimer, startTimer, stopTimer } from '../api/timeflowApi';
 
 export function useTimer() {
   const [isRunning, setIsRunning] = useState(false);

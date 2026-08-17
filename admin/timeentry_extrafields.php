@@ -23,7 +23,7 @@
 
 /**
  *      \file       admin/timeentry_extrafields.php
- *		\ingroup    clockify
+ *		\ingroup    timeflow
  *		\brief      Page to setup extra fields of timeentry
  */
 
@@ -60,7 +60,7 @@ if (!$res) {
 }
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
-require_once '../lib/clockify.lib.php';
+require_once '../lib/timeflow.lib.php';
 
 /**
  * @var Conf $conf
@@ -71,7 +71,7 @@ require_once '../lib/clockify.lib.php';
  */
 
 // Load translation files required by the page
-$langs->loadLangs(array('clockify@clockify', 'admin'));
+$langs->loadLangs(array('timeflow@timeflow', 'admin'));
 
 $extrafields = new ExtraFields($db);
 $form = new Form($db);
@@ -81,7 +81,7 @@ $type2label = ExtraFields::getListOfTypesLabels();
 
 $action = GETPOST('action', 'aZ09');
 $attrname = GETPOST('attrname', 'alpha');
-$elementtype = 'clockify_timeentry'; //Must be the $table_element of the class that manage extrafield
+$elementtype = 'timeflow_timeentry'; //Must be the $table_element of the class that manage extrafield
 
 if (!$user->admin) {
 	accessforbidden();
@@ -103,18 +103,18 @@ require DOL_DOCUMENT_ROOT.'/core/actions_extrafields.inc.php';
 $textobject = $langs->transnoentitiesnoconv("TimeEntry");
 
 $help_url = '';
-$page_name = "ClockifySetup";
+$page_name = "TimeFlowSetup";
 
-llxHeader('', $langs->trans("ClockifySetup"), $help_url, '', 0, 0, '', '', '', 'mod-clockify page-admin_extrafields');
+llxHeader('', $langs->trans("TimeFlowSetup"), $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-admin_extrafields');
 
 
 $linkback = '<a href="'.dolBuildUrl(DOL_URL_ROOT.'/admin/modules.php', ['restore_lastsearch_values' => 1]).'">'.img_picto($langs->trans("BackToModuleList"), 'back', 'class="pictofixedwidth"').'<span class="hideonsmartphone">'.$langs->trans("BackToModuleList").'</span></a>';
 print load_fiche_titre($langs->trans($page_name), $linkback, 'title_setup');
 
 
-$head = clockifyAdminPrepareHead();
+$head = timeflowAdminPrepareHead();
 
-print dol_get_fiche_head($head, 'timeentry_extrafields', $langs->trans($page_name), -1, 'clockify@clockify');
+print dol_get_fiche_head($head, 'timeentry_extrafields', $langs->trans($page_name), -1, 'timeflow@timeflow');
 
 require DOL_DOCUMENT_ROOT.'/core/tpl/admin_extrafields_view.tpl.php';
 

@@ -1,0 +1,85 @@
+# Translation file
+
+#
+# Generic
+#
+
+# Module label 'ModuleTimeFlowName'
+ModuleTimeFlowName = TimeFlow
+# Module description 'ModuleTimeFlowDesc'
+ModuleTimeFlowDesc = TimeFlow description
+
+#
+# Admin page
+#
+TimeFlowSetup = TimeFlow setup
+Settings = Settings
+TimeFlowSetupPage = TimeFlow setup page
+NewSection=New section
+TIMEFLOW_MYPARAM1 = My param 1
+TIMEFLOW_MYPARAM1Tooltip = My param 1 tooltip
+TIMEFLOW_MYPARAM2=My param 2
+TIMEFLOW_MYPARAM2Tooltip=My param 2 tooltip
+
+
+#
+# About page
+#
+About = About
+TimeFlowAbout = About TimeFlow
+TimeFlowAboutPage = TimeFlow about page
+
+#
+# Sample page
+#
+TimeFlowArea = Home TimeFlow
+MyPageName = My page name
+
+#
+# Sample widget
+#
+MyWidget = My widget
+MyWidgetDescription = My widget description
+
+TIMEFLOW_WEEKLY_WORK_HOURS = Weekly work hours
+TIMEFLOW_WEEKLY_WORK_HOURS_TOOLTIP = Default number of work hours expected per week.
+TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER = Task required before timer
+TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP = Ask for a task before allowing the timer to start.
+TIMEFLOW_PROJECT_MODE = Project management mode
+TIMEFLOW_PROJECT_MODE_TOOLTIP = Choose how projects are managed: internal projects created in TimeFlow, Dolibarr Projects only, or both modes.
+TIMEFLOW_VALIDATE_RIGHT = Validation permission
+TIMEFLOW_VALIDATE_RIGHT_TOOLTIP = Choose which TimeFlow right can validate time entries.
+TimeFlowRightRead = Read time entries
+TimeFlowRightReadAll = Read all time entries
+TimeFlowRightWrite = Create/update time entries
+TimeFlowRightValidate = Validate time entries
+TimeFlowRightDelete = Delete time entries
+
+User = User
+Project = Project
+Task = Task
+DateStart = Start date
+DateEnd = End date
+Duration = Duration
+Note = Note
+Tags = Tags
+Billable = Billable
+Status = Status
+SubmittedBy = Submitted by
+ValidatedBy = Validated by
+Draft = Draft
+Submitted = Submitted
+Validated = Validated
+Refused = Refused
+TimeEntry = Time entry
+TimeEntrys = Time entries
+Edit = Edit
+Reason = Reason
+ReasonForEdit = Reason for modification
+OriginalValue = Original value
+NewValue = New value
+ModificationDate = Modification date
+ModifiedBy = Modified by
+ProjectModeInternal = Internal projects
+ProjectModeDolibarr = Dolibarr Projects only
+ProjectModeBoth = Both modes
