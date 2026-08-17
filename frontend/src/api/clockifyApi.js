@@ -212,9 +212,8 @@ function handleMockRequest(action, body) {
       return Promise.resolve({ status: 'success', data: [] });
 
     case 'saveDailyReport': {
-      const existing = mockDailyReports.find((report) => report.date_report === body?.date_report);
-      const report = { id: existing?.id || Date.now(), fk_user: 1, user_label: 'Utilisateur courant', date_report: body?.date_report, content: body?.content, is_read: false, read_at: null };
-      mockDailyReports = existing ? mockDailyReports.map((item) => item.id === existing.id ? report : item) : [report, ...mockDailyReports];
+      const report = { id: Date.now(), fk_user: 1, user_label: 'Utilisateur courant', date_report: body?.date_report, content: body?.content, is_read: false, read_at: null, date_creation: new Date().toISOString(), date_modification: new Date().toISOString() };
+      mockDailyReports = [report, ...mockDailyReports];
       return Promise.resolve({ status: 'success', data: report });
     }
     case 'getMyDailyReports':
