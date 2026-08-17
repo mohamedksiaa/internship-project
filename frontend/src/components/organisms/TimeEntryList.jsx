@@ -54,6 +54,7 @@ export default function TimeEntryList({
   const [busyId, setBusyId] = useState(null);
   const [entryToCorrect, setEntryToCorrect] = useState(null);
   const [correction, setCorrection] = useState({ date_start: '', date_end: '', reason: '' });
+  const [originalCorrection, setOriginalCorrection] = useState({ date_start: '', date_end: '' });
   const [historyEntry, setHistoryEntry] = useState(null);
   const [correctionError, setCorrectionError] = useState('');
 
@@ -140,9 +141,13 @@ export default function TimeEntryList({
     setError('');
     setCorrectionError('');
     setEntryToCorrect(entry);
-    setCorrection({
+    const original = {
       date_start: toDateTimeLocal(entry.date_start),
       date_end: toDateTimeLocal(entry.date_end),
+    };
+    setOriginalCorrection(original);
+    setCorrection({
+      ...original,
       reason: '',
     });
   };
@@ -164,11 +169,16 @@ export default function TimeEntryList({
     setBusyId(entryToCorrect.id);
     setCorrectionError('');
     try {
-      const payload = {
-        ...correction,
-        date_start: correction.date_start,
-        date_end: correction.date_end,
-      };
+      // datetime-local has no offset. Convert changed fields to ISO explicitly
+      // so PHP receives the employee's instant, not a server-local wall time.
+      // Do not send an untouched field: the server must preserve it verbatim.
+      const payload = { reason };
+      if (correction.date_start !== originalCorrection.date_start) payload.date_start = start.toISOString();
+      if (correction.date_end !== originalCorrection.date_end) payload.date_end = end.toISOString();
+      if (!Object.prototype.hasOwnProperty.call(payload, 'date_start') && !Object.prototype.hasOwnProperty.call(payload, 'date_end')) {
+        setCorrectionError('Aucune heure n’a été modifiée.');
+        return;
+      }
       const updated = await correctTimeEntry(entryToCorrect.id, payload);
       const next = entries.map((entry) => (entry.id === entryToCorrect.id ? { ...entry, ...updated } : entry));
       setEntries(next);
