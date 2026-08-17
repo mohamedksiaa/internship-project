@@ -19,7 +19,7 @@
 
 /**
  *  \file       timeentry_note.php
- *  \ingroup    clockify
+ *  \ingroup    timeflow
  *  \brief      Tab for notes on TimeEntry
  */
 
@@ -87,11 +87,11 @@ if (!$res) {
  * @var Translate $langs
  * @var User $user
  */
-dol_include_once('/clockify/class/timeentry.class.php');
-dol_include_once('/clockify/lib/clockify_timeentry.lib.php');
+dol_include_once('/timeflow/class/timeentry.class.php');
+dol_include_once('/timeflow/lib/timeflow_timeentry.lib.php');
 
 // Load translation files required by the page
-$langs->loadLangs(array("clockify@clockify", "companies"));
+$langs->loadLangs(array("timeflow@timeflow", "companies"));
 
 // Get parameters
 $id = GETPOSTINT('id');
@@ -103,7 +103,7 @@ $backtopage = GETPOST('backtopage', 'alpha');
 // Initialize a technical objects
 $object = new TimeEntry($db);
 $extrafields = new ExtraFields($db);
-$diroutputmassaction = $conf->clockify->dir_output.'/temp/massgeneration/'.$user->id;
+$diroutputmassaction = $conf->timeflow->dir_output.'/temp/massgeneration/'.$user->id;
 $hookmanager->initHooks(array($object->element.'note', 'globalcard')); // Note that conf->hooks_modules contains array
 // Fetch optionals attributes and labels
 $extrafields->fetch_name_optionals_label($object->table_element);
@@ -111,17 +111,17 @@ $extrafields->fetch_name_optionals_label($object->table_element);
 // Load object
 include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be 'include', not 'include_once'. Include fetch and fetch_thirdparty but not fetch_optionals
 if ($id > 0 || !empty($ref)) {
-	$upload_dir = $conf->clockify->multidir_output[empty($object->entity) ? $conf->entity : $object->entity]."/".$object->id;
+	$upload_dir = $conf->timeflow->multidir_output[empty($object->entity) ? $conf->entity : $object->entity]."/".$object->id;
 }
 
 
 // There is several ways to check permission.
 // Set $enablepermissioncheck to 1 to enable a minimum low level of checks
-$enablepermissioncheck = getDolGlobalInt('CLOCKIFY_ENABLE_PERMISSION_CHECK');
+$enablepermissioncheck = getDolGlobalInt('TIMEFLOW_ENABLE_PERMISSION_CHECK');
 if ($enablepermissioncheck) {
-	$permissiontoread = $user->hasRight('clockify', 'timeentry', 'read');
-	$permissiontoadd = $user->hasRight('clockify', 'timeentry', 'write');
-	$permissionnote = $user->hasRight('clockify', 'timeentry', 'write'); // Used by the include of actions_setnotes.inc.php
+	$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
+	$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write');
+	$permissionnote = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_setnotes.inc.php
 } else {
 	$permissiontoread = 1;
 	$permissiontoadd = 1;
@@ -133,7 +133,7 @@ if ($enablepermissioncheck) {
 //if ($user->socid > 0) $socid = $user->socid;
 //$isdraft = (($object->status == $object::STATUS_DRAFT) ? 1 : 0);
 //restrictedArea($user, $object->module, $object->id, $object->table_element, $object->element, 'fk_soc', 'rowid', $isdraft);
-if (!isModEnabled("clockify")) {
+if (!isModEnabled("timeflow")) {
 	accessforbidden();
 }
 if (!$permissiontoread) {
@@ -166,7 +166,7 @@ $title = $langs->trans('TimeEntry').' - '.$langs->trans("Notes");
 $help_url = '';
 //$help_url='EN:Customers_Orders|FR:Commandes_Clients|ES:Pedidos de clientes';
 
-llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-clockify page-card_notes');
+llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-card_notes');
 
 if ($id > 0 || !empty($ref)) {
 	$object->fetch_thirdparty();
@@ -177,7 +177,7 @@ if ($id > 0 || !empty($ref)) {
 
 	// Object card
 	// ------------------------------------------------------------
-	$linkback = '<a href="'.dol_buildpath('/clockify/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
+	$linkback = '<a href="'.dol_buildpath('/timeflow/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
 
 	$morehtmlref = '<div class="refidno">';
 	/*

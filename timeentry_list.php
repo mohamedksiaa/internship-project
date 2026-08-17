@@ -19,7 +19,7 @@
 
 /**
  *   	\file       timeentry_list.php
- *		\ingroup    clockify
+ *		\ingroup    timeflow
  *		\brief      List page for timeentry
  */
 
@@ -96,7 +96,7 @@ include_once __DIR__.'/class/timeentry.class.php';
 //dol_include_once('/othermodule/class/otherobject.class.php');
 
 // Load translation files required by the page
-$langs->loadLangs(array("clockify@clockify", "other"));
+$langs->loadLangs(array("timeflow@timeflow", "other"));
 
 // Get parameters
 $action     = GETPOST('action', 'aZ09') ? GETPOST('action', 'aZ09') : 'view'; // The action 'create'/'add', 'edit'/'update', 'view', ...
@@ -130,7 +130,7 @@ $pagenext = $page + 1;
 // Initialize technical objects
 $object = new TimeEntry($db);
 $extrafields = new ExtraFields($db);
-$diroutputmassaction = $conf->clockify->dir_output.'/temp/massgeneration/'.$user->id;
+$diroutputmassaction = $conf->timeflow->dir_output.'/temp/massgeneration/'.$user->id;
 $hookmanager->initHooks(array($contextpage)); 	// Note that conf->hooks_modules contains array of activated contexes
 
 // Fetch optionals attributes and labels
@@ -210,11 +210,11 @@ $arrayfields = dol_sort_array($arrayfields, 'position');
 
 // There is several ways to check permission.
 // Set $enablepermissioncheck to 1 to enable a minimum low level of checks
-$enablepermissioncheck = getDolGlobalInt('CLOCKIFY_ENABLE_PERMISSION_CHECK');
+$enablepermissioncheck = getDolGlobalInt('TIMEFLOW_ENABLE_PERMISSION_CHECK');
 if ($enablepermissioncheck) {
-	$permissiontoread = $user->hasRight('clockify', 'timeentry', 'read');
-	$permissiontoadd = $user->hasRight('clockify', 'timeentry', 'write');
-	$permissiontodelete = $user->hasRight('clockify', 'timeentry', 'delete');
+	$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
+	$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write');
+	$permissiontodelete = $user->hasRight('timeflow', 'timeentry', 'delete');
 } else {
 	$permissiontoread = 1;
 	$permissiontoadd = 1;
@@ -229,8 +229,8 @@ if ($user->socid > 0) {
 //$socid = 0; if ($user->socid > 0) $socid = $user->socid;
 //$isdraft = (($object->status == $object::STATUS_DRAFT) ? 1 : 0);
 //restrictedArea($user, $object->module, 0, $object->table_element, $object->element, 'fk_soc', 'rowid', $isdraft);
-if (!isModEnabled("clockify")) {
-	accessforbidden('Module clockify not enabled');
+if (!isModEnabled("timeflow")) {
+	accessforbidden('Module timeflow not enabled');
 }
 if (!$permissiontoread) {
 	accessforbidden();
@@ -280,7 +280,7 @@ if (empty($reshook)) {
 	// Mass actions
 	$objectclass = 'TimeEntry';
 	$objectlabel = 'TimeEntry';
-	$uploaddir = $conf->clockify->dir_output;
+	$uploaddir = $conf->timeflow->dir_output;
 
 	global $error;
 	include DOL_DOCUMENT_ROOT.'/core/actions_massactions.inc.php';
@@ -345,8 +345,8 @@ if (!empty($object->ismultientitymanaged) && (int) $object->ismultientitymanaged
 }
 
 // An employee may only list their own time entries. Admins and users granted
-// the dedicated Clockify "readall" right retain the global list.
-if (empty($user->admin) && !$user->hasRight('clockify', 'timeentry', 'readall')) {
+// the dedicated TimeFlow "readall" right retain the global list.
+if (empty($user->admin) && !$user->hasRight('timeflow', 'timeentry', 'readall')) {
 	$sql .= " AND t.fk_user = ".((int) $user->id);
 }
 foreach ($search as $key => $val) {
@@ -499,7 +499,7 @@ $num = $db->num_rows($resql);
 if ($num == 1 && getDolGlobalInt('MAIN_SEARCH_DIRECT_OPEN_IF_ONLY_ONE') && $search_all && !$page) {
 	$obj = $db->fetch_object($resql);
 	$id = $obj->rowid;
-	header("Location: ".dol_buildpath('/clockify/timeentry_card.php', 1).'?id='.((int) $id));
+	header("Location: ".dol_buildpath('/timeflow/timeentry_card.php', 1).'?id='.((int) $id));
 	exit;
 }
 
@@ -507,7 +507,7 @@ if ($num == 1 && getDolGlobalInt('MAIN_SEARCH_DIRECT_OPEN_IF_ONLY_ONE') && $sear
 // Output page
 // --------------------------------------------------------------------
 
-llxHeader('', $title, $help_url, '', 0, 0, $morejs, $morecss, '', 'mod-clockify page-list bodyforlist');	// Can use also classforhorizontalscrolloftabs instead of bodyforlist for a horizontal scroll in the table instead of page
+llxHeader('', $title, $help_url, '', 0, 0, $morejs, $morecss, '', 'mod-timeflow page-list bodyforlist');	// Can use also classforhorizontalscrolloftabs instead of bodyforlist for a horizontal scroll in the table instead of page
 
 // Example : Adding jquery code
 // print '<script type="text/javascript">
@@ -600,7 +600,7 @@ $newcardbutton .= dolGetButtonTitle($langs->trans('ViewKanban'), '', 'fa fa-th-l
 //$newcardbutton .= dolGetButtonTitle($langs->trans('ViewKanbanGroupBy'), '', 'fa fa-grip-vertical imgforviewmode', $_SERVER["PHP_SELF"].'?mode=kanbangroupby&groupby=p.fk_opp_status'.preg_replace('/(&|\?)*(mode|groupby)=[^&]+/', '', $param), '', ($mode == 'kanbangroupby' ? 2 : 1), array('morecss' => 'reposition'));
 //$newcardbutton .= dolGetButtonTitle($langs->trans('HierarchicView'), '', 'fa fa-stream paddingleft imgforviewmode', $_SERVER["PHP_SELF"].'?mode=hierarchy'.preg_replace('/(&|\?)*(mode|groupby)=[^&]+/', '', $param), '', (($mode == 'hierarchy') ? 2 : 1), array('morecss' => 'reposition'));
 $newcardbutton .= dolGetButtonTitleSeparator();
-$newcardbutton .= dolGetButtonTitle($langs->trans('New'), '', 'fa fa-plus-circle', dol_buildpath('/clockify/timeentry_card.php', 1).'?action=create&backtopage='.urlencode($_SERVER['PHP_SELF']), '', $permissiontoadd);
+$newcardbutton .= dolGetButtonTitle($langs->trans('New'), '', 'fa fa-plus-circle', dol_buildpath('/timeflow/timeentry_card.php', 1).'?action=create&backtopage='.urlencode($_SERVER['PHP_SELF']), '', $permissiontoadd);
 
 print_barre_liste($title, $page, $_SERVER["PHP_SELF"], $param, $sortfield, $sortorder, $massactionbutton, $num, $nbtotalofrecords, $object->picto, 0, $newcardbutton, '', $limit, 0, 0, 1);
 

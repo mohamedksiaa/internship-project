@@ -8,7 +8,7 @@ import ValidationPage from './pages/ValidationPage';
 import ProcessedHistoryPage from './pages/ProcessedHistoryPage';
 import DailyReportPage from './pages/DailyReportPage';
 
-const canValidate = typeof window !== 'undefined' && window.CLOCKIFY_CAN_VALIDATE === true;
+const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
 
 export default function App() {
   return (

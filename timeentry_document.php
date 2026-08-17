@@ -19,7 +19,7 @@
 
 /**
  *  \file       timeentry_document.php
- *  \ingroup    clockify
+ *  \ingroup    timeflow
  *  \brief      Tab for documents linked to TimeEntry
  */
 
@@ -90,11 +90,11 @@ include_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/lib/images.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
-dol_include_once('/clockify/class/timeentry.class.php');
-dol_include_once('/clockify/lib/clockify_timeentry.lib.php');
+dol_include_once('/timeflow/class/timeentry.class.php');
+dol_include_once('/timeflow/lib/timeflow_timeentry.lib.php');
 
 // Load translation files required by the page
-$langs->loadLangs(array("clockify@clockify", "companies", "other", "mails"));
+$langs->loadLangs(array("timeflow@timeflow", "companies", "other", "mails"));
 
 // Get parameters
 $action  = GETPOST('action', 'aZ09');
@@ -123,7 +123,7 @@ if (!$sortfield) {
 // Initialize a technical objects
 $object = new TimeEntry($db);
 $extrafields = new ExtraFields($db);
-$diroutputmassaction = $conf->clockify->dir_output.'/temp/massgeneration/'.$user->id;
+$diroutputmassaction = $conf->timeflow->dir_output.'/temp/massgeneration/'.$user->id;
 $hookmanager->initHooks(array($object->element.'document', 'globalcard')); // Note that conf->hooks_modules contains array
 
 // Fetch optionals attributes and labels
@@ -134,16 +134,16 @@ include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be 'inclu
 
 $upload_dir = null;
 if ($id > 0 || !empty($ref)) {
-	$upload_dir = $conf->clockify->multidir_output[$object->entity ? $object->entity : $conf->entity]."/timeentry/".get_exdir(0, 0, 0, 1, $object);
+	$upload_dir = $conf->timeflow->multidir_output[$object->entity ? $object->entity : $conf->entity]."/timeentry/".get_exdir(0, 0, 0, 1, $object);
 }
 
 // Permissions
 // (There are several ways to check permission.)
 // Set $enablepermissioncheck to 1 to enable a minimum low level of checks
-$enablepermissioncheck = getDolGlobalInt('CLOCKIFY_ENABLE_PERMISSION_CHECK');
+$enablepermissioncheck = getDolGlobalInt('TIMEFLOW_ENABLE_PERMISSION_CHECK');
 if ($enablepermissioncheck) {
-	$permissiontoread = $user->hasRight('clockify', 'timeentry', 'read');
-	$permissiontoadd  = $user->hasRight('clockify', 'timeentry', 'write'); // Used by the include of actions_addupdatedelete.inc.php and actions_linkedfiles.inc.php
+	$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
+	$permissiontoadd  = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_addupdatedelete.inc.php and actions_linkedfiles.inc.php
 } else {
 	$permissiontoread = 1;
 	$permissiontoadd  = 1;
@@ -154,7 +154,7 @@ if ($enablepermissioncheck) {
 //if ($user->socid > 0) $socid = $user->socid;
 //$isdraft = (($object->status == $object::STATUS_DRAFT) ? 1 : 0);
 //restrictedArea($user, $object->module, $object->id, $object->table_element, $object->element, 'fk_soc', 'rowid', $isdraft);
-if (!isModEnabled("clockify")) {
+if (!isModEnabled("timeflow")) {
 	accessforbidden();
 }
 if (!$permissiontoread) {
@@ -185,7 +185,7 @@ $title = $langs->trans("TimeEntry")." - ".$langs->trans("Files");
 //$title = $object->ref." - ".$langs->trans("Files");
 $help_url = '';
 //Example $help_url='EN:Module_Third_Parties|FR:Module_Tiers|ES:Empresas';
-llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-clockify page-card_document');
+llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-card_document');
 
 // Show tabs
 $head = timeentryPrepareHead($object);
@@ -202,7 +202,7 @@ foreach ($filearray as $key => $file) {
 
 // Object card
 // ------------------------------------------------------------
-$linkback = '<a href="'.dol_buildpath('/clockify/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
+$linkback = '<a href="'.dol_buildpath('/timeflow/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
 
 $morehtmlref = '<div class="refidno">';
 /*
@@ -248,7 +248,7 @@ print '</div>';
 
 print dol_get_fiche_end();
 
-$modulepart = 'clockify';
+$modulepart = 'timeflow';
 $param = '&id='.$object->id;
 //$relativepathwithnofile='timeentry/' . dol_sanitizeFileName($object->id).'/';
 $relativepathwithnofile = 'timeentry/'.dol_sanitizeFileName($object->ref).'/';

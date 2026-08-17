@@ -1,5 +1,5 @@
 <?php
-/* Copyright (C) 2026 SuperAdmin - Clockify Module */
+/* Copyright (C) 2026 SuperAdmin - TimeFlow Module */
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 
@@ -11,7 +11,7 @@ class TimeEntry extends CommonObject
 	/**
 	 * @var string 		ID of module.
 	 */
-	public $module = 'clockify';
+	public $module = 'timeflow';
 
 	/**
 	 * @var string 		ID to identify managed object.
@@ -22,20 +22,20 @@ class TimeEntry extends CommonObject
 	 * @var string		Prefix to check for any trigger code of any business class to prevent bad value for trigger code.
 	 * @see CommonTrigger::call_trigger()
 	 */
-	public $TRIGGER_PREFIX = 'CLOCKIFY_MYOBJECT';	// Will be used to build trgiger keys 'CLOCKIFY_MYOBJECT_MODIFY', ...
+	public $TRIGGER_PREFIX = 'TIMEFLOW_MYOBJECT';	// Will be used to build trgiger keys 'TIMEFLOW_MYOBJECT_MODIFY', ...
 
 	/**
 	 * @var string 		Name of table without prefix where object is stored. This is also the key used for extrafields management (so extrafields know the link to the parent table).
 	 */
-	public $table_element = 'clockify_timeentry';
+	public $table_element = 'timeflow_timeentry';
 
 	/**
-	 * @var string 		If permission must be checked with hasRight('clockify', 'read') and not hasright('clockify', 'timeentry', 'read'), you can uncomment this line
+	 * @var string 		If permission must be checked with hasRight('timeflow', 'read') and not hasright('timeflow', 'timeentry', 'read'), you can uncomment this line
 	 */
-	//public $element_for_permission = 'clockify';
+	//public $element_for_permission = 'timeflow';
 
 	/**
-	 * @var string 		String with name of icon for timeentry. Must be a 'fa-xxx' fontawesome code (or 'fa-xxx_fa_color_size') or 'timeentry@clockify' if picto is file 'img/object_timeentry.png'.
+	 * @var string 		String with name of icon for timeentry. Must be a 'fa-xxx' fontawesome code (or 'fa-xxx_fa_color_size') or 'timeentry@timeflow' if picto is file 'img/object_timeentry.png'.
 	 */
 	public $picto = 'fa-file';
 
@@ -168,6 +168,7 @@ public $fk_user_modif;
     const MOD_ACTION_MANUAL_EMPLOYEE = 'manual_employee';
     const MOD_ACTION_MANUAL_MANAGER = 'manual_manager';
     const MOD_ACTION_MANUAL_CREATE = 'manual_create';
+    const MOD_ACTION_DELETE = 'delete';
 
 
 	// If this object has a subtable with lines
@@ -175,7 +176,7 @@ public $fk_user_modif;
 	// /**
 	//  * @var string    Name of subtable line
 	//  */
-	// public $table_element_line = 'clockify_timeentryline';
+	// public $table_element_line = 'timeflow_timeentryline';
 
 	// /**
 	//  * @var string    Field name with ID of parent key if this object has a parent, Or Field name of in child tables to link to this record.
@@ -198,7 +199,7 @@ public $fk_user_modif;
 	//  *               call method ClassName->deleteByParentField(parentId, 'ParentFkFieldName') to fetch and delete child object.
 	//  *               Using an array like childtables should not be implemented because a child may have other child, so we must only use the method that call deleteByParentField().
 	//  */
-	// protected $childtablesoncascade = array('clockify_timeentrydet');
+	// protected $childtablesoncascade = array('timeflow_timeentrydet');
 
 	// /**
 	//  * @var TimeEntryLine[]     Array of subtable lines
@@ -226,7 +227,7 @@ public $fk_user_modif;
 		}
 
 		// Example to show how to set values of fields definition dynamically
-		/*if ($user->hasRight('clockify', 'timeentry', 'read')) {
+		/*if ($user->hasRight('timeflow', 'timeentry', 'read')) {
 			$this->fields['myfield']['visible'] = 1;
 			$this->fields['myfield']['noteditable'] = 0;
 		}*/
@@ -558,16 +559,16 @@ public $fk_user_modif;
         }
 
 		if ($isManualCorrection) {
-			dol_syslog('clockify.correctTimeEntry updateCommon_transaction_begin rowid='.(int) $this->id, LOG_INFO);
+			dol_syslog('timeflow.correctTimeEntry updateCommon_transaction_begin rowid='.(int) $this->id, LOG_INFO);
 		}
 		$result = $this->updateCommon($user, $notrigger);
 		if ($isManualCorrection) {
-			dol_syslog('clockify.correctTimeEntry updateCommon_transaction_'.($result > 0 ? 'commit' : 'rollback').' rowid='.(int) $this->id.' result='.(int) $result, LOG_INFO);
+			dol_syslog('timeflow.correctTimeEntry updateCommon_transaction_'.($result > 0 ? 'commit' : 'rollback').' rowid='.(int) $this->id.' result='.(int) $result, LOG_INFO);
 		}
 
 		if ($result > 0 && !empty($reason) && $this->id > 0) {
 			if ($isManualCorrection) {
-				dol_syslog('clockify.correctTimeEntry audit_insert_started rowid='.(int) $this->id, LOG_INFO);
+				dol_syslog('timeflow.correctTimeEntry audit_insert_started rowid='.(int) $this->id, LOG_INFO);
 			}
 			$this->logModifications($user, $oldValues, $reason, $auditAction);
 			if ($isManualCorrection) {
@@ -576,7 +577,7 @@ public $fk_user_modif;
 				}
 			}
 			if ($isManualCorrection) {
-				dol_syslog('clockify.correctTimeEntry audit_insert_finished rowid='.(int) $this->id, LOG_INFO);
+				dol_syslog('timeflow.correctTimeEntry audit_insert_finished rowid='.(int) $this->id, LOG_INFO);
 			}
         }
 
@@ -587,7 +588,7 @@ public $fk_user_modif;
      * Persist the manual-edit marker and the legacy correction record together.
      *
      * The manager list uses is_manually_edited as the authoritative badge flag;
-     * llx_clockify_time_edit_log remains the one-row correction summary used by
+     * llx_timeflow_time_edit_log remains the one-row correction summary used by
      * the popup and by installations upgraded from the original audit feature.
      */
     protected function recordManualTimeEdit(User $user, array $oldValues, array $newValues, string $reason)
@@ -606,7 +607,7 @@ public $fk_user_modif;
             return $this->db->idate((int) $value);
         };
 
-        $flagSql = 'UPDATE '.$this->db->prefix().'clockify_timeentry SET is_manually_edited = 1';
+        $flagSql = 'UPDATE '.$this->db->prefix().'timeflow_timeentry SET is_manually_edited = 1';
         $flagSql .= ' WHERE rowid = '.((int) $this->id);
         if (!$this->db->query($flagSql)) {
             $this->error = 'Impossible de marquer la correction manuelle : '.$this->db->lasterror();
@@ -614,7 +615,7 @@ public $fk_user_modif;
             return false;
         }
 
-        $sql = 'INSERT INTO '.$this->db->prefix().'clockify_time_edit_log';
+        $sql = 'INSERT INTO '.$this->db->prefix().'timeflow_time_edit_log';
         $sql .= ' (entity, fk_time_entry, fk_user_editor, date_modification, old_start, new_start, old_end, new_end, reason, ip, user_agent) VALUES (';
         $sql .= ((int) $this->entity).',' . ((int) $this->id).',' . ((int) $user->id).',';
         $sql .= "'".$this->db->idate($now)."',";
@@ -666,7 +667,7 @@ public $fk_user_modif;
             }
 
             if ($oldStr !== $newStr) {
-                $sql = 'INSERT INTO '.$this->db->prefix().'clockify_timeentry_modification';
+                $sql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
                 $sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat)';
                 $sql .= ' VALUES ('.$this->entity.',';
                 $sql .= ' '.((int) $this->id).',';
@@ -681,11 +682,11 @@ public $fk_user_modif;
                 $sql .= ')';
                 $isManualCorrection = in_array($action, array(self::MOD_ACTION_MANUAL_EMPLOYEE, self::MOD_ACTION_MANUAL_MANAGER), true);
                 if ($isManualCorrection) {
-                    dol_syslog('clockify.correctTimeEntry audit_insert_query rowid='.(int) $this->id.' field='.$field, LOG_INFO);
+                    dol_syslog('timeflow.correctTimeEntry audit_insert_query rowid='.(int) $this->id.' field='.$field, LOG_INFO);
                 }
                 $insertResult = $this->db->query($sql);
                 if ($isManualCorrection) {
-                    dol_syslog('clockify.correctTimeEntry audit_insert_result rowid='.(int) $this->id.' field='.$field.' result='.($insertResult ? 'success' : 'failure'), LOG_INFO);
+                    dol_syslog('timeflow.correctTimeEntry audit_insert_result rowid='.(int) $this->id.' field='.$field.' result='.($insertResult ? 'success' : 'failure'), LOG_INFO);
                 }
             }
         }
@@ -720,7 +721,7 @@ public $fk_user_modif;
 
 		$sql = 'SELECT t.rowid, t.date_start, t.date_end, t.note, p.title AS project_label';
 		$sql .= ' FROM '.$this->db->prefix().$this->table_element.' AS t';
-		$sql .= ' LEFT JOIN '.$this->db->prefix().'clockify_project AS p ON p.rowid = t.fk_project';
+		$sql .= ' LEFT JOIN '.$this->db->prefix().'timeflow_project AS p ON p.rowid = t.fk_project';
 		$sql .= ' WHERE t.entity IN ('.getEntity($this->element).')';
 		$sql .= ' AND t.fk_user = '.((int) $fkUser);
 		// Overlap logic: new.start < existing.end AND (existing.start < new.end)
@@ -795,8 +796,97 @@ public $fk_user_modif;
 	 */
 	public function delete(User $user, $notrigger = 0)
 	{
-		return $this->deleteCommon($user, $notrigger);
-		//return $this->deleteCommon($user, $notrigger, 1);
+		$entryId = (int) $this->id;
+		if ($entryId <= 0) {
+			$this->error = 'Entrée introuvable';
+			$this->errors[] = $this->error;
+			return -1;
+		}
+
+		// Do not rely on the object currently held by the caller: its status can
+		// be stale (or even be set by request data). Read the persisted value
+		// before evaluating the deletion policy.
+		$sql = 'SELECT status FROM '.$this->db->prefix().$this->table_element;
+		$sql .= ' WHERE rowid = '.$entryId;
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = 'Impossible de vérifier le statut réel de l’entrée avant suppression';
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' rowid='.$entryId.' '.$this->db->lasterror(), LOG_ERR);
+			return -1;
+		}
+
+		$entry = $this->db->fetch_object($resql);
+		if (!$entry) {
+			$this->error = 'Entrée introuvable';
+			$this->errors[] = $this->error;
+			return -1;
+		}
+
+		$this->status = (int) $entry->status;
+		if ($this->status !== self::STATUS_DRAFT && !self::canDeleteProcessedEntry($user)) {
+			$this->error = 'Suppression refusée : une entrée soumise, validée ou refusée est immuable pour un utilisateur normal';
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' deletion denied for processed rowid='.$entryId.' status='.$this->status.' user='.$user->id, LOG_WARNING);
+			return -1;
+		}
+
+		// Reload every field used by deleteCommon() and by the ownership policy.
+		if ($this->fetch($entryId) <= 0) {
+			$this->error = 'Entrée introuvable';
+			$this->errors[] = $this->error;
+			return -1;
+		}
+
+		if (!$this->isDeletionAllowedFor($user)) {
+			$this->error = 'Accès refusé';
+			$this->errors[] = $this->error;
+			return -1;
+		}
+
+		$deletedId = (int) $this->id;
+		$deletedAt = $this->db->idate(dol_now());
+		$result = $this->deleteCommon($user, $notrigger);
+		if ($result <= 0) {
+			return $result;
+		}
+
+		// Keep a durable audit row after the entry itself has disappeared.
+		// llx_timeflow_time_edit_log is intentionally not used here: its schema
+		// represents a start/end correction and has no action column.
+		$sql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
+		$sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
+		$sql .= ((int) $this->entity).','.$deletedId.','.((int) $user->id).',';
+		$sql .= " '".$this->db->escape(self::MOD_ACTION_DELETE)."',";
+		$sql .= " '_entry','".$this->db->escape((string) $deletedId)."','',";
+		$sql .= " 'Suppression de l’entrée de temps','".$this->db->escape($deletedAt)."',".((int) $user->id).')';
+		if (!$this->db->query($sql)) {
+			dol_syslog(__METHOD__.' audit log failed for rowid='.$deletedId.': '.$this->db->lasterror(), LOG_ERR);
+		}
+
+		return $result;
+	}
+
+	/** Whether the user has the explicit authority to delete a non-draft entry. */
+	public static function canDeleteProcessedEntry(User $user)
+	{
+		return !empty($user->admin) || $user->hasRight('timeflow', 'timeentry', 'deletevalidated');
+	}
+
+	/**
+	 * Deletion policy used both by the HTTP layer and the business method.
+	 * Drafts belong to their employee; every other status requires the explicit
+	 * deletevalidated authority, independently of ownership.
+	 */
+	public function isDeletionAllowedFor(User $user)
+	{
+		if ((int) $this->status !== self::STATUS_DRAFT) {
+			return self::canDeleteProcessedEntry($user);
+		}
+
+		$ownerId = !empty($this->fk_user) ? (int) $this->fk_user : (int) $this->fk_user_creat;
+		return !empty($user->admin)
+			|| ($user->hasRight('timeflow', 'timeentry', 'write') && $ownerId === (int) $user->id);
 	}
 
 	/**
@@ -839,8 +929,8 @@ public $fk_user_modif;
 			return 0;
 		}
 
-		/* if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify', 'timeentry', 'write'))
-		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify', 'timeentry_advance', 'validate')))
+		/* if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('timeflow', 'timeentry', 'write'))
+		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('timeflow', 'timeentry_advance', 'validate')))
 		 {
 		 $this->error='NotEnoughPermissions';
 		 dol_syslog(get_class($this)."::valid ".$this->error, LOG_ERR);
@@ -917,15 +1007,15 @@ public $fk_user_modif;
 				// We rename directory ($this->ref = old ref, $num = new ref) in order not to lose the attachments
 				$oldref = dol_sanitizeFileName($this->ref);
 				$newref = dol_sanitizeFileName($num);
-				$dirsource = $conf->clockify->dir_output.'/timeentry/'.$oldref;
-				$dirdest = $conf->clockify->dir_output.'/timeentry/'.$newref;
+				$dirsource = $conf->timeflow->dir_output.'/timeentry/'.$oldref;
+				$dirdest = $conf->timeflow->dir_output.'/timeentry/'.$newref;
 				if (!$error && file_exists($dirsource)) {
 					dol_syslog(get_class($this)."::validate() rename dir ".$dirsource." into ".$dirdest);
 
 					if (@rename($dirsource, $dirdest)) {
 						dol_syslog("Rename ok");
 						// Rename docs starting with $oldref with $newref
-						$listoffiles = dol_dir_list($conf->clockify->dir_output.'/timeentry/'.$newref, 'files', 1, '^'.preg_quote($oldref, '/'));
+						$listoffiles = dol_dir_list($conf->timeflow->dir_output.'/timeentry/'.$newref, 'files', 1, '^'.preg_quote($oldref, '/'));
 						foreach ($listoffiles as $fileentry) {
 							$dirsource = $fileentry['name'];
 							$dirdest = preg_replace('/^'.preg_quote($oldref, '/').'/', $newref, $dirsource);
@@ -968,14 +1058,14 @@ public $fk_user_modif;
 			return 0;
 		}
 
-		/* if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','write'))
-		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','clockify_advance','validate'))))
+		/* if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('timeflow','write'))
+		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('timeflow','timeflow_advance','validate'))))
 		 {
 		 $this->error='Permission denied';
 		 return -1;
 		 }*/
 
-		return $this->setStatusCommon($user, self::STATUS_DRAFT, $notrigger, 'CLOCKIFY_MYOBJECT_UNVALIDATE');
+		return $this->setStatusCommon($user, self::STATUS_DRAFT, $notrigger, 'TIMEFLOW_MYOBJECT_UNVALIDATE');
 	}
 
 	/**
@@ -992,14 +1082,14 @@ public $fk_user_modif;
 			return 0;
 		}
 
-		/* if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','write'))
-		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','clockify_advance','validate'))))
+		/* if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('timeflow','write'))
+		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('timeflow','timeflow_advance','validate'))))
 		 {
 		 $this->error='Permission denied';
 		 return -1;
 		 }*/
 
-		return $this->setStatusCommon($user, self::STATUS_CANCELED, $notrigger, 'CLOCKIFY_MYOBJECT_CANCEL');
+		return $this->setStatusCommon($user, self::STATUS_CANCELED, $notrigger, 'TIMEFLOW_MYOBJECT_CANCEL');
 	}
 
 	/**
@@ -1016,14 +1106,14 @@ public $fk_user_modif;
 			return 0;
 		}
 
-		/*if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','write'))
-		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('clockify','clockify_advance','validate'))))
+		/*if (! ((!getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('timeflow','write'))
+		 || (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('timeflow','timeflow_advance','validate'))))
 		 {
 		 $this->error='Permission denied';
 		 return -1;
 		 }*/
 
-		return $this->setStatusCommon($user, self::STATUS_VALIDATED, $notrigger, 'CLOCKIFY_MYOBJECT_REOPEN');
+		return $this->setStatusCommon($user, self::STATUS_VALIDATED, $notrigger, 'TIMEFLOW_MYOBJECT_REOPEN');
 	}
 
 	/**
@@ -1090,7 +1180,7 @@ public $fk_user_modif;
 			$label = implode($this->getTooltipContentArray($params));
 		}
 
-		$baseurl = dol_buildpath('/clockify/timeentry_card.php', 1);
+		$baseurl = dol_buildpath('/timeflow/timeentry_card.php', 1);
 		$query = ['id' => $this->id];
 		if ($option !== 'nolink') {
 			// Add param to save lastsearch_values or not
@@ -1267,7 +1357,7 @@ public $fk_user_modif;
 
 		if (empty($this->labelStatus) || empty($this->labelStatusShort)) {
 			global $langs;
-			//$langs->load("clockify@clockify");
+			//$langs->load("timeflow@timeflow");
 			$this->labelStatus[self::STATUS_DRAFT] = $langs->transnoentitiesnoconv('Draft');
 			$this->labelStatus[self::STATUS_VALIDATED] = $langs->transnoentitiesnoconv('Enabled');
 			$this->labelStatus[self::STATUS_CANCELED] = $langs->transnoentitiesnoconv('Refused');
@@ -1390,22 +1480,22 @@ public $fk_user_modif;
 	public function getNextNumRef()
 	{
 		global $langs, $conf;
-		$langs->load("clockify@clockify");
+		$langs->load("timeflow@timeflow");
 
-		if (!getDolGlobalString('CLOCKIFY_MYOBJECT_ADDON')) {
-			$conf->global->CLOCKIFY_MYOBJECT_ADDON = 'mod_timeentry_standard';
+		if (!getDolGlobalString('TIMEFLOW_MYOBJECT_ADDON')) {
+			$conf->global->TIMEFLOW_MYOBJECT_ADDON = 'mod_timeentry_standard';
 		}
 
-		if (getDolGlobalString('CLOCKIFY_MYOBJECT_ADDON')) {
+		if (getDolGlobalString('TIMEFLOW_MYOBJECT_ADDON')) {
 			$mybool = false;
 
-			$file = getDolGlobalString('CLOCKIFY_MYOBJECT_ADDON').".php";
-			$classname = getDolGlobalString('CLOCKIFY_MYOBJECT_ADDON');
+			$file = getDolGlobalString('TIMEFLOW_MYOBJECT_ADDON').".php";
+			$classname = getDolGlobalString('TIMEFLOW_MYOBJECT_ADDON');
 
 			// Include file with class
 			$dirmodels = array_merge(array('/'), (array) $conf->modules_parts['models']);
 			foreach ($dirmodels as $reldir) {
-				$dir = dol_buildpath($reldir."core/modules/clockify/");
+				$dir = dol_buildpath($reldir."core/modules/timeflow/");
 
 				// Load file with numbering class (if found)
 				$mybool = $mybool || @include_once $dir.$file;
@@ -1456,7 +1546,7 @@ public $fk_user_modif;
 		$result = 0;
 		$includedocgeneration = 0;
 
-		$langs->load("clockify@clockify");
+		$langs->load("timeflow@timeflow");
 
 		if (!dol_strlen($modele)) {
 			if (!empty($this->model_pdf)) {
@@ -1466,7 +1556,7 @@ public $fk_user_modif;
 			}
 		}
 
-		$modelpath = "core/modules/clockify/doc/";
+		$modelpath = "core/modules/timeflow/doc/";
 
 		if ($includedocgeneration && !empty($modele)) {
 			$result = $this->commonGenerateDocument($modelpath, $modele, $outputlangs, $hidedetails, $hidedesc, $hideref, $moreparams);
@@ -1544,7 +1634,7 @@ public $fk_user_modif;
 	}
 
 	/**
-	 * Start a timer. Project and task are optional Clockify metadata.
+	 * Start a timer. Project and task are optional TimeFlow metadata.
 	 *
 	 * @param int    $fk_user User id
 	 * @param int    $fk_project Project id (0 for no project)

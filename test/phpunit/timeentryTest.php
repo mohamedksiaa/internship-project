@@ -19,7 +19,7 @@
 
 /**
  * \file    test/phpunit/TimeEntryTest.php
- * \ingroup clockify
+ * \ingroup timeflow
  * \brief   PHPUnit test for TimeEntry class.
  */
 
@@ -28,7 +28,7 @@ global $conf, $user, $langs, $db;
 
 //require_once 'PHPUnit/Autoload.php';
 require_once dirname(__FILE__).'/../../htdocs/master.inc.php';
-require_once dirname(__FILE__).'/../../htdocs/clockify/class/timeentry.class.php';
+require_once dirname(__FILE__).'/../../htdocs/timeflow/class/timeentry.class.php';
 
 if (empty($user->id)) {
 	print "Load permissions for admin user nb 1\n";
@@ -246,11 +246,11 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$langs = $this->savlangs;
 		$db = $this->savdb;
 
-		$projectSql = 'SELECT rowid FROM '.$db->prefix().'clockify_project WHERE entity IN ('.getEntity('clockify_project').') ORDER BY rowid ASC'.$db->plimit(1);
+		$projectSql = 'SELECT rowid FROM '.$db->prefix().'timeflow_project WHERE entity IN ('.getEntity('timeflow_project').') ORDER BY rowid ASC'.$db->plimit(1);
 		$projectRes = $db->query($projectSql);
 		$project = $projectRes ? $db->fetch_object($projectRes) : null;
 		if (!$project) {
-			$this->markTestSkipped('Aucun projet Clockify disponible pour tester le démarrage du chrono.');
+			$this->markTestSkipped('Aucun projet TimeFlow disponible pour tester le démarrage du chrono.');
 		}
 
 		$localobject = new TimeEntry($db);
@@ -258,6 +258,60 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$this->assertGreaterThan(0, $result, $localobject->error ?: implode(', ', $localobject->errors));
 		$this->assertSame(0, (int) $localobject->is_manually_edited);
 		$localobject->stopTimer($result, $user);
+	}
+
+	/**
+	 * A normal user must never delete an entry once it has been validated.
+	 * The assertion reloads the row after the failed deletion attempt so this
+	 * protects against a false error returned after a DELETE was executed.
+	 *
+	 * @return void
+	 * @phan-suppress PhanUndeclaredMethod
+	 */
+	public function testValidatedEntryCannotBeDeletedByNormalUser()
+	{
+		global $conf, $user, $langs, $db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
+
+		$entry = new TimeEntry($db);
+		$now = dol_now();
+		$entryId = $entry->createManualEntry(
+			(int) $user->id,
+			0,
+			0,
+			$now - 3600,
+			$now,
+			'Test protection suppression validation',
+			'',
+			0,
+			$user,
+			null,
+			TimeEntry::STATUS_DRAFT
+		);
+		$this->assertGreaterThan(0, $entryId, $entry->error ?: implode(', ', $entry->errors));
+
+		$this->assertGreaterThan(0, $entry->validateEntry($entryId, $user, TimeEntry::STATUS_VALIDATED), $entry->error ?: implode(', ', $entry->errors));
+
+		// This is deliberately a non-admin user with no TimeFlow rights.  Its id
+		// matches the entry owner so the test proves the status rule, not merely
+		// an ownership denial.
+		$normalUser = new User($db);
+		$normalUser->id = (int) $user->id;
+		$normalUser->admin = 0;
+		$normalUser->rights = null;
+
+		$entryToDelete = new TimeEntry($db);
+		$this->assertGreaterThan(0, $entryToDelete->fetch($entryId));
+		$deleteResult = $entryToDelete->delete($normalUser);
+		$this->assertLessThan(0, $deleteResult);
+		$this->assertStringContainsString('immuable', $entryToDelete->error);
+
+		$persistedEntry = new TimeEntry($db);
+		$this->assertGreaterThan(0, $persistedEntry->fetch($entryId));
+		$this->assertSame(TimeEntry::STATUS_VALIDATED, (int) $persistedEntry->status);
 	}
 
 	/**

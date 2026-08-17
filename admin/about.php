@@ -18,9 +18,9 @@
  */
 
 /**
- * \file    clockify/admin/about.php
- * \ingroup clockify
- * \brief   About page of module Clockify.
+ * \file    timeflow/admin/about.php
+ * \ingroup timeflow
+ * \brief   About page of module TimeFlow.
  */
 
 // Load Dolibarr environment
@@ -58,7 +58,7 @@ if (!$res) {
 // Libraries
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
-require_once '../lib/clockify.lib.php';
+require_once '../lib/timeflow.lib.php';
 
 /**
  * @var Conf $conf
@@ -69,7 +69,7 @@ require_once '../lib/clockify.lib.php';
  */
 
 // Translations
-$langs->loadLangs(array("errors", "admin", "clockify@clockify"));
+$langs->loadLangs(array("errors", "admin", "timeflow@timeflow"));
 
 // Access control
 if (!$user->admin) {
@@ -95,9 +95,9 @@ $backtopage = GETPOST('backtopage', 'alpha');
 $form = new Form($db);
 
 $help_url = '';
-$title = "ClockifySetup";
+$title = "TimeFlowSetup";
 
-llxHeader('', $langs->trans($title), $help_url, '', 0, 0, '', '', '', 'mod-clockify page-admin_about');
+llxHeader('', $langs->trans($title), $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-admin_about');
 
 // Subheader
 $linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1').'">'.img_picto($langs->trans("BackToModuleList"), 'back', 'class="pictofixedwidth"').'<span class="hideonsmartphone">'.$langs->trans("BackToModuleList").'</span></a>';
@@ -105,11 +105,11 @@ $linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/module
 print load_fiche_titre($langs->trans($title), $linkback, 'title_setup');
 
 // Configuration header
-$head = clockifyAdminPrepareHead();
-print dol_get_fiche_head($head, 'about', $langs->trans($title), 0, 'clockify@clockify');
+$head = timeflowAdminPrepareHead();
+print dol_get_fiche_head($head, 'about', $langs->trans($title), 0, 'timeflow@timeflow');
 
-dol_include_once('/clockify/core/modules/modClockify.class.php');
-$tmpmodule = new modClockify($db);
+dol_include_once('/timeflow/core/modules/modTimeFlow.class.php');
+$tmpmodule = new modTimeFlow($db);
 print $tmpmodule->getDescLong();
 
 // Page end

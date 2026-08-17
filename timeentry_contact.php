@@ -19,7 +19,7 @@
 
 /**
  *  \file       timeentry_contact.php
- *  \ingroup    clockify
+ *  \ingroup    timeflow
  *  \brief      Tab for contacts linked to TimeEntry
  */
 
@@ -67,11 +67,11 @@ if (!$res) {
  */
 include_once DOL_DOCUMENT_ROOT.'/contact/class/contact.class.php';
 include_once DOL_DOCUMENT_ROOT.'/core/class/html.formcompany.class.php';
-dol_include_once('/clockify/class/timeentry.class.php');
-dol_include_once('/clockify/lib/clockify_timeentry.lib.php');
+dol_include_once('/timeflow/class/timeentry.class.php');
+dol_include_once('/timeflow/lib/timeflow_timeentry.lib.php');
 
 // Load translation files required by the page
-$langs->loadLangs(array("clockify@clockify", "companies", "other", "mails"));
+$langs->loadLangs(array("timeflow@timeflow", "companies", "other", "mails"));
 
 $id     = (GETPOST('id') ? GETPOSTINT('id') : GETPOSTINT('facid')); // For backward compatibility
 $ref    = GETPOST('ref', 'alpha');
@@ -82,7 +82,7 @@ $action = GETPOST('action', 'aZ09');
 // Initialize a technical objects
 $object = new TimeEntry($db);
 $extrafields = new ExtraFields($db);
-$diroutputmassaction = $conf->clockify->dir_output.'/temp/massgeneration/'.$user->id;
+$diroutputmassaction = $conf->timeflow->dir_output.'/temp/massgeneration/'.$user->id;
 $hookmanager->initHooks(array($object->element.'contact', 'globalcard')); // Note that conf->hooks_modules contains array
 // Fetch optionals attributes and labels
 $extrafields->fetch_name_optionals_label($object->table_element);
@@ -92,10 +92,10 @@ include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be 'inclu
 
 // There is several ways to check permission.
 // Set $enablepermissioncheck to 1 to enable a minimum low level of checks
-$enablepermissioncheck = getDolGlobalInt('CLOCKIFY_ENABLE_PERMISSION_CHECK');
+$enablepermissioncheck = getDolGlobalInt('TIMEFLOW_ENABLE_PERMISSION_CHECK');
 if ($enablepermissioncheck) {
-	$permissiontoread = $user->hasRight('clockify', 'timeentry', 'read');
-	$permissiontoadd = $user->hasRight('clockify', 'timeentry', 'write');
+	$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
+	$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write');
 } else {
 	$permissiontoread = 1;
 	$permissiontoadd = 1;
@@ -106,7 +106,7 @@ if ($enablepermissioncheck) {
 //if ($user->socid > 0) $socid = $user->socid;
 //$isdraft = (($object->status == $object::STATUS_DRAFT) ? 1 : 0);
 //restrictedArea($user, $object->module, $object->id, $object->table_element, $object->element, 'fk_soc', 'rowid', $isdraft);
-if (!isModEnabled("clockify")) {
+if (!isModEnabled("timeflow")) {
 	accessforbidden();
 }
 if (!$permissiontoread) {
@@ -158,7 +158,7 @@ $title = $langs->trans("TimeEntry")." - ".$langs->trans('ContactsAddresses');
 //$title = $object->ref." - ".$langs->trans('ContactsAddresses');
 $help_url = '';
 //$help_url='EN:Module_Third_Parties|FR:Module_Tiers|ES:Empresas';
-llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-clockify page-card_contact');
+llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-card_contact');
 
 $form = new Form($db);
 $formcompany = new FormCompany($db);
@@ -180,7 +180,7 @@ if ($object->id) {
 
 	print dol_get_fiche_head($head, 'contact', $langs->trans("TimeEntry"), -1, $object->picto);
 
-	$linkback = '<a href="'.dol_buildpath('/clockify/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
+	$linkback = '<a href="'.dol_buildpath('/timeflow/timeentry_list.php', 1).'?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
 
 	$morehtmlref = '<div class="refidno">';
 	/*

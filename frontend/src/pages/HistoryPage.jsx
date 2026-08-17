@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { getWeeklyTimesheet } from '../api/clockifyApi';
+import { getWeeklyTimesheet } from '../api/timeflowApi';
 
 function durationLabel(seconds) {
   const safeSeconds = Number(seconds) || 0;
@@ -252,7 +252,7 @@ export default function HistoryPage() {
                 </div>
               );
             }}
-            className="clockify-calendar"
+            className="timeflow-calendar"
           />
         </div>
       </div>

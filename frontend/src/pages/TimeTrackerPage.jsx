@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/templates/DashboardLayout';
 import TimerWidget from '../components/organisms/TimerWidget';
 import TimeEntryList from '../components/organisms/TimeEntryList';
-import { getProjects, getTasks, getTimeEntries } from '../api/clockifyApi';
+import { getProjects, getTasks, getTimeEntries } from '../api/timeflowApi';
 
 const fallbackProjects = [
   { id: 1, title: 'Projet Alpha' },

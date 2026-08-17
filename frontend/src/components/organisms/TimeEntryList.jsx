@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
-import { approveTimeEntry, correctTimeEntry, rejectTimeEntry, submitEntry } from '../../api/clockifyApi';
+import { approveTimeEntry, correctTimeEntry, deleteTimeEntry, rejectTimeEntry, submitEntry } from '../../api/timeflowApi';
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
 import EditHistoryModal from '../molecules/EditHistoryModal.jsx';
 
 function entryDate(value) {
-  if (!value) return new Date(0);
+  // An absent date must never be rendered as 1 January 1970. It is either
+  // displayed in the explicit “date non renseignée” group or rejected by
+  // controls that require a persisted entry id.
+  if (!value) return new Date(Number.NaN);
   const raw = String(value);
   return /^[0-9]+$/.test(raw) ? new Date(Number(raw) * (raw.length === 10 ? 1000 : 1)) : new Date(value);
 }
@@ -67,13 +70,16 @@ export default function TimeEntryList({
     (Number(entry.fk_user) > 0 ? `Utilisateur #${entry.fk_user}` : '—');
 
   const displayedDuration = (entry) => (
-    Number(entry.id) === Number(activeEntryId) ? Number(activeSeconds || 0) : Number(entry.duration || 0)
+    activeEntryId != null && entry.id != null && Number(entry.id) === Number(activeEntryId)
+      ? Number(activeSeconds || 0)
+      : Number(entry.duration || 0)
   );
 
   const groups = useMemo(
     () =>
       entries.reduce((result, entry) => {
-        const key = entryDate(entry.date_start).toDateString();
+        const date = entryDate(entry.date_start);
+        const key = Number.isNaN(date.getTime()) ? 'unknown-date' : date.toDateString();
         (result[key] ||= []).push(entry);
         return result;
       }, {}),
@@ -128,6 +134,25 @@ export default function TimeEntryList({
     try {
       const updated = await submitEntry(entry.id);
       const next = entries.map((item) => (item.id === entry.id ? { ...item, ...updated, status: 1 } : item));
+      setEntries(next);
+      setParentEntries?.(next);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const deleteEntry = async (entry) => {
+    const message = entry.delete_requires_strong_confirmation
+      ? 'Cette entrée a été soumise, validée ou refusée. Confirmer sa suppression définitive ?'
+      : 'Supprimer définitivement cette entrée de temps ? Cette action est irréversible.';
+    if (!window.confirm(message)) return;
+    setBusyId(entry.id);
+    setError('');
+    try {
+      await deleteTimeEntry(entry.id);
+      const next = entries.filter((item) => Number(item.id) !== Number(entry.id));
       setEntries(next);
       setParentEntries?.(next);
     } catch (err) {
@@ -219,7 +244,7 @@ export default function TimeEntryList({
         return (
           <div key={key} className="border-b-4 border-[#e3ebef] bg-white overflow-x-auto">
             <div className="flex items-center justify-between bg-[#e5edf1] px-5 py-2 text-sm text-[#52656f]">
-              <span>{dateLabel(group[0].date_start)}</span>
+              <span>{key === 'unknown-date' ? 'Date non renseignée' : dateLabel(group[0].date_start)}</span>
               <span>
                 Total:&nbsp; <strong className="text-sm text-[#2a3c47]">{formatDuration(total)}</strong>
               </span>
@@ -279,7 +304,7 @@ export default function TimeEntryList({
                     </td>
                     <td className="px-5 py-3 text-right whitespace-nowrap">
                       <div className="flex justify-end items-center gap-2 text-[#78909c]">
-                        {entry.status === 0 && (
+                        {entry.id != null && entry.status === 0 && (
                           <button
                             title="Soumettre"
                             onClick={() => submitDraft(entry)}
@@ -309,7 +334,7 @@ export default function TimeEntryList({
                             </button>
                           </>
                         )}
-                        {onRestartEntry && <button
+                        {entry.id != null && onRestartEntry && <button
                           title="Démarrer à nouveau"
                           onClick={() => restartEntry(entry)}
                           disabled={busyId !== null}
@@ -320,7 +345,7 @@ export default function TimeEntryList({
                         {/* Validation is a strictly read/approve/reject manager view.
                             Never render a manual-edit control there, even if an API
                             payload incorrectly flags an entry as editable. */}
-                        {!showValidationActions && entry.manual_editable && (
+                        {!showValidationActions && entry.id != null && entry.manual_editable && (
                           <button
                             type="button"
                             title="Modifier cette entrée"
@@ -330,6 +355,18 @@ export default function TimeEntryList({
                             className="text-[#03a9f4]"
                           >
                             Modifier
+                          </button>
+                        )}
+                        {!showValidationActions && entry.id != null && entry.delete_allowed && (
+                          <button
+                            type="button"
+                            title="Supprimer cette entrée"
+                            aria-label="Supprimer cette entrée"
+                            onClick={() => deleteEntry(entry)}
+                            disabled={busyId !== null}
+                            className="text-[#d64c4c] disabled:opacity-50"
+                          >
+                            {busyId === entry.id ? '…' : '🗑'}
                           </button>
                         )}
                         <span
