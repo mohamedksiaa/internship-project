@@ -265,6 +265,8 @@ export async function startTimer(projectLabel = '', fkTask = 0, note = '') {
     fk_task: fkTask,
     note,
     project_label: projectLabel,
+    // Explicit flag: caller started without selecting a project
+    allow_no_project: projectLabel === '' ? true : false,
   });
   const payload = data?.data ?? data;
   const numericId = typeof payload === 'number' || (typeof payload === 'string' && /^\d+$/.test(payload.trim()));

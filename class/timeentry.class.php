@@ -118,11 +118,11 @@ class TimeEntry extends CommonObject
 		"note" => array("type" => "text", "label" => "Note", "enabled" => "1", 'position' => 40, 'notnull' => 0, "visible" => "1",),
 		"tags" => array("type" => "text", "label" => "Tags", "enabled" => "1", 'position' => 42, 'notnull' => 0, "visible" => "1",),
 		"billable" => array("type" => "boolean", "label" => "Billable", "enabled" => "1", 'position' => 45, 'notnull' => 0, "visible" => "1",),
-		"thm" => array("type" => "double(24,8)", "label" => "HourlyRate", "enabled" => "1", 'position' => 46, 'notnull' => 0, "visible" => "1", "isameasure" => 0, "help" => "HourlyRateCapturedAtEntryTime"),
-		"amount" => array("type" => "price", "label" => "Amount", "enabled" => "1", 'position' => 47, 'notnull' => 0, "visible" => "1", "isameasure" => 1, "help" => "ComputedFromDurationAndHourlyRate"),
+		"thm" => array("type" => "double(24,8)", "label" => "HourlyRate", "enabled" => "1", 'position' => 46, 'notnull' => 0, "visible" => "1", "help" => "HourlyRateCapturedAtEntryTime",),
+		"amount" => array("type" => "price", "label" => "Amount", "enabled" => "1", 'position' => 47, 'notnull' => 0, "visible" => "1", "isameasure" => "1", "help" => "ComputedFromDurationAndHourlyRate",),
 		"fk_facture" => array("type" => "integer:Facture:compta/facture/class/facture.class.php", "label" => "Invoice", "enabled" => "1", 'position' => 48, 'notnull' => 0, "visible" => "1",),
 		"date_invoice" => array("type" => "datetime", "label" => "DateInvoiced", "enabled" => "1", 'position' => 49, 'notnull' => 0, "visible" => "1",),
-		"status" => array("type" => "integer", "label" => "Status", "enabled" => "1", 'position' => 50, 'notnull' => 1, "visible" => "1", "arrayofkeyval" => array("0" => "Draft", "1" => "Submitted", "2" => "Validated", "9" => "Refused"),),
+		"status" => array("type" => "integer", "label" => "Status", "enabled" => "1", 'position' => 50, 'notnull' => 1, "visible" => "1", "arrayofkeyval" => array("0" => "Brouillon", "1" => "Soumis", "2" => "Valid&eacute;", "9" => "Refus&eacute;"),),
 		"date_submit" => array("type" => "datetime", "label" => "DateSubmit", "enabled" => "1", 'position' => 52, 'notnull' => 0, "visible" => "1",),
 		"fk_user_submit" => array("type" => "integer:User:user/class/user.class.php", "label" => "SubmittedBy", "enabled" => "1", 'position' => 54, 'notnull' => 0, "visible" => "1",),
 		"fk_user_valid" => array("type" => "integer:User:user/class/user.class.php", "label" => "ValidatedBy", "enabled" => "1", 'position' => 55, 'notnull' => 0, "visible" => "1",),
@@ -156,9 +156,9 @@ class TimeEntry extends CommonObject
 	public $date_creation;
 	public $tms;
 	public $fk_user_creat;
-public $fk_user_modif;
-    public $import_key;
-    // END MODULEBUILDER PROPERTIES
+	public $fk_user_modif;
+	public $import_key;
+	// END MODULEBUILDER PROPERTIES
 
     const MOD_ACTION_EDIT = 'edit';
     const MOD_ACTION_SUBMIT = 'submit';

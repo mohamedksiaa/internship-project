@@ -81,7 +81,12 @@ function timeflowStartTimerRejected($reason, array $context = array())
         'reason' => $reason,
         'user_id' => (int) $GLOBALS['user']->id,
     ), $context)), LOG_WARNING);
-    timeflowJsonResponse(array('status' => 'error', 'message' => $reason), 400);
+    // Include the context in the JSON response to aid debugging (temporary).
+    $payload = array('status' => 'error', 'message' => $reason);
+    if (!empty($context)) {
+        $payload['context'] = $context;
+    }
+    timeflowJsonResponse($payload, 400);
 }
 
 /**
@@ -833,13 +838,10 @@ switch ($action) {
             'note_length' => mb_strlen(trim((string) $note)),
         )), LOG_INFO);
 
-        // Validation métier : un projet et une description (3 caractères minimum) sont obligatoires
-        // pour démarrer un chrono. Cette vérification est faite côté serveur pour bloquer aussi
-        // les requêtes directes qui contourneraient la désactivation du bouton côté client.
+        // Validation métier : une description (3 caractères minimum) est obligatoire.
+        // Le démarrage sans projet est autorisé (cas où aucun projet n'est disponible),
+        // mais une tâche référencée nécessite toujours un projet associé.
         $noteTrimmed = trim((string) $note);
-        if ($fk_project <= 0 && $projectLabel === '') {
-            timeflowStartTimerRejected('Veuillez sélectionner un projet et décrire votre tâche (3 caractères minimum) avant de démarrer.', array('stage' => 'missing_project'));
-        }
         if (mb_strlen($noteTrimmed) < 3) {
             timeflowStartTimerRejected('Veuillez décrire votre tâche (3 caractères minimum) avant de démarrer.', array('stage' => 'short_note'));
         }
