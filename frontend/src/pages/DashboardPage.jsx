@@ -7,7 +7,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -50,7 +49,11 @@ export default function DashboardPage() {
         if (isMounted) {
           setLoading(true);
         }
-        const [summaryData, weekData] = await Promise.all([getSummaryReports(), getWeeklyTimesheet()]);
+        // Load weekly timesheet first to get the week range, then request
+        // summary reports restricted to the same date range so the "Total
+        // semaine" matches the breakdown shown in the chart.
+        const weekData = await getWeeklyTimesheet();
+        const summaryData = await getSummaryReports(1000, weekData?.weekStart ?? '', weekData?.weekEnd ?? '');
         if (isMounted) {
           setSummary(summaryData || null);
           setWeek(weekData || { weekStart: '', weekEnd: '', rows: [] });
@@ -111,6 +114,10 @@ export default function DashboardPage() {
   }, [summary]);
 
   const teamRows = useMemo(() => {
+    // Do not compute team aggregation when the current user cannot read all
+    // entries — avoids unnecessary work and guarantees no accidental
+    // exposure in the UI.
+    if (!canReadAll) return [];
     const rows = Array.isArray(week.rows) ? week.rows : [];
     const map = new Map();
     for (const entry of rows) {
@@ -142,7 +149,7 @@ export default function DashboardPage() {
       }
     }
     return Array.from(map.values()).sort((left, right) => right.total - left.total);
-  }, [week.rows]);
+  }, [week.rows, canReadAll]);
 
   const summaryStats = useMemo(() => ({
     totalSeconds: Number(summary?.total_seconds || 0),
@@ -158,7 +165,7 @@ export default function DashboardPage() {
       {!loading && !error && (
         <>
           <div className="grid gap-6 xl:grid-cols-2">
-            <section className="rounded-3xl border border-[#dce5ea] bg-white p-5 shadow-sm">
+            <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">Semaine</p>
@@ -173,15 +180,13 @@ export default function DashboardPage() {
                     <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
                     <YAxis tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
                     <Tooltip formatter={(value) => formatDuration(value)} />
-                    <Legend />
-                    <Bar dataKey="billable" stackId="a" fill="#03a9f4" name="Billable" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="nonBillable" stackId="a" fill="#c8d6df" name="Non billable" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="total" fill="#03a9f4" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </section>
 
-            <section className="rounded-3xl border border-[#dce5ea] bg-white p-5 shadow-sm">
+            <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">Projets</p>
@@ -205,8 +210,17 @@ export default function DashboardPage() {
             </section>
           </div>
 
+          {/* Diagnostic console log to verify the canReadAll flag for the current user. Remove after verification. */}
+          {(() => {
+            if (typeof window !== 'undefined') {
+              // eslint-disable-next-line no-console
+              console.log('TIMEFLOW DEBUG: canReadAll=', canReadAll, 'TIMEFLOW_USER_ID=', window.TIMEFLOW_USER_ID, 'weekRows=', (week.rows || []).length);
+            }
+            return null;
+          })()}
+
           {canReadAll && (
-            <section className="rounded-3xl border border-[#dce5ea] bg-white p-5 shadow-sm">
+            <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">Équipe</p>
@@ -248,7 +262,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <DashboardLayout summary={summaryStats}>
+    <DashboardLayout summary={summaryStats} canReadAll={canReadAll}>
       {dashboardContent}
     </DashboardLayout>
   );
