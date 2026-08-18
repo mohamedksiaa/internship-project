@@ -326,10 +326,7 @@ class modTimeFlow extends DolibarrModules
 		$this->rights[$r][4] = 'timeentry';
 		$this->rights[$r][5] = 'deletevalidated';
 		$r++;
-		$this->rights[$r][0] = $this->numero . sprintf('%02d', 6);
-		$this->rights[$r][1] = 'Valider les entrées de temps';
-		$this->rights[$r][4] = 'valider';
-		$r++;
+		// entry 50000006 removed: 'Valider les entrées de temps' (perms 'valider')
 
 		/* END MODULEBUILDER PERMISSIONS */
 

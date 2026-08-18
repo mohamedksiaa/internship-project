@@ -283,6 +283,42 @@ function timeflowTimeEntryScopeFilter($user, $scope = 'entries')
 }
 
 /**
+ * Helper: return true when the `date_delete` column exists on the timeentry table.
+ * Uses a simple information_schema probe and caches result per-request.
+ *
+ * @param DoliDB $db
+ * @return bool
+ */
+function timeflowHasDateDeleteColumn($db)
+{
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
+    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'date_delete' LIMIT 1";
+    $res = $db->query($sql);
+    $cached = ($res && $db->num_rows($res) > 0);
+    return $cached;
+}
+
+/**
+ * Helper: return true when the `date_delete` column exists on the timeentry table.
+ * Uses a simple information_schema probe and caches result per-request.
+ *
+ * @param DoliDB $db
+ * @return bool
+ */
+function timeflowHasDateDeleteColumn($db)
+{
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
+    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'date_delete' LIMIT 1";
+    $res = $db->query($sql);
+    $cached = ($res && $db->num_rows($res) > 0);
+    return $cached;
+}
+
+/**
  * Return a fingerprint of every value rendered by a time-entry table row.
  *
  * COUNT/MAX(tms) is insufficient: an update to an existing row can leave
@@ -296,6 +332,9 @@ function timeflowGetUpdateMarker($db, $user, $scope = 'entries')
     $sql .= ' t.billable, t.status, t.date_submit, t.fk_user_submit, t.fk_user_valid';
     $sql .= ' FROM '.$db->prefix().'timeflow_timeentry AS t';
     $sql .= ' WHERE '.timeflowTimeEntryScopeFilter($user, $scope);
+    if (timeflowHasDateDeleteColumn($db)) {
+        $sql .= ' AND t.date_delete IS NULL';
+    }
     $sql .= ' ORDER BY t.rowid ASC';
 
     $resql = $db->query($sql);
@@ -709,6 +748,9 @@ function timeflowProcessedHistoryWhere($input)
         $where[] = 'EXISTS (SELECT 1 FROM '.$db->prefix().'timeflow_timeentry_modification m WHERE m.fk_timeentry = t.rowid'
             ." AND m.action IN ('".TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE."','".TimeEntry::MOD_ACTION_MANUAL_MANAGER."','".TimeEntry::MOD_ACTION_MANUAL_CREATE."'))";
     }
+    if (timeflowHasDateDeleteColumn($db)) {
+        $where[] = 't.date_delete IS NULL';
+    }
     return implode(' AND ', $where);
 }
 
@@ -742,7 +784,11 @@ function timeflowGetProcessedHistory($input)
         $rows[] = $row;
     }
     $employees = array();
-    $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.') ORDER BY u.lastname, u.firstname, u.login';
+    $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')';
+    if (timeflowHasDateDeleteColumn($db)) {
+        $employeeSql .= ' AND t.date_delete IS NULL';
+    }
+    $employeeSql .= ' ORDER BY u.lastname, u.firstname, u.login';
     $employeeRes = $db->query($employeeSql);
     while ($employeeRes && ($obj = $db->fetch_object($employeeRes))) $employees[] = array('id'=>(int) $obj->fk_user, 'label'=>trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));
     return array('rows'=>$rows, 'employees'=>$employees, 'pagination'=>array('page'=>$page, 'per_page'=>$perPage, 'total'=>$total, 'pages'=>max(1, (int) ceil($total / $perPage))), 'stats'=>array('validated_seconds'=>(int) ($statsObj->validated_seconds ?? 0), 'refused_count'=>(int) ($statsObj->refused_count ?? 0), 'manual_count'=>(int) ($statsObj->manual_count ?? 0)));
