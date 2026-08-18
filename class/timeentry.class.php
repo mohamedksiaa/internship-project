@@ -470,6 +470,10 @@ class TimeEntry extends CommonObject
 		} else {
 			$sql .= " WHERE 1 = 1";
 		}
+		// If the soft-delete column exists, exclude soft-deleted rows from normal fetches.
+		if ($this->hasDatabaseColumn($this->table_element, 'date_delete')) {
+			$sql .= " AND t.date_delete IS NULL";
+		}
 
 		// Manage filter
 		$errormessage = '';
@@ -732,6 +736,10 @@ class TimeEntry extends CommonObject
 			// Exclude the entry currently being edited to avoid self-conflict
 			$sql .= ' AND t.rowid <> '.((int) $excludeId);
 		}
+		// Exclude soft-deleted entries if the column exists.
+		if ($this->hasDatabaseColumn($this->table_element, 'date_delete')) {
+			$sql .= " AND t.date_delete IS NULL";
+		}
 		$sql .= ' ORDER BY t.date_start ASC, t.rowid ASC';
 
 		$resql = $this->db->query($sql);
@@ -846,9 +854,37 @@ class TimeEntry extends CommonObject
 
 		$deletedId = (int) $this->id;
 		$deletedAt = $this->db->idate(dol_now());
-		$result = $this->deleteCommon($user, $notrigger);
-		if ($result <= 0) {
-			return $result;
+		// For draft entries, keep existing hard-delete behavior.
+		if ($this->status === self::STATUS_DRAFT) {
+			$result = $this->deleteCommon($user, $notrigger);
+			if ($result <= 0) {
+				return $result;
+			}
+		} else {
+			// For submitted/validated/refused entries, perform a soft-delete:
+			// mark `date_delete` and `fk_user_delete` instead of removing the row.
+			if (!$this->hasDatabaseColumn($this->table_element, 'date_delete')) {
+				$this->error = 'Soft-delete not available: database column missing';
+				$this->errors[] = $this->error;
+				dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' missing column', LOG_ERR);
+				return -1;
+			}
+			$sql = 'UPDATE '.$this->db->prefix().$this->table_element
+			     ." SET date_delete = '".$this->db->idate(dol_now())."', fk_user_delete = ".((int) $user->id)
+			     .' WHERE rowid = '.($deletedId)
+			     ." AND (date_delete IS NULL OR date_delete = '')";
+			$resql = $this->db->query($sql);
+			if (!$resql) {
+				$this->error = 'Impossible de marquer l\'entrée comme supprimée: '.$this->db->lasterror();
+				$this->errors[] = $this->error;
+				dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' '.$this->db->lasterror(), LOG_ERR);
+				return -1;
+			}
+				if (!$notrigger) {
+					// Preserve triggers/hooks that modules may expect on deletion.
+					$this->call_trigger('TIMEFLOW_TIMEENTRY_DELETE', $user);
+				}
+			$result = 1;
 		}
 
 		// Keep a durable audit row after the entry itself has disappeared.
