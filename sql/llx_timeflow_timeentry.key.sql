@@ -14,7 +14,6 @@
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 -- BEGIN MODULEBUILDER INDEXES
 ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_rowid (rowid);
-ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_entity (entity);
 ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_fk_user (fk_user);
 ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_fk_project (fk_project);
 -- END MODULEBUILDER INDEXES
