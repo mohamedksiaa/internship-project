@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { generateInvoiceLines, getDailyReports, getSummaryReports, markDailyReportRead } from '../api/timeflowApi';
+import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
 
 function currentMonthRange() {
@@ -28,7 +29,7 @@ export default function ReportsPage() {
   const [dailyEmployees, setDailyEmployees] = useState([]);
   const [dailyEmployeeId, setDailyEmployeeId] = useState('');
   const [dailyError, setDailyError] = useState('');
-  const [expandedReports, setExpandedReports] = useState({});
+  const [selectedReport, setSelectedReport] = useState(null);
 
   const reportsToShow = dailyReports;
 
@@ -98,8 +99,12 @@ export default function ReportsPage() {
     }
   }
 
-  function toggleExpand(id) {
-    setExpandedReports((prev) => ({ ...prev, [id]: !prev[id] }));
+  function openReportModal(report) {
+    setSelectedReport(report);
+  }
+
+  function closeReportModal() {
+    setSelectedReport(null);
   }
 
   return (
@@ -176,49 +181,39 @@ export default function ReportsPage() {
             <p className="text-sm text-slate-500">Aucun rapport journalier sur cette période.</p>
           ) : (
             <div className="space-y-3">
-              {dailyReports.map((report) => {
-                const isOpen = !!expandedReports[report.id];
-                return (
-                  <article key={report.id} className="rounded-2xl border border-slate-200 p-4">
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => toggleExpand(report.id)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleExpand(report.id); }}
-                      className="flex flex-wrap items-center justify-between gap-3 cursor-pointer"
-                    >
-                      <div>
-                        <strong className="text-slate-900">{report.user_label}</strong>
-                        <span className="ml-3 text-sm text-slate-500">{report.date_report}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {report.is_read ? (
-                          <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">Lu</span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); markRead(report.id); }}
-                            className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"
-                          >
-                            Nouveau — marquer comme lu
-                          </button>
-                        )}
+              {dailyReports.map((report) => (
+                <article key={report.id} className="rounded-2xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <strong className="text-slate-900">{report.user_label}</strong>
+                      <span className="ml-3 text-sm text-slate-500">{report.date_report}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {report.is_read ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">Lu</span>
+                      ) : (
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); toggleExpand(report.id); }}
-                          aria-expanded={isOpen}
-                          className="text-sm text-slate-600"
+                          onClick={(e) => { e.stopPropagation(); markRead(report.id); }}
+                          className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"
                         >
-                          {isOpen ? '▲ Réduire' : '▼ Lire le rapport'}
+                          Nouveau — marquer comme lu
                         </button>
-                      </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openReportModal(report); }}
+                        className="text-sm text-slate-600"
+                      >
+                        Lire le rapport
+                      </button>
                     </div>
-                    <div className={`mt-3 accordion-content ${isOpen ? 'open' : ''}`} aria-hidden={!isOpen}>
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{report.content}</p>
-                    </div>
-                  </article>
-                );
-              })}
+                  </div>
+                </article>
+              ))}
+              {selectedReport && (
+                <ReadDailyReportModal report={selectedReport} onClose={closeReportModal} />
+              )}
             </div>
           )}
         </div>
