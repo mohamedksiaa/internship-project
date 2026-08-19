@@ -40,6 +40,8 @@ function normalizeEntry(entry) {
     // This capability comes from the server; never infer it from UI state.
     delete_allowed: entry.delete_allowed === true || Number(entry.delete_allowed) === 1,
     delete_requires_strong_confirmation: entry.delete_requires_strong_confirmation === true || Number(entry.delete_requires_strong_confirmation) === 1,
+    // Soft-delete flag provided by the server; fallback to presence of date_delete.
+    is_deleted: entry.is_deleted === true || Number(entry.is_deleted) === 1 || (entry.date_delete && entry.date_delete !== ''),
   };
 }
 
