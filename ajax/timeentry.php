@@ -301,24 +301,6 @@ function timeflowHasDateDeleteColumn($db)
 }
 
 /**
- * Helper: return true when the `date_delete` column exists on the timeentry table.
- * Uses a simple information_schema probe and caches result per-request.
- *
- * @param DoliDB $db
- * @return bool
- */
-function timeflowHasDateDeleteColumn($db)
-{
-    static $cached = null;
-    if ($cached !== null) return $cached;
-    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
-    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'date_delete' LIMIT 1";
-    $res = $db->query($sql);
-    $cached = ($res && $db->num_rows($res) > 0);
-    return $cached;
-}
-
-/**
  * Return a fingerprint of every value rendered by a time-entry table row.
  *
  * COUNT/MAX(tms) is insufficient: an update to an existing row can leave

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { generateInvoiceLines, getDailyReports, getSummaryReports, markDailyReportRead } from '../api/timeflowApi';
+import { getDailyReports, getSummaryReports, markDailyReportRead } from '../api/timeflowApi';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
 
@@ -22,7 +22,6 @@ function currentMonthRange() {
 export default function ReportsPage() {
   const [dateRange, setDateRange] = useState(currentMonthRange);
   const [summary, setSummary] = useState(null);
-  const [invoiceLines, setInvoiceLines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dailyReports, setDailyReports] = useState([]);
@@ -61,21 +60,7 @@ export default function ReportsPage() {
     };
   }, [dateRange]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    generateInvoiceLines()
-      .then((invoiceData) => {
-        if (isMounted) {
-          setInvoiceLines(Array.isArray(invoiceData) ? invoiceData : []);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  // invoiceLines and invoice generation are unused in our workflow and were removed.
 
   useEffect(() => {
     let isMounted = true;
@@ -140,37 +125,24 @@ export default function ReportsPage() {
         {loading && <p className="text-sm text-slate-600">Chargement…</p>}
         {error && <p className="text-sm text-rose-600">{error}</p>}
         {!loading && !error && summary && (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><p className="text-sm font-semibold text-slate-500">Total</p><p className="mt-2 text-2xl font-semibold text-slate-900">{formatDuration(summary.total_seconds)}</p></div>
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><p className="text-sm font-semibold text-slate-500">Billable</p><p className="mt-2 text-2xl font-semibold text-slate-900">{formatDuration(summary.billable_seconds)}</p></div>
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><p className="text-sm font-semibold text-slate-500">Non billable</p><p className="mt-2 text-2xl font-semibold text-slate-900">{formatDuration(summary.non_billable_seconds)}</p></div>
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><p className="text-sm font-semibold text-slate-500">Lignes facture</p><p className="mt-2 text-2xl font-semibold text-slate-900">{invoiceLines.length}</p></div>
+          <div className="mb-6 flex justify-center">
+            <div className="w-full max-w-2xl rounded-lg bg-slate-50 p-6 border border-slate-200 text-center">
+              <p className="text-sm font-semibold text-slate-500">Total</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900">{formatDuration(summary.total_seconds)}</p>
+            </div>
           </div>
         )}
         {!loading && !error && summary && (
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <div className="mt-6">
             <div className="rounded-3xl border border-slate-200 p-5">
               <p className="text-sm font-semibold text-slate-500">Par projet</p>
               <div className="mt-3 space-y-2 text-sm text-slate-700">
                 {Object.entries(summary.by_project || {}).map(([projectId, total]) => <div key={projectId} className="flex items-center justify-between"><span>{summary.project_labels?.[projectId] || `Projet #${projectId}`}</span><strong>{formatDuration(total)}</strong></div>)}
               </div>
             </div>
-            <div className="rounded-3xl border border-slate-200 p-5">
-              <p className="text-sm font-semibold text-slate-500">Par tag</p>
-              <div className="mt-3 space-y-2 text-sm text-slate-700">
-                {Object.entries(summary.by_tag || {}).map(([tag, total]) => <div key={tag} className="flex items-center justify-between"><span>{tag}</span><strong>{formatDuration(total)}</strong></div>)}
-              </div>
-            </div>
           </div>
         )}
-        {!loading && !error && invoiceLines.length > 0 && (
-          <div className="mt-6">
-            <p className="text-sm font-semibold text-slate-500">Préparation de facture</p>
-            <div className="mt-3 space-y-2 text-sm text-slate-700">
-              {invoiceLines.map((line, index) => <div key={`${line.description}-${index}`} className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3"><span>{line.description}</span><strong>{line.qty_hours} h</strong></div>)}
-            </div>
-          </div>
-        )}
+        {/* Invoice lines removed from the UI per requirements. */}
       </div>
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-6"><p className="text-sm font-semibold uppercase tracking-[.24em] text-slate-500">Rapports journaliers</p><h2 className="text-2xl font-semibold text-slate-900">Comptes-rendus des employés</h2><p className="mt-2 text-sm text-slate-600">Lecture et suivi des rapports textuels, indépendamment des statistiques de temps ci-dessus.</p></div>

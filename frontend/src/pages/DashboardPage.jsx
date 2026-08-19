@@ -210,15 +210,6 @@ export default function DashboardPage() {
             </section>
           </div>
 
-          {/* Diagnostic console log to verify the canReadAll flag for the current user. Remove after verification. */}
-          {(() => {
-            if (typeof window !== 'undefined') {
-              // eslint-disable-next-line no-console
-              console.log('TIMEFLOW DEBUG: canReadAll=', canReadAll, 'TIMEFLOW_USER_ID=', window.TIMEFLOW_USER_ID, 'weekRows=', (week.rows || []).length);
-            }
-            return null;
-          })()}
-
           {canReadAll && (
             <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
               <div className="mb-4 flex items-center justify-between gap-3">
