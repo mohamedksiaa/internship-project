@@ -32,13 +32,13 @@ body.mod-timeflow #id-container {
     margin: 0 !important;
 }
 
-/* === 3. #id-right: full viewport width, no padding/margin on itself or children === */
+/* === 3. #id-right: full viewport width. Do NOT reset children padding/margin here
+   because React components manage their own spacing (cards, headers). === */
 body.mod-timeflow #id-right,
 body.mod-timeflow #id-right > * {
     width: 100vw !important;
     max-width: 100vw !important;
-    padding: 0 !important;
-    margin: 0 !important;
+    /* Keep children padding/margin intact so component-level spacing works. */
     overflow-x: hidden !important;
     box-sizing: border-box;
 }
@@ -53,13 +53,7 @@ body.mod-timeflow #root {
     margin: 0 !important;
 }
 
-/* === 5. Reset any wrapper margin/padding around root === */
-body.mod-timeflow .fichecenter,
-body.mod-timeflow .main-content,
-body.mod-timeflow .page_all,
-body.mod-timeflow .content {
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100vw !important;
-    max-width: 100vw !important;
-}
+/* === 5. Do not forcibly reset wrapper padding/margins. React app controls layout.
+   Previously this removed necessary spacing inside cards; leaving defaults
+   ensures Tailwind paddings (p-6, etc.) apply correctly. === */
+/* Intentionally left blank. */

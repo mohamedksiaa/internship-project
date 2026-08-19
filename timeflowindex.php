@@ -167,8 +167,7 @@ $canReadAllFlag = (bool) ($user->admin || $user->hasRight('timeflow', 'timeentry
 print 'window.TIMEFLOW_CAN_READALL = '.json_encode($canReadAllFlag).';';
 print 'window.TIMEFLOW_CAN_VALIDATE = '.json_encode((bool) ($user->admin || !empty($user->rights->timeflow->valider) || $user->hasRight('timeflow', 'valider') || $user->hasRight('timeflow', 'timeentry', 'validate'))).';';
 
-// Diagnostic server-side trace to help investigate incorrect readall flags.
-dol_syslog('timeflow.page load user_id='.(int)$user->id.' can_readall='.(int)$canReadAllFlag, LOG_DEBUG);
+// Removed temporary diagnostic server-side trace.
 print '</script>';
 if ($jsUrl) {
 	print '<script type="module" crossorigin src="'.$jsUrl.'" defer></script>';
