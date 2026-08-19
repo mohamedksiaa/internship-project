@@ -145,6 +145,22 @@ function handleMockRequest(action, body) {
       if (mockActiveTimer?.id === id) mockActiveTimer = null;
       return Promise.resolve({ status: 'success', data: { id } });
     }
+    case 'hardDeleteTimeEntry': {
+      const id = Number(body?.id);
+      if (!Number.isFinite(id) || id <= 0) return Promise.reject(new Error('Entrée introuvable.'));
+      const index = mockEntries.findIndex((item) => item.id === id);
+      if (index >= 0) mockEntries.splice(index, 1);
+      return Promise.resolve({ status: 'success', data: { id, deleted: true } });
+    }
+    case 'hardDeleteTimeEntries': {
+      const ids = Array.isArray(body?.ids) ? body.ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0) : [];
+      if (!ids.length) return Promise.reject(new Error('Aucune entrée sélectionnée.'));
+      for (const id of ids) {
+        const index = mockEntries.findIndex((entry) => entry.id === id);
+        if (index >= 0) mockEntries.splice(index, 1);
+      }
+      return Promise.resolve({ status: 'success', data: { deleted: ids.length, ids } });
+    }
     case 'getValidationEntries':
       return Promise.resolve({ status: 'success', data: mockEntries.filter((entry) => Number(entry.status) === 1) });
     case 'getUpdateMarker':
@@ -301,6 +317,16 @@ export async function restartTimer(id) {
 
 export async function deleteTimeEntry(id) {
   const data = await moduleTimerRequest('deleteTimeEntry', { id });
+  return data?.data ?? data;
+}
+
+export async function hardDeleteTimeEntry(id) {
+  const data = await moduleTimerRequest('hardDeleteTimeEntry', { id });
+  return data?.data ?? data;
+}
+
+export async function hardDeleteTimeEntries(ids = []) {
+  const data = await moduleTimerRequest('hardDeleteTimeEntries', { ids: Array.from(ids) });
   return data?.data ?? data;
 }
 

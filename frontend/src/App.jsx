@@ -9,6 +9,7 @@ import ProcessedHistoryPage from './pages/ProcessedHistoryPage';
 import DailyReportPage from './pages/DailyReportPage';
 
 const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
+const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
 
 export default function App() {
   return (
@@ -22,7 +23,7 @@ export default function App() {
           <Route path="daily-report" element={<DailyReportPage />} />
           <Route path="reports" element={canValidate ? <ReportsPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="validation" element={canValidate ? <ValidationPage /> : <Navigate to="/dashboard" replace />} />
-          <Route path="processed-history" element={canValidate ? <ProcessedHistoryPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="processed-history" element={canReadAll ? <ProcessedHistoryPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
