@@ -340,4 +340,118 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$this->assertLessThan($result, 0);
 		return $result;
 	}
+
+	/**
+	 * testSoftDeleteSetsDateAndUser
+	 *
+	 * Verifies that deleting a validated entry by an admin produces a soft-delete
+	 * by setting `date_delete` (and `fk_user_delete` when available).
+	 */
+	public function testSoftDeleteSetsDateAndUser()
+	{
+		global $conf, $user, $langs, $db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
+
+		// Create a draft entry and validate it so deletion will soft-delete.
+		$entry = new TimeEntry($db);
+		$now = dol_now();
+		$entryId = $entry->createManualEntry(
+			(int) $user->id,
+			0,
+			0,
+			$now - 3600,
+			$now,
+			'Test soft-delete',
+			'',
+			0,
+			$user,
+			null,
+			TimeEntry::STATUS_DRAFT
+		);
+		$this->assertGreaterThan(0, $entryId, $entry->error ?: implode(', ', $entry->errors));
+
+		$this->assertGreaterThan(0, $entry->validateEntry($entryId, $user, TimeEntry::STATUS_VALIDATED), $entry->error ?: implode(', ', $entry->errors));
+
+		// Use admin user to perform deletion which should succeed.
+		$admin = new User($db);
+		$admin->fetch(1);
+		$admin->admin = 1;
+
+		$toDelete = new TimeEntry($db);
+		$this->assertGreaterThan(0, $toDelete->fetch($entryId));
+		$delResult = $toDelete->delete($admin);
+		$this->assertGreaterThan(0, $delResult, $toDelete->error ?: implode(', ', $toDelete->errors));
+
+		// Inspect raw row to ensure soft-delete columns are set when present.
+		$sql = 'SELECT date_delete, fk_user_delete FROM '.$db->prefix().'timeflow_timeentry WHERE rowid = '.((int) $entryId);
+		$res = $db->query($sql);
+		$this->assertNotFalse($res);
+		$row = $db->fetch_object($res);
+		// date_delete must be set
+		$this->assertNotNull($row->date_delete);
+		// If fk_user_delete column exists, it must match admin id
+		if (property_exists($row, 'fk_user_delete')) {
+			$this->assertSame((int) $admin->id, (int) $row->fk_user_delete);
+		}
+
+		/**
+		 * testSoftDeletedEntryVisibility
+		 *
+		 * Validates that a soft-deleted entry is removed from active lists
+		 * (fetchAll/fetchVisible) but remains present when querying the
+		 * processed history (by status = validated).
+		 */
+		public function testSoftDeletedEntryVisibility()
+		{
+			global $conf, $user, $langs, $db;
+			$conf = $this->savconf;
+			$user = $this->savuser;
+			$langs = $this->savlangs;
+			$db = $this->savdb;
+
+			$entry = new TimeEntry($db);
+			$now = dol_now();
+			$entryId = $entry->createManualEntry(
+				(int) $user->id,
+				0,
+				0,
+				$now - 3600,
+				$now,
+				'Visibility test',
+				'',
+				0,
+				$user,
+				null,
+				TimeEntry::STATUS_DRAFT
+			);
+			$this->assertGreaterThan(0, $entryId, $entry->error ?: implode(', ', $entry->errors));
+
+			$this->assertGreaterThan(0, $entry->validateEntry($entryId, $user, TimeEntry::STATUS_VALIDATED), $entry->error ?: implode(', ', $entry->errors));
+
+			$admin = new User($db);
+			$admin->fetch(1);
+			$admin->admin = 1;
+
+			$toDelete = new TimeEntry($db);
+			$this->assertGreaterThan(0, $toDelete->fetch($entryId));
+			$delResult = $toDelete->delete($admin);
+			$this->assertGreaterThan(0, $delResult, $toDelete->error ?: implode(', ', $toDelete->errors));
+
+			// Active list (fetchAll) must not contain the soft-deleted entry.
+			$te = new TimeEntry($db);
+			$active = $te->fetchAll('DESC', 't.date_start', 1000, 0, '');
+			$this->assertIsArray($active);
+			$this->assertArrayNotHasKey((int)$entryId, $active, 'Soft-deleted entry found in active list');
+
+			// Processed history: raw DB query filtering by status must still find it.
+			$sql = 'SELECT rowid FROM '.$db->prefix().'timeflow_timeentry WHERE status = '.TimeEntry::STATUS_VALIDATED.' AND rowid = '.((int) $entryId);
+			$res = $db->query($sql);
+			$obj = $res ? $db->fetch_object($res) : null;
+			$this->assertNotNull($obj, 'Soft-deleted validated entry missing from history query');
+			$this->assertSame((int)$entryId, (int)$obj->rowid);
+		}
+	}
 }  // @phan-suppress-current-line PhanUndeclaredClass

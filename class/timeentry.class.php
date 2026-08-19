@@ -862,17 +862,25 @@ class TimeEntry extends CommonObject
 			}
 		} else {
 			// For submitted/validated/refused entries, perform a soft-delete:
-			// mark `date_delete` and `fk_user_delete` instead of removing the row.
+			// mark `date_delete` (and optionally `fk_user_delete`) instead of removing the row.
 			if (!$this->hasDatabaseColumn($this->table_element, 'date_delete')) {
 				$this->error = 'Soft-delete not available: database column missing';
 				$this->errors[] = $this->error;
 				dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' missing column', LOG_ERR);
 				return -1;
 			}
+			// Build SET clause defensively: some installations may have date_delete
+			// but not fk_user_delete if migration was not applied. Only include
+			// fk_user_delete when the column exists.
+			$setParts = array();
+			$setParts[] = "date_delete = '".$this->db->idate(dol_now())."'";
+			if ($this->hasDatabaseColumn($this->table_element, 'fk_user_delete')) {
+				$setParts[] = 'fk_user_delete = '.((int) $user->id);
+			}
 			$sql = 'UPDATE '.$this->db->prefix().$this->table_element
-			     ." SET date_delete = '".$this->db->idate(dol_now())."', fk_user_delete = ".((int) $user->id)
-			     .' WHERE rowid = '.($deletedId)
-			     ." AND (date_delete IS NULL OR date_delete = '')";
+				 .' SET '.implode(', ', $setParts)
+				 .' WHERE rowid = '.($deletedId)
+				 ." AND (date_delete IS NULL OR date_delete = '')";
 			$resql = $this->db->query($sql);
 			if (!$resql) {
 				$this->error = 'Impossible de marquer l\'entrée comme supprimée: '.$this->db->lasterror();

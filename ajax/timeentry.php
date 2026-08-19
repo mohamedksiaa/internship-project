@@ -384,6 +384,8 @@ function timeflowExportTimeEntry($object)
         'fk_user_valid',
         'date_creation',
         'tms',
+        'date_delete',
+        'fk_user_delete',
     );
 
     $cleaned = array();
@@ -393,15 +395,15 @@ function timeflowExportTimeEntry($object)
         }
     }
 
-    if (property_exists($object, 'fk_user')) {
+    if (isset($object->fk_user) || property_exists($object, 'fk_user')) {
         $cleaned['user_label'] = timeflowResolveUserLabel((int) $object->fk_user);
     }
 
-    if (property_exists($object, 'fk_project')) {
+    if (isset($object->fk_project) || property_exists($object, 'fk_project')) {
         $cleaned['project_label'] = timeflowResolveProjectLabel((int) $object->fk_project);
     }
 
-    if (property_exists($object, 'fk_task')) {
+    if (isset($object->fk_task) || property_exists($object, 'fk_task')) {
         $cleaned['task_label'] = timeflowResolveTaskLabel((int) $object->fk_task);
     }
 
@@ -417,6 +419,14 @@ function timeflowExportTimeEntry($object)
         $cleaned['delete_allowed'] = $object->isDeletionAllowedFor($user);
         $cleaned['delete_requires_strong_confirmation'] = (int) $object->status !== TimeEntry::STATUS_DRAFT;
     }
+
+    // Mark whether this entry was soft-deleted. Prefer an explicit DB column
+    // if present; fall back to the presence of a date_delete property.
+    $isDeleted = false;
+    if (isset($object->date_delete) && $object->date_delete !== null && $object->date_delete !== '') {
+        $isDeleted = true;
+    }
+    $cleaned['is_deleted'] = $isDeleted ? true : false;
 
     // Normalize date fields to ISO8601 Zulu (UTC) to avoid ambiguous parsing on clients.
     foreach (array('date_start', 'date_end', 'date_submit', 'date_creation') as $dtField) {
@@ -730,9 +740,6 @@ function timeflowProcessedHistoryWhere($input)
         $where[] = 'EXISTS (SELECT 1 FROM '.$db->prefix().'timeflow_timeentry_modification m WHERE m.fk_timeentry = t.rowid'
             ." AND m.action IN ('".TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE."','".TimeEntry::MOD_ACTION_MANUAL_MANAGER."','".TimeEntry::MOD_ACTION_MANUAL_CREATE."'))";
     }
-    if (timeflowHasDateDeleteColumn($db)) {
-        $where[] = 't.date_delete IS NULL';
-    }
     return implode(' AND ', $where);
 }
 
@@ -751,7 +758,7 @@ function timeflowGetProcessedHistory($input)
         .' SUM(CASE WHEN EXISTS (SELECT 1 FROM '.$db->prefix().'timeflow_timeentry_modification m WHERE m.fk_timeentry=t.rowid AND m.action IN (\''.TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE.'\',\''.TimeEntry::MOD_ACTION_MANUAL_MANAGER.'\',\''.TimeEntry::MOD_ACTION_MANUAL_CREATE.'\')) THEN 1 ELSE 0 END) AS manual_count'
         .' FROM '.$db->prefix().'timeflow_timeentry t WHERE '.$where;
     $statsRes = $db->query($statsSql); $statsObj = $statsRes ? $db->fetch_object($statsRes) : null;
-    $sql = 'SELECT t.rowid, t.fk_user, t.fk_project, t.fk_task, t.date_start, t.date_end, t.duration, t.note, t.status, t.fk_user_valid, t.tms,'
+    $sql = 'SELECT t.rowid, t.fk_user, t.fk_project, t.fk_task, t.date_start, t.date_end, t.duration, t.note, t.status, t.fk_user_valid, t.tms, t.date_delete, t.fk_user_delete,'
         .' u.login, u.firstname, u.lastname, validator.login AS validator_login, validator.firstname AS validator_firstname, validator.lastname AS validator_lastname'
         .' FROM '.$db->prefix().'timeflow_timeentry t'
         .' LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user'
@@ -767,9 +774,6 @@ function timeflowGetProcessedHistory($input)
     }
     $employees = array();
     $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')';
-    if (timeflowHasDateDeleteColumn($db)) {
-        $employeeSql .= ' AND t.date_delete IS NULL';
-    }
     $employeeSql .= ' ORDER BY u.lastname, u.firstname, u.login';
     $employeeRes = $db->query($employeeSql);
     while ($employeeRes && ($obj = $db->fetch_object($employeeRes))) $employees[] = array('id'=>(int) $obj->fk_user, 'label'=>trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));

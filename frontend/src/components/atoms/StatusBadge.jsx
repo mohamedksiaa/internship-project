@@ -9,7 +9,7 @@ const STATUS_LABELS = {
 export default function StatusBadge({ status }) {
   const info = STATUS_LABELS[status] ?? STATUS_LABELS[0];
   return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${info.color}`}>
+    <span className={`inline-flex items-center min-w-0 px-2 py-1 rounded-full text-xs font-medium ${info.color}`}>
       {info.label}
     </span>
   );
