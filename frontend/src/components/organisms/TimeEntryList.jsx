@@ -59,6 +59,7 @@ export default function TimeEntryList({
   const [correction, setCorrection] = useState({ date_start: '', date_end: '', reason: '' });
   const [originalCorrection, setOriginalCorrection] = useState({ date_start: '', date_end: '' });
   const [historyEntry, setHistoryEntry] = useState(null);
+  const [entryToDelete, setEntryToDelete] = useState(null);
   const [correctionError, setCorrectionError] = useState('');
 
   useEffect(() => setEntries(initialEntries), [initialEntries]);
@@ -143,11 +144,10 @@ export default function TimeEntryList({
     }
   };
 
-  const deleteEntry = async (entry) => {
-    const message = entry.delete_requires_strong_confirmation
-      ? 'Cette entrée a été soumise, validée ou refusée. Confirmer sa suppression définitive ?'
-      : 'Supprimer définitivement cette entrée de temps ? Cette action est irréversible.';
-    if (!window.confirm(message)) return;
+  const confirmDeleteEntry = async () => {
+    if (!entryToDelete) return;
+    const entry = entryToDelete;
+    setEntryToDelete(null);
     setBusyId(entry.id);
     setError('');
     try {
@@ -160,6 +160,10 @@ export default function TimeEntryList({
     } finally {
       setBusyId(null);
     }
+  };
+
+  const deleteEntry = (entry) => {
+    setEntryToDelete(entry);
   };
 
   const openCorrection = (entry) => {
@@ -384,6 +388,39 @@ export default function TimeEntryList({
           </div>
         );
       })}
+      {entryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+          <div className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="delete-title" className="text-lg font-semibold text-[#263746]">Supprimer l’entrée</h2>
+                <p className="mt-1 text-sm text-[#52656f]">Cette action est irréversible.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEntryToDelete(null)}
+                aria-label="Fermer"
+                className="text-lg leading-none text-[#78909c] hover:text-[#2c3e49]"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-sm text-[#52656f]">
+              {entryToDelete.delete_requires_strong_confirmation
+                ? 'Cette entrée a été soumise, validée ou refusée. Confirmer sa suppression définitive ?'
+                : 'Supprimer définitivement cette entrée de temps ? Cette action est irréversible.'}
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setEntryToDelete(null)} className="text-sm text-[#52656f]">Annuler</button>
+              <button type="button" onClick={confirmDeleteEntry} className="rounded bg-[#d64c4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#b93d3d]">
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {entryToCorrect && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="correction-title">
           <form onSubmit={saveCorrection} className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-xl">
