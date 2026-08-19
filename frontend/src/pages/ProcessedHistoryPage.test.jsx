@@ -3,18 +3,24 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import ProcessedHistoryPage from './ProcessedHistoryPage';
 
-const getProjects = vi.fn().mockResolvedValue([]);
-const getProcessedHistory = vi.fn().mockResolvedValue({
-  rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Soumeya', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
-  pagination: { page: 1, pages: 1 }, stats: { validated_seconds: 3600, refused_count: 0, manual_count: 0 },
-});
+const { getProjects, getProcessedHistory, exportProcessedHistory, hardDeleteTimeEntry, hardDeleteTimeEntries } = vi.hoisted(() => ({
+  getProjects: vi.fn().mockResolvedValue([]),
+  getProcessedHistory: vi.fn().mockResolvedValue({
+    rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Soumeya', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
+    pagination: { page: 1, pages: 1 },
+    stats: { validated_seconds: 3600, refused_count: 0, manual_count: 0 },
+  }),
+  exportProcessedHistory: vi.fn().mockResolvedValue([]),
+  hardDeleteTimeEntry: vi.fn().mockResolvedValue({ id: 1 }),
+  hardDeleteTimeEntries: vi.fn().mockResolvedValue({ deleted: 1 }),
+}));
 
 vi.mock('../api/timeflowApi', () => ({
   getProjects,
   getProcessedHistory,
-  exportProcessedHistory: vi.fn().mockResolvedValue([]),
-  hardDeleteTimeEntry: vi.fn().mockResolvedValue({ id: 1 }),
-  hardDeleteTimeEntries: vi.fn().mockResolvedValue({ deleted: 1 }),
+  exportProcessedHistory,
+  hardDeleteTimeEntry,
+  hardDeleteTimeEntries,
 }));
 
 describe('ProcessedHistoryPage', () => {
