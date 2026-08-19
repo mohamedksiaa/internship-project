@@ -1108,14 +1108,69 @@ switch ($action) {
         break;
 
     case 'getProcessedHistory':
-        if (!timeflowCanValidate($user)) timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        if (!timeflowCanReadAllTimeEntries($user)) timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($postData ?: $_REQUEST)));
         break;
 
     case 'exportProcessedHistory':
-        if (!timeflowCanValidate($user)) timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        if (!timeflowCanReadAllTimeEntries($user)) timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         $input = $postData ?: $_REQUEST; $input['page'] = 1; $input['per_page'] = 10000; $input['export'] = true;
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($input)));
+        break;
+
+    case 'hardDeleteTimeEntry':
+        if (!timeflowCanReadAllTimeEntries($user)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        if ($id <= 0) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant d’entrée invalide'), 400);
+        }
+        $entry = new TimeEntry($db);
+        if ($entry->fetch($id) <= 0) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Entrée introuvable'), 404);
+        }
+        $db->begin();
+        $result = $entry->hardDeletePermanently($user);
+        if ($result > 0) {
+            $db->commit();
+            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'deleted' => true)));
+        }
+        $db->rollback();
+        timeflowJsonResponse(array('status' => 'error', 'message' => $entry->error ?: 'Erreur lors de la suppression définitive'), 500);
+        break;
+
+    case 'hardDeleteTimeEntries':
+        if (!timeflowCanReadAllTimeEntries($user)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $ids = array();
+        if (!empty($postData['ids']) && is_array($postData['ids'])) {
+            $ids = array_values(array_filter(array_map('intval', $postData['ids']), static fn($value) => $value > 0));
+        } elseif (!empty($_REQUEST['ids'])) {
+            $ids = array_values(array_filter(array_map('intval', explode(',', (string) $_REQUEST['ids'])), static fn($value) => $value > 0));
+        }
+        if (empty($ids)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucune entrée sélectionnée'), 400);
+        }
+
+        $db->begin();
+        try {
+            foreach ($ids as $id) {
+                $entry = new TimeEntry($db);
+                if ($entry->fetch($id) <= 0) {
+                    throw new RuntimeException('Entrée introuvable : '.$id);
+                }
+                if ($entry->hardDeletePermanently($user) <= 0) {
+                    throw new RuntimeException($entry->error ?: 'Erreur lors de la suppression définitive de l’entrée '.$id);
+                }
+            }
+            $db->commit();
+            timeflowJsonResponse(array('status' => 'success', 'data' => array('deleted' => count($ids), 'ids' => $ids)));
+        } catch (Throwable $exception) {
+            $db->rollback();
+            timeflowJsonResponse(array('status' => 'error', 'message' => $exception->getMessage()), 500);
+        }
         break;
 
     case 'saveDailyReport':

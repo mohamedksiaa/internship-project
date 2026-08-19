@@ -169,6 +169,7 @@ class TimeEntry extends CommonObject
     const MOD_ACTION_MANUAL_MANAGER = 'manual_manager';
     const MOD_ACTION_MANUAL_CREATE = 'manual_create';
     const MOD_ACTION_DELETE = 'delete';
+    const MOD_ACTION_DELETE_PERMANENT = 'delete_permanent';
 
 
 	// If this object has a subtable with lines
@@ -702,6 +703,50 @@ class TimeEntry extends CommonObject
         $oldValues = array('date_start' => '', 'date_end' => '', 'duration' => '');
         $this->logModifications($user, $oldValues, $reason, $action);
     }
+
+	/** Permanently delete one entry from the database, bypassing the soft-delete workflow. */
+	public function hardDeletePermanently(User $user, $notrigger = 0)
+	{
+		$entryId = (int) $this->id;
+		if ($entryId <= 0) {
+			$this->error = 'Entrée introuvable';
+			$this->errors[] = $this->error;
+			return -1;
+		}
+
+		if (!timeflowCanReadAllTimeEntries($user)) {
+			$this->error = 'Accès refusé';
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' permanent delete denied for user='.$user->id.' rowid='.$entryId, LOG_WARNING);
+			return -1;
+		}
+
+		$existing = new self($this->db);
+		if ($existing->fetch($entryId) <= 0) {
+			$this->error = 'Entrée introuvable';
+			$this->errors[] = $this->error;
+			return -1;
+		}
+
+		$deleteResult = $this->deleteCommon($user, $notrigger);
+		if ($deleteResult <= 0) {
+			return $deleteResult;
+		}
+
+		$deletedAt = $this->db->idate(dol_now());
+		$auditSql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
+		$auditSql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
+		$auditSql .= ((int) $this->entity).','.$entryId.','.((int) $user->id).',';
+		$auditSql .= "'".$this->db->escape(self::MOD_ACTION_DELETE_PERMANENT)."',";
+		$auditSql .= " '_entry','".$this->db->escape((string) $entryId)."','',";
+		$auditSql .= " 'Suppression définitive de l’entrée de temps par un manager',";
+		$auditSql .= "'".$this->db->escape($deletedAt)."',".((int) $user->id).')';
+		if (!$this->db->query($auditSql)) {
+			dol_syslog(__METHOD__.' audit log failed for rowid='.$entryId.': '.$this->db->lasterror(), LOG_ERR);
+		}
+
+		return 1;
+	}
 
 	/** Return true when the requested time range overlaps another user entry. */
 	public function hasTimeOverlap($fkUser, $dateStart, $dateEnd, $excludeId = 0)
