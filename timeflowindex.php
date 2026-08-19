@@ -151,7 +151,9 @@ $headHtml = '';
 if ($cssUrl) {
 	$headHtml = '<link rel="stylesheet" href="'.$cssUrl.'">';
 }
-$headHtml .= '<link rel="stylesheet" href="'.dol_buildpath('/custom/timeflow/css/timeflow_fullscreen.css', 1).'">';
+$timeflowCssPath = DOL_DOCUMENT_ROOT.'/custom/timeflow/css/timeflow_fullscreen.css';
+$timeflowCssVersion = file_exists($timeflowCssPath) ? filemtime($timeflowCssPath) : time();
+$headHtml .= '<link rel="stylesheet" href="'.dol_buildpath('/custom/timeflow/css/timeflow_fullscreen.css', 1).'?v='.$timeflowCssVersion.'">';
 
 $conf->global->MAIN_MENU_LEFT_HIDDEN = '1';
 
