@@ -23,14 +23,48 @@ describe('TimeEntryList validation mode', () => {
     expect(screen.queryByRole('button', { name: 'Supprimer cette entrée' })).not.toBeInTheDocument();
   });
 
-  it('keeps the validated entry displayed and shows the server rejection when deletion is refused', async () => {
-    deleteTimeEntry.mockRejectedValue(new Error('Suppression refusée : une entrée soumise, validée ou refusée est immuable pour un utilisateur normal'));
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('shows a custom confirmation modal for draft entries and deletes only after explicit confirmation', async () => {
+    deleteTimeEntry.mockResolvedValue({ id: 42 });
     const setEntries = vi.fn();
     const user = userEvent.setup();
-    render(<TimeEntryList entries={[{ ...entry, status: 2, delete_allowed: true }]} setEntries={setEntries} />);
+    render(<TimeEntryList entries={[{ ...entry, delete_allowed: true, delete_requires_strong_confirmation: false }]} setEntries={setEntries} />);
 
     await user.click(screen.getByRole('button', { name: 'Supprimer cette entrée' }));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Supprimer définitivement cette entrée de temps ? Cette action est irréversible.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Annuler' }));
+    expect(deleteTimeEntry).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Supprimer cette entrée' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmer' }));
+
+    expect(deleteTimeEntry).toHaveBeenCalledWith(42);
+    expect(setEntries).toHaveBeenCalled();
+  });
+
+  it('shows the strong warning for validated entries before deletion is confirmed', async () => {
+    deleteTimeEntry.mockResolvedValue({ id: 42 });
+    const user = userEvent.setup();
+    render(<TimeEntryList entries={[{ ...entry, status: 2, delete_allowed: true, delete_requires_strong_confirmation: true }]} setEntries={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Supprimer cette entrée' }));
+
+    expect(screen.getByText('Cette entrée a été soumise, validée ou refusée. Confirmer sa suppression définitive ?')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(deleteTimeEntry).toHaveBeenCalledWith(42);
+  });
+
+  it('keeps the validated entry displayed and shows the server rejection when deletion is refused', async () => {
+    deleteTimeEntry.mockRejectedValue(new Error('Suppression refusée : une entrée soumise, validée ou refusée est immuable pour un utilisateur normal'));
+    const setEntries = vi.fn();
+    const user = userEvent.setup();
+    render(<TimeEntryList entries={[{ ...entry, status: 2, delete_allowed: true, delete_requires_strong_confirmation: true }]} setEntries={setEntries} />);
+
+    await user.click(screen.getByRole('button', { name: 'Supprimer cette entrée' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmer' }));
 
     expect(await screen.findByText(/Suppression refusée.*immuable/)).toBeInTheDocument();
     expect(setEntries).not.toHaveBeenCalled();
