@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   exportProcessedHistory,
   getProcessedHistory,
@@ -21,6 +22,7 @@ const initialFilters = {
 const dateTime = (value) => (value ? String(value).replace('T', ' ').slice(0, 16) : '—');
 
 export default function ProcessedHistoryPage() {
+  const { t } = useTranslation();
   const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
   const [filters, setFilters] = useState(initialFilters);
   const [page, setPage] = useState(1);
@@ -28,8 +30,10 @@ export default function ProcessedHistoryPage() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [deleteRequest, setDeleteRequest] = useState(null);
+  const globalCheckboxRef = useRef(null);
 
   useEffect(() => {
     getProjects().then(setProjects).catch(() => setProjects([]));
@@ -45,7 +49,7 @@ export default function ProcessedHistoryPage() {
     let active = true;
     setLoading(true);
     setError('');
-
+    setSuccess('');
     getProcessedHistory({ ...filters, page, per_page: 50 })
       .then((next) => {
         if (active) setData(next);
@@ -61,6 +65,11 @@ export default function ProcessedHistoryPage() {
       active = false;
     };
   }, [filters, page]);
+
+  // Reset selections whenever the visible data changes (filters, page)
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [data.rows]);
 
   const update = (key, value) => {
     setPage(1);
@@ -82,6 +91,16 @@ export default function ProcessedHistoryPage() {
     });
   };
 
+  const selectAllForPage = (checked) => {
+    const rowIds = data.rows.map((row) => Number(row.id));
+    setSelectedIds((current) => {
+      if (checked) {
+        return Array.from(new Set([...current, ...rowIds]));
+      }
+      return current.filter((id) => !rowIds.includes(Number(id)));
+    });
+  };
+
   const selectAllForGroup = (rows, checked) => {
     const rowIds = rows.map((row) => Number(row.id));
     setSelectedIds((current) => {
@@ -94,7 +113,12 @@ export default function ProcessedHistoryPage() {
 
   const csv = async () => {
     const rows = await exportProcessedHistory(filters);
-    const header = ['Tâche', 'Projet', 'Qui', 'Début', 'Fin', 'État', 'Durée', 'Modification', 'Traité par', 'Traité le'];
+    const header = [
+      t('processed_history.columns.task'), t('processed_history.columns.project'), t('processed_history.columns.who'),
+      t('processed_history.columns.start'), t('processed_history.columns.end'), t('processed_history.columns.status'),
+      t('processed_history.columns.duration'), t('processed_history.columns.modification'),
+      t('processed_history.csv.processed_by'), t('processed_history.csv.processed_at'),
+    ];
     const lines = [
       header,
       ...rows.map((entry) => [
@@ -103,9 +127,9 @@ export default function ProcessedHistoryPage() {
         entry.user_label,
         dateTime(entry.date_start),
         dateTime(entry.date_end),
-        Number(entry.status) === 2 ? 'Validé' : 'Refusé',
+        Number(entry.status) === 2 ? t('status.validated') : t('status.rejected'),
         formatDuration(entry.duration),
-        entry.manual_modified ? 'Modifié manuellement' : '',
+        entry.manual_modified ? t('processed_history.modified_manually') : '',
         entry.processed_by_label,
         dateTime(entry.processed_at),
       ]),
@@ -119,7 +143,7 @@ export default function ProcessedHistoryPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'timeflow-historique-traite.csv';
+    link.download = t('processed_history.csv.filename');
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -137,6 +161,9 @@ export default function ProcessedHistoryPage() {
       }
       setDeleteRequest(null);
       await refreshHistory();
+      // Show success toast/message
+      setSuccess(t('processed_history.delete.success', { count: ids.length }));
+      setTimeout(() => setSuccess(''), 5000);
     } catch (err) {
       setError(err.message);
       setDeleteRequest(null);
@@ -148,65 +175,87 @@ export default function ProcessedHistoryPage() {
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[.24em] text-slate-500">Gérer</p>
-            <h1 className="text-2xl font-semibold">Historique traité</h1>
+            <p className="text-xs font-semibold uppercase tracking-[.24em] text-slate-500">{t('app.section_manage')}</p>
+            <h1 className="text-2xl font-semibold">{t('processed_history.title')}</h1>
           </div>
-          <button type="button" onClick={csv} className="rounded bg-[#03a9f4] px-4 py-2 text-white">
-            Exporter en CSV
-          </button>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={csv} className="rounded bg-[#03a9f4] px-4 py-2 text-white">
+              {t('processed_history.export_csv')}
+            </button>
+            <label className="flex items-center gap-2">
+              <input
+                ref={globalCheckboxRef}
+                aria-label={t('processed_history.select_page_aria')}
+                type="checkbox"
+                checked={data.rows.length > 0 && data.rows.every((row) => selectedIds.includes(Number(row.id)))}
+                onChange={(event) => selectAllForPage(event.target.checked)}
+              />
+              <span className="text-sm text-slate-700">{t('processed_history.select_page')}</span>
+            </label>
+            {selectedIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })}
+                className="rounded bg-[#d64c4c] px-4 py-2 text-white"
+              >
+                {t('processed_history.delete.selection', { count: selectedIds.length })}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <select aria-label="Statut" value={filters.status} onChange={(event) => update('status', event.target.value)} className="rounded border p-2">
-            <option value="all">Validé et refusé</option>
-            <option value="validated">Validé</option>
-            <option value="refused">Refusé</option>
+          <select aria-label={t('processed_history.filters.status')} value={filters.status} onChange={(event) => update('status', event.target.value)} className="rounded border p-2">
+            <option value="all">{t('processed_history.filters.validated_and_rejected')}</option>
+            <option value="validated">{t('status.validated')}</option>
+            <option value="refused">{t('status.rejected')}</option>
           </select>
 
-          <select aria-label="Employé" value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="rounded border p-2">
-            <option value="">Tous les employés</option>
+          <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="rounded border p-2">
+            <option value="">{t('processed_history.filters.all_employees')}</option>
             {data.employees?.map((user) => (
               <option key={user.id} value={user.id}>{user.label}</option>
             ))}
           </select>
 
-          <select value={filters.project_id} onChange={(event) => update('project_id', event.target.value)} className="rounded border p-2">
-            <option value="">Tous les projets</option>
+          <select aria-label={t('processed_history.filters.project')} value={filters.project_id} onChange={(event) => update('project_id', event.target.value)} className="rounded border p-2">
+            <option value="">{t('processed_history.filters.all_projects')}</option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>{project.title}</option>
             ))}
           </select>
 
-          <input aria-label="Date début" type="date" value={filters.date_from} onChange={(event) => update('date_from', event.target.value)} className="rounded border p-2" />
-          <input aria-label="Date fin" type="date" value={filters.date_to} onChange={(event) => update('date_to', event.target.value)} className="rounded border p-2" />
+          <input aria-label={t('processed_history.filters.start_date')} type="date" value={filters.date_from} onChange={(event) => update('date_from', event.target.value)} className="rounded border p-2" />
+          <input aria-label={t('processed_history.filters.end_date')} type="date" value={filters.date_to} onChange={(event) => update('date_to', event.target.value)} className="rounded border p-2" />
 
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={filters.manual_only} onChange={(event) => update('manual_only', event.target.checked)} />
-            Modifiées uniquement
+            {t('processed_history.filters.modified_only')}
           </label>
         </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
         <div className="rounded bg-white p-4">
-          Heures validées <strong>{formatDuration(data.stats.validated_seconds)}</strong>
+          {t('processed_history.stats.validated_hours')} <strong>{formatDuration(data.stats.validated_seconds)}</strong>
         </div>
         <div className="rounded bg-white p-4">
-          Entrées refusées <strong>{data.stats.refused_count || 0}</strong>
+          {t('processed_history.stats.rejected_entries')} <strong>{data.stats.refused_count || 0}</strong>
         </div>
         <div className="rounded bg-white p-4">
-          Modifiées <strong>{data.stats.manual_count || 0}</strong>
+          {t('processed_history.stats.modified_entries')} <strong>{data.stats.manual_count || 0}</strong>
         </div>
       </section>
 
       {error && <p className="text-red-600">{error}</p>}
-      {loading && <p>Chargement…</p>}
+      {success && <p className="text-green-600">{success}</p>}
+      {loading && <p>{t('loading')}</p>}
 
       {!loading && Object.entries(grouped).map(([day, rows]) => (
         <section key={day} className="overflow-x-auto bg-white">
           <div className="flex justify-between bg-slate-100 p-3">
             <strong>{day}</strong>
-            <span>Total : {formatDuration(rows.reduce((sum, row) => sum + Number(row.duration || 0), 0))}</span>
+            <span>{t('processed_history.total')}: {formatDuration(rows.reduce((sum, row) => sum + Number(row.duration || 0), 0))}</span>
           </div>
 
           <table className="w-full text-left text-sm">
@@ -215,23 +264,30 @@ export default function ProcessedHistoryPage() {
                 {canReadAll && (
                   <th className="w-10 px-2 py-2 text-center">
                     <input
-                      aria-label="Tout sélectionner"
+                      aria-label={t('processed_history.select_group_aria', { day })}
                       type="checkbox"
                       checked={rows.every((row) => selectedIds.includes(Number(row.id)))}
+                      ref={(el) => {
+                        if (el) {
+                          const groupAll = rows.every((row) => selectedIds.includes(Number(row.id)));
+                          const groupSome = rows.some((row) => selectedIds.includes(Number(row.id))) && !groupAll;
+                          el.indeterminate = groupSome;
+                        }
+                      }}
                       onChange={(event) => selectAllForGroup(rows, event.target.checked)}
                     />
                   </th>
                 )}
-                <th className="px-2 py-2">Tâche</th>
-                <th className="px-2 py-2">Projet</th>
-                <th className="px-2 py-2">Qui</th>
-                <th className="px-2 py-2">Début</th>
-                <th className="px-2 py-2">Fin</th>
-                <th className="px-2 py-2">État</th>
-                <th className="px-2 py-2">Durée</th>
-                <th className="px-2 py-2">Modification</th>
-                <th className="px-2 py-2">Traité par / le</th>
-                {canReadAll && <th className="px-2 py-2 text-right">Actions</th>}
+                <th className="px-2 py-2">{t('processed_history.columns.task')}</th>
+                <th className="px-2 py-2">{t('processed_history.columns.project')}</th>
+                <th className="px-2 py-2">{t('processed_history.columns.who')}</th>
+                <th className="px-2 py-2">{t('processed_history.columns.start')}</th>
+                <th className="px-2 py-2">{t('processed_history.columns.end')}</th>
+                <th className="px-2 py-2">{t('processed_history.columns.status')}</th>
+                <th className="px-2 py-2">{t('processed_history.columns.duration')}</th>
+                <th className="px-2 py-2">{t('processed_history.columns.modification')}</th>
+                <th className="px-2 py-2">{t('processed_history.columns.processed_by_at')}</th>
+                {canReadAll && <th className="px-2 py-2 text-right">{t('processed_history.columns.actions')}</th>}
               </tr>
             </thead>
 
@@ -241,21 +297,21 @@ export default function ProcessedHistoryPage() {
                   {canReadAll && (
                     <td className="px-2 py-2 text-center">
                       <input
-                        aria-label="Sélectionner cette entrée"
+                        aria-label={t('processed_history.select_entry_aria')}
                         type="checkbox"
                         checked={selectedIds.includes(Number(entry.id))}
                         onChange={() => toggleSelected(entry.id)}
                       />
                     </td>
                   )}
-                  <td className="px-2 py-2">{entry.note || 'Sans description'}</td>
+                  <td className="px-2 py-2">{entry.note || t('timeentry.no_description')}</td>
                   <td className="px-2 py-2">{entry.project_label}</td>
                   <td className="px-2 py-2">{entry.user_label}</td>
                   <td className="px-2 py-2">{dateTime(entry.date_start)}</td>
                   <td className="px-2 py-2">{dateTime(entry.date_end)}</td>
                   <td className="px-2 py-2"><StatusBadge status={Number(entry.status)} /></td>
                   <td className="px-2 py-2">{formatDuration(entry.duration)}</td>
-                  <td className="px-2 py-2">{entry.manual_modified ? 'Modifié manuellement' : '—'}</td>
+                  <td className="px-2 py-2">{entry.manual_modified ? t('processed_history.modified_manually') : '—'}</td>
                   <td className="px-2 py-2">
                     {entry.processed_by_label || '—'}
                     <br />
@@ -265,11 +321,11 @@ export default function ProcessedHistoryPage() {
                     <td className="px-2 py-2 text-right">
                       <button
                         type="button"
-                        aria-label="Supprimer cette entrée"
+                        aria-label={t('processed_history.delete.entry_aria')}
                         onClick={() => setDeleteRequest({ type: 'single', ids: [Number(entry.id)] })}
                         className="rounded bg-[#d64c4c] px-2 py-1 text-xs font-medium text-white"
                       >
-                        Supprimer
+                        {t('processed_history.delete.action')}
                       </button>
                     </td>
                   )}
@@ -280,15 +336,15 @@ export default function ProcessedHistoryPage() {
         </section>
       ))}
 
-      {!loading && !data.rows.length && <p className="rounded bg-white p-5">Aucune entrée traitée.</p>}
+      {!loading && !data.rows.length && <p className="rounded bg-white p-5">{t('processed_history.empty')}</p>}
 
       <div className="flex justify-between">
         <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
-          Précédent
+          {t('processed_history.pagination.previous')}
         </button>
-        <span>Page {data.pagination.page || 1} / {data.pagination.pages || 1}</span>
+        <span>{t('processed_history.pagination.page', { current: data.pagination.page || 1, total: data.pagination.pages || 1 })}</span>
         <button type="button" disabled={page >= (data.pagination.pages || 1)} onClick={() => setPage((current) => current + 1)}>
-          Suivant
+          {t('processed_history.pagination.next')}
         </button>
       </div>
 
@@ -297,13 +353,13 @@ export default function ProcessedHistoryPage() {
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between">
               <div>
-                <h2 id="delete-history-title" className="text-lg font-semibold text-[#263746]">Suppression définitive</h2>
-                <p className="mt-1 text-sm text-[#52656f]">Cette action est irréversible.</p>
+                <h2 id="delete-history-title" className="text-lg font-semibold text-[#263746]">{t('processed_history.delete.title')}</h2>
+                <p className="mt-1 text-sm text-[#52656f]">{t('processed_history.delete.irreversible')}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setDeleteRequest(null)}
-                aria-label="Fermer"
+                aria-label={t('timeentry.close')}
                 className="text-lg leading-none text-[#78909c] hover:text-[#2c3e49]"
               >
                 ×
@@ -312,16 +368,16 @@ export default function ProcessedHistoryPage() {
 
             <p className="mt-4 text-sm text-[#52656f]">
               {deleteRequest.type === 'single'
-                ? 'Supprimer définitivement cette entrée de temps ? Cette action est irréversible et supprimera la donnée de la base.'
-                : `Supprimer définitivement ${deleteRequest.ids.length} entrée(s) sélectionnée(s) ? Cette action est irréversible et effacera les données de la base.`}
+                ? t('processed_history.delete.single_confirmation')
+                : t('processed_history.delete.multiple_confirmation', { count: deleteRequest.ids.length })}
             </p>
 
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setDeleteRequest(null)} className="text-sm text-[#52656f]">
-                Annuler
+                {t('cancel')}
               </button>
               <button type="button" onClick={submitHardDelete} className="rounded bg-[#d64c4c] px-4 py-2 text-sm font-medium text-white">
-                Confirmer
+                {t('timeentry.confirm')}
               </button>
             </div>
           </div>

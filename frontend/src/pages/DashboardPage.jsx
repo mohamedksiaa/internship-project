@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
 import { getSummaryReports, getWeeklyTimesheet } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
@@ -23,19 +24,20 @@ function entryDate(value) {
   return /^[0-9]+$/.test(raw) ? new Date(Number(raw) * (raw.length === 10 ? 1000 : 1)) : new Date(value);
 }
 
-function dayLabel(value) {
+function dayLabel(value, locale = 'fr-FR') {
   const date = entryDate(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(locale, { weekday: 'short', day: 'numeric' });
 }
 
-function projectLabel(projectId, projectLabels = {}) {
+function projectLabel(projectId, projectLabels = {}, fallbackLabel = 'Sans projet') {
   if (!projectId || Number(projectId) <= 0) {
-    return 'Sans projet';
+    return fallbackLabel;
   }
   return projectLabels[projectId] || projectLabels[String(projectId)] || `Projet #${projectId}`;
 }
 
 export default function DashboardPage() {
+  const { t, i18n } = useTranslation();
   const [summary, setSummary] = useState(null);
   const [week, setWeek] = useState({ weekStart: '', weekEnd: '', rows: [] });
   const [loading, setLoading] = useState(true);
@@ -79,6 +81,8 @@ export default function DashboardPage() {
   }, []);
 
   const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
+  const locale = i18n.language === 'ar' ? 'ar-EG' : i18n.language === 'de' ? 'de-DE' : 'fr-FR';
+  const noProjectLabel = t('dashboard.no_project');
 
   const weeklyChartData = useMemo(() => {
     const rows = Array.isArray(week.rows) ? week.rows : [];
@@ -87,7 +91,7 @@ export default function DashboardPage() {
       const dayKey = entry.day || (entry.date_start ? String(entry.date_start).slice(0, 10) : '');
       if (!dayKey) continue;
       if (!weeklyMap.has(dayKey)) {
-        weeklyMap.set(dayKey, { day: dayKey, label: dayLabel(dayKey), billable: 0, nonBillable: 0, total: 0 });
+        weeklyMap.set(dayKey, { day: dayKey, label: dayLabel(dayKey, locale), billable: 0, nonBillable: 0, total: 0 });
       }
       const bucket = weeklyMap.get(dayKey);
       const duration = Number(entry.duration || 0);
@@ -107,11 +111,11 @@ export default function DashboardPage() {
     return Object.entries(byProject)
       .map(([projectId, duration]) => ({
         id: projectId,
-        name: projectLabel(projectId, projectLabels),
+        name: projectLabel(projectId, projectLabels, noProjectLabel),
         value: Number(duration || 0),
       }))
       .sort((left, right) => right.value - left.value);
-  }, [summary]);
+  }, [summary, noProjectLabel]);
 
   const teamRows = useMemo(() => {
     // Do not compute team aggregation when the current user cannot read all
@@ -160,7 +164,7 @@ export default function DashboardPage() {
 
   const dashboardContent = (
     <div className="space-y-6">
-      {loading && <p className="text-sm text-[#71838f]">Chargement…</p>}
+      {loading && <p className="text-sm text-[#71838f]">{t('loading')}</p>}
       {error && <p className="text-sm text-[#d64c4c]">{error}</p>}
       {!loading && !error && (
         <>
@@ -168,10 +172,10 @@ export default function DashboardPage() {
             <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">Semaine</p>
-                  <h3 className="text-lg font-semibold text-[#263746]">Répartition journalière</h3>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">{t('dashboard.week')}</p>
+                  <h3 className="text-lg font-semibold text-[#263746]">{t('dashboard.daily_breakdown')}</h3>
                 </div>
-                <span className="text-sm text-[#71838f]">{weeklyChartData.length} jours</span>
+                <span className="text-sm text-[#71838f]">{t('dashboard.days', { count: weeklyChartData.length })}</span>
               </div>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -189,10 +193,10 @@ export default function DashboardPage() {
             <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">Projets</p>
-                  <h3 className="text-lg font-semibold text-[#263746]">Répartition par projet</h3>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">{t('dashboard.projects')}</p>
+                  <h3 className="text-lg font-semibold text-[#263746]">{t('dashboard.project_breakdown')}</h3>
                 </div>
-                <span className="text-sm text-[#71838f]">{projectChartData.length} projets</span>
+                <span className="text-sm text-[#71838f]">{t('dashboard.projects_count', { count: projectChartData.length })}</span>
               </div>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -214,21 +218,21 @@ export default function DashboardPage() {
             <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">Équipe</p>
-                  <h3 className="text-lg font-semibold text-[#263746]">Activité par collaborateur</h3>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">{t('dashboard.team')}</p>
+                  <h3 className="text-lg font-semibold text-[#263746]">{t('dashboard.team_activity')}</h3>
                 </div>
-                <span className="text-sm text-[#71838f]">{teamRows.length} membres</span>
+                <span className="text-sm text-[#71838f]">{t('dashboard.members', { count: teamRows.length })}</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full border-separate border-spacing-0 text-sm">
                   <thead>
                     <tr>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">Collaborateur</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">Entrées</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">Temps total</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">Billable</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">Soumises</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">Validées</th>
+                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.collaborator')}</th>
+                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.entries')}</th>
+                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.total_time')}</th>
+                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.billable')}</th>
+                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.submitted')}</th>
+                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.validated')}</th>
                     </tr>
                   </thead>
                   <tbody>

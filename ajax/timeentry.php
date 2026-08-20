@@ -21,6 +21,7 @@ if (!$res) {
 }
 
 dol_include_once('/timeflow/class/timeentry.class.php');
+dol_include_once('/timeflow/lib/timeflow.lib.php');
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
@@ -234,34 +235,14 @@ function timeflowManualAuditInfo($entryId)
         return $cache[$entryId];
     }
 
-    $info = array('manual_modified' => false, 'manual_reason' => '', 'manual_modified_at' => '', 'manual_modified_by' => 0);
-    // is_manually_edited is the display contract: it belongs to the entry,
-    // not to SuperAdmin or to the user who performed the edit.
-    $flagSql = 'SELECT is_manually_edited FROM '.$db->prefix().'timeflow_timeentry WHERE rowid = '.$entryId;
-    $flagRes = $db->query($flagSql);
-    if ($flagRes && ($flag = $db->fetch_object($flagRes))) {
-        $info['manual_modified'] = !empty($flag->is_manually_edited);
-    }
-    $sql = 'SELECT reason, date_creation, fk_user FROM '.$db->prefix().'timeflow_timeentry_modification';
-    // The audit is attached to the time-entry id, never to the editor id.
-    // This makes the manager badge independent of who performed the correction.
-    $sql .= ' WHERE fk_timeentry = '.$entryId;
-    $sql .= " AND action IN ('".TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE."','".TimeEntry::MOD_ACTION_MANUAL_MANAGER."','".TimeEntry::MOD_ACTION_MANUAL_CREATE."')";
-    $sql .= ' ORDER BY rowid DESC'.$db->plimit(1);
-    $resql = $db->query($sql);
-    if ($resql && ($obj = $db->fetch_object($resql))) {
-        $info = array('manual_modified' => true, 'manual_reason' => (string) $obj->reason, 'manual_modified_at' => $obj->date_creation, 'manual_modified_by' => (int) $obj->fk_user);
-    }
-    // Corrections saved before the field-level audit migration live in the
-    // legacy log.  Keep them visible to managers as manual corrections too.
-    if ($info['manual_reason'] === '') {
-        $legacySql = 'SELECT reason, date_modification, fk_user_editor FROM '.$db->prefix().'timeflow_time_edit_log';
-        $legacySql .= ' WHERE fk_time_entry = '.$entryId.' ORDER BY id DESC'.$db->plimit(1);
-        $legacyRes = $db->query($legacySql);
-        if ($legacyRes && ($legacy = $db->fetch_object($legacyRes))) {
-            $info = array('manual_modified' => true, 'manual_reason' => (string) $legacy->reason, 'manual_modified_at' => $legacy->date_modification, 'manual_modified_by' => (int) $legacy->fk_user_editor);
-        }
-    }
+    $info = timeflowGetManualEditStatus($db, $entryId);
+    $info = array(
+        'manual_modified' => !empty($info['modified']),
+        'manual_reason' => (string) $info['reason'],
+        'manual_modified_at' => (string) $info['modified_at'],
+        'manual_modified_by' => (int) $info['modified_by'],
+        'manual_modified_source' => (string) $info['source'],
+    );
     $cache[$entryId] = $info;
     return $info;
 }
@@ -737,8 +718,7 @@ function timeflowProcessedHistoryWhere($input)
     if (!empty($input['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['date_from'])) $where[] = "t.date_start >= '".$db->escape($input['date_from'])." 00:00:00'";
     if (!empty($input['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['date_to'])) $where[] = "t.date_start < DATE_ADD('".$db->escape($input['date_to'])." 00:00:00', INTERVAL 1 DAY)";
     if (!empty($input['manual_only'])) {
-        $where[] = 'EXISTS (SELECT 1 FROM '.$db->prefix().'timeflow_timeentry_modification m WHERE m.fk_timeentry = t.rowid'
-            ." AND m.action IN ('".TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE."','".TimeEntry::MOD_ACTION_MANUAL_MANAGER."','".TimeEntry::MOD_ACTION_MANUAL_CREATE."'))";
+        $where[] = timeflowManualEditedSqlPredicate($db, 't');
     }
     return implode(' AND ', $where);
 }
@@ -755,7 +735,7 @@ function timeflowGetProcessedHistory($input)
     $total = $countObj ? (int) $countObj->total : 0;
     $statsSql = 'SELECT COALESCE(SUM(CASE WHEN t.status = '.TimeEntry::STATUS_VALIDATED.' THEN t.duration ELSE 0 END),0) AS validated_seconds,'
         .' SUM(CASE WHEN t.status = '.TimeEntry::STATUS_CANCELED.' THEN 1 ELSE 0 END) AS refused_count,'
-        .' SUM(CASE WHEN EXISTS (SELECT 1 FROM '.$db->prefix().'timeflow_timeentry_modification m WHERE m.fk_timeentry=t.rowid AND m.action IN (\''.TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE.'\',\''.TimeEntry::MOD_ACTION_MANUAL_MANAGER.'\',\''.TimeEntry::MOD_ACTION_MANUAL_CREATE.'\')) THEN 1 ELSE 0 END) AS manual_count'
+        .' SUM(CASE WHEN '.timeflowManualEditedSqlPredicate($db, 't').' THEN 1 ELSE 0 END) AS manual_count'
         .' FROM '.$db->prefix().'timeflow_timeentry t WHERE '.$where;
     $statsRes = $db->query($statsSql); $statsObj = $statsRes ? $db->fetch_object($statsRes) : null;
     $sql = 'SELECT t.rowid, t.fk_user, t.fk_project, t.fk_task, t.date_start, t.date_end, t.duration, t.note, t.status, t.fk_user_valid, t.tms, t.date_delete, t.fk_user_delete,'

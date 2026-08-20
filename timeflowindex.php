@@ -169,6 +169,16 @@ $canReadAllFlag = (bool) ($user->admin || $user->hasRight('timeflow', 'timeentry
 print 'window.TIMEFLOW_CAN_READALL = '.json_encode($canReadAllFlag).';';
 print 'window.TIMEFLOW_CAN_VALIDATE = '.json_encode((bool) ($user->admin || !empty($user->rights->timeflow->valider) || $user->hasRight('timeflow', 'valider') || $user->hasRight('timeflow', 'timeentry', 'validate'))).';';
 
+// Expose Dolibarr current language for the frontend (user/profile language)
+if (!empty($langs->defaultlang)) {
+	// $langs->defaultlang typically contains values like 'fr_FR', 'en_US', 'de_DE', 'ar_SA'
+	print 'window.__DOLIBARR_LANG__ = '.json_encode($langs->defaultlang).';';
+} else {
+	// Fallback to global default language
+	$fallbackLang = defined('MAIN_LANG_DEFAULT') ? MAIN_LANG_DEFAULT : (!empty($conf->global->MAIN_LANG_DEFAULT) ? $conf->global->MAIN_LANG_DEFAULT : 'en_US');
+	print 'window.__DOLIBARR_LANG__ = '.json_encode($fallbackLang).';';
+}
+
 // Removed temporary diagnostic server-side trace.
 print '</script>';
 if ($jsUrl) {

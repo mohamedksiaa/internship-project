@@ -27,8 +27,25 @@ global $conf, $user, $langs, $db;
 //define('TEST_DB_FORCE_TYPE','mysql');	// This is to force using mysql driver
 
 //require_once 'PHPUnit/Autoload.php';
-require_once dirname(__FILE__).'/../../htdocs/master.inc.php';
-require_once dirname(__FILE__).'/../../htdocs/timeflow/class/timeentry.class.php';
+// Locate Dolibarr master.inc.php by walking up parent directories
+$bootstrapDir = __DIR__;
+$foundBootstrap = false;
+while (true) {
+	if (is_file($bootstrapDir . '/master.inc.php')) {
+		require_once $bootstrapDir . '/master.inc.php';
+		$foundBootstrap = true;
+		break;
+	}
+	$parent = dirname($bootstrapDir);
+	if ($parent === $bootstrapDir) break; // reached filesystem root
+	$bootstrapDir = $parent;
+}
+if (! $foundBootstrap) {
+	throw new \RuntimeException('master.inc.php not found. Adjust test bootstrap or set DOL_DOCUMENT_ROOT.');
+}
+// Require module class relative to module root (two levels above test/phpunit)
+$moduleRoot = dirname(__DIR__, 2);
+require_once $moduleRoot . '/class/timeentry.class.php';  
 
 if (empty($user->id)) {
 	print "Load permissions for admin user nb 1\n";
@@ -179,11 +196,20 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$db = $this->savdb;
 
 		$localobject = new TimeEntry($this->savdb);
-		$localobject->initAsSpecimen();
+		$start = (int) dol_now();
+		$localobject->fk_user = (int) $user->id;
+		$localobject->fk_project = 1;
+		$localobject->date_start = $this->savdb->idate($start);
+		$localobject->date_end = $this->savdb->idate($start + 3600);
+		$localobject->duration = 3600;
+		$localobject->status = TimeEntry::STATUS_DRAFT;
+		$localobject->note = 'Test de création';
+		$localobject->is_manually_edited = 0;
+		$localobject->occurrence_count = 1;
 		$result = $localobject->create($user);
 
 		print __METHOD__." result=".$result."\n";
-		$this->assertLessThan($result, 0);
+		$this->assertGreaterThan(0, $result);
 
 		return $result;
 	}
@@ -210,25 +236,25 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		// Cas 1 : projet vide + description vide → refusé
 		$result = $localobject->startTimer($user->id, 0, 0, '');
 		print __METHOD__." empty project/note result=".$result."\n";
-		$this->assertLessThan($result, 0);
+		$this->assertLessThan(0, $result);
 		$this->assertNotEquals('', $localobject->error);
 
 		// Cas 2 : projet vide + description valide → refusé
 		$result = $localobject->startTimer($user->id, 0, 0, 'Analyse');
 		print __METHOD__." empty project result=".$result."\n";
-		$this->assertLessThan($result, 0);
+		$this->assertLessThan(0, $result);
 		$this->assertNotEquals('', $localobject->error);
 
 		// Cas 3 : projet valide + description < 3 caractères → refusé
 		$result = $localobject->startTimer($user->id, 1, 0, 'ab');
 		print __METHOD__." short note result=".$result."\n";
-		$this->assertLessThan($result, 0);
+		$this->assertLessThan(0, $result);
 		$this->assertNotEquals('', $localobject->error);
 
 		// Cas 4 : description avec uniquement des espaces → refusé
 		$result = $localobject->startTimer($user->id, 1, 0, '   ');
 		print __METHOD__." whitespace note result=".$result."\n";
-		$this->assertLessThan($result, 0);
+		$this->assertLessThan(0, $result);
 		$this->assertNotEquals('', $localobject->error);
 	}
 
@@ -396,6 +422,8 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		if (property_exists($row, 'fk_user_delete')) {
 			$this->assertSame((int) $admin->id, (int) $row->fk_user_delete);
 		}
+		}
+
 
 		/**
 		 * testSoftDeletedEntryVisibility
@@ -453,5 +481,4 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 			$this->assertNotNull($obj, 'Soft-deleted validated entry missing from history query');
 			$this->assertSame((int)$entryId, (int)$obj->rowid);
 		}
-	}
-}  // @phan-suppress-current-line PhanUndeclaredClass
+	}  // @phan-suppress-current-line PhanUndeclaredClass
