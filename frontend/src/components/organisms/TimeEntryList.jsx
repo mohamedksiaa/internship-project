@@ -71,7 +71,7 @@ export default function TimeEntryList({
     entry.user_label ||
     entry.user_name ||
     entry.user_login ||
-    (Number(entry.fk_user) > 0 ? `Utilisateur #${entry.fk_user}` : '—');
+    (Number(entry.fk_user) > 0 ? t('dashboard.user_fallback', { userId: entry.fk_user }) : '—');
 
   const displayedDuration = (entry) => (
     activeEntryId != null && entry.id != null && Number(entry.id) === Number(activeEntryId)
@@ -262,7 +262,6 @@ export default function TimeEntryList({
                 <tr className="border-b border-[#dce5ea] bg-white text-[11px] font-medium uppercase tracking-wide text-[#8a9aa4]">
                   <th className="px-5 py-2">{t('timeentry.col_task')}</th>
                   <th className="px-3 py-2">{t('timeentry.col_project')}</th>
-                  {showWorker && <th className="px-3 py-2">{t('timeentry.col_who')}</th>}
                   {showWorker && <th className="px-3 py-2">{t('timeentry.col_who')}</th>}
                   <th className="px-3 py-2">{t('timeentry.col_start')}</th>
                   <th className="px-3 py-2">{t('timeentry.col_end')}</th>

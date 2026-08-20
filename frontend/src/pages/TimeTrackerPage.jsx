@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
 import TimerWidget from '../components/organisms/TimerWidget';
 import TimeEntryList from '../components/organisms/TimeEntryList';
@@ -10,6 +11,7 @@ const fallbackProjects = [
 ];
 
 export default function TimeTrackerPage() {
+  const { t } = useTranslation();
   const [projects, setProjects] = useState(fallbackProjects);
   const [tasks, setTasks] = useState([]);
   const [entries, setEntries] = useState([]);
@@ -33,7 +35,7 @@ export default function TimeTrackerPage() {
         setProjects(projectsResult.value);
         setProjectsError('');
       } else {
-        const errorMsg = projectsResult.reason?.message || 'Aucun projet disponible dans Dolibarr';
+        const errorMsg = projectsResult.reason?.message || t('timer_page.no_projects');
         setProjectsError(errorMsg);
         setProjects(fallbackProjects);
       }

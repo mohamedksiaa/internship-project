@@ -28,6 +28,12 @@ describe('TimeEntryList validation mode', () => {
     expect(screen.getByRole('button', { name: 'Modifié manuellement' })).toBeInTheDocument();
   });
 
+  it('renders only one who column when a worker is displayed', () => {
+    render(<TimeEntryList entries={[entry]} showWorker setEntries={vi.fn()} />);
+    expect(screen.getAllByRole('columnheader', { name: 'Qui' })).toHaveLength(1);
+    expect(screen.getByText('med ahemd')).toBeInTheDocument();
+  });
+
   it('does not expose deletion for a submitted entry without server permission', () => {
     render(<TimeEntryList entries={[{ ...entry, delete_allowed: false }]} setEntries={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Supprimer l’entrée' })).not.toBeInTheDocument();

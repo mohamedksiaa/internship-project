@@ -1,6 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import i18n from '../../i18n';
 import EditHistoryModal from './EditHistoryModal';
+
+const t = (key, params) => i18n.t(key, params);
 
 vi.mock('../../api/timeflowApi', () => ({
   getModificationHistory: vi.fn().mockResolvedValue([
@@ -12,8 +15,8 @@ vi.mock('../../api/timeflowApi', () => ({
 describe('EditHistoryModal', () => {
   it('shows only the changed field without a timezone shift', async () => {
     render(<EditHistoryModal entry={{ id: 42 }} onClose={vi.fn()} />);
-    expect(await screen.findByText('Début')).toBeInTheDocument();
-    expect(screen.queryByText('Fin')).not.toBeInTheDocument();
+    expect(await screen.findByText(t('history.start'))).toBeInTheDocument();
+    expect(screen.queryByText(t('history.end'))).not.toBeInTheDocument();
     expect(screen.getByText(/09:33/)).toBeInTheDocument();
     expect(screen.getByText(/08:33/)).toBeInTheDocument();
     expect(screen.getByText(/aaaaaaaa/)).toBeInTheDocument();

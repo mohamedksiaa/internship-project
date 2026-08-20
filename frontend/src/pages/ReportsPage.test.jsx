@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import i18n from '../i18n';
 import ReportsPage from './ReportsPage';
 import { generateInvoiceLines, getDailyReports, getMyDailyReports, getSummaryReports, markDailyReportRead, saveDailyReport } from '../api/timeflowApi';
+
+const t = (key, params) => i18n.t(key, params);
 
 vi.mock('../api/timeflowApi', () => ({
   generateInvoiceLines: vi.fn(),
@@ -32,11 +35,11 @@ describe('ReportsPage', () => {
 
     render(<ReportsPage />);
 
-    expect(await screen.findByText('Projet #1')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-06-01' } });
+    expect(await screen.findByText(t('dashboard.project_fallback', { projectId: 1 }))).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(t('reports.from')), { target: { value: '2026-06-01' } });
 
     await waitFor(() => expect(getSummaryReports).toHaveBeenLastCalledWith(1000, '2026-06-01', expect.any(String)));
-    expect(await screen.findByText('Projet #2')).toBeInTheDocument();
+    expect(await screen.findByText(t('dashboard.project_fallback', { projectId: 2 }))).toBeInTheDocument();
     expect(screen.getAllByText('02:00:00')).not.toHaveLength(0);
   });
 });
