@@ -1785,8 +1785,8 @@ class TimeEntry extends CommonObject
 		$this->fk_user = (int) $fk_user;
 		$this->fk_project = ((int) $fk_project > 0) ? (int) $fk_project : null;
 		$this->fk_task = ((int) $fk_task > 0) ? (int) $fk_task : null;
-		$this->date_start = dol_print_date($dateStart, 'dayhour');
-		$this->date_end = dol_print_date($dateEnd, 'dayhour');
+		$this->date_start = $this->db->idate((int) $dateStart);
+		$this->date_end = $this->db->idate((int) $dateEnd);
 		$this->duration = max(0, (int) ($dateEnd - $dateStart));
 		$this->is_manually_edited = 0;
 		$this->occurrence_count = 1;

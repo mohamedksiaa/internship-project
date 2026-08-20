@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { approveTimeEntry, correctTimeEntry, deleteTimeEntry, rejectTimeEntry, submitEntry } from '../../api/timeflowApi';
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
@@ -13,26 +14,26 @@ function entryDate(value) {
   return /^[0-9]+$/.test(raw) ? new Date(Number(raw) * (raw.length === 10 ? 1000 : 1)) : new Date(value);
 }
 
-function dateLabel(value) {
+function dateLabel(value, t) {
   const date = entryDate(value);
-  if (Number.isNaN(date.getTime())) return 'Date non renseignée';
+  if (Number.isNaN(date.getTime())) return t('timeentry.date_unknown');
   const today = new Date();
-  if (date.toDateString() === today.toDateString()) return "Aujourd’hui";
+  if (date.toDateString() === today.toDateString()) return t('timeentry.today');
   return date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-function timeLabel(value) {
+function timeLabel(value, t) {
   const date = entryDate(value);
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function endTimeLabel(entry) {
-  if (entry.date_end) return timeLabel(entry.date_end);
+function endTimeLabel(entry, t) {
+  if (entry.date_end) return timeLabel(entry.date_end, t);
   const start = entryDate(entry.date_start);
   if (!Number.isNaN(start.getTime()) && Number(entry.duration) > 0) {
-    return timeLabel(new Date(start.getTime() + Number(entry.duration) * 1000));
+    return timeLabel(new Date(start.getTime() + Number(entry.duration) * 1000), t);
   }
-  return entry.status === 0 ? 'En cours' : '—';
+  return entry.status === 0 ? t('timeentry.in_progress') : '—';
 }
 
 function toDateTimeLocal(value) {
@@ -63,6 +64,8 @@ export default function TimeEntryList({
   const [correctionError, setCorrectionError] = useState('');
 
   useEffect(() => setEntries(initialEntries), [initialEntries]);
+
+  const { t } = useTranslation();
 
   const workerName = (entry) =>
     entry.user_label ||
@@ -188,11 +191,11 @@ export default function TimeEntryList({
     const end = new Date(correction.date_end);
     const reason = correction.reason.trim();
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-      setCorrectionError('L’heure de fin doit être postérieure à l’heure de début.');
+        setCorrectionError(t('timeentry.error_end_after_start'));
       return;
     }
     if (reason.length < 5) {
-      setCorrectionError('La raison est obligatoire et doit contenir au moins 5 caractères.');
+        setCorrectionError(t('timeentry.error_reason_required'));
       return;
     }
     setBusyId(entryToCorrect.id);
@@ -229,13 +232,13 @@ export default function TimeEntryList({
     }
     const targetId = getProjectId(entry);
     const found = projects.find((p) => Number(p.id || p.rowid || p.value) === targetId);
-    return found ? (found.title || found.label || found.name || found.ref) : 'Sans projet';
+    return found ? (found.title || found.label || found.name || found.ref) : t('timeentry.project_unknown');
   };
 
   if (!entries.length) {
     return (
       <div className="border border-[#dce5ea] bg-white px-5 py-6 text-sm text-[#71838f]">
-        Aucune entrée de temps disponible pour le moment.
+        {t('timeentry.no_entries')}
       </div>
     );
   }
@@ -248,31 +251,32 @@ export default function TimeEntryList({
         return (
           <div key={key} className="border-b-4 border-[#e3ebef] bg-white overflow-x-auto">
             <div className="flex items-center justify-between bg-[#e5edf1] px-5 py-2 text-sm text-[#52656f]">
-              <span>{key === 'unknown-date' ? 'Date non renseignée' : dateLabel(group[0].date_start)}</span>
+              <span>{key === 'unknown-date' ? t('timeentry.date_unknown') : dateLabel(group[0].date_start, t)}</span>
               <span>
-                Total:&nbsp; <strong className="text-sm text-[#2a3c47]">{formatDuration(total)}</strong>
+                {t('timeentry.total')}:&nbsp; <strong className="text-sm text-[#2a3c47]">{formatDuration(total)}</strong>
               </span>
             </div>
 
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#dce5ea] bg-white text-[11px] font-medium uppercase tracking-wide text-[#8a9aa4]">
-                  <th className="px-5 py-2">Tâche</th>
-                  <th className="px-3 py-2">Projet</th>
-                  {showWorker && <th className="px-3 py-2">Qui</th>}
-                  <th className="px-3 py-2">Début</th>
-                  <th className="px-3 py-2">Fin</th>
-                  <th className="px-3 py-2">État</th>
-                  <th className="px-3 py-2 text-right">Durée</th>
-                  <th className="px-3 py-2 text-center">Modification</th>
-                  <th className="px-5 py-2 text-right">Actions</th>
+                  <th className="px-5 py-2">{t('timeentry.col_task')}</th>
+                  <th className="px-3 py-2">{t('timeentry.col_project')}</th>
+                  {showWorker && <th className="px-3 py-2">{t('timeentry.col_who')}</th>}
+                  {showWorker && <th className="px-3 py-2">{t('timeentry.col_who')}</th>}
+                  <th className="px-3 py-2">{t('timeentry.col_start')}</th>
+                  <th className="px-3 py-2">{t('timeentry.col_end')}</th>
+                  <th className="px-3 py-2">{t('timeentry.col_status')}</th>
+                  <th className="px-3 py-2 text-right">{t('timeentry.col_duration')}</th>
+                  <th className="px-3 py-2 text-center">{t('timeentry.col_modified')}</th>
+                  <th className="px-5 py-2 text-right">{t('timeentry.col_actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {group.map((entry) => (
                   <tr key={entry.id} className="border-b border-[#dce5ea] hover:bg-[#f9fbfd] text-sm text-[#2c3e49]">
                     <td className="px-5 py-3 min-w-[180px]">
-                      <p className="font-medium text-[#2c3e49] truncate">{entry.note || 'Sans description'}</p>
+                      <p className="font-medium text-[#2c3e49] truncate">{entry.note || t('timeentry.no_description')}</p>
                     </td>
                     <td className="px-3 py-3 text-[#03a9f4] font-medium truncate min-w-[120px]">
                       {projectName(entry)}
@@ -283,10 +287,10 @@ export default function TimeEntryList({
                       </td>
                     )}
                     <td className="px-3 py-3 text-[#4d606b] whitespace-nowrap">
-                      {timeLabel(entry.date_start)}
+                      {timeLabel(entry.date_start, t)}
                     </td>
                     <td className="px-3 py-3 text-[#4d606b] whitespace-nowrap">
-                      {endTimeLabel(entry)}
+                      {endTimeLabel(entry, t)}
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <StatusBadge status={Number(entry.status)} />
@@ -299,10 +303,10 @@ export default function TimeEntryList({
                         <button
                           type="button"
                           onClick={() => setHistoryEntry(entry)}
-                          title={entry.manual_reason ? `Temps corrigé : ${entry.manual_reason}` : 'Temps corrigé et tracé'}
+                          title={entry.manual_reason ? `${t('timeentry.corrected_with_reason')}: ${entry.manual_reason}` : t('timeentry.corrected_traced')}
                           className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
                         >
-                          Modifié manuellement
+                          {t('timeentry.modified_manually')}
                         </button>
                       ) : '—'}
                     </td>
@@ -310,7 +314,7 @@ export default function TimeEntryList({
                       <div className="flex justify-end items-center gap-2 text-[#78909c]">
                         {entry.id != null && entry.status === 0 && (
                           <button
-                            title="Soumettre"
+                            title={t('timeentry.title_submit')}
                             onClick={() => submitDraft(entry)}
                             disabled={busyId === entry.id}
                             className="text-[#03a9f4]"
@@ -320,8 +324,8 @@ export default function TimeEntryList({
                         )}
                         {showValidationActions && entry.status === 1 && (
                           <>
-                            <button
-                              title="Valider"
+                              <button
+                              title={t('timeentry.title_validate')}
                               onClick={() => decide(entry.id, 2)}
                               disabled={busyId === entry.id}
                               className="text-[#03a9f4]"
@@ -329,7 +333,7 @@ export default function TimeEntryList({
                               {busyId === entry.id ? '…' : '✓'}
                             </button>
                             <button
-                              title="Refuser"
+                              title={t('timeentry.title_reject')}
                               onClick={() => decide(entry.id, 9)}
                               disabled={busyId === entry.id}
                               className="text-[#d66]"
@@ -339,7 +343,7 @@ export default function TimeEntryList({
                           </>
                         )}
                         {entry.id != null && onRestartEntry && <button
-                          title="Démarrer à nouveau"
+                          title={t('timeentry.title_restart')}
                           onClick={() => restartEntry(entry)}
                           disabled={busyId !== null}
                           className="text-[#03a9f4]"
@@ -352,20 +356,20 @@ export default function TimeEntryList({
                         {!showValidationActions && entry.id != null && entry.manual_editable && (
                           <button
                             type="button"
-                            title="Modifier cette entrée"
-                            aria-label="Modifier cette entrée"
+                            title={t('timeentry.title_edit')}
+                            aria-label={t('timeentry.title_edit')}
                             onClick={() => openCorrection(entry)}
                             disabled={busyId !== null}
                             className="text-[#03a9f4]"
                           >
-                            Modifier
+                            {t('timeentry.title_edit')}
                           </button>
                         )}
                         {!showValidationActions && entry.id != null && entry.delete_allowed && (
                           <button
                             type="button"
-                            title="Supprimer cette entrée"
-                            aria-label="Supprimer cette entrée"
+                            title={t('timeentry.title_delete')}
+                            aria-label={t('timeentry.title_delete')}
                             onClick={() => deleteEntry(entry)}
                             disabled={busyId !== null}
                             className="text-[#d64c4c] disabled:opacity-50"
@@ -374,7 +378,7 @@ export default function TimeEntryList({
                           </button>
                         )}
                         <span
-                          title="Nombre de reprises de cette entrée"
+                          title={t('timeentry.title_occurrences')}
                           className="rounded-full bg-[#eaf6fd] px-2 py-0.5 text-xs font-medium text-[#03a9f4]"
                         >
                           ×{Math.max(1, Number(entry.occurrence_count || 1))}
@@ -393,13 +397,13 @@ export default function TimeEntryList({
           <div className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 id="delete-title" className="text-lg font-semibold text-[#263746]">Supprimer l’entrée</h2>
-                <p className="mt-1 text-sm text-[#52656f]">Cette action est irréversible.</p>
+                <h2 id="delete-title" className="text-lg font-semibold text-[#263746]">{t('timeentry.delete_title')}</h2>
+                <p className="mt-1 text-sm text-[#52656f]">{t('timeentry.delete_irreversible')}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setEntryToDelete(null)}
-                aria-label="Fermer"
+                aria-label={t('timeentry.close')}
                 className="text-lg leading-none text-[#78909c] hover:text-[#2c3e49]"
               >
                 ×
@@ -407,15 +411,15 @@ export default function TimeEntryList({
             </div>
 
             <p className="text-sm text-[#52656f]">
-              {entryToDelete.delete_requires_strong_confirmation
-                ? 'Cette entrée a été soumise, validée ou refusée. Confirmer sa suppression définitive ?'
-                : 'Supprimer définitivement cette entrée de temps ? Cette action est irréversible.'}
+                {entryToDelete.delete_requires_strong_confirmation
+                ? t('timeentry.delete_requires_confirmation')
+                : t('timeentry.delete_confirm')}
             </p>
 
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setEntryToDelete(null)} className="text-sm text-[#52656f]">Annuler</button>
+              <button type="button" onClick={() => setEntryToDelete(null)} className="text-sm text-[#52656f]">{t('timeentry.cancel')}</button>
               <button type="button" onClick={confirmDeleteEntry} className="rounded bg-[#d64c4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#b93d3d]">
-                Confirmer
+                {t('timeentry.confirm')}
               </button>
             </div>
           </div>
@@ -425,16 +429,16 @@ export default function TimeEntryList({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="correction-title">
           <form onSubmit={saveCorrection} className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-xl">
             <div>
-              <h2 id="correction-title" className="text-lg font-semibold text-[#263746]">Modifier l’entrée de temps</h2>
+              <h2 id="correction-title" className="text-lg font-semibold text-[#263746]">{t('timeentry.edit_title')}</h2>
               <p className="mt-1 text-sm text-[#52656f]">
-                {entryToCorrect.manual_edit_message || 'Cette correction sera tracée.'}
+                {entryToCorrect.manual_edit_message || t('timeentry.edit_manual_message')}
               </p>
             </div>
             {correctionError && (
               <p className="whitespace-pre-line rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-600">{correctionError}</p>
             )}
             <label className="block text-sm font-medium text-[#2c3e49]">
-              Début
+              {t('timeentry.col_start')}
               <input
                 type="datetime-local"
                 value={correction.date_start}
@@ -445,7 +449,7 @@ export default function TimeEntryList({
               />
             </label>
             <label className="block text-sm font-medium text-[#2c3e49]">
-              Fin
+              {t('timeentry.col_end')}
               <input
                 type="datetime-local"
                 value={correction.date_end}
@@ -455,7 +459,7 @@ export default function TimeEntryList({
               />
             </label>
             <label className="block text-sm font-medium text-[#2c3e49]">
-              Raison (obligatoire, 5 caractères minimum)
+              {t('timeentry.edit_reason')}
               <textarea
                 value={correction.reason}
                 onChange={(event) => setCorrection((current) => ({ ...current, reason: event.target.value }))}
@@ -464,9 +468,9 @@ export default function TimeEntryList({
               />
             </label>
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="text-sm text-[#52656f]">Annuler</button>
+              <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="text-sm text-[#52656f]">{t('cancel')}</button>
               <button type="submit" disabled={busyId === entryToCorrect.id || correction.reason.trim().length < 5} className="rounded bg-[#03a9f4] px-4 py-2 text-sm font-medium text-white">
-                {busyId === entryToCorrect.id ? 'Enregistrement…' : 'Enregistrer'}
+                {busyId === entryToCorrect.id ? t('timeentry.saving') : t('save')}
               </button>
             </div>
           </form>

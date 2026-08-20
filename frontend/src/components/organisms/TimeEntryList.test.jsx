@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import TimeEntryList from './TimeEntryList';
+import i18n from '../../i18n';
 import { correctTimeEntry, deleteTimeEntry } from '../../api/timeflowApi';
 
 vi.mock('../../api/timeflowApi', () => ({
@@ -11,6 +12,15 @@ vi.mock('../../api/timeflowApi', () => ({
 const entry = { id: 42, fk_user: 5, user_label: 'med ahemd', note: 'Correction', date_start: '2026-08-12T13:04:00Z', date_end: '2026-08-12T14:04:00Z', duration: 3600, status: 1, manual_editable: true, manual_modified: true, manual_reason: 'raison exacte' };
 
 describe('TimeEntryList validation mode', () => {
+  beforeAll(async () => {
+    try {
+      // Ensure tests run with French translations to match expectations
+      await i18n.changeLanguage('fr');
+      window.localStorage.removeItem('timeflow_lang');
+    } catch (e) {
+      // ignore
+    }
+  });
   it('never exposes Modifier but shows the manual-change badge in its own column for another employee', () => {
     render(<TimeEntryList entries={[entry]} showWorker showValidationActions setEntries={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Modifier cette entrée' })).not.toBeInTheDocument();
@@ -20,7 +30,7 @@ describe('TimeEntryList validation mode', () => {
 
   it('does not expose deletion for a submitted entry without server permission', () => {
     render(<TimeEntryList entries={[{ ...entry, delete_allowed: false }]} setEntries={vi.fn()} />);
-    expect(screen.queryByRole('button', { name: 'Supprimer cette entrée' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Supprimer l’entrée' })).not.toBeInTheDocument();
   });
 
   it('shows a custom confirmation modal for draft entries and deletes only after explicit confirmation', async () => {
@@ -29,7 +39,7 @@ describe('TimeEntryList validation mode', () => {
     const user = userEvent.setup();
     render(<TimeEntryList entries={[{ ...entry, delete_allowed: true, delete_requires_strong_confirmation: false }]} setEntries={setEntries} />);
 
-    await user.click(screen.getByRole('button', { name: 'Supprimer cette entrée' }));
+    await user.click(screen.getByRole('button', { name: 'Supprimer l’entrée' }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Supprimer définitivement cette entrée de temps ? Cette action est irréversible.')).toBeInTheDocument();
@@ -37,7 +47,7 @@ describe('TimeEntryList validation mode', () => {
     await user.click(screen.getByRole('button', { name: 'Annuler' }));
     expect(deleteTimeEntry).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: 'Supprimer cette entrée' }));
+    await user.click(screen.getByRole('button', { name: 'Supprimer l’entrée' }));
     await user.click(screen.getByRole('button', { name: 'Confirmer' }));
 
     expect(deleteTimeEntry).toHaveBeenCalledWith(42);
@@ -49,7 +59,7 @@ describe('TimeEntryList validation mode', () => {
     const user = userEvent.setup();
     render(<TimeEntryList entries={[{ ...entry, status: 2, delete_allowed: true, delete_requires_strong_confirmation: true }]} setEntries={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Supprimer cette entrée' }));
+    await user.click(screen.getByRole('button', { name: 'Supprimer l’entrée' }));
 
     expect(screen.getByText('Cette entrée a été soumise, validée ou refusée. Confirmer sa suppression définitive ?')).toBeInTheDocument();
 
@@ -63,7 +73,7 @@ describe('TimeEntryList validation mode', () => {
     const user = userEvent.setup();
     render(<TimeEntryList entries={[{ ...entry, status: 2, delete_allowed: true, delete_requires_strong_confirmation: true }]} setEntries={setEntries} />);
 
-    await user.click(screen.getByRole('button', { name: 'Supprimer cette entrée' }));
+    await user.click(screen.getByRole('button', { name: 'Supprimer l’entrée' }));
     await user.click(screen.getByRole('button', { name: 'Confirmer' }));
 
     expect(await screen.findByText(/Suppression refusée.*immuable/)).toBeInTheDocument();

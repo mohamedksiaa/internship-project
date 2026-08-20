@@ -1,21 +1,25 @@
 import { NavLink, Outlet } from 'react-router-dom';
-
-const navigation = [
-  { path: '/timer', label: 'SUIVI DU TEMPS', icon: '◷', section: 'SUIVRE' },
-  { path: '/history', label: 'CALENDRIER', icon: '□', section: 'SUIVRE' },
-  { path: '/daily-report', label: 'MON RAPPORT', icon: '✎', section: 'SUIVRE' },
-  { path: '/dashboard', label: 'TABLEAU DE BORD', icon: '⊞', section: 'ANALYSER' },
-  { path: '/reports', label: 'RAPPORTS', icon: '▥', section: 'ANALYSER' },
-  { path: '/validation', label: 'VALIDATIONS', icon: '✓', section: 'GÉRER' },
-  { path: '/processed-history', label: 'HISTORIQUE', icon: '◫', section: 'GÉRER' },
-];
+import { useTranslation } from 'react-i18next';
+import LanguageSelector from '../molecules/LanguageSelector';
 
 function classNames(...classes) { return classes.filter(Boolean).join(' '); }
 
 export default function AppLayout() {
+  const { t } = useTranslation();
+  const navigation = [
+    { path: '/timer', label: t('nav.track_time'), icon: '◷', section: t('app.section_follow') },
+    { path: '/history', label: t('nav.calendar'), icon: '□', section: t('app.section_follow') },
+    { path: '/daily-report', label: t('nav.daily_report'), icon: '✎', section: t('app.section_follow') },
+    { path: '/dashboard', label: t('nav.dashboard'), icon: '⊞', section: t('app.section_analyze') },
+    { path: '/reports', label: t('nav.reports'), icon: '▥', section: t('app.section_analyze') },
+    { path: '/validation', label: t('nav.validations'), icon: '✓', section: t('app.section_manage') },
+    { path: '/processed-history', label: t('nav.history'), icon: '◫', section: t('app.section_manage') },
+  ];
   const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
+  const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
   const visibleNavigation = navigation.filter((item) => {
-    if (item.path === '/validation' || item.path === '/processed-history') return canValidate;
+    if (item.path === '/validation') return canValidate;
+    if (item.path === '/processed-history') return canReadAll;
     if (item.path === '/reports') return canValidate;
     return true;
   });
@@ -27,13 +31,14 @@ export default function AppLayout() {
         <div className="flex items-center gap-3 border-r border-[#dce5ea] pr-6">
           <span className="grid h-8 w-8 place-items-center text-xl text-[#253746]">⠿</span>
           <span className="grid h-8 w-8 place-items-center rounded-md bg-[#03a9f4] text-xl font-bold text-white">◷</span>
-          <span className="text-[23px] font-semibold tracking-tight text-[#111827]">TimeFlow</span>
+          <span className="text-[23px] font-semibold tracking-tight text-[#111827]">{t('app.brand')}</span>
         </div>
         <div className="ml-6 hidden items-center gap-4 text-sm text-[#455a64] sm:flex">
-          <span>Mon espace de travail</span><span className="text-[#9aaab5]">•••</span>
-          <span className="border border-[#03a9f4] bg-[#03a9f4] px-3 py-1.5 text-xs font-medium text-white">METTRE À NIVEAU</span>
+          <span>{t('app.workspace')}</span><span className="text-[#9aaab5]">•••</span>
+          <span className="border border-[#03a9f4] bg-[#03a9f4] px-3 py-1.5 text-xs font-medium text-white">{t('app.upgrade')}</span>
         </div>
         <div className="ml-auto flex items-center gap-5 text-[#78909c]">
+          <LanguageSelector />
           <span className="hidden text-lg sm:block">♧</span><span className="hidden text-lg sm:block">♧</span>
         </div>
       </header>
