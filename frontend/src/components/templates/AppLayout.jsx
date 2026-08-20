@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import timeflowLogo from '../../assets/timeflow-logo.png';
 import LanguageSelector from '../molecules/LanguageSelector';
 
 function classNames(...classes) { return classes.filter(Boolean).join(' '); }
@@ -30,7 +31,7 @@ export default function AppLayout() {
       <header className="flex h-[60px] items-center border-b border-[#dce5ea] bg-white px-5 shadow-sm">
         <div className="flex items-center gap-3 border-r border-[#dce5ea] pr-6">
           <span className="grid h-8 w-8 place-items-center text-xl text-[#253746]">⠿</span>
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-[#03a9f4] text-xl font-bold text-white">◷</span>
+          <img src={timeflowLogo} alt="TimeFlow" className="h-8 w-8 object-contain" />
           <span className="text-[23px] font-semibold tracking-tight text-[#111827]">{t('app.brand')}</span>
         </div>
         <div className="ml-6 hidden items-center gap-4 text-sm text-[#455a64] sm:flex">

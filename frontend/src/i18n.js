@@ -28,7 +28,9 @@ function resolveInitialLanguage() {
   // 1) user's explicit choice stored by LanguageSelector (we use 'timeflow_lang')
   try {
     const stored = window.localStorage.getItem('timeflow_lang');
-    if (stored) return stored;
+    const normalizedStored = normalizeDolibarrLang(stored);
+    if (normalizedStored && String(stored).toLowerCase() === normalizedStored) return normalizedStored;
+    if (stored !== null) window.localStorage.removeItem('timeflow_lang');
   } catch (e) {
     // ignore
   }
