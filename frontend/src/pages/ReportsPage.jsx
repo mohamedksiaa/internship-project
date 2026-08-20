@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getDailyReports, getSummaryReports, markDailyReportRead } from '../api/timeflowApi';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
@@ -20,6 +21,7 @@ function currentMonthRange() {
 }
 
 export default function ReportsPage() {
+  const { t } = useTranslation();
   const [dateRange, setDateRange] = useState(currentMonthRange);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -96,13 +98,13 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm overflow-hidden">
         <div className="mb-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Rapports</p>
-          <h2 className="text-2xl font-semibold text-slate-900">Rapports d&apos;activité</h2>
-          <p className="mt-2 text-sm text-slate-600">Sommaire global, répartition billable et lignes exploitables pour la facturation.</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">{t('reports.title')}</p>
+          <h2 className="text-2xl font-semibold text-slate-900">{t('reports.activity_title')}</h2>
+          <p className="mt-2 text-sm text-slate-600">{t('reports.summary_text')}</p>
         </div>
         <div className="mb-6 flex flex-wrap gap-4">
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700" htmlFor="reports-date-from">
-            From
+            {t('reports.from')}
             <input
               id="reports-date-from"
               type="date"
@@ -112,7 +114,7 @@ export default function ReportsPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700" htmlFor="reports-date-to">
-            To
+            {t('reports.to')}
             <input
               id="reports-date-to"
               type="date"
@@ -122,12 +124,12 @@ export default function ReportsPage() {
             />
           </label>
         </div>
-        {loading && <p className="text-sm text-slate-600">Chargement…</p>}
+        {loading && <p className="text-sm text-slate-600">{t('reports.loading')}</p>}
         {error && <p className="text-sm text-rose-600">{error}</p>}
         {!loading && !error && summary && (
           <div className="mb-6 flex justify-center">
             <div className="w-full max-w-2xl rounded-lg bg-slate-50 p-6 border border-slate-200 text-center">
-              <p className="text-sm font-semibold text-slate-500">Total</p>
+              <p className="text-sm font-semibold text-slate-500">{t('reports.total')}</p>
               <p className="mt-2 text-2xl font-semibold text-slate-900">{formatDuration(summary.total_seconds)}</p>
             </div>
           </div>
@@ -135,9 +137,9 @@ export default function ReportsPage() {
         {!loading && !error && summary && (
           <div className="mt-6">
             <div className="rounded-3xl border border-slate-200 p-5">
-              <p className="text-sm font-semibold text-slate-500">Par projet</p>
+              <p className="text-sm font-semibold text-slate-500">{t('reports.by_project')}</p>
               <div className="mt-3 space-y-2 text-sm text-slate-700">
-                {Object.entries(summary.by_project || {}).map(([projectId, total]) => <div key={projectId} className="flex items-center justify-between"><span>{summary.project_labels?.[projectId] || `Projet #${projectId}`}</span><strong>{formatDuration(total)}</strong></div>)}
+                {Object.entries(summary.by_project || {}).map(([projectId, total]) => <div key={projectId} className="flex items-center justify-between"><span>{summary.project_labels?.[projectId] || t('dashboard.project_fallback', { projectId })}</span><strong>{formatDuration(total)}</strong></div>)}
               </div>
             </div>
           </div>
@@ -145,12 +147,12 @@ export default function ReportsPage() {
         {/* Invoice lines removed from the UI per requirements. */}
       </div>
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm overflow-hidden">
-        <div className="mb-6"><p className="text-sm font-semibold uppercase tracking-[.24em] text-slate-500">Rapports journaliers</p><h2 className="text-2xl font-semibold text-slate-900">Comptes-rendus des employés</h2><p className="mt-2 text-sm text-slate-600">Lecture et suivi des rapports textuels, indépendamment des statistiques de temps ci-dessus.</p></div>
+        <div className="mb-6"><p className="text-sm font-semibold uppercase tracking-[.24em] text-slate-500">{t('reports.daily_reports')}</p><h2 className="text-2xl font-semibold text-slate-900">{t('reports.daily_reports_title')}</h2><p className="mt-2 text-sm text-slate-600">{t('reports.daily_reports_description')}</p></div>
         <div>
-          <div className="mb-4 flex flex-wrap items-end gap-4"><label className="flex flex-col gap-1 text-sm font-medium text-slate-700">Employé<select aria-label="Filtrer les rapports par employé" value={dailyEmployeeId} onChange={(event) => setDailyEmployeeId(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2"><option value="">Tous les employés</option>{dailyEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}</select></label><span className="text-sm text-slate-500">Période : {dateRange.from} → {dateRange.to}</span></div>
+          <div className="mb-4 flex flex-wrap items-end gap-4"><label className="flex flex-col gap-1 text-sm font-medium text-slate-700">{t('reports.employee')}<select aria-label={t('reports.filter_employee')} value={dailyEmployeeId} onChange={(event) => setDailyEmployeeId(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2"><option value="">{t('reports.all_employees')}</option>{dailyEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}</select></label><span className="text-sm text-slate-500">{t('reports.period')} : {dateRange.from} → {dateRange.to}</span></div>
           {dailyError && <p className="mb-3 text-sm text-rose-600">{dailyError}</p>}
           {dailyReports.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucun rapport journalier sur cette période.</p>
+            <p className="text-sm text-slate-500">{t('reports.no_reports_for_period')}</p>
           ) : (
             <div className="space-y-3">
               {dailyReports.map((report) => (
@@ -162,14 +164,14 @@ export default function ReportsPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       {report.is_read ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">Lu</span>
+                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">{t('reports.read_status')}</span>
                       ) : (
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); markRead(report.id); }}
                           className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"
                         >
-                          Nouveau — marquer comme lu
+                          {t('reports.new_mark_read')}
                         </button>
                       )}
                       <button
@@ -177,7 +179,7 @@ export default function ReportsPage() {
                         onClick={(e) => { e.stopPropagation(); openReportModal(report); }}
                         className="text-sm text-slate-600"
                       >
-                        Lire le rapport
+                        {t('reports.read')}
                       </button>
                     </div>
                   </div>

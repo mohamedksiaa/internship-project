@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import FullCalendar from '@fullcalendar/react';
+import enLocale from '@fullcalendar/core/locales/en-gb';
+import frLocale from '@fullcalendar/core/locales/fr';
+import deLocale from '@fullcalendar/core/locales/de';
+import arLocale from '@fullcalendar/core/locales/ar';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { getWeeklyTimesheet } from '../api/timeflowApi';
@@ -11,8 +16,8 @@ function durationLabel(seconds) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
-function formatTime(date) {
-  return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false });
+function formatTime(date, locale) {
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 const ZOOM_LEVELS = ['01:00:00', '00:30:00', '00:15:00', '00:05:00'];
@@ -32,6 +37,7 @@ function getProjectColor(projectId) {
 }
 
 export default function HistoryPage() {
+  const { t, i18n } = useTranslation();
   const calendarRef = useRef(null);
   const [requestedWeekStart, setRequestedWeekStart] = useState('');
   const [weekData, setWeekData] = useState({ weekStart: '', weekEnd: '', rows: [] });
@@ -39,6 +45,34 @@ export default function HistoryPage() {
   const [error, setError] = useState('');
   const [viewType, setViewType] = useState('timeGridWeek');
   const [slotDuration, setSlotDuration] = useState('00:30:00');
+
+  const appLocale = useMemo(() => {
+    switch (i18n.language) {
+      case 'fr':
+        return 'fr-FR';
+      case 'de':
+        return 'de-DE';
+      case 'ar':
+        return 'ar-EG';
+      case 'en':
+      default:
+        return 'en-US';
+    }
+  }, [i18n.language]);
+
+  const calendarLocale = useMemo(() => {
+    switch (i18n.language) {
+      case 'fr':
+        return frLocale;
+      case 'de':
+        return deLocale;
+      case 'ar':
+        return arLocale;
+      case 'en':
+      default:
+        return enLocale;
+    }
+  }, [i18n.language]);
 
   const loadEntries = async (dateStr) => {
     setLoading(true);
@@ -70,7 +104,7 @@ export default function HistoryPage() {
         end = new Date();
       }
 
-      const project = entry.project_label || 'Sans projet';
+      const project = entry.project_label || t('dashboard.no_project');
       const task = entry.task_label ? ` / ${entry.task_label}` : '';
       const note = entry.note ? ` — ${entry.note}` : '';
       const title = `${project}${task}${note}`;
@@ -86,8 +120,8 @@ export default function HistoryPage() {
           duration: entry.duration,
           billable: entry.billable,
           status: entry.status,
-          startTime: formatTime(start),
-          endTime: formatTime(end),
+          startTime: formatTime(start, appLocale),
+          endTime: formatTime(end, appLocale),
           projectLabel: project,
         },
         backgroundColor: colors.bg,
@@ -95,7 +129,7 @@ export default function HistoryPage() {
         textColor: colors.text,
       };
     });
-  }, [weekData.rows]);
+  }, [weekData.rows, appLocale, t]);
 
   const handlePrev = () => {
     const api = calendarRef.current.getApi();
@@ -149,18 +183,18 @@ export default function HistoryPage() {
     const start = new Date(`${weekData.weekStart}T00:00:00`);
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
-    const fmt = (d) => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    const fmt = (d) => d.toLocaleDateString(appLocale, { day: 'numeric', month: 'short' });
     return `${fmt(start)} - ${fmt(end)}`;
-  }, [weekData.weekStart]);
+  }, [weekData.weekStart, appLocale]);
 
   return (
     <div className="flex h-full flex-col space-y-4">
       <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Calendrier</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">{t('history.calendar')}</p>
             <h2 className="text-2xl font-semibold text-slate-900">
-              {viewType === 'timeGridDay' ? 'Planning journalier' : 'Planning hebdomadaire'}
+              {viewType === 'timeGridDay' ? t('history.daily_planning') : t('history.weekly_planning')}
             </h2>
             {weekLabel && (
               <p className="mt-1 text-sm text-slate-500">{weekLabel}</p>
@@ -173,13 +207,13 @@ export default function HistoryPage() {
                 onClick={() => toggleView('timeGridWeek')}
                 className={`rounded-md px-3 py-1 text-sm ${viewType === 'timeGridWeek' ? 'bg-slate-100 font-medium text-slate-900' : 'text-slate-500 hover:bg-slate-50'}`}
               >
-                Week
+                {t('history.view_week')}
               </button>
               <button
                 onClick={() => toggleView('timeGridDay')}
                 className={`rounded-md px-3 py-1 text-sm ${viewType === 'timeGridDay' ? 'bg-slate-100 font-medium text-slate-900' : 'text-slate-500 hover:bg-slate-50'}`}
               >
-                Day
+                {t('history.view_day')}
               </button>
             </div>
 
@@ -188,7 +222,7 @@ export default function HistoryPage() {
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
               </button>
               <button onClick={handleToday} className="rounded-lg border border-slate-200 px-4 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                Aujourd'hui
+                {t('history.today')}
               </button>
               <button onClick={handleNext} className="rounded-full border border-slate-200 p-2 text-slate-600 hover:bg-slate-50">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
@@ -196,8 +230,8 @@ export default function HistoryPage() {
             </div>
 
             <div className="ml-4 flex items-center gap-1 border-l border-slate-200 pl-4">
-              <button onClick={zoomOut} title="Dézoomer" className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">−</button>
-              <button onClick={zoomIn} title="Zoomer" className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">+</button>
+              <button onClick={zoomOut} title={t('history.zoom_out')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">−</button>
+              <button onClick={zoomIn} title={t('history.zoom_in')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">+</button>
             </div>
           </div>
         </div>
@@ -221,7 +255,7 @@ export default function HistoryPage() {
             allDaySlot={false}
             nowIndicator={true}
             firstDay={1}
-            locale="fr"
+            locale={calendarLocale}
             height="auto"
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"

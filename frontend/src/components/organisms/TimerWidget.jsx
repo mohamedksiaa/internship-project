@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import TimeDisplay from '../atoms/TimeDisplay';
 
 export default function TimerWidget({ timer, projects: _projects = [], projectsError = '', onProjectChange = () => {}, onEntryCreated = () => {} }) {
+  const { t } = useTranslation();
   const { isRunning, seconds, loading, error, start, stop } = timer;
   const [projectLabel, setProjectLabel] = useState('');
   const [note, setNote] = useState('');
@@ -48,8 +50,8 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             name="description"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            aria-label="What are you working on?"
-            placeholder="Que faites-vous ?"
+            aria-label={t('timer_widget.description_label')}
+            placeholder={t('timer_widget.description_placeholder')}
             className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#03a9f4] focus:bg-white focus:ring-2 focus:ring-[#03a9f4]/10"
           />
           <input
@@ -57,8 +59,8 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             name="project"
             value={projectLabel}
             onChange={(e) => handleProjectChange(e.target.value)}
-            aria-label="Projet"
-            placeholder="Projet"
+            aria-label={t('timer_widget.project_label')}
+            placeholder={t('timer_widget.project_placeholder')}
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#03a9f4] focus:bg-white focus:ring-2 focus:ring-[#03a9f4]/10 md:w-48"
           />
           <div className="flex items-center justify-center md:w-32">
@@ -70,15 +72,15 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             disabled={isDisabled}
             className="w-full rounded-xl bg-[#03a9f4] px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-[#0398dc] hover:shadow-lg hover:shadow-[#03a9f4]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none md:w-auto"
           >
-            {loading ? '...' : isRunning ? 'ARRÊTER' : 'DÉMARRER'}
+            {loading ? '...' : isRunning ? t('timer_widget.stop') : t('timer_widget.start')}
           </button>
         </div>
       </div>
       {error && <p className="mt-3 text-sm text-[#d64c4c]">{error}</p>}
       {!isRunning && !isDisabled && !error && (
-        <p className="mt-2 text-sm text-slate-500">Prêt à démarrer.</p>
+        <p className="mt-2 text-sm text-slate-500">{t('timer_widget.ready_to_start')}</p>
       )}
-      {projectsError && <p className="mt-2 text-sm text-slate-500">{projectsError}. Vous pouvez tout de même démarrer un chrono sans projet.</p>}
+      {projectsError && <p className="mt-2 text-sm text-slate-500">{projectsError}. {t('timer_widget.start_without_project')}</p>}
     </section>
   );
 }

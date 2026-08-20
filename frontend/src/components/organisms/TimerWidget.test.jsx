@@ -1,7 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import i18n from '../../i18n';
 import TimerWidget from './TimerWidget';
+
+const t = (key) => i18n.t(key);
 
 function renderTimerWidget(overrides = {}) {
   const timer = {
@@ -23,56 +26,56 @@ describe('TimerWidget', () => {
     const stop = vi.fn().mockResolvedValue(stopped);
     const onEntryCreated = vi.fn();
     const { rerender } = render(<TimerWidget timer={{ isRunning: false, seconds: 0, loading: false, start: vi.fn(), stop }} onEntryCreated={onEntryCreated} />);
-    await user.type(screen.getByLabelText('What are you working on?'), 'Analyse');
-    await user.type(screen.getByLabelText('Projet'), 'Projet A');
+    await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'Analyse');
+    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet A');
     rerender(<TimerWidget timer={{ isRunning: true, seconds: 2, loading: false, start: vi.fn(), stop }} onEntryCreated={onEntryCreated} />);
-    await user.click(screen.getByRole('button', { name: 'ARRÊTER' }));
-    expect(screen.getByLabelText('What are you working on?')).toHaveValue('');
-    expect(screen.getByLabelText('Projet')).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: t('timer_widget.stop') }));
+    expect(screen.getByLabelText(t('timer_widget.description_label'))).toHaveValue('');
+    expect(screen.getByLabelText(t('timer_widget.project_label'))).toHaveValue('');
     expect(onEntryCreated).toHaveBeenCalledWith(stopped);
   });
 
-  it('disables DÉMARRER when both fields are empty', () => {
+  it('disables START when both fields are empty', () => {
     renderTimerWidget();
-    expect(screen.getByRole('button', { name: 'DÉMARRER' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
   });
 
-  it('disables DÉMARRER when project is filled but description is empty', async () => {
+  it('disables START when project is filled but description is empty', async () => {
     const user = userEvent.setup();
     renderTimerWidget();
-    await user.type(screen.getByLabelText('Projet'), 'Projet Alpha');
-    expect(screen.getByRole('button', { name: 'DÉMARRER' })).toBeDisabled();
+    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet Alpha');
+    expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
   });
 
-  it('disables DÉMARRER when description is shorter than 3 characters', async () => {
+  it('disables START when description is shorter than 3 characters', async () => {
     const user = userEvent.setup();
     renderTimerWidget();
-    await user.type(screen.getByLabelText('Projet'), 'Projet Alpha');
-    await user.type(screen.getByLabelText('What are you working on?'), 'ab');
-    expect(screen.getByRole('button', { name: 'DÉMARRER' })).toBeDisabled();
+    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet Alpha');
+    await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'ab');
+    expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
   });
 
-  it('disables DÉMARRER when description has 3 characters but project is empty', async () => {
+  it('disables START when description has 3 characters but project is empty', async () => {
     const user = userEvent.setup();
     renderTimerWidget();
-    await user.type(screen.getByLabelText('What are you working on?'), 'abc');
-    expect(screen.getByRole('button', { name: 'DÉMARRER' })).toBeDisabled();
+    await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'abc');
+    expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
   });
 
-  it('enables DÉMARRER when project is filled and description has at least 3 characters', async () => {
+  it('enables START when project is filled and description has at least 3 characters', async () => {
     const user = userEvent.setup();
     renderTimerWidget();
-    await user.type(screen.getByLabelText('Projet'), 'Projet Alpha');
-    await user.type(screen.getByLabelText('What are you working on?'), 'abc');
-    expect(screen.getByRole('button', { name: 'DÉMARRER' })).toBeEnabled();
+    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet Alpha');
+    await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'abc');
+    expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeEnabled();
   });
 
   it('trims whitespace before validating the description length', async () => {
     const user = userEvent.setup();
     renderTimerWidget();
-    await user.type(screen.getByLabelText('Projet'), 'Projet Alpha');
-    await user.type(screen.getByLabelText('What are you working on?'), '  a  ');
-    expect(screen.getByRole('button', { name: 'DÉMARRER' })).toBeDisabled();
+    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet Alpha');
+    await user.type(screen.getByLabelText(t('timer_widget.description_label')), '  a  ');
+    expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
   });
 
   it('shows a visible validation hint when fields are missing', () => {

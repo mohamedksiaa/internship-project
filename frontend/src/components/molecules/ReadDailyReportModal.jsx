@@ -1,4 +1,5 @@
 export default function ReadDailyReportModal({ report, onClose }) {
+  const { t } = useTranslation();
   if (!report) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="report-title">
@@ -6,12 +7,12 @@ export default function ReadDailyReportModal({ report, onClose }) {
         <div className="flex items-start justify-between">
           <div>
             <h2 id="report-title" className="text-lg font-semibold text-[#263746]">{report.user_label} · {report.date_report}</h2>
-            <p className="mt-1 text-sm text-[#52656f]">Compte-rendu complet</p>
+            <p className="mt-1 text-sm text-[#52656f]">{t('history.complete_report')}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label={t('history.close')}
             className="text-lg leading-none text-[#78909c] hover:text-[#2c3e49]"
           >
             ×
@@ -23,7 +24,7 @@ export default function ReadDailyReportModal({ report, onClose }) {
         </div>
 
         <div className="flex justify-end">
-          <button type="button" onClick={onClose} className="rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700">Fermer</button>
+          <button type="button" onClick={onClose} className="rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700">{t('history.close')}</button>
         </div>
       </div>
     </div>

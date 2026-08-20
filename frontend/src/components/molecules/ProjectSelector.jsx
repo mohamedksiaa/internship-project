@@ -1,13 +1,16 @@
+import { useTranslation } from 'react-i18next';
+
 export default function ProjectSelector({ projects = [], value, onChange = () => {} }) {
+  const { t } = useTranslation();
   const groups = projects.reduce((accumulator, project) => {
-    const groupName = project.client || 'Sans client';
+    const groupName = project.client || t('project_selector.no_client');
     (accumulator[groupName] ||= []).push(project);
     return accumulator;
   }, {});
 
   return (
     <select id="timeflow-project" name="project" value={value ?? ''} onChange={(e) => onChange(e.target.value)} className="min-w-[110px] bg-transparent text-sm text-[#03a9f4] outline-none">
-      <option value="">Projet</option>
+      <option value="">{t('project_selector.placeholder')}</option>
       {Object.entries(groups).map(([client, clientProjects]) => (
         <optgroup key={client} label={client}>
           {clientProjects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}

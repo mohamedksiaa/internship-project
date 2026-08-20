@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import TimerWidget from '../components/organisms/TimerWidget';
 import TimeEntryList from '../components/organisms/TimeEntryList';
 import { getProjects, getTasks, getTimeEntries, getTimeEntryUpdates } from '../api/timeflowApi';
@@ -7,6 +8,7 @@ import { useTimer } from '../hooks/UseTimer.js';
 const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
 
 export default function TimerPage() {
+  const { t } = useTranslation();
   const timer = useTimer();
   const [projects, setProjects] = useState([]);
   const [historyTasks, setHistoryTasks] = useState([]); // Master list of tasks for the history
@@ -31,13 +33,13 @@ export default function TimerPage() {
       if (projectsResult.status === 'fulfilled') {
         const mapped = projectsResult.value || [];
         if (!mapped.length) {
-          setProjectsError('Aucun projet disponible dans Dolibarr');
+          setProjectsError(t('timer_page.no_projects'));
         } else {
           setProjects(mapped);
           setProjectsError('');
         }
       } else {
-        setProjectsError(projectsResult.reason?.message || 'Erreur lors du chargement des projets');
+        setProjectsError(projectsResult.reason?.message || t('timer_page.load_projects_error'));
         setProjects([]);
       }
 
@@ -156,9 +158,9 @@ export default function TimerPage() {
 
       <div className="mt-10">
         <div className="mb-4 flex items-center justify-between text-sm text-[#52656f]">
-          <h1 className="font-medium text-[#263746]">Historique des tâches</h1>
+          <h1 className="font-medium text-[#263746]">{t('timer_page.task_history')}</h1>
           <span>
-            {entries.length} entrée{entries.length > 1 ? 's' : ''}
+            {entries.length} {t(entries.length > 1 ? 'timer_page.entries_plural' : 'timer_page.entries_one', { count: entries.length })}
           </span>
         </div>
         <TimeEntryList 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getMyDailyReports, saveDailyReport } from '../../api/timeflowApi';
 
 function today() {
@@ -20,6 +21,7 @@ function formatDateTime(value) {
 }
 
 export default function DailyReportComposer({ showHistory = false, onSaved = () => {} }) {
+  const { t } = useTranslation();
   const [dateReport, setDateReport] = useState(today);
   const [content, setContent] = useState('');
   const [reports, setReports] = useState([]);
@@ -67,7 +69,7 @@ export default function DailyReportComposer({ showHistory = false, onSaved = () 
   }
 
   async function handleDelete(id) {
-    if (!window.confirm('Confirmer la suppression de ce rapport ?')) return;
+    if (!window.confirm(t('daily_report.delete_confirm'))) return;
     try {
       await deleteDailyReport(id);
       setReports((items) => items.filter((r) => r.id !== id));
@@ -77,17 +79,17 @@ export default function DailyReportComposer({ showHistory = false, onSaved = () 
   }
 
   return <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-    <div className="mb-5"><p className="text-sm font-semibold uppercase tracking-[.24em] text-slate-500">Rapport journalier</p><h2 className="text-2xl font-semibold text-slate-900">Mon rapport</h2></div>
+    <div className="mb-5"><p className="text-sm font-semibold uppercase tracking-[.24em] text-slate-500">{t('daily_report.section_title')}</p><h2 className="text-2xl font-semibold text-slate-900">{t('daily_report.heading')}</h2></div>
     <form onSubmit={submit} className="space-y-4">
-      <label className="flex max-w-xs flex-col gap-1 text-sm font-medium text-slate-700">Date
-        <input aria-label="Date du rapport" type="date" value={dateReport} onChange={(event) => setDateReport(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2" />
+      <label className="flex max-w-xs flex-col gap-1 text-sm font-medium text-slate-700">{t('daily_report.date_label')}
+        <input aria-label={t('daily_report.date_aria')} type="date" value={dateReport} onChange={(event) => setDateReport(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2" />
       </label>
-      <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">Compte-rendu
-        <textarea aria-label="Contenu du rapport" value={content} onChange={(event) => setContent(event.target.value)} rows="7" placeholder="Décrivez ce que vous avez fait aujourd’hui, les points bloquants ou vos remarques…" className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+      <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">{t('daily_report.content_label')}
+        <textarea aria-label={t('daily_report.content_aria')} value={content} onChange={(event) => setContent(event.target.value)} rows="7" placeholder={t('daily_report.placeholder')} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
       </label>
       {error && <p className="text-sm text-rose-600">{error}</p>}
-      <button type="submit" disabled={saving || content.trim() === ''} className="rounded-xl bg-[#03a9f4] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Enregistrement…' : 'Envoyer'}</button>
+      <button type="submit" disabled={saving || content.trim() === ''} className="rounded-xl bg-[#03a9f4] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? t('daily_report.saving') : t('daily_report.save')}</button>
     </form>
-    {showHistory && <div className="mt-8 border-t border-slate-200 pt-5"><h3 className="font-semibold text-slate-900">Mes rapports envoyés</h3>{loading ? <p className="mt-3 text-sm text-slate-500">Chargement…</p> : reports.length === 0 ? <p className="mt-3 text-sm text-slate-500">Aucun rapport envoyé.</p> : <div className="mt-3 space-y-3">{reports.map((report) => <article key={report.id} className="rounded-2xl border border-slate-200 p-4"><div className="mb-2 flex items-center justify-between gap-3"><div><strong>{report.date_report}</strong><div className="text-xs text-slate-500">{formatDateTime(report.date_creation || report.date_modification)}</div></div><div className="flex gap-2"><button onClick={() => handleEdit(report)} className="text-sm text-sky-600">Modifier</button><button onClick={() => handleDelete(report.id)} className="text-sm text-rose-600">Supprimer</button></div></div><div className="mb-2"><span className={report.is_read ? 'text-xs text-emerald-700' : 'text-xs text-amber-700'}>{report.is_read ? 'Lu' : 'Envoyé'}</span></div><p className="whitespace-pre-wrap text-sm text-slate-700">{report.content}</p></article>)}</div>}</div>}
+    {showHistory && <div className="mt-8 border-t border-slate-200 pt-5"><h3 className="font-semibold text-slate-900">{t('daily_report.history_title')}</h3>{loading ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.loading')}</p> : reports.length === 0 ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.empty')}</p> : <div className="mt-3 space-y-3">{reports.map((report) => <article key={report.id} className="rounded-2xl border border-slate-200 p-4"><div className="mb-2 flex items-center justify-between gap-3"><div><strong>{report.date_report}</strong><div className="text-xs text-slate-500">{formatDateTime(report.date_creation || report.date_modification)}</div></div><div className="flex gap-2"><button onClick={() => handleEdit(report)} className="text-sm text-sky-600">{t('daily_report.edit')}</button><button onClick={() => handleDelete(report.id)} className="text-sm text-rose-600">{t('daily_report.delete')}</button></div></div><div className="mb-2"><span className={report.is_read ? 'text-xs text-emerald-700' : 'text-xs text-amber-700'}>{report.is_read ? t('daily_report.read') : t('daily_report.sent')}</span></div><p className="whitespace-pre-wrap text-sm text-slate-700">{report.content}</p></article>)}</div>}</div>}
   </section>;
 }

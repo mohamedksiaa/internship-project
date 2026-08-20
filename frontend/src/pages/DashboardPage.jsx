@@ -29,11 +29,11 @@ function dayLabel(value, locale = 'fr-FR') {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(locale, { weekday: 'short', day: 'numeric' });
 }
 
-function projectLabel(projectId, projectLabels = {}, fallbackLabel = 'Sans projet') {
+function projectLabel(projectId, projectLabels = {}, fallbackLabel = 'dashboard.no_project') {
   if (!projectId || Number(projectId) <= 0) {
     return fallbackLabel;
   }
-  return projectLabels[projectId] || projectLabels[String(projectId)] || `Projet #${projectId}`;
+  return projectLabels[projectId] || projectLabels[String(projectId)] || `dashboard.project_fallback`;
 }
 
 export default function DashboardPage() {
@@ -130,7 +130,7 @@ export default function DashboardPage() {
       if (!map.has(key)) {
         map.set(key, {
           key,
-          user: entry.user_label || entry.user_name || entry.user_login || (userId > 0 ? `Utilisateur #${userId}` : '—'),
+          user: entry.user_label || entry.user_name || entry.user_login || (userId > 0 ? t('dashboard.user_fallback', { userId }) : '—'),
           total: 0,
           billable: 0,
           submitted: 0,
