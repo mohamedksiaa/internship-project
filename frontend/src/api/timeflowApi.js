@@ -330,6 +330,16 @@ export async function hardDeleteTimeEntries(ids = []) {
   return data?.data ?? data;
 }
 
+export async function hardDeleteDailyReport(id) {
+  const data = await moduleTimerRequest('hardDeleteDailyReport', { id });
+  return data?.data ?? data;
+}
+
+export async function hardDeleteDailyReports(ids = []) {
+  const data = await moduleTimerRequest('hardDeleteDailyReports', { ids: Array.from(ids) });
+  return data?.data ?? data;
+}
+
 export async function getTimeEntries(limit = 100) {
   const data = await moduleTimerRequest('getTimeEntries', { limit });
   return normalizeEntries(data?.data ?? data);

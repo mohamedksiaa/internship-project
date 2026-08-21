@@ -69,7 +69,10 @@ export default function ReportsPage() {
     getDailyReports({ date_from: dateRange.from, date_to: dateRange.to, employee_id: dailyEmployeeId })
       .then((data) => {
         if (!isMounted) return;
-        setDailyReports(Array.isArray(data?.reports) ? data.reports : []);
+        const nextReports = Array.isArray(data?.reports)
+          ? data.reports.filter((report) => !report.is_read && !report.is_deleted && !report.read_at)
+          : [];
+        setDailyReports(nextReports);
         setDailyEmployees(Array.isArray(data?.employees) ? data.employees : []);
         setDailyError('');
       })
@@ -80,7 +83,11 @@ export default function ReportsPage() {
   async function markRead(id) {
     try {
       await markDailyReportRead(id);
-      setDailyReports((items) => items.map((report) => report.id === id ? { ...report, is_read: true } : report));
+      setDailyReports((items) => items.filter((report) => Number(report.id) !== Number(id)));
+      if (selectedReport && Number(selectedReport.id) === Number(id)) {
+        setSelectedReport(null);
+      }
+      setDailyError('');
     } catch (err) {
       setDailyError(err.message);
     }

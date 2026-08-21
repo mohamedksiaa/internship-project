@@ -77,6 +77,8 @@
     "zoom_in": "تكبير",
     "zoom_out": "تصغير",
     "task_history": "سجل المهام",
+    "report_history": "سجل التقارير",
+    "no_report_history": "لا توجد تقارير في هذا السجل للفترة الحالية.",
     "history_title": "سجل التصحيحات",
     "history_description": "الإدخال #{{entryId}} — الوقت الأصلي مقابل الوقت المصحح",
     "close": "إغلاق",
@@ -158,6 +160,7 @@
     "track_time": "تتبع الوقت",
     "calendar": "التقويم",
     "daily_report": "تقاريري",
+    "daily_report_history": "سجل تقاريري",
     "dashboard": "لوحة التحكم",
     "reports": "التقارير",
     "validations": "التحقق",
@@ -205,12 +208,64 @@
     "confirm": "تأكيد"
   },
   "processed_history": {
-    "title": "السجل المعالَج", "export_csv": "تصدير CSV", "select_page": "تحديد الصفحة", "select_page_aria": "تحديد الكل في هذه الصفحة", "select_group_aria": "تحديد مجموعة {{day}}", "select_entry_aria": "تحديد هذا الإدخال", "total": "الإجمالي", "modified_manually": "تم التعديل يدوياً", "empty": "لا توجد إدخالات معالجة.",
-    "filters": { "status": "الحالة", "validated_and_rejected": "تم التحقق منها والمرفوضة", "employee": "الموظف", "all_employees": "كل الموظفين", "project": "المشروع", "all_projects": "كل المشاريع", "start_date": "تاريخ البدء", "end_date": "تاريخ الانتهاء", "modified_only": "المعدلة فقط" },
-    "stats": { "validated_hours": "الساعات المتحقق منها", "rejected_entries": "الإدخالات المرفوضة", "modified_entries": "المعدلة" },
-    "columns": { "task": "المهمة", "project": "المشروع", "who": "من", "start": "البدء", "end": "النهاية", "status": "الحالة", "duration": "المدة", "modification": "التعديل", "processed_by_at": "عالجها / في", "actions": "إجراءات" },
-    "csv": { "processed_by": "عالجها", "processed_at": "تاريخ المعالجة", "filename": "timeflow-processed-history.csv" },
-    "pagination": { "previous": "السابق", "next": "التالي", "page": "الصفحة {{current}} / {{total}}" },
-    "delete": { "action": "حذف", "entry_aria": "حذف هذا الإدخال", "selection": "حذف التحديد ({{count}})", "title": "حذف نهائي", "irreversible": "هذا الإجراء لا رجعة فيه.", "single_confirmation": "حذف إدخال الوقت هذا نهائياً؟ هذا الإجراء لا رجعة فيه وسيحذف البيانات من قاعدة البيانات.", "multiple_confirmation": "حذف {{count}} من الإدخالات المحددة نهائياً؟ هذا الإجراء لا رجعة فيه وسيحذف البيانات من قاعدة البيانات.", "success": "تم حذف {{count}} من الإدخالات" }
+    "title": "السجل المعالَج",
+    "export_csv": "تصدير CSV",
+    "select_page": "تحديد الصفحة",
+    "select_page_aria": "تحديد الكل في هذه الصفحة",
+    "select_group_aria": "تحديد مجموعة {{day}}",
+    "select_entry_aria": "تحديد هذا الإدخال",
+    "total": "الإجمالي",
+    "modified_manually": "تم التعديل يدوياً",
+    "empty": "لا توجد إدخالات معالجة.",
+    "filters": {
+      "status": "الحالة",
+      "validated_and_rejected": "تم التحقق منها والمرفوضة",
+      "employee": "الموظف",
+      "all_employees": "كل الموظفين",
+      "project": "المشروع",
+      "all_projects": "كل المشاريع",
+      "start_date": "تاريخ البدء",
+      "end_date": "تاريخ الانتهاء",
+      "modified_only": "المعدلة فقط"
+    },
+    "stats": {
+      "validated_hours": "الساعات المتحقق منها",
+      "rejected_entries": "الإدخالات المرفوضة",
+      "modified_entries": "المعدلة"
+    },
+    "columns": {
+      "task": "المهمة",
+      "project": "المشروع",
+      "who": "من",
+      "start": "البدء",
+      "end": "النهاية",
+      "status": "الحالة",
+      "duration": "المدة",
+      "modification": "التعديل",
+      "processed_by_at": "عالجها / في",
+      "actions": "إجراءات"
+    },
+    "csv": {
+      "processed_by": "عالجها",
+      "processed_at": "تاريخ المعالجة",
+      "filename": "timeflow-processed-history.csv"
+    },
+    "pagination": {
+      "previous": "السابق",
+      "next": "التالي",
+      "page": "الصفحة {{current}} / {{total}}"
+    },
+    "delete": {
+      "action": "حذف",
+      "entry_aria": "حذف هذا الإدخال",
+      "selection": "حذف التحديد ({{count}})",
+      "title": "حذف نهائي",
+      "irreversible": "هذا الإجراء لا رجعة فيه.",
+      "single_confirmation": "حذف إدخال الوقت هذا نهائياً؟ هذا الإجراء لا رجعة فيه وسيحذف البيانات من قاعدة البيانات.",
+      "multiple_confirmation": "حذف {{count}} من الإدخالات المحددة نهائياً؟ هذا الإجراء لا رجعة فيه وسيحذف البيانات من قاعدة البيانات.",
+      "success": "تم حذف {{count}} من الإدخالات",
+      "confirm_title": "تأكيد الحذف",
+      "confirm_text": "حذف {{count}} تقرير(تقارير) نهائياً؟ هذا الإجراء لا رجعة فيه وسيزيل البيانات من قاعدة البيانات."
+    }
   }
 }

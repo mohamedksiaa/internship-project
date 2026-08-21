@@ -8,7 +8,6 @@
   },
   "entries_one": "{{count}} entry",
   "entries_other": "{{count}} entries",
-  "loading": "Loading…",
   "app": {
     "brand": "TimeFlow",
     "workspace": "My workspace",
@@ -49,7 +48,19 @@
     "no_project": "No project",
     "project_fallback": "Project #{{projectId}}",
     "user_fallback": "User #{{userId}}",
-    "no_client": "No client"
+    "no_client": "No client",
+    "days_few": "",
+    "days_many": "",
+    "days_two": "",
+    "days_zero": "",
+    "members_few": "",
+    "members_many": "",
+    "members_two": "",
+    "members_zero": "",
+    "projects_count_few": "",
+    "projects_count_many": "",
+    "projects_count_two": "",
+    "projects_count_zero": ""
   },
   "history": {
     "calendar": "Calendar",
@@ -57,10 +68,11 @@
     "weekly_planning": "Weekly planning",
     "today": "Today",
     "view_week": "Week",
-    "view_day": "Day",
     "zoom_in": "Zoom in",
     "zoom_out": "Zoom out",
     "task_history": "Task history",
+    "report_history": "Report history",
+    "no_report_history": "No report history for this period.",
     "history_title": "Correction history",
     "history_description": "Entry #{{entryId}} — original time vs corrected time",
     "close": "Close",
@@ -71,7 +83,8 @@
     "end": "End",
     "ip": "IP",
     "complete_report": "Full report",
-    "report_close": "Close"
+    "report_close": "Close",
+    "view_day": ""
   },
   "project_selector": {
     "placeholder": "Project",
@@ -142,6 +155,7 @@
     "track_time": "TIME TRACKING",
     "calendar": "CALENDAR",
     "daily_report": "MY REPORT",
+    "daily_report_history": "MY REPORT HISTORY",
     "dashboard": "DASHBOARD",
     "reports": "REPORTS",
     "validations": "VALIDATIONS",
@@ -189,12 +203,69 @@
     "confirm": "Confirm"
   },
   "processed_history": {
-    "title": "Processed history", "export_csv": "Export CSV", "select_page": "Select page", "select_page_aria": "Select all on this page", "select_group_aria": "Select group {{day}}", "select_entry_aria": "Select this entry", "total": "Total", "modified_manually": "Modified manually", "empty": "No processed entries.",
-    "filters": { "status": "Status", "validated_and_rejected": "Validated and rejected", "employee": "Employee", "all_employees": "All employees", "project": "Project", "all_projects": "All projects", "start_date": "Start date", "end_date": "End date", "modified_only": "Modified only" },
-    "stats": { "validated_hours": "Validated hours", "rejected_entries": "Rejected entries", "modified_entries": "Modified" },
-    "columns": { "task": "Task", "project": "Project", "who": "Who", "start": "Start", "end": "End", "status": "Status", "duration": "Duration", "modification": "Modification", "processed_by_at": "Processed by / at", "actions": "Actions" },
-    "csv": { "processed_by": "Processed by", "processed_at": "Processed at", "filename": "timeflow-processed-history.csv" },
-    "pagination": { "previous": "Previous", "next": "Next", "page": "Page {{current}} / {{total}}" },
-    "delete": { "action": "Delete", "entry_aria": "Delete this entry", "selection": "Delete selection ({{count}})", "title": "Permanent deletion", "irreversible": "This action is irreversible.", "single_confirmation": "Permanently delete this time entry? This action is irreversible and will delete the data from the database.", "multiple_confirmation": "Permanently delete {{count}} selected entries? This action is irreversible and will delete the data from the database.", "success": "{{count}} entry deleted" }
-  }
+    "title": "Processed history",
+    "export_csv": "Export CSV",
+    "select_page": "Select page",
+    "select_page_aria": "Select all on this page",
+    "select_group_aria": "Select group {{day}}",
+    "select_entry_aria": "Select this entry",
+    "total": "Total",
+    "modified_manually": "Modified manually",
+    "empty": "No processed entries.",
+    "filters": {
+      "status": "Status",
+      "validated_and_rejected": "Validated and rejected",
+      "employee": "Employee",
+      "all_employees": "All employees",
+      "project": "Project",
+      "all_projects": "All projects",
+      "start_date": "Start date",
+      "end_date": "End date",
+      "modified_only": "Modified only"
+    },
+    "stats": {
+      "validated_hours": "Validated hours",
+      "rejected_entries": "Rejected entries",
+      "modified_entries": "Modified"
+    },
+    "columns": {
+      "task": "Task",
+      "project": "Project",
+      "who": "Who",
+      "start": "Start",
+      "end": "End",
+      "status": "Status",
+      "duration": "Duration",
+      "modification": "Modification",
+      "processed_by_at": "Processed by / at",
+      "actions": "Actions"
+    },
+    "csv": {
+      "processed_by": "Processed by",
+      "processed_at": "Processed at",
+      "filename": "timeflow-processed-history.csv"
+    },
+    "pagination": {
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{current}} / {{total}}"
+    },
+    "delete": {
+      "action": "Delete",
+      "entry_aria": "Delete this entry",
+      "selection": "Delete selection ({{count}})",
+      "title": "Permanent deletion",
+      "irreversible": "This action is irreversible.",
+      "single_confirmation": "Permanently delete this time entry? This action is irreversible and will delete the data from the database.",
+      "multiple_confirmation": "Permanently delete {{count}} selected entries? This action is irreversible and will delete the data from the database.",
+      "success": "{{count}} entry deleted",
+      "confirm_title": "Confirm deletion",
+      "confirm_text": "Permanently delete {{count}} report(s)? This action is irreversible and will remove the data from the database."
+    }
+  },
+  "entries_few": "",
+  "entries_many": "",
+  "entries_two": "",
+  "entries_zero": "",
+  "loading": ""
 }
