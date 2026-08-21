@@ -49,7 +49,19 @@
     "no_project": "Sans projet",
     "project_fallback": "Projet #{{projectId}}",
     "user_fallback": "Utilisateur #{{userId}}",
-    "no_client": "Sans client"
+    "no_client": "Sans client",
+    "days_few": "",
+    "days_many": "",
+    "days_two": "",
+    "days_zero": "",
+    "members_few": "",
+    "members_many": "",
+    "members_two": "",
+    "members_zero": "",
+    "projects_count_few": "",
+    "projects_count_many": "",
+    "projects_count_two": "",
+    "projects_count_zero": ""
   },
   "history": {
     "calendar": "Calendrier",
@@ -61,6 +73,8 @@
     "zoom_in": "Zoomer",
     "zoom_out": "Dézoomer",
     "task_history": "Historique des tâches",
+    "report_history": "Historique des rapports",
+    "no_report_history": "Aucun rapport dans l’historique pour cette période.",
     "history_title": "Historique des corrections",
     "history_description": "Entrée #{{entryId}} — heure d’origine vs heure corrigée",
     "close": "Fermer",
@@ -142,6 +156,7 @@
     "track_time": "SUIVI DU TEMPS",
     "calendar": "CALENDRIER",
     "daily_report": "MON RAPPORT",
+    "daily_report_history": "HISTORIQUE DE MES RAPPORTS",
     "dashboard": "TABLEAU DE BORD",
     "reports": "RAPPORTS",
     "validations": "VALIDATIONS",
@@ -189,12 +204,68 @@
     "confirm": "Confirmer"
   },
   "processed_history": {
-    "title": "Historique traité", "export_csv": "Exporter en CSV", "select_page": "Sélection page", "select_page_aria": "Tout sélectionner sur la page", "select_group_aria": "Sélectionner le groupe {{day}}", "select_entry_aria": "Sélectionner cette entrée", "total": "Total", "modified_manually": "Modifié manuellement", "empty": "Aucune entrée traitée.",
-    "filters": { "status": "Statut", "validated_and_rejected": "Validé et refusé", "employee": "Employé", "all_employees": "Tous les employés", "project": "Projet", "all_projects": "Tous les projets", "start_date": "Date début", "end_date": "Date fin", "modified_only": "Modifiées uniquement" },
-    "stats": { "validated_hours": "Heures validées", "rejected_entries": "Entrées refusées", "modified_entries": "Modifiées" },
-    "columns": { "task": "Tâche", "project": "Projet", "who": "Qui", "start": "Début", "end": "Fin", "status": "État", "duration": "Durée", "modification": "Modification", "processed_by_at": "Traité par / le", "actions": "Actions" },
-    "csv": { "processed_by": "Traité par", "processed_at": "Traité le", "filename": "timeflow-historique-traite.csv" },
-    "pagination": { "previous": "Précédent", "next": "Suivant", "page": "Page {{current}} / {{total}}" },
-    "delete": { "action": "Supprimer", "entry_aria": "Supprimer cette entrée", "selection": "Supprimer la sélection ({{count}})", "title": "Suppression définitive", "irreversible": "Cette action est irréversible.", "single_confirmation": "Supprimer définitivement cette entrée de temps ? Cette action est irréversible et supprimera la donnée de la base.", "multiple_confirmation": "Supprimer définitivement {{count}} entrée(s) sélectionnée(s) ? Cette action est irréversible et effacera les données de la base.", "success": "{{count}} entrée(s) supprimée(s)" }
-  }
+    "title": "Historique traité",
+    "export_csv": "Exporter en CSV",
+    "select_page": "Sélection page",
+    "select_page_aria": "Tout sélectionner sur la page",
+    "select_group_aria": "Sélectionner le groupe {{day}}",
+    "select_entry_aria": "Sélectionner cette entrée",
+    "total": "Total",
+    "modified_manually": "Modifié manuellement",
+    "empty": "Aucune entrée traitée.",
+    "filters": {
+      "status": "Statut",
+      "validated_and_rejected": "Validé et refusé",
+      "employee": "Employé",
+      "all_employees": "Tous les employés",
+      "project": "Projet",
+      "all_projects": "Tous les projets",
+      "start_date": "Date début",
+      "end_date": "Date fin",
+      "modified_only": "Modifiées uniquement"
+    },
+    "stats": {
+      "validated_hours": "Heures validées",
+      "rejected_entries": "Entrées refusées",
+      "modified_entries": "Modifiées"
+    },
+    "columns": {
+      "task": "Tâche",
+      "project": "Projet",
+      "who": "Qui",
+      "start": "Début",
+      "end": "Fin",
+      "status": "État",
+      "duration": "Durée",
+      "modification": "Modification",
+      "processed_by_at": "Traité par / le",
+      "actions": "Actions"
+    },
+    "csv": {
+      "processed_by": "Traité par",
+      "processed_at": "Traité le",
+      "filename": "timeflow-historique-traite.csv"
+    },
+    "pagination": {
+      "previous": "Précédent",
+      "next": "Suivant",
+      "page": "Page {{current}} / {{total}}"
+    },
+    "delete": {
+      "action": "Supprimer",
+      "entry_aria": "Supprimer cette entrée",
+      "selection": "Supprimer la sélection ({{count}})",
+      "title": "Suppression définitive",
+      "irreversible": "Cette action est irréversible.",
+      "single_confirmation": "Supprimer définitivement cette entrée de temps ? Cette action est irréversible et supprimera la donnée de la base.",
+      "multiple_confirmation": "Supprimer définitivement {{count}} entrée(s) sélectionnée(s) ? Cette action est irréversible et effacera les données de la base.",
+      "success": "{{count}} entrée(s) supprimée(s)",
+      "confirm_title": "Confirmer la suppression",
+      "confirm_text": "Supprimer définitivement {{count}} rapport(s) ? Cette action est irréversible et supprimera les données de la base de données."
+    }
+  },
+  "entries_few": "",
+  "entries_many": "",
+  "entries_two": "",
+  "entries_zero": ""
 }

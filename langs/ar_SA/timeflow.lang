@@ -1,0 +1,84 @@
+# Translation file
+
+#
+# Generic
+#
+
+# Module label 'ModuleTimeFlowName'
+ModuleTimeFlowName = TimeFlow
+# Module description 'ModuleTimeFlowDesc'
+ModuleTimeFlowDesc = وصف TimeFlow
+
+#
+# Admin page
+#
+TimeFlowSetup = إعدادات TimeFlow
+Settings = الإعدادات
+TimeFlowSetupPage = صفحة إعدادات TimeFlow
+NewSection=قسم جديد
+TIMEFLOW_MYPARAM1 = المعامل 1
+TIMEFLOW_MYPARAM1Tooltip = تلميح المعامل 1
+TIMEFLOW_MYPARAM2=المعامل 2
+TIMEFLOW_MYPARAM2Tooltip=تلميح المعامل 2
+
+#
+# About page
+#
+About = عن التطبيق
+TimeFlowAbout = حول TimeFlow
+TimeFlowAboutPage = صفحة حول TimeFlow
+
+#
+# Sample page
+#
+TimeFlowArea = الصفحة الرئيسية لـ TimeFlow
+MyPageName = اسم صفحتي
+
+#
+# Sample widget
+#
+MyWidget = الويدجت الخاص بي
+MyWidgetDescription = وصف الويدجت الخاص بي
+
+TIMEFLOW_WEEKLY_WORK_HOURS = ساعات العمل الأسبوعية
+TIMEFLOW_WEEKLY_WORK_HOURS_TOOLTIP = العدد الافتراضي لساعات العمل المتوقعة في الأسبوع.
+TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER = يلزم تحديد مهمة قبل المؤقت
+TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP = اطلب مهمة قبل السماح بتشغيل المؤقت.
+TIMEFLOW_PROJECT_MODE = وضع إدارة المشاريع
+TIMEFLOW_PROJECT_MODE_TOOLTIP = اختر طريقة إدارة المشاريع: مشاريع داخلية تم إنشاؤها في TimeFlow، أو مشاريع Dolibarr فقط، أو الوضعان معًا.
+TIMEFLOW_VALIDATE_RIGHT = صلاحية التحقق
+TIMEFLOW_VALIDATE_RIGHT_TOOLTIP = اختر أي صلاحية TimeFlow يمكنها التحقق من إدخالات الوقت.
+TimeFlowRightRead = قراءة إدخالات الوقت
+TimeFlowRightReadAll = قراءة جميع إدخالات الوقت
+TimeFlowRightWrite = إنشاء/تحديث إدخالات الوقت
+TimeFlowRightValidate = التحقق من إدخالات الوقت
+TimeFlowRightDelete = حذف إدخالات الوقت
+
+User = المستخدم
+Project = المشروع
+Task = المهمة
+DateStart = تاريخ البدء
+DateEnd = تاريخ الانتهاء
+Duration = المدة
+Note = ملاحظة
+Tags = العلامات
+Billable = قابلة للفوترة
+Status = الحالة
+SubmittedBy = مقدّم بواسطة
+ValidatedBy = تم التحقق بواسطة
+Draft = مسودة
+Submitted = مقدم
+Validated = تم التحقق
+Refused = مرفوض
+TimeEntry = إدخال الوقت
+TimeEntrys = إدخالات الوقت
+Edit = تعديل
+Reason = السبب
+ReasonForEdit = سبب التعديل
+OriginalValue = القيمة الأصلية
+NewValue = القيمة الجديدة
+ModificationDate = تاريخ التعديل
+ModifiedBy = تم التعديل بواسطة
+ProjectModeInternal = مشاريع داخلية
+ProjectModeDolibarr = مشاريع Dolibarr فقط
+ProjectModeBoth = الوضعان معًا

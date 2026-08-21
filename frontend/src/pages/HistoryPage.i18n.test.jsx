@@ -40,4 +40,21 @@ describe('HistoryPage i18n', () => {
     expect(screen.getByRole('button', { name: 'Tag' })).toBeInTheDocument();
     expect(await screen.findByText('17. Aug. - 23. Aug.')).toBeInTheDocument();
   });
+
+  it('renders the calendar-only page without the task/report tab split', async () => {
+    getWeeklyTimesheet.mockResolvedValue({
+      weekStart: '2026-08-17',
+      weekEnd: '2026-08-23',
+      rows: [],
+    });
+
+    await i18n.changeLanguage('fr');
+    render(<HistoryPage />);
+
+    expect(screen.getByText('Calendrier')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Semaine' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Jour' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Historique des tâches' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Historique des rapports' })).not.toBeInTheDocument();
+  });
 });

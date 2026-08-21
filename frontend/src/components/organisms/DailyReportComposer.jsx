@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getMyDailyReports, saveDailyReport } from '../../api/timeflowApi';
+import { getMyDailyReports, saveDailyReport, updateDailyReport } from '../../api/timeflowApi';
 
 function today() {
   const date = new Date();
@@ -20,7 +20,7 @@ function formatDateTime(value) {
   }).format(date);
 }
 
-export default function DailyReportComposer({ showHistory = false, onSaved = () => {} }) {
+export default function DailyReportComposer({ showHistory = true, onSaved = () => {} }) {
   const { t } = useTranslation();
   const [dateReport, setDateReport] = useState(today);
   const [content, setContent] = useState('');
@@ -32,7 +32,10 @@ export default function DailyReportComposer({ showHistory = false, onSaved = () 
 
   useEffect(() => {
     getMyDailyReports()
-      .then((items) => setReports(Array.isArray(items) ? items : []))
+      .then((items) => {
+        const activeItems = Array.isArray(items) ? items.filter((report) => !report.is_deleted && !report.is_read && !report.read_at) : [];
+        setReports(activeItems);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -68,16 +71,6 @@ export default function DailyReportComposer({ showHistory = false, onSaved = () 
     setContent(report.content || '');
   }
 
-  async function handleDelete(id) {
-    if (!window.confirm(t('daily_report.delete_confirm'))) return;
-    try {
-      await deleteDailyReport(id);
-      setReports((items) => items.filter((r) => r.id !== id));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
   return <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
     <div className="mb-5"><p className="text-sm font-semibold uppercase tracking-[.24em] text-slate-500">{t('daily_report.section_title')}</p><h2 className="text-2xl font-semibold text-slate-900">{t('daily_report.heading')}</h2></div>
     <form onSubmit={submit} className="space-y-4">
@@ -90,6 +83,6 @@ export default function DailyReportComposer({ showHistory = false, onSaved = () 
       {error && <p className="text-sm text-rose-600">{error}</p>}
       <button type="submit" disabled={saving || content.trim() === ''} className="rounded-xl bg-[#03a9f4] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? t('daily_report.saving') : t('daily_report.save')}</button>
     </form>
-    {showHistory && <div className="mt-8 border-t border-slate-200 pt-5"><h3 className="font-semibold text-slate-900">{t('daily_report.history_title')}</h3>{loading ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.loading')}</p> : reports.length === 0 ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.empty')}</p> : <div className="mt-3 space-y-3">{reports.map((report) => <article key={report.id} className="rounded-2xl border border-slate-200 p-4"><div className="mb-2 flex items-center justify-between gap-3"><div><strong>{report.date_report}</strong><div className="text-xs text-slate-500">{formatDateTime(report.date_creation || report.date_modification)}</div></div><div className="flex gap-2"><button onClick={() => handleEdit(report)} className="text-sm text-sky-600">{t('daily_report.edit')}</button><button onClick={() => handleDelete(report.id)} className="text-sm text-rose-600">{t('daily_report.delete')}</button></div></div><div className="mb-2"><span className={report.is_read ? 'text-xs text-emerald-700' : 'text-xs text-amber-700'}>{report.is_read ? t('daily_report.read') : t('daily_report.sent')}</span></div><p className="whitespace-pre-wrap text-sm text-slate-700">{report.content}</p></article>)}</div>}</div>}
+    {showHistory && <div className="mt-8 border-t border-slate-200 pt-5"><h3 className="font-semibold text-slate-900">{t('daily_report.history_title')}</h3>{loading ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.loading')}</p> : reports.length === 0 ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.empty')}</p> : <div className="mt-3 space-y-3">{reports.map((report) => <article key={report.id} className="rounded-2xl border border-slate-200 p-4"><div className="mb-2 flex items-center justify-between gap-3"><div><strong>{report.date_report}</strong><div className="text-xs text-slate-500">{formatDateTime(report.date_creation || report.date_modification)}</div></div><div className="flex gap-2"><button type="button" onClick={() => handleEdit(report)} className="text-sm text-sky-600">{t('daily_report.edit')}</button></div></div><div className="mb-2"><span className={report.is_read ? 'text-xs text-emerald-700' : 'text-xs text-amber-700'}>{report.is_read ? t('daily_report.read') : t('daily_report.sent')}</span></div><p className="whitespace-pre-wrap text-sm text-slate-700">{report.content}</p></article>)}</div>}</div>}
   </section>;
 }

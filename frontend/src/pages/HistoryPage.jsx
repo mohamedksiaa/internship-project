@@ -9,13 +9,6 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { getWeeklyTimesheet } from '../api/timeflowApi';
 
-function durationLabel(seconds) {
-  const safeSeconds = Number(seconds) || 0;
-  const hours = Math.floor(safeSeconds / 3600);
-  const minutes = Math.floor((safeSeconds % 3600) / 60);
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
 function formatTime(date, locale) {
   return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
@@ -189,7 +182,7 @@ export default function HistoryPage() {
 
   return (
     <div className="flex h-full flex-col space-y-4">
-      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">{t('history.calendar')}</p>
@@ -236,9 +229,9 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        {error && <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-600">{error}</div>}
+        {error && <div className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-600">{error}</div>}
 
-        <div className="calendar-container relative min-h-[600px] flex-1 overflow-hidden rounded-xl border border-slate-100">
+        <div className="calendar-container relative mt-4 min-h-[600px] flex-1 overflow-hidden rounded-xl border border-slate-100">
           {loading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>

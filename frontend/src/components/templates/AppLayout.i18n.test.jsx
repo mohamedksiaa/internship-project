@@ -79,7 +79,6 @@ describe('AppLayout i18n integration', () => {
       ['/dashboard', 'DASHBOARD'],
       ['/reports', 'BERICHTE'],
       ['/validation', 'VALIDIERUNGEN'],
-      ['/processed-history', 'VERLAUF'],
     ];
 
     routes.forEach(([route, expectedLabel]) => {
@@ -93,7 +92,7 @@ describe('AppLayout i18n integration', () => {
     });
   });
 
-  it('only shows protected navigation items for their corresponding permission', async () => {
+  it('shows calendar and history as separate navigation entries with the correct permission gating', async () => {
     await act(async () => {
       await i18n.changeLanguage('de');
     });
@@ -101,12 +100,30 @@ describe('AppLayout i18n integration', () => {
     window.TIMEFLOW_CAN_READALL = false;
     renderAtRoute('/validation');
     expect(screen.getByRole('link', { name: /VALIDIERUNGEN$/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /KALENDER$/ })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /VERLAUF$/ })).not.toBeInTheDocument();
 
     window.TIMEFLOW_CAN_VALIDATE = false;
     window.TIMEFLOW_CAN_READALL = true;
-    renderAtRoute('/processed-history');
+    renderAtRoute('/history');
     expect(screen.queryByRole('link', { name: /VALIDIERUNGEN$/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /VERLAUF$/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: /KALENDER$/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: /VERLAUF$/ })).toBeInTheDocument();
+  });
+
+  it('keeps calendar and processed history as two distinct entries in the navigation', async () => {
+    await act(async () => {
+      await i18n.changeLanguage('fr');
+    });
+
+    window.TIMEFLOW_CAN_VALIDATE = false;
+    window.TIMEFLOW_CAN_READALL = true;
+    renderAtRoute('/processed-history');
+
+    const calendarLinks = screen.getAllByRole('link', { name: /CALENDRIER/i });
+    const historyLinks = screen.getAllByRole('link', { name: /HISTORIQUE/i });
+    expect(calendarLinks.length).toBeGreaterThan(0);
+    expect(historyLinks.length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: /HISTORIQUE/i })).toHaveAttribute('aria-current', 'page');
   });
 });

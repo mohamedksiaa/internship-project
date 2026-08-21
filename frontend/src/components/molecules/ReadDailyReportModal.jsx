@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 export default function ReadDailyReportModal({ report, onClose }) {
   const { t } = useTranslation();
   if (!report) return null;

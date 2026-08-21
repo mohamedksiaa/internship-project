@@ -760,18 +760,40 @@ function timeflowGetProcessedHistory($input)
     return array('rows'=>$rows, 'employees'=>$employees, 'pagination'=>array('page'=>$page, 'per_page'=>$perPage, 'total'=>$total, 'pages'=>max(1, (int) ceil($total / $perPage))), 'stats'=>array('validated_seconds'=>(int) ($statsObj->validated_seconds ?? 0), 'refused_count'=>(int) ($statsObj->refused_count ?? 0), 'manual_count'=>(int) ($statsObj->manual_count ?? 0)));
 }
 
-/** Return daily free-text reports, scoped either to one user or to the whole team. */
+/** Return daily free-text reports, scoped either to one user or to the whole team.
+ *
+ * Employee view: only active (non soft-deleted) reports are exposed.
+ * Manager view: both active and soft-deleted reports are returned together,
+ * with is_deleted and deleted_at for UI separation.
+ *
+ * Report history is read-only by design: employee history only shows their own
+ * reports that have been read/validated, while managers see all read reports from
+ * the team. The server-side filter is authoritative; the UI can only display it.
+ */
 function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
 {
     global $db, $conf;
     $where = array('r.entity = '.((int) $conf->entity));
+    $historyMode = !empty($input['history']) || (!empty($input['mode']) && $input['mode'] === 'history');
+
     if ($allUsers) {
         if (!empty($input['employee_id'])) {
             $where[] = 'r.fk_user = '.((int) $input['employee_id']);
         }
+        $where[] = 'r.date_delete IS NULL';
+        if ($historyMode) {
+            $where[] = 'r.read_at IS NOT NULL';
+        } else {
+            $where[] = 'r.read_at IS NULL';
+        }
     } else {
         $where[] = 'r.fk_user = '.((int) $userId);
+        $where[] = 'r.date_delete IS NULL';
+        if ($historyMode) {
+            $where[] = 'r.read_at IS NOT NULL';
+        }
     }
+
     foreach (array('date_from' => '>=', 'date_to' => '<=') as $key => $operator) {
         $date = (string) ($input[$key] ?? '');
         if ($date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
@@ -779,17 +801,19 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
         }
     }
 
-    $sql = 'SELECT r.rowid, r.fk_user, r.date_report, r.content, r.date_creation, r.tms, r.read_at, r.fk_user_read,';
-    $sql .= ' u.login, u.firstname, u.lastname, reader.login AS reader_login, reader.firstname AS reader_firstname, reader.lastname AS reader_lastname';
+    $sql = 'SELECT r.rowid, r.fk_user, r.date_report, r.content, r.date_creation, r.tms, r.read_at, r.fk_user_read, r.date_delete, r.date_last_content_edit, r.fk_user_last_content_edit,';
+    $sql .= ' u.login, u.firstname, u.lastname, reader.login AS reader_login, reader.firstname AS reader_firstname, reader.lastname AS reader_lastname, editor.login AS editor_login, editor.firstname AS editor_firstname, editor.lastname AS editor_lastname';
     $sql .= ' FROM '.$db->prefix().'timeflow_daily_report AS r';
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS u ON u.rowid = r.fk_user';
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS reader ON reader.rowid = r.fk_user_read';
+    $sql .= ' LEFT JOIN '.$db->prefix().'user AS editor ON editor.rowid = r.fk_user_last_content_edit';
     $sql .= ' WHERE '.implode(' AND ', $where).' ORDER BY r.date_report DESC, r.tms DESC, r.rowid DESC';
     $resql = $db->query($sql);
     $reports = array();
     while ($resql && ($obj = $db->fetch_object($resql))) {
         $label = trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user));
         $readerLabel = trim($obj->reader_firstname.' '.$obj->reader_lastname) ?: ($obj->reader_login ?: '');
+        $editorLabel = trim($obj->editor_firstname.' '.$obj->editor_lastname) ?: ($obj->editor_login ?: '');
         $reports[] = array(
             'id' => (int) $obj->rowid,
             'fk_user' => (int) $obj->fk_user,
@@ -798,6 +822,11 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
             'content' => $obj->content,
             'date_creation' => $obj->date_creation,
             'date_modification' => $obj->tms,
+            'date_delete' => $obj->date_delete,
+            'deleted_at' => $obj->date_delete,
+            'is_deleted' => !empty($obj->date_delete),
+            'date_last_content_edit' => $obj->date_last_content_edit,
+            'last_content_edit_by_label' => $editorLabel,
             'read_at' => $obj->read_at,
             'read_by_label' => $readerLabel,
             'is_read' => !empty($obj->read_at),
@@ -1120,6 +1149,59 @@ switch ($action) {
         timeflowJsonResponse(array('status' => 'error', 'message' => $entry->error ?: 'Erreur lors de la suppression définitive'), 500);
         break;
 
+        case 'hardDeleteDailyReport':
+            if (!timeflowCanReadAllTimeEntries($user)) {
+                timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+            }
+            $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+            if ($id <= 0) {
+                timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant du rapport invalide'), 400);
+            }
+            $sql = 'SELECT rowid FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
+            $res = $db->query($sql);
+            if (!$res || $db->num_rows($res) <= 0) {
+                timeflowJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
+            }
+            $db->begin();
+            $delSql = 'DELETE FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id);
+            if ($db->query($delSql)) {
+                $db->commit();
+                timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'deleted' => true)));
+            }
+            $db->rollback();
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur lors de la suppression définitive'), 500);
+            break;
+
+        case 'hardDeleteDailyReports':
+            if (!timeflowCanReadAllTimeEntries($user)) {
+                timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+            }
+            $ids = array();
+            if (!empty($postData['ids']) && is_array($postData['ids'])) {
+                $ids = array_values(array_filter(array_map('intval', $postData['ids']), static fn($value) => $value > 0));
+            } elseif (!empty($_REQUEST['ids'])) {
+                $ids = array_values(array_filter(array_map('intval', explode(',', (string) $_REQUEST['ids'])), static fn($value) => $value > 0));
+            }
+            if (empty($ids)) {
+                timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucune entrée sélectionnée'), 400);
+            }
+            $db->begin();
+            try {
+                foreach ($ids as $id) {
+                    $delSql = 'DELETE FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id);
+                    $res = $db->query($delSql);
+                    if (!$res || $db->affected_rows($res) === 0) {
+                        throw new RuntimeException('Erreur lors de la suppression du rapport '.$id);
+                    }
+                }
+                $db->commit();
+                timeflowJsonResponse(array('status' => 'success', 'data' => array('deleted' => count($ids), 'ids' => $ids)));
+            } catch (Throwable $exception) {
+                $db->rollback();
+                timeflowJsonResponse(array('status' => 'error', 'message' => $exception->getMessage()), 500);
+            }
+            break;
+
     case 'hardDeleteTimeEntries':
         if (!timeflowCanReadAllTimeEntries($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
@@ -1165,8 +1247,8 @@ switch ($action) {
         $entity = (int) $conf->entity;
         $now = dol_now();
         $sql = 'INSERT INTO '.$db->prefix().'timeflow_daily_report';
-        $sql .= ' (entity, fk_user, date_report, content, date_creation, fk_user_creat) VALUES (';
-        $sql .= $entity.','.((int) $user->id).", '".$db->escape($dateReport)."', '".$db->escape($content)."', '".$db->idate($now)."', ".((int) $user->id).')';
+        $sql .= ' (entity, fk_user, date_report, content, date_creation, fk_user_creat, date_last_content_edit, fk_user_last_content_edit) VALUES (';
+        $sql .= $entity.','.((int) $user->id).", '".$db->escape($dateReport)."', '".$db->escape($content)."', '".$db->idate($now)."', ".((int) $user->id).", '".$db->idate($now)."', ".((int) $user->id).')';
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible d’enregistrer le rapport : '.$db->lasterror()), 500);
         }
@@ -1179,9 +1261,12 @@ switch ($action) {
             'content' => $content,
             'date_creation' => $db->idate($now),
             'date_modification' => $db->idate($now),
+            'date_last_content_edit' => $db->idate($now),
+            'last_content_edit_by_label' => timeflowResolveUserLabel((int) $user->id),
             'read_at' => null,
             'read_by_label' => '',
             'is_read' => false,
+            'is_deleted' => false,
         );
         timeflowJsonResponse(array('status' => 'success', 'data' => $saved));
         break;
@@ -1196,17 +1281,22 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Le contenu du rapport est obligatoire.'), 400);
         }
         // Ensure the report exists and belongs to the user (or allow admins/validators)
-        $sql = 'SELECT rowid, fk_user, date_report FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
+        $sql = 'SELECT rowid, fk_user, date_report, date_delete FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
         $res = $db->query($sql);
         if (!$res || $db->num_rows($res) <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
         }
         $obj = $db->fetch_object($res);
+        if (!empty($obj->date_delete)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Ce rapport a été supprimé et ne peut plus être modifié.'), 410);
+        }
         if ((int) $obj->fk_user !== (int) $user->id && !timeflowCanValidate($user) && !$user->admin) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé.'), 403);
         }
         $now = dol_now();
-        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET content = "'.$db->escape($content).'", fk_user_modif = '.((int) $user->id).', tms = "'.$db->idate($now).'" WHERE rowid = '.((int) $id);
+        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report';
+        $sql .= ' SET content = "'.$db->escape($content).'", fk_user_modif = '.((int) $user->id).', tms = "'.$db->idate($now).'", date_last_content_edit = "'.$db->idate($now).'", fk_user_last_content_edit = '.((int) $user->id);
+        $sql .= ' WHERE rowid = '.((int) $id);
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de mettre à jour le rapport : '.$db->lasterror()), 500);
         }
@@ -1218,9 +1308,12 @@ switch ($action) {
             'content' => $content,
             'date_creation' => null,
             'date_modification' => $db->idate($now),
+            'date_last_content_edit' => $db->idate($now),
+            'last_content_edit_by_label' => timeflowResolveUserLabel((int) $user->id),
             'read_at' => null,
             'read_by_label' => '',
             'is_read' => false,
+            'is_deleted' => false,
         );
         timeflowJsonResponse(array('status' => 'success', 'data' => $saved));
         break;
@@ -1230,7 +1323,7 @@ switch ($action) {
         if ($id <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant du rapport invalide.'), 400);
         }
-        $sql = 'SELECT rowid, fk_user FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
+        $sql = 'SELECT rowid, fk_user, date_delete FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
         $res = $db->query($sql);
         if (!$res || $db->num_rows($res) <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
@@ -1239,11 +1332,17 @@ switch ($action) {
         if ((int) $obj->fk_user !== (int) $user->id && !timeflowCanValidate($user) && !$user->admin) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé.'), 403);
         }
-        $sql = 'DELETE FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id);
+        if (!empty($obj->date_delete)) {
+            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => (int) $id, 'is_deleted' => true)), 200);
+        }
+        $now = dol_now();
+        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report';
+        $sql .= ' SET date_delete = "'.$db->idate($now).'", fk_user_delete = '.((int) $user->id);
+        $sql .= ' WHERE rowid = '.((int) $id).' AND date_delete IS NULL';
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer le rapport : '.$db->lasterror()), 500);
         }
-        timeflowJsonResponse(array('status' => 'success'));
+        timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => (int) $id, 'is_deleted' => true)));
         break;
 
     case 'getMyDailyReports':
@@ -1252,10 +1351,10 @@ switch ($action) {
         break;
 
     case 'getDailyReports':
-        if (!timeflowCanValidate($user)) {
+        $input = is_array($postData) ? $postData : $_REQUEST;
+        if (!timeflowCanValidate($user) && !timeflowCanReadAllTimeEntries($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
-        $input = is_array($postData) ? $postData : $_REQUEST;
         timeflowJsonResponse(array('status' => 'success', 'data' => array(
             'reports' => timeflowFetchDailyReports($input, true),
             'employees' => timeflowDailyReportEmployees(),
@@ -1267,6 +1366,9 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        // Read actions must only update read metadata. They must never update
+        // date_last_content_edit, because that would falsely display a content
+        // modification when the manager only marked the report as read.
         $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET read_at = \''.$db->idate(dol_now()).'\',';
         $sql .= ' fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity);
         if (!$db->query($sql)) {

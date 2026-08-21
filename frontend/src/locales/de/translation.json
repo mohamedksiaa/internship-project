@@ -49,7 +49,19 @@
     "no_project": "Kein Projekt",
     "project_fallback": "Projekt #{{projectId}}",
     "user_fallback": "Benutzer #{{userId}}",
-    "no_client": "Kein Kunde"
+    "no_client": "Kein Kunde",
+    "days_few": "",
+    "days_many": "",
+    "days_two": "",
+    "days_zero": "",
+    "members_few": "",
+    "members_many": "",
+    "members_two": "",
+    "members_zero": "",
+    "projects_count_few": "",
+    "projects_count_many": "",
+    "projects_count_two": "",
+    "projects_count_zero": ""
   },
   "history": {
     "calendar": "Kalender",
@@ -61,6 +73,8 @@
     "zoom_in": "Vergrößern",
     "zoom_out": "Verkleinern",
     "task_history": "Aufgabenverlauf",
+    "report_history": "Berichtsverlauf",
+    "no_report_history": "Für diesen Zeitraum gibt es keinen Berichtsverlauf.",
     "history_title": "Korrekturverlauf",
     "history_description": "Eintrag #{{entryId}} — Originalzeit vs. korrigierte Zeit",
     "close": "Schließen",
@@ -142,6 +156,7 @@
     "track_time": "ZEITERFASSUNG",
     "calendar": "KALENDER",
     "daily_report": "MEIN BERICHT",
+    "daily_report_history": "MEINE BERICHTE",
     "dashboard": "DASHBOARD",
     "reports": "BERICHTE",
     "validations": "VALIDIERUNGEN",
@@ -189,12 +204,68 @@
     "confirm": "Bestätigen"
   },
   "processed_history": {
-    "title": "Verarbeiteter Verlauf", "export_csv": "Als CSV exportieren", "select_page": "Seite auswählen", "select_page_aria": "Alle auf dieser Seite auswählen", "select_group_aria": "Gruppe {{day}} auswählen", "select_entry_aria": "Diesen Eintrag auswählen", "total": "Gesamt", "modified_manually": "Manuell geändert", "empty": "Keine verarbeiteten Einträge.",
-    "filters": { "status": "Status", "validated_and_rejected": "Validiert und abgelehnt", "employee": "Mitarbeiter", "all_employees": "Alle Mitarbeiter", "project": "Projekt", "all_projects": "Alle Projekte", "start_date": "Startdatum", "end_date": "Enddatum", "modified_only": "Nur geänderte" },
-    "stats": { "validated_hours": "Validierte Stunden", "rejected_entries": "Abgelehnte Einträge", "modified_entries": "Geändert" },
-    "columns": { "task": "Aufgabe", "project": "Projekt", "who": "Wer", "start": "Start", "end": "Ende", "status": "Status", "duration": "Dauer", "modification": "Änderung", "processed_by_at": "Verarbeitet von / am", "actions": "Aktionen" },
-    "csv": { "processed_by": "Verarbeitet von", "processed_at": "Verarbeitet am", "filename": "timeflow-verarbeiteter-verlauf.csv" },
-    "pagination": { "previous": "Zurück", "next": "Weiter", "page": "Seite {{current}} / {{total}}" },
-    "delete": { "action": "Löschen", "entry_aria": "Diesen Eintrag löschen", "selection": "Auswahl löschen ({{count}})", "title": "Endgültiges Löschen", "irreversible": "Diese Aktion ist irreversibel.", "single_confirmation": "Diesen Zeiteintrag dauerhaft löschen? Diese Aktion ist irreversibel und löscht die Daten aus der Datenbank.", "multiple_confirmation": "{{count}} ausgewählte Einträge dauerhaft löschen? Diese Aktion ist irreversibel und löscht die Daten aus der Datenbank.", "success": "{{count}} Eintrag/Einträge gelöscht" }
-  }
+    "title": "Verarbeiteter Verlauf",
+    "export_csv": "Als CSV exportieren",
+    "select_page": "Seite auswählen",
+    "select_page_aria": "Alle auf dieser Seite auswählen",
+    "select_group_aria": "Gruppe {{day}} auswählen",
+    "select_entry_aria": "Diesen Eintrag auswählen",
+    "total": "Gesamt",
+    "modified_manually": "Manuell geändert",
+    "empty": "Keine verarbeiteten Einträge.",
+    "filters": {
+      "status": "Status",
+      "validated_and_rejected": "Validiert und abgelehnt",
+      "employee": "Mitarbeiter",
+      "all_employees": "Alle Mitarbeiter",
+      "project": "Projekt",
+      "all_projects": "Alle Projekte",
+      "start_date": "Startdatum",
+      "end_date": "Enddatum",
+      "modified_only": "Nur geänderte"
+    },
+    "stats": {
+      "validated_hours": "Validierte Stunden",
+      "rejected_entries": "Abgelehnte Einträge",
+      "modified_entries": "Geändert"
+    },
+    "columns": {
+      "task": "Aufgabe",
+      "project": "Projekt",
+      "who": "Wer",
+      "start": "Start",
+      "end": "Ende",
+      "status": "Status",
+      "duration": "Dauer",
+      "modification": "Änderung",
+      "processed_by_at": "Verarbeitet von / am",
+      "actions": "Aktionen"
+    },
+    "csv": {
+      "processed_by": "Verarbeitet von",
+      "processed_at": "Verarbeitet am",
+      "filename": "timeflow-verarbeiteter-verlauf.csv"
+    },
+    "pagination": {
+      "previous": "Zurück",
+      "next": "Weiter",
+      "page": "Seite {{current}} / {{total}}"
+    },
+    "delete": {
+      "action": "Löschen",
+      "entry_aria": "Diesen Eintrag löschen",
+      "selection": "Auswahl löschen ({{count}})",
+      "title": "Endgültiges Löschen",
+      "irreversible": "Diese Aktion ist irreversibel.",
+      "single_confirmation": "Diesen Zeiteintrag dauerhaft löschen? Diese Aktion ist irreversibel und löscht die Daten aus der Datenbank.",
+      "multiple_confirmation": "{{count}} ausgewählte Einträge dauerhaft löschen? Diese Aktion ist irreversibel und löscht die Daten aus der Datenbank.",
+      "success": "{{count}} Eintrag/Einträge gelöscht",
+      "confirm_title": "Löschung bestätigen",
+      "confirm_text": "Diesen {{count}} Bericht(e) dauerhaft löschen? Diese Aktion ist irreversibel und entfernt die Daten aus der Datenbank."
+    }
+  },
+  "entries_few": "",
+  "entries_many": "",
+  "entries_two": "",
+  "entries_zero": ""
 }
