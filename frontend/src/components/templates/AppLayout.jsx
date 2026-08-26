@@ -20,7 +20,6 @@ export default function AppLayout() {
   const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
   const visibleNavigation = navigation.filter((item) => {
     if (item.path === '/validation') return canValidate;
-    if (item.path === '/processed-history') return canReadAll;
     if (item.path === '/reports') return canValidate;
     return true;
   });

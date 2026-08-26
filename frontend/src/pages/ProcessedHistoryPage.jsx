@@ -51,6 +51,12 @@ export default function ProcessedHistoryPage() {
   }, []);
 
   useEffect(() => {
+    if (!canReadAll && filters.employee_id !== '') {
+      setFilters((current) => ({ ...current, employee_id: '' }));
+    }
+  }, [canReadAll, filters.employee_id]);
+
+  useEffect(() => {
     if (activeTab !== 'reports') return;
 
     let active = true;
@@ -355,24 +361,28 @@ export default function ProcessedHistoryPage() {
                   <h1 className="text-2xl font-semibold">{t('processed_history.title')}</h1>
                 </div>
                 <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2">
-                    <input
-                      ref={globalCheckboxRef}
-                      aria-label={t('processed_history.select_page_aria')}
-                      type="checkbox"
-                      checked={data.rows.length > 0 && data.rows.every((row) => selectedIds.includes(Number(row.id)))}
-                      onChange={(event) => selectAllForPage(event.target.checked)}
-                    />
-                    <span className="text-sm text-slate-700">{t('processed_history.select_page')}</span>
-                  </label>
-                  {selectedIds.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })}
-                      className="rounded bg-[#d64c4c] px-4 py-2 text-white"
-                    >
-                      {t('processed_history.delete.selection', { count: selectedIds.length })}
-                    </button>
+                  {canReadAll && (
+                    <>
+                      <label className="flex items-center gap-2">
+                        <input
+                          ref={globalCheckboxRef}
+                          aria-label={t('processed_history.select_page_aria')}
+                          type="checkbox"
+                          checked={data.rows.length > 0 && data.rows.every((row) => selectedIds.includes(Number(row.id)))}
+                          onChange={(event) => selectAllForPage(event.target.checked)}
+                        />
+                        <span className="text-sm text-slate-700">{t('processed_history.select_page')}</span>
+                      </label>
+                      {selectedIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })}
+                          className="rounded bg-[#d64c4c] px-4 py-2 text-white"
+                        >
+                          {t('processed_history.delete.selection', { count: selectedIds.length })}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -384,12 +394,19 @@ export default function ProcessedHistoryPage() {
                   <option value="refused">{t('status.rejected')}</option>
                 </select>
 
-                <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="rounded border p-2">
-                  <option value="">{t('processed_history.filters.all_employees')}</option>
-                  {data.employees?.map((user) => (
-                    <option key={user.id} value={user.id}>{user.label}</option>
-                  ))}
-                </select>
+                {!canReadAll && (
+                  <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    {t('processed_history.filters.all_employees')}
+                  </div>
+                )}
+                {canReadAll && (
+                  <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="rounded border p-2">
+                    <option value="">{t('processed_history.filters.all_employees')}</option>
+                    {data.employees?.map((user) => (
+                      <option key={user.id} value={user.id}>{user.label}</option>
+                    ))}
+                  </select>
+                )}
 
                 <select aria-label={t('processed_history.filters.project')} value={filters.project_id} onChange={(event) => update('project_id', event.target.value)} className="rounded border p-2">
                   <option value="">{t('processed_history.filters.all_projects')}</option>
@@ -524,27 +541,31 @@ export default function ProcessedHistoryPage() {
                 <h1 className="text-2xl font-semibold">{t('history.report_history')}</h1>
               </div>
               <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2">
-                  <input
-                    ref={(el) => {
-                      if (el) {
-                        const all = reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)));
-                        const some = reportHistory.some((r) => selectedIds.includes(Number(r.id))) && !all;
-                        el.indeterminate = some;
-                      }
-                    }}
-                    aria-label={t('processed_history.select_page_aria')}
-                    type="checkbox"
-                    checked={reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)))}
-                    onChange={(event) => selectAllReportsForPage(event.target.checked)}
-                  />
-                  <span className="text-sm text-slate-700">{t('processed_history.select_page')}</span>
-                </label>
+                {canReadAll && (
+                  <>
+                    <label className="flex items-center gap-2">
+                      <input
+                        ref={(el) => {
+                          if (el) {
+                            const all = reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)));
+                            const some = reportHistory.some((r) => selectedIds.includes(Number(r.id))) && !all;
+                            el.indeterminate = some;
+                          }
+                        }}
+                        aria-label={t('processed_history.select_page_aria')}
+                        type="checkbox"
+                        checked={reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)))}
+                        onChange={(event) => selectAllReportsForPage(event.target.checked)}
+                      />
+                      <span className="text-sm text-slate-700">{t('processed_history.select_page')}</span>
+                    </label>
 
-                {selectedIds.length > 0 && (
-                  <button type="button" onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })} className="rounded bg-[#d64c4c] px-4 py-2 text-white">
-                    {t('processed_history.delete.selection', { count: selectedIds.length })}
-                  </button>
+                    {selectedIds.length > 0 && (
+                      <button type="button" onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })} className="rounded bg-[#d64c4c] px-4 py-2 text-white">
+                        {t('processed_history.delete.selection', { count: selectedIds.length })}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -557,12 +578,19 @@ export default function ProcessedHistoryPage() {
                   <option value="refused">{t('status.rejected')}</option>
                 </select>
 
-                <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="rounded border p-2">
-                  <option value="">{t('processed_history.filters.all_employees')}</option>
-                  {reportEmployees.map((user) => (
-                    <option key={user.id} value={user.id}>{user.label}</option>
-                  ))}
-                </select>
+                {!canReadAll && (
+                  <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    {t('processed_history.filters.all_employees')}
+                  </div>
+                )}
+                {canReadAll && (
+                  <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="rounded border p-2">
+                    <option value="">{t('processed_history.filters.all_employees')}</option>
+                    {reportEmployees.map((user) => (
+                      <option key={user.id} value={user.id}>{user.label}</option>
+                    ))}
+                  </select>
+                )}
 
                 <input aria-label={t('processed_history.filters.start_date')} type="date" value={filters.date_from} onChange={(event) => update('date_from', event.target.value)} className="rounded border p-2" />
                 <input aria-label={t('processed_history.filters.end_date')} type="date" value={filters.date_to} onChange={(event) => update('date_to', event.target.value)} className="rounded border p-2" />

@@ -41,6 +41,20 @@ describe('HistoryPage i18n', () => {
     expect(await screen.findByText('17. Aug. - 23. Aug.')).toBeInTheDocument();
   });
 
+  it('renders the English week/day labels for the calendar view toggle', async () => {
+    getWeeklyTimesheet.mockResolvedValue({
+      weekStart: '2026-08-17',
+      weekEnd: '2026-08-23',
+      rows: [],
+    });
+
+    await i18n.changeLanguage('en');
+    render(<HistoryPage />);
+
+    expect(screen.getByRole('button', { name: 'Week' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Day' })).toBeInTheDocument();
+  });
+
   it('renders the calendar-only page without the task/report tab split', async () => {
     getWeeklyTimesheet.mockResolvedValue({
       weekStart: '2026-08-17',
