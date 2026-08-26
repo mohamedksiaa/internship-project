@@ -57,6 +57,7 @@ describe('ProcessedHistoryPage', () => {
     expect(screen.queryByTitle('Valider')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Refuser')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Supprimer/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /Employé/i })).not.toBeInTheDocument();
   });
 
   it('shows manager-only hard-delete controls and bulk deletion', async () => {

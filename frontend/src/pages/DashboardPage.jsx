@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
-import { getDailyReports, getSummaryReports, getTimeEntries, getWeeklyTimesheet } from '../api/timeflowApi';
+import { getDailyReports, getMyDailyReports, getSummaryReports, getTimeEntries, getWeeklyTimesheet } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
+import Card from '../components/atoms/Card';
 import {
   Bar,
   BarChart,
@@ -74,6 +75,7 @@ function diffDays(dateA, dateB) {
 
 export default function DashboardPage() {
   const { t, i18n } = useTranslation();
+  const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
   const [summary, setSummary] = useState(null);
   const [previousSummary, setPreviousSummary] = useState(null);
   const [week, setWeek] = useState({ weekStart: '', weekEnd: '', rows: [] });
@@ -92,12 +94,13 @@ export default function DashboardPage() {
 
         const currentMonth = currentMonthRange();
         const previousMonth = previousMonthRange();
+        const reportRequest = canReadAll ? getDailyReports({ date_from: currentMonth.from, date_to: currentMonth.to }) : getMyDailyReports({ date_from: currentMonth.from, date_to: currentMonth.to });
         const [weekData, summaryData, previousSummaryData, timeEntriesData, pendingReportsData] = await Promise.all([
           getWeeklyTimesheet(),
           getSummaryReports(1000, currentMonth.from, currentMonth.to),
           getSummaryReports(1000, previousMonth.from, previousMonth.to),
           getTimeEntries(1000),
-          getDailyReports({ date_from: currentMonth.from, date_to: currentMonth.to }),
+          reportRequest,
         ]);
 
         if (!isMounted) return;
@@ -134,7 +137,6 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
   const locale = i18n.language === 'ar' ? 'ar-EG' : i18n.language === 'de' ? 'de-DE' : 'fr-FR';
   const noProjectLabel = t('dashboard.no_project');
   const currentMonth = useMemo(() => currentMonthRange(), []);
@@ -235,24 +237,20 @@ export default function DashboardPage() {
         {!loading && !error && (
           <>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.current_month_total')}</p>
-                <div className="mt-3 text-2xl font-semibold text-slate-900">{formatDuration(monthlyTotalSeconds)}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.variation_vs_previous')}</p>
-                <div className={`mt-3 text-2xl font-semibold ${monthDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <Card headerLabel={t('dashboard.current_month_total')}>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{formatDuration(monthlyTotalSeconds)}</p>
+              </Card>
+              <Card headerLabel={t('dashboard.variation_vs_previous')}>
+                <div className={`mt-2 text-2xl font-semibold ${monthDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                   {monthDelta >= 0 ? '+' : ''}{monthDelta.toFixed(1)}%
                 </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.pending_reports')}</p>
-                <div className="mt-3 text-2xl font-semibold text-slate-900">{pendingReports.length}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.period')}</p>
-                <div className="mt-3 text-xl font-semibold text-slate-900">{currentMonth.from} → {currentMonth.to}</div>
-              </div>
+              </Card>
+              <Card headerLabel={t('dashboard.pending_reports')}>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{pendingReports.length}</p>
+              </Card>
+              <Card headerLabel={t('dashboard.period')}>
+                <div className="mt-2 text-xl font-semibold text-slate-900">{currentMonth.from} → {currentMonth.to}</div>
+              </Card>
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">

@@ -706,14 +706,18 @@ function timeflowBuildSummary($entries)
 }
 
 /** Build the shared, server-side WHERE clause for the manager read-only history. */
-function timeflowProcessedHistoryWhere($input)
+function timeflowProcessedHistoryWhere($input, $user = null)
 {
     global $db;
     $where = array('t.entity IN ('.getEntity('timeentry').')', 't.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')');
+    if ($user && !timeflowCanReadAllTimeEntries($user)) {
+        $where[] = 't.fk_user = '.((int) $user->id);
+    } elseif (!empty($input['employee_id'])) {
+        $where[] = 't.fk_user = '.((int) $input['employee_id']);
+    }
     $status = (string) ($input['status'] ?? 'all');
     if ($status === 'validated') $where[] = 't.status = '.TimeEntry::STATUS_VALIDATED;
     if ($status === 'refused') $where[] = 't.status = '.TimeEntry::STATUS_CANCELED;
-    if (!empty($input['employee_id'])) $where[] = 't.fk_user = '.((int) $input['employee_id']);
     if (!empty($input['project_id'])) $where[] = 't.fk_project = '.((int) $input['project_id']);
     if (!empty($input['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['date_from'])) $where[] = "t.date_start >= '".$db->escape($input['date_from'])." 00:00:00'";
     if (!empty($input['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $input['date_to'])) $where[] = "t.date_start < DATE_ADD('".$db->escape($input['date_to'])." 00:00:00', INTERVAL 1 DAY)";
@@ -723,10 +727,11 @@ function timeflowProcessedHistoryWhere($input)
     return implode(' AND ', $where);
 }
 
-function timeflowGetProcessedHistory($input)
+function timeflowGetProcessedHistory($input, $user = null)
 {
     global $db;
-    $where = timeflowProcessedHistoryWhere($input);
+    $isManagerView = $user ? timeflowCanReadAllTimeEntries($user) : true;
+    $where = timeflowProcessedHistoryWhere($input, $user);
     $page = max(1, (int) ($input['page'] ?? 1));
     $perPage = min(!empty($input['export']) ? 10000 : 100, max(1, (int) ($input['per_page'] ?? 50)));
     $offset = ($page - 1) * $perPage;
@@ -753,10 +758,14 @@ function timeflowGetProcessedHistory($input)
         $rows[] = $row;
     }
     $employees = array();
-    $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')';
-    $employeeSql .= ' ORDER BY u.lastname, u.firstname, u.login';
-    $employeeRes = $db->query($employeeSql);
-    while ($employeeRes && ($obj = $db->fetch_object($employeeRes))) $employees[] = array('id'=>(int) $obj->fk_user, 'label'=>trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));
+    if ($isManagerView) {
+        $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')';
+        $employeeSql .= ' ORDER BY u.lastname, u.firstname, u.login';
+        $employeeRes = $db->query($employeeSql);
+        while ($employeeRes && ($obj = $db->fetch_object($employeeRes))) $employees[] = array('id'=>(int) $obj->fk_user, 'label'=>trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));
+    } elseif ($user && !empty($user->id)) {
+        $employees[] = array('id' => (int) $user->id, 'label' => timeflowResolveUserLabel((int) $user->id));
+    }
     return array('rows'=>$rows, 'employees'=>$employees, 'pagination'=>array('page'=>$page, 'per_page'=>$perPage, 'total'=>$total, 'pages'=>max(1, (int) ceil($total / $perPage))), 'stats'=>array('validated_seconds'=>(int) ($statsObj->validated_seconds ?? 0), 'refused_count'=>(int) ($statsObj->refused_count ?? 0), 'manual_count'=>(int) ($statsObj->manual_count ?? 0)));
 }
 
@@ -1144,14 +1153,13 @@ switch ($action) {
         break;
 
     case 'getProcessedHistory':
-        if (!timeflowCanReadAllTimeEntries($user)) timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($postData ?: $_REQUEST)));
+        $input = $postData ?: $_REQUEST;
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($input, $user)));
         break;
 
     case 'exportProcessedHistory':
-        if (!timeflowCanReadAllTimeEntries($user)) timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         $input = $postData ?: $_REQUEST; $input['page'] = 1; $input['per_page'] = 10000; $input['export'] = true;
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($input)));
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($input, $user)));
         break;
 
     case 'hardDeleteTimeEntry':
@@ -1394,12 +1402,15 @@ switch ($action) {
 
     case 'getDailyReports':
         $input = is_array($postData) ? $postData : $_REQUEST;
-        if (!timeflowCanValidate($user) && !timeflowCanReadAllTimeEntries($user)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
+        $canReadAll = timeflowCanValidate($user) || timeflowCanReadAllTimeEntries($user);
+        $reports = timeflowFetchDailyReports($input, $canReadAll, $canReadAll ? 0 : (int) $user->id);
+        $employees = $canReadAll ? timeflowDailyReportEmployees() : array(array(
+            'id' => (int) $user->id,
+            'label' => timeflowResolveUserLabel((int) $user->id),
+        ));
         timeflowJsonResponse(array('status' => 'success', 'data' => array(
-            'reports' => timeflowFetchDailyReports($input, true),
-            'employees' => timeflowDailyReportEmployees(),
+            'reports' => $reports,
+            'employees' => $employees,
         )));
         break;
 
