@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
-import { getSummaryReports, getWeeklyTimesheet } from '../api/timeflowApi';
+import { getDailyReports, getSummaryReports, getTimeEntries, getWeeklyTimesheet } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Pie,
-  PieChart,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,11 +18,37 @@ import {
 } from 'recharts';
 
 const TEAM_CHART_COLORS = ['#03a9f4', '#4d5fca', '#35a66f', '#f59e0b', '#d66', '#8a9aa4'];
+const ALERT_DAYS_THRESHOLD = 3;
 
 function entryDate(value) {
   if (!value) return new Date(0);
   const raw = String(value);
   return /^[0-9]+$/.test(raw) ? new Date(Number(raw) * (raw.length === 10 ? 1000 : 1)) : new Date(value);
+}
+
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function previousMonthRange(referenceDate = new Date()) {
+  const current = startOfMonth(referenceDate);
+  const previous = new Date(current.getFullYear(), current.getMonth() - 1, 1);
+  return {
+    from: [previous.getFullYear(), String(previous.getMonth() + 1).padStart(2, '0'), '01'].join('-'),
+    to: [previous.getFullYear(), String(previous.getMonth() + 1).padStart(2, '0'), String(endOfMonth(previous).getDate()).padStart(2, '0')].join('-'),
+  };
+}
+
+function currentMonthRange(referenceDate = new Date()) {
+  const current = startOfMonth(referenceDate);
+  return {
+    from: [current.getFullYear(), String(current.getMonth() + 1).padStart(2, '0'), '01'].join('-'),
+    to: [current.getFullYear(), String(current.getMonth() + 1).padStart(2, '0'), String(endOfMonth(current).getDate()).padStart(2, '0')].join('-'),
+  };
 }
 
 function dayLabel(value, locale = 'fr-FR') {
@@ -33,13 +60,25 @@ function projectLabel(projectId, projectLabels = {}, fallbackLabel = 'dashboard.
   if (!projectId || Number(projectId) <= 0) {
     return fallbackLabel;
   }
-  return projectLabels[projectId] || projectLabels[String(projectId)] || `dashboard.project_fallback`;
+  return projectLabels[projectId] || projectLabels[String(projectId)] || 'dashboard.project_fallback';
+}
+
+function toIsoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function diffDays(dateA, dateB) {
+  const ms = dateB.getTime() - dateA.getTime();
+  return Math.floor(ms / 86400000);
 }
 
 export default function DashboardPage() {
   const { t, i18n } = useTranslation();
   const [summary, setSummary] = useState(null);
+  const [previousSummary, setPreviousSummary] = useState(null);
   const [week, setWeek] = useState({ weekStart: '', weekEnd: '', rows: [] });
+  const [allEntries, setAllEntries] = useState([]);
+  const [pendingReports, setPendingReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -48,24 +87,39 @@ export default function DashboardPage() {
 
     async function loadDashboard() {
       try {
-        if (isMounted) {
-          setLoading(true);
-        }
-        // Load weekly timesheet first to get the week range, then request
-        // summary reports restricted to the same date range so the "Total
-        // semaine" matches the breakdown shown in the chart.
-        const weekData = await getWeeklyTimesheet();
-        const summaryData = await getSummaryReports(1000, weekData?.weekStart ?? '', weekData?.weekEnd ?? '');
-        if (isMounted) {
-          setSummary(summaryData || null);
-          setWeek(weekData || { weekStart: '', weekEnd: '', rows: [] });
-        }
+        if (!isMounted) return;
+        setLoading(true);
+
+        const currentMonth = currentMonthRange();
+        const previousMonth = previousMonthRange();
+        const [weekData, summaryData, previousSummaryData, timeEntriesData, pendingReportsData] = await Promise.all([
+          getWeeklyTimesheet(),
+          getSummaryReports(1000, currentMonth.from, currentMonth.to),
+          getSummaryReports(1000, previousMonth.from, previousMonth.to),
+          getTimeEntries(1000),
+          getDailyReports({ date_from: currentMonth.from, date_to: currentMonth.to }),
+        ]);
+
+        if (!isMounted) return;
+
+        const entries = Array.isArray(timeEntriesData) ? timeEntriesData : [];
+        const filteredReports = Array.isArray(pendingReportsData?.reports)
+          ? pendingReportsData.reports.filter((report) => Number(report.status ?? 1) === 1)
+          : [];
+
+        setSummary(summaryData || null);
+        setPreviousSummary(previousSummaryData || null);
+        setWeek(weekData || { weekStart: '', weekEnd: '', rows: [] });
+        setAllEntries(entries);
+        setPendingReports(filteredReports);
       } catch (err) {
-        if (isMounted) {
-          setError(err.message);
-          setSummary(null);
-          setWeek({ weekStart: '', weekEnd: '', rows: [] });
-        }
+        if (!isMounted) return;
+        setError(err.message);
+        setSummary(null);
+        setPreviousSummary(null);
+        setWeek({ weekStart: '', weekEnd: '', rows: [] });
+        setAllEntries([]);
+        setPendingReports([]);
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -83,29 +137,14 @@ export default function DashboardPage() {
   const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
   const locale = i18n.language === 'ar' ? 'ar-EG' : i18n.language === 'de' ? 'de-DE' : 'fr-FR';
   const noProjectLabel = t('dashboard.no_project');
+  const currentMonth = useMemo(() => currentMonthRange(), []);
+  const previousMonth = useMemo(() => previousMonthRange(), []);
 
-  const weeklyChartData = useMemo(() => {
-    const rows = Array.isArray(week.rows) ? week.rows : [];
-    const weeklyMap = new Map();
-    for (const entry of rows) {
-      const dayKey = entry.day || (entry.date_start ? String(entry.date_start).slice(0, 10) : '');
-      if (!dayKey) continue;
-      if (!weeklyMap.has(dayKey)) {
-        weeklyMap.set(dayKey, { day: dayKey, label: dayLabel(dayKey, locale), billable: 0, nonBillable: 0, total: 0 });
-      }
-      const bucket = weeklyMap.get(dayKey);
-      const duration = Number(entry.duration || 0);
-      bucket.total += duration;
-      if (Number(entry.billable) === 1) {
-        bucket.billable += duration;
-      } else {
-        bucket.nonBillable += duration;
-      }
-    }
-    return Array.from(weeklyMap.values()).sort((left, right) => left.day.localeCompare(right.day));
-  }, [week.rows]);
+  const monthlyTotalSeconds = Number(summary?.total_seconds || 0);
+  const previousMonthTotalSeconds = Number(previousSummary?.total_seconds || 0);
+  const monthDelta = previousMonthTotalSeconds > 0 ? ((monthlyTotalSeconds - previousMonthTotalSeconds) / previousMonthTotalSeconds) * 100 : (monthlyTotalSeconds > 0 ? 100 : 0);
 
-  const projectChartData = useMemo(() => {
+  const topProjects = useMemo(() => {
     const byProject = summary?.by_project || {};
     const projectLabels = summary?.project_labels || {};
     return Object.entries(byProject)
@@ -114,46 +153,72 @@ export default function DashboardPage() {
         name: projectLabel(projectId, projectLabels, noProjectLabel),
         value: Number(duration || 0),
       }))
-      .sort((left, right) => right.value - left.value);
+      .sort((left, right) => right.value - left.value)
+      .slice(0, 5);
   }, [summary, noProjectLabel]);
 
-  const teamRows = useMemo(() => {
-    // Do not compute team aggregation when the current user cannot read all
-    // entries — avoids unnecessary work and guarantees no accidental
-    // exposure in the UI.
-    if (!canReadAll) return [];
-    const rows = Array.isArray(week.rows) ? week.rows : [];
-    const map = new Map();
-    for (const entry of rows) {
-      const userId = Number(entry.fk_user) || 0;
-      const key = userId > 0 ? String(userId) : '0';
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          user: entry.user_label || entry.user_name || entry.user_login || (userId > 0 ? t('dashboard.user_fallback', { userId }) : '—'),
-          total: 0,
-          billable: 0,
-          submitted: 0,
-          validated: 0,
-          entries: 0,
-        });
+  const weeklyTrendData = useMemo(() => {
+    const rangeStart = entryDate(currentMonth.from);
+    const rangeEnd = entryDate(currentMonth.to);
+    const monthEntries = Array.isArray(allEntries)
+      ? allEntries.filter((entry) => {
+          const start = entryDate(entry.date_start);
+          return !Number.isNaN(start.getTime()) && start >= rangeStart && start <= rangeEnd;
+        })
+      : [];
+
+    const weeklyMap = new Map();
+    for (const entry of monthEntries) {
+      const start = entryDate(entry.date_start);
+      if (Number.isNaN(start.getTime())) continue;
+      const day = start.getDay();
+      const diff = (day + 6) % 7;
+      const startOfWeek = new Date(start);
+      startOfWeek.setHours(0, 0, 0, 0);
+      startOfWeek.setDate(start.getDate() - diff);
+      const key = toIsoDate(startOfWeek);
+      if (!weeklyMap.has(key)) {
+        weeklyMap.set(key, { weekStart: key, label: `${startOfWeek.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`, total: 0 });
       }
-      const row = map.get(key);
-      const duration = Number(entry.duration || 0);
-      row.total += duration;
-      row.entries += 1;
-      if (Number(entry.billable) === 1) {
-        row.billable += duration;
-      }
-      if (Number(entry.status) === 1) {
-        row.submitted += 1;
-      }
-      if (Number(entry.status) === 2) {
-        row.validated += 1;
-      }
+      weeklyMap.get(key).total += Number(entry.duration || 0);
     }
-    return Array.from(map.values()).sort((left, right) => right.total - left.total);
-  }, [week.rows, canReadAll]);
+
+    return Array.from(weeklyMap.values()).sort((left, right) => left.weekStart.localeCompare(right.weekStart));
+  }, [allEntries, currentMonth, locale]);
+
+  const alerts = useMemo(() => {
+    const now = new Date();
+    const reportAlerts = Array.isArray(pendingReports)
+      ? pendingReports
+          .filter((report) => {
+            const reportDate = entryDate(report.date_report || report.date_creation || report.date_modification);
+            return !Number.isNaN(reportDate.getTime()) && diffDays(reportDate, now) >= ALERT_DAYS_THRESHOLD;
+          })
+          .map((report) => ({
+            id: `report-${report.id}`,
+            label: `${report.user_label || t('dashboard.user_fallback', { userId: report.fk_user || 0 })} · ${report.date_report}`,
+            detail: t('dashboard.pending_report_alert', { days: ALERT_DAYS_THRESHOLD }),
+            tone: 'warning',
+          }))
+      : [];
+
+    const draftAlerts = Array.isArray(allEntries)
+      ? allEntries
+          .filter((entry) => Number(entry.status) === 0)
+          .filter((entry) => {
+            const start = entryDate(entry.date_start);
+            return !Number.isNaN(start.getTime()) && diffDays(start, now) >= ALERT_DAYS_THRESHOLD;
+          })
+          .map((entry) => ({
+            id: `draft-${entry.id}`,
+            label: `${entry.project_label || t('dashboard.no_project')} · ${entry.note || t('timeentry.no_description')}`,
+            detail: t('dashboard.draft_stale_alert', { days: ALERT_DAYS_THRESHOLD }),
+            tone: 'neutral',
+          }))
+      : [];
+
+    return [...reportAlerts, ...draftAlerts].slice(0, 4);
+  }, [allEntries, pendingReports, t]);
 
   const summaryStats = useMemo(() => ({
     totalSeconds: Number(summary?.total_seconds || 0),
@@ -162,103 +227,109 @@ export default function DashboardPage() {
     validatedCount: Number(summary?.by_status?.[2] ?? summary?.by_status?.['2'] ?? 0),
   }), [summary]);
 
-  const dashboardContent = (
-    <div className="space-y-6">
-      {loading && <p className="text-sm text-[#71838f]">{t('loading')}</p>}
-      {error && <p className="text-sm text-[#d64c4c]">{error}</p>}
-      {!loading && !error && (
-        <>
-          <div className="grid gap-6 xl:grid-cols-2">
-            <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">{t('dashboard.week')}</p>
-                  <h3 className="text-lg font-semibold text-[#263746]">{t('dashboard.daily_breakdown')}</h3>
-                </div>
-                <span className="text-sm text-[#71838f]">{t('dashboard.days', { count: weeklyChartData.length })}</span>
-              </div>
-              <div className="h-[320px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e7edf1" />
-                    <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
-                    <YAxis tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
-                    <Tooltip formatter={(value) => formatDuration(value)} />
-                    <Bar dataKey="total" fill="#03a9f4" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-
-            <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">{t('dashboard.projects')}</p>
-                  <h3 className="text-lg font-semibold text-[#263746]">{t('dashboard.project_breakdown')}</h3>
-                </div>
-                <span className="text-sm text-[#71838f]">{t('dashboard.projects_count', { count: projectChartData.length })}</span>
-              </div>
-              <div className="h-[320px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={projectChartData} layout="vertical" margin={{ top: 10, right: 20, left: 20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e7edf1" />
-                    <XAxis type="number" tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
-                    <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
-                    <Tooltip formatter={(value) => formatDuration(value)} />
-                    <Bar dataKey="value" fill="#4d5fca" radius={[0, 8, 8, 0]}>
-                      {projectChartData.map((entry, index) => <Cell key={entry.id} fill={TEAM_CHART_COLORS[index % TEAM_CHART_COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-          </div>
-
-          {canReadAll && (
-            <section className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8a9aa4]">{t('dashboard.team')}</p>
-                  <h3 className="text-lg font-semibold text-[#263746]">{t('dashboard.team_activity')}</h3>
-                </div>
-                <span className="text-sm text-[#71838f]">{t('dashboard.members', { count: teamRows.length })}</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-0 text-sm">
-                  <thead>
-                    <tr>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.collaborator')}</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.entries')}</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.total_time')}</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.billable')}</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.submitted')}</th>
-                      <th className="border-b border-[#dce5ea] px-4 py-3 text-left font-medium text-[#52656f]">{t('dashboard.validated')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamRows.map((row) => (
-                      <tr key={row.key}>
-                        <td className="border-b border-[#f0f3f5] px-4 py-3 font-medium text-[#263746]">{row.user}</td>
-                        <td className="border-b border-[#f0f3f5] px-4 py-3 text-[#52656f]">{row.entries}</td>
-                        <td className="border-b border-[#f0f3f5] px-4 py-3 text-[#52656f]">{formatDuration(row.total)}</td>
-                        <td className="border-b border-[#f0f3f5] px-4 py-3 text-[#52656f]">{formatDuration(row.billable)}</td>
-                        <td className="border-b border-[#f0f3f5] px-4 py-3 text-[#52656f]">{row.submitted}</td>
-                        <td className="border-b border-[#f0f3f5] px-4 py-3 text-[#52656f]">{row.validated}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-        </>
-      )}
-    </div>
-  );
-
   return (
     <DashboardLayout summary={summaryStats} canReadAll={canReadAll}>
-      {dashboardContent}
+      <div className="space-y-6">
+        {loading && <p className="text-sm text-[#71838f]">{t('loading')}</p>}
+        {error && <p className="text-sm text-[#d64c4c]">{error}</p>}
+        {!loading && !error && (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.current_month_total')}</p>
+                <div className="mt-3 text-2xl font-semibold text-slate-900">{formatDuration(monthlyTotalSeconds)}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.variation_vs_previous')}</p>
+                <div className={`mt-3 text-2xl font-semibold ${monthDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {monthDelta >= 0 ? '+' : ''}{monthDelta.toFixed(1)}%
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.pending_reports')}</p>
+                <div className="mt-3 text-2xl font-semibold text-slate-900">{pendingReports.length}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.period')}</p>
+                <div className="mt-3 text-xl font-semibold text-slate-900">{currentMonth.from} → {currentMonth.to}</div>
+              </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.top_projects')}</p>
+                    <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.top_projects_title')}</h3>
+                  </div>
+                </div>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topProjects} layout="vertical" margin={{ top: 10, right: 20, left: 12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e7edf1" />
+                      <XAxis type="number" tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
+                      <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
+                      <Tooltip formatter={(value) => formatDuration(value)} />
+                      <Bar dataKey="value" radius={[0, 8, 8, 0]} fill="#4d5fca">
+                        {topProjects.map((entry, index) => <Cell key={entry.id || entry.name} fill={TEAM_CHART_COLORS[index % TEAM_CHART_COLORS.length]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.trend')}</p>
+                    <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.weekly_trend')}</h3>
+                  </div>
+                </div>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={weeklyTrendData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e7edf1" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
+                      <YAxis tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
+                      <Tooltip formatter={(value) => formatDuration(value)} />
+                      <Line type="monotone" dataKey="total" stroke="#03a9f4" strokeWidth={3} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+            </div>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.alerts')}</p>
+                  <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.alerts_title')}</h3>
+                </div>
+                <Link to="/reports" className="text-sm font-medium text-[#03a9f4] hover:text-[#0288c7]">{t('dashboard.see_all_reports')}</Link>
+              </div>
+              {alerts.length === 0 ? (
+                <p className="text-sm text-slate-500">{t('dashboard.no_alerts')}</p>
+              ) : (
+                <ul className="space-y-3">
+                  {alerts.map((alert) => (
+                    <li key={alert.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{alert.label}</p>
+                          <p className="text-xs text-slate-500">{alert.detail}</p>
+                        </div>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wide ${alert.tone === 'warning' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
+                          {alert.tone === 'warning' ? t('dashboard.warning') : t('dashboard.info')}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
+      </div>
     </DashboardLayout>
   );
 }

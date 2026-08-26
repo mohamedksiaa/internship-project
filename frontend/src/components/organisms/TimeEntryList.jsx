@@ -36,6 +36,26 @@ function endTimeLabel(entry, t) {
   return entry.status === 0 ? t('timeentry.in_progress') : '—';
 }
 
+export function isManuallyModifiedRecord(dateCreation, dateLastContentEdit) {
+  if (!dateCreation || !dateLastContentEdit) return false;
+  return String(dateLastContentEdit) !== String(dateCreation);
+}
+
+export function ModifiedManuallyBadge({ onClick, title, className = '' }) {
+  const { t } = useTranslation();
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title ?? t('timeentry.corrected_traced')}
+      className={`rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 ${className}`}
+    >
+      {t('timeentry.modified_manually')}
+    </button>
+  );
+}
+
 function toDateTimeLocal(value) {
   const date = entryDate(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -299,14 +319,10 @@ export default function TimeEntryList({
                     </td>
                     <td className="px-3 py-3 text-center whitespace-nowrap">
                       {entry.manual_modified ? (
-                        <button
-                          type="button"
+                        <ModifiedManuallyBadge
                           onClick={() => setHistoryEntry(entry)}
                           title={entry.manual_reason ? `${t('timeentry.corrected_with_reason')}: ${entry.manual_reason}` : t('timeentry.corrected_traced')}
-                          className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
-                        >
-                          {t('timeentry.modified_manually')}
-                        </button>
+                        />
                       ) : '—'}
                     </td>
                     <td className="px-5 py-3 text-right whitespace-nowrap">

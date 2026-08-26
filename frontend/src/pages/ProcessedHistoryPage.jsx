@@ -13,6 +13,7 @@ import {
   hardDeleteDailyReports,
 } from '../api/timeflowApi';
 import StatusBadge from '../components/atoms/StatusBadge';
+import { ModifiedManuallyBadge, isManuallyModifiedRecord } from '../components/organisms/TimeEntryList.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
 
 const initialFilters = {
@@ -56,7 +57,14 @@ export default function ProcessedHistoryPage() {
     setReportHistoryLoading(true);
     setReportHistoryError('');
 
-    const payload = { history: true, employee_id: filters.employee_id, date_from: filters.date_from, date_to: filters.date_to, manual_only: filters.manual_only };
+    const payload = {
+      history: true,
+      employee_id: filters.employee_id,
+      date_from: filters.date_from,
+      date_to: filters.date_to,
+      manual_only: filters.manual_only,
+      status: filters.status,
+    };
     const request = canReadAll ? getDailyReports(payload) : getMyDailyReports(payload);
 
     request
@@ -76,15 +84,25 @@ export default function ProcessedHistoryPage() {
     return () => {
       active = false;
     };
-  }, [activeTab, canReadAll, filters.employee_id, filters.date_from, filters.date_to, filters.manual_only]);
+  }, [activeTab, canReadAll, filters.employee_id, filters.date_from, filters.date_to, filters.manual_only, filters.status]);
+
+  const isModifiedReport = (report) => {
+    if (!report || !report.date_last_content_edit || !report.date_creation) return false;
+    return String(report.date_last_content_edit) !== String(report.date_creation);
+  };
+
+  const visibleReportHistory = useMemo(
+    () => reportHistory.filter((report) => Number(report.status) !== 1),
+    [reportHistory]
+  );
 
   const groupedReports = useMemo(() => {
-    return reportHistory.reduce((all, report) => {
+    return visibleReportHistory.reduce((all, report) => {
       const key = String(report.date_report || '').slice(0, 10);
       (all[key] ||= []).push(report);
       return all;
     }, {});
-  }, [reportHistory]);
+  }, [visibleReportHistory]);
 
   const selectReportGroup = (rows, checked) => {
     const ids = rows.map((r) => Number(r.id));
@@ -497,116 +515,131 @@ export default function ProcessedHistoryPage() {
 
         {activeTab === 'reports' && (
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                {reportHistoryLoading && <p className="text-sm text-slate-500">{t('loading')}</p>}
-                {reportHistoryError && <p className="text-sm text-rose-600">{reportHistoryError}</p>}
-                {!reportHistoryLoading && reportHistory.length === 0 && (
-                  <p className="text-sm text-slate-500">{t('history.no_report_history')}</p>
+            {reportHistoryLoading && <p className="text-sm text-slate-500">{t('loading')}</p>}
+            {reportHistoryError && <p className="text-sm text-rose-600">{reportHistoryError}</p>}
+
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[.24em] text-slate-500">{t('app.section_manage')}</p>
+                <h1 className="text-2xl font-semibold">{t('history.report_history')}</h1>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    ref={(el) => {
+                      if (el) {
+                        const all = reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)));
+                        const some = reportHistory.some((r) => selectedIds.includes(Number(r.id))) && !all;
+                        el.indeterminate = some;
+                      }
+                    }}
+                    aria-label={t('processed_history.select_page_aria')}
+                    type="checkbox"
+                    checked={reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)))}
+                    onChange={(event) => selectAllReportsForPage(event.target.checked)}
+                  />
+                  <span className="text-sm text-slate-700">{t('processed_history.select_page')}</span>
+                </label>
+
+                {selectedIds.length > 0 && (
+                  <button type="button" onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })} className="rounded bg-[#d64c4c] px-4 py-2 text-white">
+                    {t('processed_history.delete.selection', { count: selectedIds.length })}
+                  </button>
                 )}
-                {!reportHistoryLoading && reportHistory.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="mb-4 flex items-center justify-between">
+              </div>
+            </div>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <select aria-label={t('processed_history.filters.status')} value={filters.status} onChange={(event) => update('status', event.target.value)} className="rounded border p-2">
+                  <option value="all">{t('processed_history.filters.validated_and_rejected')}</option>
+                  <option value="validated">{t('status.validated')}</option>
+                  <option value="refused">{t('status.rejected')}</option>
+                </select>
+
+                <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="rounded border p-2">
+                  <option value="">{t('processed_history.filters.all_employees')}</option>
+                  {reportEmployees.map((user) => (
+                    <option key={user.id} value={user.id}>{user.label}</option>
+                  ))}
+                </select>
+
+                <input aria-label={t('processed_history.filters.start_date')} type="date" value={filters.date_from} onChange={(event) => update('date_from', event.target.value)} className="rounded border p-2" />
+                <input aria-label={t('processed_history.filters.end_date')} type="date" value={filters.date_to} onChange={(event) => update('date_to', event.target.value)} className="rounded border p-2" />
+
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={filters.manual_only} onChange={(event) => update('manual_only', event.target.checked)} />
+                  {t('processed_history.filters.modified_only')}
+                </label>
+              </div>
+            </section>
+
+            <section className="mt-4 grid gap-4 md:grid-cols-4">
+              <div className="rounded bg-white p-4">
+                {t('processed_history.total')} <strong>{visibleReportHistory.length}</strong>
+              </div>
+              <div className="rounded bg-white p-4">
+                {t('status.validated')} <strong>{visibleReportHistory.filter((r) => Number(r.status) === 2).length}</strong>
+              </div>
+              <div className="rounded bg-white p-4">
+                {t('status.rejected')} <strong>{visibleReportHistory.filter((r) => Number(r.status) === 9).length}</strong>
+              </div>
+              <div className="rounded bg-white p-4">
+                {t('processed_history.stats.modified_entries')} <strong>{visibleReportHistory.filter((r) => isModifiedReport(r)).length}</strong>
+              </div>
+            </section>
+
+            {!reportHistoryLoading && visibleReportHistory.length === 0 && (
+              <p className="mt-4 text-sm text-slate-500">{t('history.no_report_history')}</p>
+            )}
+
+            {!reportHistoryLoading && visibleReportHistory.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {Object.entries(groupedReports).map(([day, rows]) => (
+                  <div key={day} className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[.24em] text-slate-500">{t('app.section_manage')}</p>
-                        <h1 className="text-2xl font-semibold">{t('history.report_history')}</h1>
+                        <p className="font-semibold text-slate-900">{day}</p>
+                        <p className="text-sm text-slate-500">{t('processed_history.total')}: {rows.length}</p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      {canReadAll && (
                         <label className="flex items-center gap-2">
-                          <input
-                            ref={(el) => {
-                              // synchronize indeterminate state for the page checkbox
-                              if (el) {
-                                const all = reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)));
-                                const some = reportHistory.some((r) => selectedIds.includes(Number(r.id))) && !all;
-                                el.indeterminate = some;
-                              }
-                            }}
-                            aria-label={t('processed_history.select_page_aria')}
-                            type="checkbox"
-                            checked={reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)))}
-                            onChange={(event) => selectAllReportsForPage(event.target.checked)}
-                          />
-                          <span className="text-sm text-slate-700">{t('processed_history.select_page')}</span>
+                          <input type="checkbox" checked={rows.every((r) => selectedIds.includes(Number(r.id)))} onChange={(e) => selectReportGroup(rows, e.target.checked)} />
+                          <span className="text-sm text-slate-700">{t('processed_history.select_group_aria', { day })}</span>
                         </label>
-
-                        {selectedIds.length > 0 && (
-                          <button type="button" onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })} className="rounded bg-[#d64c4c] px-4 py-2 text-white">
-                            {t('processed_history.delete.selection', { count: selectedIds.length })}
-                          </button>
-                        )}
-                      </div>
+                      )}
                     </div>
-
-                    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-                        <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="rounded border p-2">
-                          <option value="">{t('processed_history.filters.all_employees')}</option>
-                          {reportEmployees.map((user) => (
-                            <option key={user.id} value={user.id}>{user.label}</option>
-                          ))}
-                        </select>
-
-                        <input aria-label={t('processed_history.filters.start_date')} type="date" value={filters.date_from} onChange={(event) => update('date_from', event.target.value)} className="rounded border p-2" />
-                        <input aria-label={t('processed_history.filters.end_date')} type="date" value={filters.date_to} onChange={(event) => update('date_to', event.target.value)} className="rounded border p-2" />
-
-                        <label className="flex items-center gap-2">
-                          <input type="checkbox" checked={filters.manual_only} onChange={(event) => update('manual_only', event.target.checked)} />
-                          {t('processed_history.filters.modified_only')}
-                        </label>
-                      </div>
-                    </section>
-
-                    <section className="grid gap-4 md:grid-cols-3">
-                      <div className="rounded bg-white p-4">
-                        {t('processed_history.total')} <strong>{reportHistory.length}</strong>
-                      </div>
-                      <div className="rounded bg-white p-4">
-                        {t('processed_history.stats.modified_entries')} <strong>{reportHistory.filter((r) => r.date_modification && r.date_modification !== r.date_creation).length}</strong>
-                      </div>
-                      <div className="rounded bg-white p-4">
-                        {t('processed_history.stats.validated_hours')} <strong>{reportHistory.filter((r) => r.is_read).length}</strong>
-                      </div>
-                    </section>
-                    {Object.entries(groupedReports).map(([day, rows]) => (
-                      <div key={day} className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-semibold text-slate-900">{day}</p>
-                            <p className="text-sm text-slate-500">{t('processed_history.total')}: {formatDuration(rows.reduce((sum, r) => sum + Number(r.content?.length ? 0 : 0), 0))}</p>
-                          </div>
-                          {canReadAll && (
-                            <label className="flex items-center gap-2">
-                              <input type="checkbox" checked={rows.every((r) => selectedIds.includes(Number(r.id)))} onChange={(e) => selectReportGroup(rows, e.target.checked)} />
-                              <span className="text-sm text-slate-700">{t('processed_history.select_group_aria', { day })}</span>
-                            </label>
-                          )}
-                        </div>
-                        <div className="mt-3">
-                          {rows.map((report) => (
-                            <div key={report.id} className="mb-3 rounded border border-slate-100 p-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="font-semibold text-slate-900">{report.user_label}</p>
-                                  <p className="text-sm text-slate-500">{report.date_report}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {canReadAll && (
-                                    <input aria-label={t('processed_history.select_entry_aria')} type="checkbox" checked={selectedIds.includes(Number(report.id))} onChange={() => toggleSelected(report.id)} />
-                                  )}
-                                  {canReadAll && (
-                                    <button type="button" onClick={() => setDeleteRequest({ type: 'single', ids: [Number(report.id)] })} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100">
-                                      {t('daily_report.delete')}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{report.content}</p>
+                    <div className="mt-3">
+                      {rows.map((report) => (
+                        <div key={report.id} className="mb-3 rounded border border-slate-100 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-slate-900">{report.user_label}</p>
+                              <p className="text-sm text-slate-500">{report.date_report}</p>
                             </div>
-                          ))}
+                            <div className="flex items-center gap-2">
+                              <StatusBadge status={Number(report.status)} />
+                              {isManuallyModifiedRecord(report.date_creation, report.date_last_content_edit) && (
+                                <ModifiedManuallyBadge title={t('timeentry.corrected_traced')} />
+                              )}
+                              {canReadAll && (
+                                <>
+                                  <input aria-label={t('processed_history.select_entry_aria')} type="checkbox" checked={selectedIds.includes(Number(report.id))} onChange={() => toggleSelected(report.id)} />
+                                  <button type="button" onClick={() => setDeleteRequest({ type: 'single', ids: [Number(report.id)] })} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100">
+                                    {t('daily_report.delete')}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{report.content}</p>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                )}
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

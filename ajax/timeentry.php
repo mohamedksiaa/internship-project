@@ -781,16 +781,37 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
             $where[] = 'r.fk_user = '.((int) $input['employee_id']);
         }
         $where[] = 'r.date_delete IS NULL';
-        if ($historyMode) {
-            $where[] = 'r.read_at IS NOT NULL';
-        } else {
-            $where[] = 'r.read_at IS NULL';
+        $status = isset($input['status']) ? (string) $input['status'] : '';
+        if ($status === 'validated') {
+            $where[] = 'r.status = 2';
+        } elseif ($status === 'refused') {
+            $where[] = 'r.status = 9';
+        } elseif ($status === 'all' || $status === '') {
+            if ($historyMode) {
+                $where[] = 'r.status IN (2, 9)';
+            } else {
+                $where[] = 'r.status = 1';
+            }
+        } elseif ($status === 'submitted') {
+            $where[] = 'r.status = 1';
         }
     } else {
         $where[] = 'r.fk_user = '.((int) $userId);
         $where[] = 'r.date_delete IS NULL';
-        if ($historyMode) {
-            $where[] = 'r.read_at IS NOT NULL';
+        $status = isset($input['status']) ? (string) $input['status'] : '';
+        if ($status === 'validated') {
+            $where[] = 'r.status = 2';
+            $where[] = 'r.date_validated_at IS NOT NULL AND r.date_validated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)';
+        } elseif ($status === 'refused') {
+            $where[] = 'r.status = 9';
+        } elseif ($status === 'all' || $status === '') {
+            if ($historyMode) {
+                $where[] = 'r.status IN (2, 9)';
+            } else {
+                $where[] = '(r.status IN (0, 1, 9) OR (r.status = 2 AND r.date_validated_at IS NOT NULL AND r.date_validated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)) OR (r.status = 2 AND r.date_validated_at IS NULL))';
+            }
+        } elseif ($status === 'submitted') {
+            $where[] = 'r.status = 1';
         }
     }
 
@@ -801,7 +822,11 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
         }
     }
 
-    $sql = 'SELECT r.rowid, r.fk_user, r.date_report, r.content, r.date_creation, r.tms, r.read_at, r.fk_user_read, r.date_delete, r.date_last_content_edit, r.fk_user_last_content_edit,';
+    if (!empty($input['manual_only'])) {
+        $where[] = "r.date_last_content_edit IS NOT NULL AND r.date_last_content_edit <> r.date_creation";
+    }
+
+    $sql = 'SELECT r.rowid, r.fk_user, r.date_report, r.content, r.date_creation, r.tms, r.status, r.read_at, r.date_validated_at, r.fk_user_read, r.date_delete, r.date_last_content_edit, r.fk_user_last_content_edit,';
     $sql .= ' u.login, u.firstname, u.lastname, reader.login AS reader_login, reader.firstname AS reader_firstname, reader.lastname AS reader_lastname, editor.login AS editor_login, editor.firstname AS editor_firstname, editor.lastname AS editor_lastname';
     $sql .= ' FROM '.$db->prefix().'timeflow_daily_report AS r';
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS u ON u.rowid = r.fk_user';
@@ -827,7 +852,9 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
             'is_deleted' => !empty($obj->date_delete),
             'date_last_content_edit' => $obj->date_last_content_edit,
             'last_content_edit_by_label' => $editorLabel,
+            'status' => (int) $obj->status,
             'read_at' => $obj->read_at,
+            'date_validated_at' => $obj->date_validated_at,
             'read_by_label' => $readerLabel,
             'is_read' => !empty($obj->read_at),
         );
@@ -1238,6 +1265,8 @@ switch ($action) {
     case 'saveDailyReport':
         $dateReport = trim((string) ($postData['date_report'] ?? GETPOST('date_report', 'alphanohtml')));
         $content = trim((string) ($postData['content'] ?? GETPOST('content', 'restricthtml')));
+        $requestedStatus = isset($postData['status']) ? (int) $postData['status'] : (int) GETPOST('status', 'int');
+        $status = in_array($requestedStatus, array(0, 1), true) ? $requestedStatus : 1;
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateReport)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'La date du rapport est invalide.'), 400);
         }
@@ -1247,8 +1276,8 @@ switch ($action) {
         $entity = (int) $conf->entity;
         $now = dol_now();
         $sql = 'INSERT INTO '.$db->prefix().'timeflow_daily_report';
-        $sql .= ' (entity, fk_user, date_report, content, date_creation, fk_user_creat, date_last_content_edit, fk_user_last_content_edit) VALUES (';
-        $sql .= $entity.','.((int) $user->id).", '".$db->escape($dateReport)."', '".$db->escape($content)."', '".$db->idate($now)."', ".((int) $user->id).", '".$db->idate($now)."', ".((int) $user->id).')';
+        $sql .= ' (entity, fk_user, date_report, content, status, date_creation, fk_user_creat, date_last_content_edit, fk_user_last_content_edit) VALUES (';
+        $sql .= $entity.','.((int) $user->id).", '".$db->escape($dateReport)."', '".$db->escape($content)."', ".((int) $status).", '".$db->idate($now)."', ".((int) $user->id).", '".$db->idate($now)."', ".((int) $user->id).')';
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible d’enregistrer le rapport : '.$db->lasterror()), 500);
         }
@@ -1259,6 +1288,7 @@ switch ($action) {
             'user_label' => timeflowResolveUserLabel((int) $user->id),
             'date_report' => $dateReport,
             'content' => $content,
+            'status' => $status,
             'date_creation' => $db->idate($now),
             'date_modification' => $db->idate($now),
             'date_last_content_edit' => $db->idate($now),
@@ -1274,6 +1304,8 @@ switch ($action) {
     case 'updateDailyReport':
         $id = !empty($postData['id']) ? (int) $postData['id'] : 0;
         $content = trim((string) ($postData['content'] ?? GETPOST('content', 'restricthtml')));
+        $requestedStatus = array_key_exists('status', $postData) ? (int) $postData['status'] : (int) GETPOST('status', 'int');
+        $status = $requestedStatus !== 0 && $requestedStatus !== 1 && $requestedStatus !== 2 && $requestedStatus !== 9 ? null : $requestedStatus;
         if ($id <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant du rapport invalide.'), 400);
         }
@@ -1281,7 +1313,7 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Le contenu du rapport est obligatoire.'), 400);
         }
         // Ensure the report exists and belongs to the user (or allow admins/validators)
-        $sql = 'SELECT rowid, fk_user, date_report, date_delete FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
+        $sql = 'SELECT rowid, fk_user, date_report, date_delete, status FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
         $res = $db->query($sql);
         if (!$res || $db->num_rows($res) <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
@@ -1290,12 +1322,18 @@ switch ($action) {
         if (!empty($obj->date_delete)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Ce rapport a été supprimé et ne peut plus être modifié.'), 410);
         }
+        if ((int) $obj->status === 2) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Un rapport validé ne peut plus être modifié par l’employé.'), 403);
+        }
         if ((int) $obj->fk_user !== (int) $user->id && !timeflowCanValidate($user) && !$user->admin) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé.'), 403);
         }
         $now = dol_now();
         $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report';
         $sql .= ' SET content = "'.$db->escape($content).'", fk_user_modif = '.((int) $user->id).', tms = "'.$db->idate($now).'", date_last_content_edit = "'.$db->idate($now).'", fk_user_last_content_edit = '.((int) $user->id);
+        if ($status !== null) {
+            $sql .= ', status = '.((int) $status);
+        }
         $sql .= ' WHERE rowid = '.((int) $id);
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de mettre à jour le rapport : '.$db->lasterror()), 500);
@@ -1306,6 +1344,7 @@ switch ($action) {
             'user_label' => timeflowResolveUserLabel((int) $obj->fk_user),
             'date_report' => $obj->date_report,
             'content' => $content,
+            'status' => $status !== null ? $status : (int) $obj->status,
             'date_creation' => null,
             'date_modification' => $db->idate($now),
             'date_last_content_edit' => $db->idate($now),
@@ -1323,14 +1362,17 @@ switch ($action) {
         if ($id <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant du rapport invalide.'), 400);
         }
-        $sql = 'SELECT rowid, fk_user, date_delete FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
+        $sql = 'SELECT rowid, fk_user, status, date_delete FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
         $res = $db->query($sql);
         if (!$res || $db->num_rows($res) <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
         }
         $obj = $db->fetch_object($res);
-        if ((int) $obj->fk_user !== (int) $user->id && !timeflowCanValidate($user) && !$user->admin) {
+        if ((int) $obj->fk_user !== (int) $user->id) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé.'), 403);
+        }
+        if ((int) $obj->status !== 0) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Seuls les brouillons peuvent être supprimés par l’employé.'), 403);
         }
         if (!empty($obj->date_delete)) {
             timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => (int) $id, 'is_deleted' => true)), 200);
@@ -1366,15 +1408,38 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        // Read actions must only update read metadata. They must never update
-        // date_last_content_edit, because that would falsely display a content
-        // modification when the manager only marked the report as read.
         $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET read_at = \''.$db->idate(dol_now()).'\',';
         $sql .= ' fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity);
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de marquer le rapport comme lu.'), 500);
         }
         timeflowJsonResponse(array('status' => 'success'));
+        break;
+
+    case 'validateDailyReport':
+        if (!timeflowCanValidate($user)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        $now = $db->idate(dol_now());
+        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET status = 2, read_at = \''.$now.'\', date_validated_at = \''.$now.'\', fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity);
+        if (!$db->query($sql)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de valider le rapport.'), 500);
+        }
+        timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'status' => 2, 'date_validated_at' => $now)));
+        break;
+
+    case 'rejectDailyReport':
+        if (!timeflowCanValidate($user)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        $now = $db->idate(dol_now());
+        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET status = 9, read_at = \''.$now.'\', date_validated_at = \''.$now.'\', fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity);
+        if (!$db->query($sql)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de rejeter le rapport.'), 500);
+        }
+        timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'status' => 9, 'date_validated_at' => $now)));
         break;
 
     case 'getWeeklyTimesheet':

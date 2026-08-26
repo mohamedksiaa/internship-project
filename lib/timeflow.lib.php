@@ -104,6 +104,15 @@ function timeflowAdminPrepareHead()
  * @param int $entryId
  * @return array{modified:bool,reason:string,modified_at:string,modified_by:int,source:string}
  */
+function timeflowIsManuallyModifiedRecord($dateCreation, $dateLastContentEdit)
+{
+    if (empty($dateCreation) || empty($dateLastContentEdit)) {
+        return false;
+    }
+
+    return (string) $dateLastContentEdit !== (string) $dateCreation;
+}
+
 function timeflowGetManualEditStatus($db, $entryId)
 {
     $entryId = (int) $entryId;

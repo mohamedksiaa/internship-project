@@ -4,13 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '../i18n';
 import ProcessedHistoryPage from './ProcessedHistoryPage';
 
-const { getProjects, getProcessedHistory, exportProcessedHistory, hardDeleteTimeEntry, hardDeleteTimeEntries } = vi.hoisted(() => ({
+const { getProjects, getProcessedHistory, getDailyReports, getMyDailyReports, exportProcessedHistory, hardDeleteTimeEntry, hardDeleteTimeEntries } = vi.hoisted(() => ({
   getProjects: vi.fn().mockResolvedValue([]),
   getProcessedHistory: vi.fn().mockResolvedValue({
     rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Soumeya', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
     pagination: { page: 1, pages: 1 },
     stats: { validated_seconds: 3600, refused_count: 0, manual_count: 0 },
   }),
+  getDailyReports: vi.fn().mockResolvedValue({ reports: [], employees: [] }),
+  getMyDailyReports: vi.fn().mockResolvedValue({ reports: [], employees: [] }),
   exportProcessedHistory: vi.fn().mockResolvedValue([]),
   hardDeleteTimeEntry: vi.fn().mockResolvedValue({ id: 1 }),
   hardDeleteTimeEntries: vi.fn().mockResolvedValue({ deleted: 1 }),
@@ -19,6 +21,8 @@ const { getProjects, getProcessedHistory, exportProcessedHistory, hardDeleteTime
 vi.mock('../api/timeflowApi', () => ({
   getProjects,
   getProcessedHistory,
+  getDailyReports,
+  getMyDailyReports,
   exportProcessedHistory,
   hardDeleteTimeEntry,
   hardDeleteTimeEntries,
@@ -34,6 +38,8 @@ describe('ProcessedHistoryPage', () => {
       pagination: { page: 1, pages: 1 },
       stats: { validated_seconds: 3600, refused_count: 0, manual_count: 0 },
     });
+    getDailyReports.mockReset().mockResolvedValue({ reports: [], employees: [] });
+    getMyDailyReports.mockReset().mockResolvedValue({ reports: [], employees: [] });
     exportProcessedHistory.mockReset().mockResolvedValue([]);
     hardDeleteTimeEntry.mockReset().mockResolvedValue({ id: 1 });
     hardDeleteTimeEntries.mockReset().mockResolvedValue({ deleted: 1 });
@@ -64,6 +70,71 @@ describe('ProcessedHistoryPage', () => {
 
     await user.click(screen.getByRole('checkbox', { name: /Sélectionner cette entrée/i }));
     expect(screen.getByRole('button', { name: /Supprimer la sélection \(1\)/i })).toBeInTheDocument();
+  });
+
+  it('keeps submitted reports out of the final history list', async () => {
+    window.TIMEFLOW_CAN_READALL = true;
+    getDailyReports.mockResolvedValueOnce({
+      reports: [
+        { id: 21, user_label: 'Alice', date_report: '2026-08-12', content: 'Rapport soumis', status: 1, date_creation: '2026-08-12 08:00:00', date_last_content_edit: null },
+        { id: 22, user_label: 'Alice', date_report: '2026-08-11', content: 'Rapport validé', status: 2, date_creation: '2026-08-11 08:00:00', date_last_content_edit: '2026-08-11 08:00:00' },
+        { id: 23, user_label: 'Bob', date_report: '2026-08-10', content: 'Rapport refusé', status: 9, date_creation: '2026-08-10 08:00:00', date_last_content_edit: '2026-08-10 08:00:00' },
+      ],
+      employees: [],
+    });
+
+    render(<ProcessedHistoryPage />);
+    await userEvent.click(screen.getByRole('button', { name: /Historique des rapports/i }));
+
+    expect(await screen.findByText('Rapport validé')).toBeInTheDocument();
+    expect(screen.getByText('Rapport refusé')).toBeInTheDocument();
+    expect(screen.queryByText('Rapport soumis')).not.toBeInTheDocument();
+  });
+
+  it('shows the modified-manually badge on processed report entries edited after creation', async () => {
+    window.TIMEFLOW_CAN_READALL = true;
+    getDailyReports.mockResolvedValueOnce({
+      reports: [
+        { id: 11, user_label: 'Alice', date_report: '2026-08-12', content: 'Version originale', status: 2, date_creation: '2026-08-12 08:00:00', date_last_content_edit: '2026-08-12 09:00:00' },
+        { id: 12, user_label: 'Bob', date_report: '2026-08-13', content: 'Non modifié', status: 9, date_creation: '2026-08-13 08:00:00', date_last_content_edit: '2026-08-13 08:00:00' },
+      ],
+      employees: [],
+    });
+
+    render(<ProcessedHistoryPage />);
+    await userEvent.click(screen.getByRole('button', { name: /Historique des rapports/i }));
+
+    expect(await screen.findByTitle('Temps corrigé et tracé')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    const modifiedLabels = screen.getAllByText('Modifiées');
+    expect(modifiedLabels[modifiedLabels.length - 1].closest('div')).toHaveTextContent('1');
+  });
+
+  it('renders the orange modified badge in the report-history row for a modified-only report', async () => {
+    window.TIMEFLOW_CAN_READALL = true;
+    getDailyReports.mockResolvedValueOnce({
+      reports: [
+        {
+          id: 77,
+          user_label: 'SuperAdmin',
+          date_report: '2026-08-17',
+          content: 'Rapport modifié en validation',
+          status: 2,
+          date_creation: '2026-08-17 08:00:00',
+          date_last_content_edit: '2026-08-17 09:45:00',
+        },
+      ],
+      employees: [],
+    });
+
+    render(<ProcessedHistoryPage />);
+    await userEvent.click(screen.getByRole('button', { name: /Historique des rapports/i }));
+
+    expect(await screen.findByText('SuperAdmin')).toBeInTheDocument();
+    const badge = await screen.findByRole('button', { name: /Modifié manuellement/i });
+    expect(badge).toBeVisible();
+    expect(badge).toHaveTextContent('Modifié manuellement');
+    expect(badge).toHaveAttribute('title', 'Temps corrigé et tracé');
   });
 
   it('global checkbox selects all visible rows and shows correct count', async () => {
