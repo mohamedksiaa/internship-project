@@ -244,12 +244,33 @@ function handleMockRequest(action, body) {
       return Promise.resolve({ status: 'success', data: [] });
 
     case 'saveDailyReport': {
-      const report = { id: Date.now(), fk_user: 1, user_label: 'Utilisateur courant', date_report: body?.date_report, content: body?.content, is_read: false, read_at: null, date_creation: new Date().toISOString(), date_modification: new Date().toISOString() };
+      const requestedStatus = Number(body?.status ?? 1);
+      const report = {
+        id: Date.now(),
+        fk_user: 1,
+        user_label: 'Utilisateur courant',
+        date_report: body?.date_report,
+        content: body?.content,
+        status: Number.isFinite(requestedStatus) ? requestedStatus : 1,
+        is_read: false,
+        read_at: null,
+        date_creation: new Date().toISOString(),
+        date_modification: new Date().toISOString(),
+      };
       mockDailyReports = [report, ...mockDailyReports];
       return Promise.resolve({ status: 'success', data: report });
     }
     case 'updateDailyReport': {
-      mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, content: body?.content, date_modification: new Date().toISOString() } : report);
+      const requestedStatus = body?.status == null ? null : Number(body.status);
+      mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id)
+        ? {
+            ...report,
+            content: body?.content,
+            status: requestedStatus == null ? report.status : requestedStatus,
+            date_modification: new Date().toISOString(),
+            date_last_content_edit: new Date().toISOString(),
+          }
+        : report);
       const updated = mockDailyReports.find((r) => r.id === Number(body?.id));
       return Promise.resolve({ status: 'success', data: updated || {} });
     }
@@ -264,6 +285,14 @@ function handleMockRequest(action, body) {
     case 'markDailyReportRead':
       mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, is_read: true, read_at: new Date().toISOString() } : report);
       return Promise.resolve({ status: 'success' });
+    case 'validateDailyReport': {
+      mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, status: 2, is_read: true, read_at: new Date().toISOString() } : report);
+      return Promise.resolve({ status: 'success', data: { id: Number(body?.id), status: 2 } });
+    }
+    case 'rejectDailyReport': {
+      mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, status: 9, is_read: true, read_at: new Date().toISOString() } : report);
+      return Promise.resolve({ status: 'success', data: { id: Number(body?.id), status: 9 } });
+    }
 
     case 'submitWeeklyApproval':
       return Promise.resolve({ status: 'success', data: [] });
@@ -412,13 +441,15 @@ export async function generateInvoiceLines(fkSoc = 0) {
   return data?.data ?? data;
 }
 
-export async function saveDailyReport(dateReport, content) {
-  const data = await moduleTimerRequest('saveDailyReport', { date_report: dateReport, content });
+export async function saveDailyReport(dateReport, content, status = 1) {
+  const data = await moduleTimerRequest('saveDailyReport', { date_report: dateReport, content, status });
   return data?.data ?? data;
 }
 
-export async function updateDailyReport(id, content) {
-  const data = await moduleTimerRequest('updateDailyReport', { id, content });
+export async function updateDailyReport(id, content, status = null) {
+  const payload = { id, content };
+  if (status !== null && status !== undefined) payload.status = status;
+  const data = await moduleTimerRequest('updateDailyReport', payload);
   return data?.data ?? data;
 }
 
@@ -441,6 +472,13 @@ export async function markDailyReportRead(id) {
   return moduleTimerRequest('markDailyReportRead', { id });
 }
 
+export async function validateDailyReport(id) {
+  return moduleTimerRequest('validateDailyReport', { id });
+}
+
+export async function rejectDailyReport(id) {
+  return moduleTimerRequest('rejectDailyReport', { id });
+}
 
 export async function updateEntry(id, updates) {
   const data = await moduleTimerRequest('updateEntry', { id, ...updates });

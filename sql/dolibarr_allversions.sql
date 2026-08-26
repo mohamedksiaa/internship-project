@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS llx_timeflow_daily_report(
     tms            timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     fk_user_creat  integer NOT NULL,
     fk_user_modif  integer DEFAULT NULL,
+    status         integer DEFAULT 1 NOT NULL,
     read_at        datetime DEFAULT NULL,
     fk_user_read   integer DEFAULT NULL,
     INDEX idx_cdr_date (entity, date_report),
