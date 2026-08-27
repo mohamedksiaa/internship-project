@@ -738,7 +738,7 @@ function timeflowGetProcessedHistory($input, $user = null)
     $countSql = 'SELECT COUNT(*) AS total FROM '.$db->prefix().'timeflow_timeentry t WHERE '.$where;
     $countRes = $db->query($countSql); $countObj = $countRes ? $db->fetch_object($countRes) : null;
     $total = $countObj ? (int) $countObj->total : 0;
-    $statsSql = 'SELECT COALESCE(SUM(CASE WHEN t.status = '.TimeEntry::STATUS_VALIDATED.' THEN t.duration ELSE 0 END),0) AS validated_seconds,'
+    $statsSql = 'SELECT COALESCE(SUM(CASE WHEN t.status = '.TimeEntry::STATUS_VALIDATED.' THEN 1 ELSE 0 END),0) AS validated_count,'
         .' SUM(CASE WHEN t.status = '.TimeEntry::STATUS_CANCELED.' THEN 1 ELSE 0 END) AS refused_count,'
         .' SUM(CASE WHEN '.timeflowManualEditedSqlPredicate($db, 't').' THEN 1 ELSE 0 END) AS manual_count'
         .' FROM '.$db->prefix().'timeflow_timeentry t WHERE '.$where;
@@ -766,7 +766,7 @@ function timeflowGetProcessedHistory($input, $user = null)
     } elseif ($user && !empty($user->id)) {
         $employees[] = array('id' => (int) $user->id, 'label' => timeflowResolveUserLabel((int) $user->id));
     }
-    return array('rows'=>$rows, 'employees'=>$employees, 'pagination'=>array('page'=>$page, 'per_page'=>$perPage, 'total'=>$total, 'pages'=>max(1, (int) ceil($total / $perPage))), 'stats'=>array('validated_seconds'=>(int) ($statsObj->validated_seconds ?? 0), 'refused_count'=>(int) ($statsObj->refused_count ?? 0), 'manual_count'=>(int) ($statsObj->manual_count ?? 0)));
+    return array('rows'=>$rows, 'employees'=>$employees, 'pagination'=>array('page'=>$page, 'per_page'=>$perPage, 'total'=>$total, 'pages'=>max(1, (int) ceil($total / $perPage))), 'stats'=>array('validated_count'=>(int) ($statsObj->validated_count ?? 0), 'refused_count'=>(int) ($statsObj->refused_count ?? 0), 'manual_count'=>(int) ($statsObj->manual_count ?? 0)));
 }
 
 /** Return daily free-text reports, scoped either to one user or to the whole team.
