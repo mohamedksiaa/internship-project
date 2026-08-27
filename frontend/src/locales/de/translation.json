@@ -110,7 +110,7 @@
   "reports": {
     "title": "Berichte",
     "activity_title": "Aktivitätsberichte",
-    "summary_text": "Gesamtübersicht, abrechenbare Aufteilung und abrechenbare Zeilen.",
+    "summary_text": "Gesamtübersicht der erfassten Zeit, nach Projekt.",
     "from": "Von",
     "to": "Bis",
     "loading": "Wird geladen…",
@@ -250,6 +250,7 @@
     },
     "stats": {
       "validated_hours": "Validierte Stunden",
+      "validated_entries": "Validierte Einträge",
       "rejected_entries": "Abgelehnte Einträge",
       "modified_entries": "Geändert"
     },
@@ -278,6 +279,7 @@
     "delete": {
       "action": "Löschen",
       "entry_aria": "Diesen Eintrag löschen",
+      "partial_error": "Eine oder mehrere Löschvorgänge sind fehlgeschlagen ({{failed}}).",
       "selection": "Auswahl löschen ({{count}})",
       "title": "Endgültiges Löschen",
       "irreversible": "Diese Aktion ist irreversibel.",

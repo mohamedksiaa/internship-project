@@ -9,7 +9,7 @@ const { getProjects, getProcessedHistory, getDailyReports, getMyDailyReports, ex
   getProcessedHistory: vi.fn().mockResolvedValue({
     rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Soumeya', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
     pagination: { page: 1, pages: 1 },
-    stats: { validated_seconds: 3600, refused_count: 0, manual_count: 0 },
+    stats: { validated_count: 1, refused_count: 0, manual_count: 0 },
   }),
   getDailyReports: vi.fn().mockResolvedValue({ reports: [], employees: [] }),
   getMyDailyReports: vi.fn().mockResolvedValue({ reports: [], employees: [] }),
@@ -36,7 +36,7 @@ describe('ProcessedHistoryPage', () => {
     getProcessedHistory.mockReset().mockResolvedValue({
       rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Soumeya', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
       pagination: { page: 1, pages: 1 },
-      stats: { validated_seconds: 3600, refused_count: 0, manual_count: 0 },
+      stats: { validated_count: 1, refused_count: 0, manual_count: 0 },
     });
     getDailyReports.mockReset().mockResolvedValue({ reports: [], employees: [] });
     getMyDailyReports.mockReset().mockResolvedValue({ reports: [], employees: [] });
@@ -147,7 +147,7 @@ describe('ProcessedHistoryPage', () => {
         { id: 2, note: 'Entry 2', project_label: 'P', user_label: 'U', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'A', processed_at: '2026-08-12T10:00:00Z' },
       ],
       pagination: { page: 1, pages: 1 },
-      stats: { validated_seconds: 7200, refused_count: 0, manual_count: 0 },
+        stats: { validated_count: 2, refused_count: 0, manual_count: 0 },
     });
 
     render(<ProcessedHistoryPage />);
@@ -171,7 +171,7 @@ describe('ProcessedHistoryPage', () => {
         { id: 4, note: 'Entry B', project_label: 'P', user_label: 'U', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'A', processed_at: '2026-08-12T10:00:00Z' },
       ],
       pagination: { page: 1, pages: 1 },
-      stats: { validated_seconds: 7200, refused_count: 0, manual_count: 0 },
+      stats: { validated_count: 2, refused_count: 0, manual_count: 0 },
     });
 
     render(<ProcessedHistoryPage />);
@@ -199,7 +199,7 @@ describe('ProcessedHistoryPage', () => {
         { id: 6, note: 'E2', project_label: 'P', user_label: 'U', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'A', processed_at: '2026-08-12T10:00:00Z' },
       ],
       pagination: { page: 1, pages: 1 },
-      stats: { validated_seconds: 7200, refused_count: 0, manual_count: 0 },
+      stats: { validated_count: 2, refused_count: 0, manual_count: 0 },
     });
 
     // Second response: empty results after filter change
@@ -229,7 +229,7 @@ describe('ProcessedHistoryPage', () => {
         { id: 8, note: 'X2', project_label: 'P', user_label: 'U', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'A', processed_at: '2026-08-12T10:00:00Z' },
       ],
       pagination: { page: 1, pages: 1 },
-      stats: { validated_seconds: 7200, refused_count: 0, manual_count: 0 },
+      stats: { validated_count: 2, refused_count: 0, manual_count: 0 },
     });
 
     render(<ProcessedHistoryPage />);

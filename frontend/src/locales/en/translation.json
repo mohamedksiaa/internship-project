@@ -109,7 +109,7 @@
   "reports": {
     "title": "Reports",
     "activity_title": "Activity reports",
-    "summary_text": "Global summary, billable split and invoice-ready lines.",
+    "summary_text": "Global summary of tracked time, by project.",
     "from": "From",
     "to": "To",
     "loading": "Loading…",
@@ -251,6 +251,7 @@
     },
     "stats": {
       "validated_hours": "Validated hours",
+      "validated_entries": "Validated entries",
       "rejected_entries": "Rejected entries",
       "modified_entries": "Modified"
     },
@@ -279,6 +280,7 @@
     "delete": {
       "action": "Delete",
       "entry_aria": "Delete this entry",
+      "partial_error": "One or more deletions failed ({{failed}}).",
       "selection": "Delete selection ({{count}})",
       "title": "Permanent deletion",
       "irreversible": "This action is irreversible.",

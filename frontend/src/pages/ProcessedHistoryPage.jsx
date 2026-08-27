@@ -427,9 +427,12 @@ export default function ProcessedHistoryPage() {
               </div>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-3">
+            <section className="grid gap-4 md:grid-cols-4">
               <div className="rounded bg-white p-4">
-                {t('processed_history.stats.validated_hours')} <strong>{formatDuration(data.stats.validated_seconds)}</strong>
+                {t('processed_history.total')} <strong>{data.pagination?.total || 0}</strong>
+              </div>
+              <div className="rounded bg-white p-4">
+                {t('processed_history.stats.validated_entries')} <strong>{data.stats.validated_count || 0}</strong>
               </div>
               <div className="rounded bg-white p-4">
                 {t('processed_history.stats.rejected_entries')} <strong>{data.stats.refused_count || 0}</strong>
