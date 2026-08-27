@@ -76,6 +76,7 @@ function diffDays(dateA, dateB) {
 export default function DashboardPage() {
   const { t, i18n } = useTranslation();
   const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
+  const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
   const [summary, setSummary] = useState(null);
   const [previousSummary, setPreviousSummary] = useState(null);
   const [week, setWeek] = useState({ weekStart: '', weekEnd: '', rows: [] });
@@ -297,34 +298,38 @@ export default function DashboardPage() {
               </section>
             </div>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.alerts')}</p>
-                  <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.alerts_title')}</h3>
+            {canValidate && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.alerts')}</p>
+                    <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.alerts_title')}</h3>
+                  </div>
+                  <Link to="/reports" className="text-sm font-medium text-[#03a9f4] hover:text-[#0288c7]">{t('dashboard.see_all_reports')}</Link>
                 </div>
-                <Link to="/reports" className="text-sm font-medium text-[#03a9f4] hover:text-[#0288c7]">{t('dashboard.see_all_reports')}</Link>
-              </div>
-              {alerts.length === 0 ? (
-                <p className="text-sm text-slate-500">{t('dashboard.no_alerts')}</p>
-              ) : (
-                <ul className="space-y-3">
-                  {alerts.map((alert) => (
-                    <li key={alert.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{alert.label}</p>
-                          <p className="text-xs text-slate-500">{alert.detail}</p>
+                {alerts.length === 0 ? (
+                  <p className="text-sm text-slate-500">{t('dashboard.no_alerts')}</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {alerts.map((alert) => (
+                      <li key={alert.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{alert.label}</p>
+                            <p className="text-xs text-slate-500">{alert.detail}</p>
+                          </div>
+                          {alert.tone === 'warning' && (
+                            <span className="rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wide bg-amber-100 text-amber-800">
+                              {t('dashboard.warning')}
+                            </span>
+                          )}
                         </div>
-                        <span className={`rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wide ${alert.tone === 'warning' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
-                          {alert.tone === 'warning' ? t('dashboard.warning') : t('dashboard.info')}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
           </>
         )}
       </div>
