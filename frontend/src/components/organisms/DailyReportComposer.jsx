@@ -23,6 +23,11 @@ function formatDateTime(value) {
   }).format(date);
 }
 
+function isDraftExpired(report) {
+  return Number(report?.status ?? 1) === 0
+    && Date.now() - new Date(report.date_creation).getTime() > 24 * 60 * 60 * 1000;
+}
+
 export default function DailyReportComposer({ onSaved = () => {} }) {
   const { t } = useTranslation();
   const [dateReport, setDateReport] = useState(today);
@@ -85,14 +90,14 @@ export default function DailyReportComposer({ onSaved = () => {} }) {
   }
 
   async function handleEdit(report) {
-    if (!report || Number(report.status ?? 1) === 2) return;
+    if (!report || Number(report.status ?? 1) === 2 || isDraftExpired(report)) return;
     setEditingId(report.id);
     setDateReport(report.date_report);
     setContent(report.content || '');
   }
 
   async function handleSend(report) {
-    if (!report || Number(report.status ?? 1) !== 0) return;
+    if (!report || Number(report.status ?? 1) !== 0 || isDraftExpired(report)) return;
     try {
       setError('');
       const updated = await updateDailyReport(report.id, (report.content || '').trim(), 1);
@@ -111,7 +116,7 @@ export default function DailyReportComposer({ onSaved = () => {} }) {
   }
 
   async function handleDelete(report) {
-    if (!report || Number(report.status ?? 1) !== 0) {
+    if (!report || Number(report.status ?? 1) !== 0 || isDraftExpired(report)) {
       return;
     }
     const confirmed = window.confirm(t('daily_report.delete_confirm'));
@@ -149,7 +154,7 @@ export default function DailyReportComposer({ onSaved = () => {} }) {
             <button type="submit" disabled={saving || content.trim() === ''} className="rounded-xl bg-[#03a9f4] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? t('daily_report.saving') : t('daily_report.save')}</button>
           </div>
         </form>
-        <div className="mt-8 border-t border-slate-200 pt-5"><h3 className="font-semibold text-slate-900">{t('daily_report.history_title')}</h3>{loading ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.loading')}</p> : reports.length === 0 ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.empty')}</p> : <div className="mt-3 space-y-3">{reports.map((report) => <article key={report.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><strong className="block text-sm font-semibold text-slate-900">{report.date_report}</strong><div className="text-xs text-slate-500">{formatDateTime(report.date_creation || report.date_modification)}</div></div><div className="flex items-center gap-2"><StatusBadge status={Number(report.status ?? 1)} />{isManuallyModifiedRecord(report.date_creation, report.date_last_content_edit) && <ModifiedManuallyBadge title="Temps corrigé et tracé" />}</div></div><div className="mt-3 flex items-center justify-between gap-3"><div className="flex-1" /> <div className="flex flex-wrap items-center justify-end gap-2"> <button type="button" onClick={() => setSelectedReport(report)} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100">{t('daily_report.read_report')}</button>{Number(report.status ?? 1) !== 2 && <button type="button" onClick={() => handleEdit(report)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100">{t('daily_report.edit')}</button>}{Number(report.status ?? 1) === 0 && <button type="button" onClick={() => handleSend(report)} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100">{t('daily_report.send_report')}</button>}{Number(report.status ?? 1) === 0 && <button type="button" onClick={() => handleDelete(report)} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100">{t('daily_report.delete')}</button>}</div></div></article>)}</div>}</div>
+        <div className="mt-8 border-t border-slate-200 pt-5"><h3 className="font-semibold text-slate-900">{t('daily_report.history_title')}</h3>{loading ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.loading')}</p> : reports.length === 0 ? <p className="mt-3 text-sm text-slate-500">{t('daily_report.empty')}</p> : <div className="mt-3 space-y-3">{reports.map((report) => <article key={report.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><strong className="block text-sm font-semibold text-slate-900">{report.date_report}</strong><div className="text-xs text-slate-500">{formatDateTime(report.date_creation || report.date_modification)}</div></div><div className="flex items-center gap-2"><StatusBadge status={Number(report.status ?? 1)} />{isManuallyModifiedRecord(report.date_creation, report.date_last_content_edit) && <ModifiedManuallyBadge title="Temps corrigé et tracé" />}</div></div><div className="mt-3 flex items-center justify-between gap-3"><div className="flex-1" /> <div className="flex flex-wrap items-center justify-end gap-2"> <button type="button" onClick={() => setSelectedReport(report)} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100">{t('daily_report.read_report')}</button>{Number(report.status ?? 1) !== 2 && !isDraftExpired(report) && <button type="button" onClick={() => handleEdit(report)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100">{t('daily_report.edit')}</button>}{Number(report.status ?? 1) === 0 && !isDraftExpired(report) && <button type="button" onClick={() => handleSend(report)} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100">{t('daily_report.send_report')}</button>}{Number(report.status ?? 1) === 0 && !isDraftExpired(report) && <button type="button" onClick={() => handleDelete(report)} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100">{t('daily_report.delete')}</button>}</div></div></article>)}</div>}</div>
       </section>
       {selectedReport && <ReadDailyReportModal report={selectedReport} onClose={() => setSelectedReport(null)} />}
     </>
