@@ -142,7 +142,7 @@ export default function ProcessedHistoryPage() {
   };
 
   const refreshHistory = async () => {
-    const next = await getProcessedHistory({ ...filters, page, per_page: 50 });
+    const next = await getProcessedHistory({ ...filters, page, per_page: 20 });
     setData(next);
     setSelectedIds([]);
   };
@@ -152,7 +152,7 @@ export default function ProcessedHistoryPage() {
     setLoading(true);
     setError('');
     setSuccess('');
-    getProcessedHistory({ ...filters, page, per_page: 50 })
+    getProcessedHistory({ ...filters, page, per_page: 20 })
       .then((next) => {
         if (active) setData(next);
       })
@@ -530,6 +530,33 @@ export default function ProcessedHistoryPage() {
                 </table>
               </section>
             ))}
+
+            {/* Pagination controls for tasks history */}
+            {!loading && data.rows.length > 0 && (
+              <div className="mt-4 flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className={`rounded px-4 py-2 ${page <= 1 ? 'bg-slate-200 text-slate-500' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                >
+                  {t('processed_history.pagination.previous')}
+                </button>
+
+                <div className="text-sm text-slate-700">
+                  {t('processed_history.pagination.page', { current: data.pagination?.page || page, total: data.pagination?.pages || 1 })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(data.pagination?.pages || p, p + 1))}
+                  disabled={page >= (data.pagination?.pages || 1)}
+                  className={`rounded px-4 py-2 ${page >= (data.pagination?.pages || 1) ? 'bg-slate-200 text-slate-500' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                >
+                  {t('processed_history.pagination.next')}
+                </button>
+              </div>
+            )}
 
             {!loading && !data.rows.length && <p className="rounded bg-white p-5">{t('processed_history.empty')}</p>}
           </>
