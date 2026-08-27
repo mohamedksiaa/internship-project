@@ -160,7 +160,7 @@ export default function TimerPage() {
         <div className="mb-4 flex items-center justify-between text-sm text-[#52656f]">
           <h1 className="font-medium text-[#263746]">{t('timer_page.task_history')}</h1>
           <span>
-            {entries.length} {t(entries.length > 1 ? 'timer_page.entries_plural' : 'timer_page.entries_one', { count: entries.length })}
+            {t(entries.length > 1 ? 'timer_page.entries_plural' : 'timer_page.entries_one', { count: entries.length })}
           </span>
         </div>
         <TimeEntryList 

@@ -28,8 +28,7 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen bg-[#f2f6f8] text-[#1f2933]">
       <header className="flex h-[60px] items-center border-b border-[#dce5ea] bg-white px-5 shadow-sm">
-        <div className="flex items-center gap-3 border-r border-[#dce5ea] pr-6">
-          <span className="grid h-8 w-8 place-items-center text-xl text-[#253746]">⠿</span>
+        <div className="flex items-center gap-3 w-[220px]">
           <img src={timeflowLogo} alt="TimeFlow" className="h-8 w-8 object-contain" />
           <span className="text-[23px] font-semibold tracking-tight text-[#111827]">{t('app.brand')}</span>
         </div>

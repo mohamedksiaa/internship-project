@@ -13,6 +13,7 @@ import {
   hardDeleteDailyReports,
 } from '../api/timeflowApi';
 import StatusBadge from '../components/atoms/StatusBadge';
+import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import { ModifiedManuallyBadge, isManuallyModifiedRecord } from '../components/organisms/TimeEntryList.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
 
@@ -44,6 +45,7 @@ export default function ProcessedHistoryPage() {
   const [reportHistoryLoading, setReportHistoryLoading] = useState(true);
   const [reportHistoryError, setReportHistoryError] = useState('');
   const [reportEmployees, setReportEmployees] = useState([]);
+  const [selectedReport, setSelectedReport] = useState(null);
   const globalCheckboxRef = useRef(null);
 
   useEffect(() => {
@@ -448,11 +450,11 @@ export default function ProcessedHistoryPage() {
                   <span>{t('processed_history.total')}: {formatDuration(rows.reduce((sum, row) => sum + Number(row.duration || 0), 0))}</span>
                 </div>
 
-                <table className="w-full text-left text-sm">
+                <table className="w-full text-left text-sm border-collapse">
                   <thead>
                     <tr>
                       {canReadAll && (
-                        <th className="w-10 px-2 py-2 text-center">
+                        <th className="w-10 px-2 py-2 text-center border-r border-[#dce5ea] last:border-r-0">
                           <input
                             aria-label={t('processed_history.select_group_aria', { day })}
                             type="checkbox"
@@ -468,15 +470,15 @@ export default function ProcessedHistoryPage() {
                           />
                         </th>
                       )}
-                      <th className="px-2 py-2">{t('processed_history.columns.task')}</th>
-                      <th className="px-2 py-2">{t('processed_history.columns.project')}</th>
-                      <th className="px-2 py-2">{t('processed_history.columns.who')}</th>
-                      <th className="px-2 py-2">{t('processed_history.columns.start')}</th>
-                      <th className="px-2 py-2">{t('processed_history.columns.end')}</th>
-                      <th className="px-2 py-2">{t('processed_history.columns.status')}</th>
-                      <th className="px-2 py-2">{t('processed_history.columns.duration')}</th>
-                      <th className="px-2 py-2">{t('processed_history.columns.modification')}</th>
-                      <th className="px-2 py-2">{t('processed_history.columns.processed_by_at')}</th>
+                      <th className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{t('processed_history.columns.task')}</th>
+                      <th className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{t('processed_history.columns.project')}</th>
+                      <th className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{t('processed_history.columns.who')}</th>
+                      <th className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{t('processed_history.columns.start')}</th>
+                      <th className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{t('processed_history.columns.end')}</th>
+                      <th className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{t('processed_history.columns.status')}</th>
+                      <th className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{t('processed_history.columns.duration')}</th>
+                      <th className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{t('processed_history.columns.modification')}</th>
+                      <th className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{t('processed_history.columns.processed_by_at')}</th>
                       {canReadAll && <th className="px-2 py-2 text-right">{t('processed_history.columns.actions')}</th>}
                     </tr>
                   </thead>
@@ -484,8 +486,8 @@ export default function ProcessedHistoryPage() {
                   <tbody>
                     {rows.map((entry) => (
                       <tr key={entry.id} className="border-t">
-                        {canReadAll && (
-                          <td className="px-2 py-2 text-center">
+                          {canReadAll && (
+                            <td className="px-2 py-2 text-center border-r border-[#dce5ea] last:border-r-0">
                             <input
                               aria-label={t('processed_history.select_entry_aria')}
                               type="checkbox"
@@ -494,15 +496,15 @@ export default function ProcessedHistoryPage() {
                             />
                           </td>
                         )}
-                        <td className="px-2 py-2">{entry.note || t('timeentry.no_description')}</td>
-                        <td className="px-2 py-2">{entry.project_label}</td>
-                        <td className="px-2 py-2">{entry.user_label}</td>
-                        <td className="px-2 py-2">{dateTime(entry.date_start)}</td>
-                        <td className="px-2 py-2">{dateTime(entry.date_end)}</td>
-                        <td className="px-2 py-2"><StatusBadge status={Number(entry.status)} /></td>
-                        <td className="px-2 py-2">{formatDuration(entry.duration)}</td>
-                        <td className="px-2 py-2">{entry.manual_modified ? t('processed_history.modified_manually') : '—'}</td>
-                        <td className="px-2 py-2">
+                        <td className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{entry.note || t('timeentry.no_description')}</td>
+                        <td className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{entry.project_label}</td>
+                        <td className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{entry.user_label}</td>
+                        <td className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{dateTime(entry.date_start)}</td>
+                        <td className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{dateTime(entry.date_end)}</td>
+                        <td className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0"><StatusBadge status={Number(entry.status)} /></td>
+                        <td className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{formatDuration(entry.duration)}</td>
+                        <td className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">{entry.manual_modified ? t('processed_history.modified_manually') : '—'}</td>
+                        <td className="px-2 py-2 border-r border-[#dce5ea] last:border-r-0">
                           {entry.processed_by_label || '—'}
                           <br />
                           {dateTime(entry.processed_at)}
@@ -639,7 +641,7 @@ export default function ProcessedHistoryPage() {
                     </div>
                     <div className="mt-3">
                       {rows.map((report) => (
-                        <div key={report.id} className="mb-3 rounded border border-slate-100 p-3">
+                        <div key={report.id} className="mb-4 rounded border border-slate-200 p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <p className="font-semibold text-slate-900">{report.user_label}</p>
@@ -660,7 +662,15 @@ export default function ProcessedHistoryPage() {
                               )}
                             </div>
                           </div>
-                          <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{report.content}</p>
+                          <div className="mt-3 flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedReport(report)}
+                              className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100"
+                            >
+                              {t('daily_report.read_report')}
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -688,6 +698,7 @@ export default function ProcessedHistoryPage() {
           </div>
         </div>
       )}
+      {selectedReport && <ReadDailyReportModal report={selectedReport} onClose={() => setSelectedReport(null)} />}
     </div>
   );
 }

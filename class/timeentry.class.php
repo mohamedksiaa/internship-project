@@ -899,46 +899,35 @@ class TimeEntry extends CommonObject
 
 		$deletedId = (int) $this->id;
 		$deletedAt = $this->db->idate(dol_now());
-		// For draft entries, keep existing hard-delete behavior.
-		if ($this->status === self::STATUS_DRAFT) {
-			$result = $this->deleteCommon($user, $notrigger);
-			if ($result <= 0) {
-				return $result;
-			}
-		} else {
-			// For submitted/validated/refused entries, perform a soft-delete:
-			// mark `date_delete` (and optionally `fk_user_delete`) instead of removing the row.
-			if (!$this->hasDatabaseColumn($this->table_element, 'date_delete')) {
-				$this->error = 'Soft-delete not available: database column missing';
-				$this->errors[] = $this->error;
-				dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' missing column', LOG_ERR);
-				return -1;
-			}
-			// Build SET clause defensively: some installations may have date_delete
-			// but not fk_user_delete if migration was not applied. Only include
-			// fk_user_delete when the column exists.
-			$setParts = array();
-			$setParts[] = "date_delete = '".$this->db->idate(dol_now())."'";
-			if ($this->hasDatabaseColumn($this->table_element, 'fk_user_delete')) {
-				$setParts[] = 'fk_user_delete = '.((int) $user->id);
-			}
-			$sql = 'UPDATE '.$this->db->prefix().$this->table_element
-				 .' SET '.implode(', ', $setParts)
-				 .' WHERE rowid = '.($deletedId)
-				 ." AND (date_delete IS NULL OR date_delete = '')";
-			$resql = $this->db->query($sql);
-			if (!$resql) {
-				$this->error = 'Impossible de marquer l\'entrée comme supprimée: '.$this->db->lasterror();
-				$this->errors[] = $this->error;
-				dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' '.$this->db->lasterror(), LOG_ERR);
-				return -1;
-			}
-				if (!$notrigger) {
-					// Preserve triggers/hooks that modules may expect on deletion.
-					$this->call_trigger('TIMEFLOW_TIMEENTRY_DELETE', $user);
-				}
-			$result = 1;
+		// All statuses (including draft) now use soft-delete:
+		// mark `date_delete` (and optionally `fk_user_delete`) instead of removing the row.
+		if (!$this->hasDatabaseColumn($this->table_element, 'date_delete')) {
+			$this->error = 'Soft-delete not available: database column missing';
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' missing column', LOG_ERR);
+			return -1;
 		}
+		$setParts = array();
+		$setParts[] = "date_delete = '".$this->db->idate(dol_now())."'";
+		if ($this->hasDatabaseColumn($this->table_element, 'fk_user_delete')) {
+			$setParts[] = 'fk_user_delete = '.((int) $user->id);
+		}
+		$sql = 'UPDATE '.$this->db->prefix().$this->table_element
+			 .' SET '.implode(', ', $setParts)
+			 .' WHERE rowid = '.($deletedId)
+			 ." AND (date_delete IS NULL OR date_delete = '')";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = 'Impossible de marquer l\'entrée comme supprimée: '.$this->db->lasterror();
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' '.$this->db->lasterror(), LOG_ERR);
+			return -1;
+		}
+		if (!$notrigger) {
+			// Preserve triggers/hooks that modules may expect on deletion.
+			$this->call_trigger('TIMEFLOW_TIMEENTRY_DELETE', $user);
+		}
+		$result = 1;
 
 		// Keep a durable audit row after the entry itself has disappeared.
 		// llx_timeflow_time_edit_log is intentionally not used here: its schema
