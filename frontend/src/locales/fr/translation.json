@@ -110,7 +110,7 @@
   "reports": {
     "title": "Rapports",
     "activity_title": "Rapports d'activité",
-    "summary_text": "Sommaire global, répartition billable et lignes exploitables pour la facturation.",
+    "summary_text": "Sommaire global du temps suivi, par projet.",
     "from": "Du",
     "to": "Au",
     "loading": "Chargement…",
@@ -252,6 +252,7 @@
     },
     "stats": {
       "validated_hours": "Heures validées",
+      "validated_entries": "Entrées validées",
       "rejected_entries": "Entrées refusées",
       "modified_entries": "Modifiées"
     },
@@ -280,6 +281,7 @@
     "delete": {
       "action": "Supprimer",
       "entry_aria": "Supprimer cette entrée",
+      "partial_error": "Une ou plusieurs suppressions ont échoué ({{failed}}).",
       "selection": "Supprimer la sélection ({{count}})",
       "title": "Suppression définitive",
       "irreversible": "Cette action est irréversible.",

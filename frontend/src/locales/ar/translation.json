@@ -114,7 +114,7 @@
   "reports": {
     "title": "التقارير",
     "activity_title": "تقارير النشاط",
-    "summary_text": "ملخص عام، تقسيم القابل للفوترة وخطوط قابلة للفوترة.",
+    "summary_text": "ملخص عام للوقت المسجل، حسب المشروع.",
     "from": "من",
     "to": "إلى",
     "loading": "جارٍ التحميل…",
@@ -254,6 +254,7 @@
     },
     "stats": {
       "validated_hours": "الساعات المتحقق منها",
+      "validated_entries": "الإدخالات المعتمدة",
       "rejected_entries": "الإدخالات المرفوضة",
       "modified_entries": "المعدلة"
     },
@@ -282,6 +283,7 @@
     "delete": {
       "action": "حذف",
       "entry_aria": "حذف هذا الإدخال",
+      "partial_error": "فشل عملية حذف واحدة أو أكثر ({{failed}}).",
       "selection": "حذف التحديد ({{count}})",
       "title": "حذف نهائي",
       "irreversible": "هذا الإجراء لا رجعة فيه.",

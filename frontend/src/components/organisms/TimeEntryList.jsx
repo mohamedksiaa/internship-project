@@ -74,8 +74,10 @@ export default function TimeEntryList({
   activeSeconds = 0,
 }) {
   const [entries, setEntries] = useState(initialEntries);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [busyBatch, setBusyBatch] = useState(false);
   const [entryToCorrect, setEntryToCorrect] = useState(null);
   const [correction, setCorrection] = useState({ date_start: '', date_end: '', reason: '' });
   const [originalCorrection, setOriginalCorrection] = useState({ date_start: '', date_end: '' });
@@ -84,6 +86,8 @@ export default function TimeEntryList({
   const [correctionError, setCorrectionError] = useState('');
 
   useEffect(() => setEntries(initialEntries), [initialEntries]);
+  // Reset selection when the entries list changes
+  useEffect(() => setSelectedIds(new Set()), [entries]);
 
   const { t } = useTranslation();
 
@@ -110,6 +114,36 @@ export default function TimeEntryList({
     [entries]
   );
 
+  // Pagination for groups: split into pages where each page contains at most
+  // `maxEntriesPerPage` entries (sum of group lengths). A single group that
+  // exceeds the limit occupies its own page.
+  const [currentPage, setCurrentPage] = useState(1);
+  const paginateGroups = (groupsObj, maxEntriesPerPage = 15) => {
+    const entriesArr = Object.entries(groupsObj || {});
+    const pagesArr = [];
+    let currentPageGroups = [];
+    let currentCount = 0;
+    for (const [key, group] of entriesArr) {
+      const groupSize = (group && group.length) || 0;
+      // If adding this group would exceed the max for the current page,
+      // start a new page (unless the current page is empty — then the
+      // large group still occupies that page alone).
+      if (currentCount > 0 && currentCount + groupSize > maxEntriesPerPage) {
+        pagesArr.push(currentPageGroups);
+        currentPageGroups = [];
+        currentCount = 0;
+      }
+      currentPageGroups.push([key, group]);
+      currentCount += groupSize;
+    }
+    if (currentPageGroups.length) pagesArr.push(currentPageGroups);
+    return pagesArr;
+  };
+  const pages = useMemo(() => paginateGroups(groups, 15), [groups]);
+  // Reset to first page whenever the underlying entries change.
+  useEffect(() => setCurrentPage(1), [entries]);
+  const currentGroups = pages.length ? pages[currentPage - 1] : Object.entries(groups);
+
   const getProjectId = (entry) => Number(entry.fk_project || entry.projectId || entry.project_id || entry.project?.id || 0);
 
   const decide = async (id, status) => {
@@ -125,6 +159,62 @@ export default function TimeEntryList({
       setError(err.message);
     } finally {
       setBusyId(null);
+    }
+  };
+
+  // Toggle individual selection
+  const toggleSelect = (id) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Toggle all entries in a group (by day)
+  const toggleSelectGroup = (group) => {
+    const ids = group.map((e) => e.id).filter(Boolean);
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      const allSelected = ids.every((id) => next.has(id));
+      if (allSelected) {
+        ids.forEach((id) => next.delete(id));
+      } else {
+        ids.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  // Batch delete selected entries (reuses deleteTimeEntry API)
+  const confirmDeleteSelection = async () => {
+    const toDelete = Array.from(selectedIds).filter(Boolean);
+    if (!toDelete.length) return;
+    if (!window.confirm(t('processed_history.delete.multiple_confirmation', { count: toDelete.length }))) return;
+    setBusyBatch(true);
+    setError('');
+    try {
+      const results = await Promise.allSettled(toDelete.map((id) => deleteTimeEntry(id)));
+      const succeeded = results
+        .map((r, idx) => (r.status === 'fulfilled' ? toDelete[idx] : null))
+        .filter(Boolean);
+      if (succeeded.length) {
+        const deletedSet = new Set(succeeded);
+        const next = entries.filter((entry) => !deletedSet.has(entry.id));
+        setEntries(next);
+        setParentEntries?.(next);
+      }
+      // If some deletions failed, surface an error
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length) {
+        setError(t('processed_history.delete.partial_error', { failed: failed.length }));
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyBatch(false);
+      setSelectedIds(new Set());
     }
   };
 
@@ -266,12 +356,39 @@ export default function TimeEntryList({
   return (
     <section className="space-y-6">
       {error && <p className="whitespace-pre-line text-sm text-[#d64c4c]">{error}</p>}
-      {Object.entries(groups).map(([key, group]) => {
+      {selectedIds.size > 0 && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={confirmDeleteSelection}
+            disabled={busyBatch}
+            className="rounded bg-[#d64c4c] px-3 py-1 text-sm font-medium text-white hover:bg-[#b93d3d] disabled:opacity-50"
+          >
+            {t('processed_history.delete.selection', { count: selectedIds.size })}
+          </button>
+        </div>
+      )}
+      {currentGroups.map(([key, group]) => {
         const total = group.reduce((sum, entry) => sum + displayedDuration(entry), 0);
         return (
           <div key={key} className="border-b-4 border-[#e3ebef] bg-white overflow-x-auto">
             <div className="flex items-center justify-between bg-[#e5edf1] px-5 py-2 text-sm text-[#52656f]">
-              <span>{key === 'unknown-date' ? t('timeentry.date_unknown') : dateLabel(group[0].date_start, t)}</span>
+              <div className="flex items-center gap-3">
+                {/** group selection checkbox */}
+                {(() => {
+                  const allSelected = group.every((e) => selectedIds.has(e.id));
+                  return (
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={() => toggleSelectGroup(group)}
+                      aria-label={t('processed_history.select_group_aria', { day: key })}
+                      className="h-4 w-4"
+                    />
+                  );
+                })()}
+                <span>{key === 'unknown-date' ? t('timeentry.date_unknown') : dateLabel(group[0].date_start, t)}</span>
+              </div>
               <span>
                 {t('timeentry.total')}:&nbsp; <strong className="text-sm text-[#2a3c47]">{formatDuration(total)}</strong>
               </span>
@@ -280,6 +397,7 @@ export default function TimeEntryList({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#dce5ea] bg-white text-[11px] font-medium uppercase tracking-wide text-[#8a9aa4]">
+                  <th className="px-3 py-2" />
                   <th className="px-5 py-2">{t('timeentry.col_task')}</th>
                   <th className="px-3 py-2">{t('timeentry.col_project')}</th>
                   {showWorker && <th className="px-3 py-2">{t('timeentry.col_who')}</th>}
@@ -294,6 +412,15 @@ export default function TimeEntryList({
               <tbody>
                 {group.map((entry) => (
                   <tr key={entry.id} className="border-b border-[#dce5ea] hover:bg-[#f9fbfd] text-sm text-[#2c3e49]">
+                    <td className="px-3 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(entry.id)}
+                        onChange={() => toggleSelect(entry.id)}
+                        aria-label={t('processed_history.select_entry_aria')}
+                        className="h-4 w-4"
+                      />
+                    </td>
                     <td className="px-5 py-3 min-w-[180px]">
                       <p className="font-medium text-[#2c3e49] truncate">{entry.note || t('timeentry.no_description')}</p>
                     </td>
@@ -407,6 +534,27 @@ export default function TimeEntryList({
           </div>
         );
       })}
+      {pages.length > 1 && (
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+            className="rounded bg-[#e5edf1] px-3 py-1 text-sm text-[#52656f] disabled:opacity-50"
+          >
+            ← {t('processed_history.pagination.previous')}
+          </button>
+          <span className="text-sm text-slate-600">{t('processed_history.pagination.page', { current: currentPage, total: pages.length })}</span>
+          <button
+            type="button"
+            onClick={() => setCurrentPage((p) => Math.min(pages.length, p + 1))}
+            disabled={currentPage >= pages.length}
+            className="rounded bg-[#e5edf1] px-3 py-1 text-sm text-[#52656f] disabled:opacity-50"
+          >
+            {t('processed_history.pagination.next')} →
+          </button>
+        </div>
+      )}
       {entryToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-title">
           <div className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-xl">
