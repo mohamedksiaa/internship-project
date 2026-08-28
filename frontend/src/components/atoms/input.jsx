@@ -5,7 +5,7 @@ export default function Input({ value, onChange, placeholder, type = 'text' }) {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="tw-border tw-rounded tw-px-3 tw-py-2 tw-w-full tw-focus:outline-none tw-focus:ring-2 tw-focus:ring-blue-500"
     />
   );
 }

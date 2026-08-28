@@ -4,7 +4,7 @@ import Button from '../atoms/Button.jsx';
 export default function TimerControls({ isRunning, onStart, onStop, loading, disabled = false }) {
   const { t } = useTranslation();
   return (
-    <div className="flex gap-2">
+    <div className="tw-flex tw-gap-2">
       {!isRunning && (
         <Button variant="primary" onClick={onStart} disabled={loading || disabled}>
           {t('timer_widget.start')}

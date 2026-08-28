@@ -43,8 +43,8 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
 
   return (
     <section>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_3px_rgba(35,61,79,0.08)]">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+      <div className="tw-rounded-2xl tw-border tw-border-slate-200 tw-bg-white tw-p-5 tw-shadow-[0_1px_3px_rgba(35,61,79,0.08)]">
+        <div className="tw-flex tw-flex-col tw-gap-4 tw-md:flex-row tw-md:items-center">
           <input
             id="timeflow-description"
             name="description"
@@ -52,7 +52,7 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             onChange={(e) => setNote(e.target.value)}
             aria-label={t('timer_widget.description_label')}
             placeholder={t('timer_widget.description_placeholder')}
-            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5B8FA8] focus:bg-white focus:ring-2 focus:ring-[#5B8FA8]/10"
+            className="tw-flex-1 tw-rounded-xl tw-border tw-border-slate-200 tw-bg-slate-50 tw-px-4 tw-py-3 tw-text-sm tw-text-slate-700 tw-outline-none tw-transition tw-placeholder:text-slate-400 tw-focus:border-[#5B8FA8] tw-focus:bg-white tw-focus:ring-2 tw-focus:ring-[#5B8FA8]/10"
           />
           <input
             id="timeflow-project"
@@ -61,26 +61,26 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             onChange={(e) => handleProjectChange(e.target.value)}
             aria-label={t('timer_widget.project_label')}
             placeholder={t('timer_widget.project_placeholder')}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5B8FA8] focus:bg-white focus:ring-2 focus:ring-[#5B8FA8]/10 md:w-48"
+            className="tw-w-full tw-rounded-xl tw-border tw-border-slate-200 tw-bg-slate-50 tw-px-4 tw-py-3 tw-text-sm tw-text-slate-700 tw-outline-none tw-transition tw-placeholder:text-slate-400 tw-focus:border-[#5B8FA8] tw-focus:bg-white tw-focus:ring-2 tw-focus:ring-[#5B8FA8]/10 tw-md:w-48"
           />
-          <div className="flex items-center justify-center md:w-32">
+          <div className="tw-flex tw-items-center tw-justify-center tw-md:w-32">
             <TimeDisplay seconds={seconds} />
           </div>
           <button
             type="button"
             onClick={isRunning ? handleStop : handleStart}
             disabled={isDisabled}
-            className="w-full rounded-xl bg-[#5B8FA8] px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-[#4A7690] hover:shadow-lg hover:shadow-[#4A7690]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none md:w-auto"
+            className="tw-w-full tw-rounded-xl tw-bg-[#5B8FA8] tw-px-6 tw-py-3 tw-text-sm tw-font-semibold tw-text-white tw-transition-all tw-hover:bg-[#4A7690] tw-hover:shadow-lg tw-hover:shadow-[#4A7690]/20 tw-disabled:cursor-not-allowed tw-disabled:opacity-50 tw-disabled:hover:shadow-none tw-md:w-auto"
           >
             {loading ? '...' : isRunning ? t('timer_widget.stop') : t('timer_widget.start')}
           </button>
         </div>
       </div>
-      {error && <p className="mt-3 text-sm text-[#d64c4c]">{error}</p>}
+      {error && <p className="tw-mt-3 tw-text-sm tw-text-[#d64c4c]">{error}</p>}
       {!isRunning && !isDisabled && !error && (
-        <p className="mt-2 text-sm text-slate-500">{t('timer_widget.ready_to_start')}</p>
+        <p className="tw-mt-2 tw-text-sm tw-text-slate-500">{t('timer_widget.ready_to_start')}</p>
       )}
-      {projectsError && <p className="mt-2 text-sm text-slate-500">{projectsError}. {t('timer_widget.start_without_project')}</p>}
+      {projectsError && <p className="tw-mt-2 tw-text-sm tw-text-slate-500">{projectsError}. {t('timer_widget.start_without_project')}</p>}
     </section>
   );
 }

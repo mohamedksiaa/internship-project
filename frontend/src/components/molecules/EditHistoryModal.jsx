@@ -70,48 +70,48 @@ export default function EditHistoryModal({ entry, onClose }) {
   }, [entry.id]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="history-title">
-      <div className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between">
+    <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-p-4" role="dialog" aria-modal="true" aria-labelledby="history-title">
+      <div className="tw-w-full tw-max-w-lg tw-space-y-4 tw-rounded-lg tw-bg-white tw-p-6 tw-shadow-xl">
+        <div className="tw-flex tw-items-start tw-justify-between">
           <div>
-            <h2 id="history-title" className="text-lg font-semibold text-[#263746]">{t('history.history_title')}</h2>
-            <p className="mt-1 text-sm text-[#52656f]">{t('history.history_description', { entryId: entry.id || entry.rowid })}</p>
+            <h2 id="history-title" className="tw-text-lg tw-font-semibold tw-text-[#263746]">{t('history.history_title')}</h2>
+            <p className="tw-mt-1 tw-text-sm tw-text-[#52656f]">{t('history.history_description', { entryId: entry.id || entry.rowid })}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={t('history.close')}
-            className="text-lg leading-none text-[#78909c] hover:text-[#2c3e49]"
+            className="tw-text-lg tw-leading-none tw-text-[#78909c] tw-hover:text-[#2c3e49]"
           >
             ×
           </button>
         </div>
 
-        {error && <p className="text-sm text-[#d64c4c]">{error}</p>}
+        {error && <p className="tw-text-sm tw-text-[#d64c4c]">{error}</p>}
 
-        {!history && !error && <p className="text-sm text-[#52656f]">{t('history.loading')}</p>}
+        {!history && !error && <p className="tw-text-sm tw-text-[#52656f]">{t('history.loading')}</p>}
 
         {history && history.length === 0 && (
-          <p className="text-sm text-[#52656f]">{t('history.no_corrections')}</p>
+          <p className="tw-text-sm tw-text-[#52656f]">{t('history.no_corrections')}</p>
         )}
 
         {history && history.length > 0 && (
-          <ul className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+          <ul className="tw-max-h-[60vh] tw-space-y-3 tw-overflow-y-auto tw-pr-1">
             {history.map((row) => (
-              <li key={row.id || row.rowid} className="rounded border border-[#e3ebef] bg-[#fbfdfe] p-4 text-sm">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium text-[#2c3e49]">{editorName(row, t)}</span>
-                  <span className="text-xs text-[#71838f]">{formatDateTime(row.date_modification || row.date_creation)}</span>
+              <li key={row.id || row.rowid} className="tw-rounded tw-border tw-border-[#e3ebef] tw-bg-[#fbfdfe] tw-p-4 tw-text-sm">
+                <div className="tw-mb-2 tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2">
+                  <span className="tw-font-medium tw-text-[#2c3e49]">{editorName(row, t)}</span>
+                  <span className="tw-text-xs tw-text-[#71838f]">{formatDateTime(row.date_modification || row.date_creation)}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-[#4d606b]">
+                <div className="tw-grid tw-grid-cols-2 tw-gap-2 tw-text-[#4d606b]">
                   <span>{row.field_name === 'date_start' ? t('history.start') : row.field_name === 'date_end' ? t('history.end') : row.field_name}</span>
-                  <span className="text-right"><span className="line-through text-[#a08]">{formatChangedValue(row.field_name, row.old_value)}</span>{' → '}<span className="font-medium text-[#2c3e49]">{formatChangedValue(row.field_name, row.new_value)}</span></span>
+                  <span className="tw-text-right"><span className="tw-line-through tw-text-[#a08]">{formatChangedValue(row.field_name, row.old_value)}</span>{' → '}<span className="tw-font-medium tw-text-[#2c3e49]">{formatChangedValue(row.field_name, row.new_value)}</span></span>
                 </div>
-                <p className="mt-2 border-t border-[#e3ebef] pt-2 text-[#52656f]">
-                  <span className="font-medium text-[#2c3e49]">{t('history.reason')}</span> {row.reason}
+                <p className="tw-mt-2 tw-border-t tw-border-[#e3ebef] tw-pt-2 tw-text-[#52656f]">
+                  <span className="tw-font-medium tw-text-[#2c3e49]">{t('history.reason')}</span> {row.reason}
                 </p>
                 {row.ip && (
-                  <p className="mt-1 text-xs text-[#8a9aa4]">{t('history.ip')}: {row.ip}{row.user_agent ? ` · ${row.user_agent.slice(0, 60)}…` : ''}</p>
+                  <p className="tw-mt-1 tw-text-xs tw-text-[#8a9aa4]">{t('history.ip')}: {row.ip}{row.user_agent ? ` · ${row.user_agent.slice(0, 60)}…` : ''}</p>
                 )}
               </li>
             ))}

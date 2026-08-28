@@ -154,88 +154,88 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1680px] space-y-6 px-5 py-7">
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-4 flex flex-wrap gap-2">
+    <div className="tw-mx-auto tw-w-full tw-max-w-[1680px] tw-space-y-6 tw-px-5 tw-py-7">
+      <div className="tw-rounded-3xl tw-border tw-border-slate-200 tw-bg-white tw-p-4 tw-shadow-sm">
+        <div className="tw-mb-4 tw-flex tw-flex-wrap tw-gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('activity')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'activity' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            className={`tw-rounded-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium ${activeTab === 'activity' ? 'tw-bg-slate-900 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-700 tw-hover:bg-slate-200'}`}
           >
             {t('reports.activity_title')}
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('employees')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${activeTab === 'employees' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            className={`tw-rounded-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium ${activeTab === 'employees' ? 'tw-bg-slate-900 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-700 tw-hover:bg-slate-200'}`}
           >
             {t('reports.daily_reports_title')}
           </button>
         </div>
 
         {activeTab === 'activity' && (
-          <Card size="section" titleSize="xl" headerLabel={t('reports.title')} title={t('reports.activity_title')} className="overflow-hidden">
-            <p className="mt-2 text-sm text-slate-600">{t('reports.summary_text')}</p>
-            <div className="mb-6 flex flex-wrap gap-4">
-              <label className="flex flex-col gap-1 text-sm font-medium text-slate-700" htmlFor="reports-date-from">
+          <Card size="section" titleSize="xl" headerLabel={t('reports.title')} title={t('reports.activity_title')} className="tw-overflow-hidden">
+            <p className="tw-mt-2 tw-text-sm tw-text-slate-600">{t('reports.summary_text')}</p>
+            <div className="tw-mb-6 tw-flex tw-flex-wrap tw-gap-4">
+              <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700" htmlFor="reports-date-from">
                 {t('reports.from')}
                 <input
                   id="reports-date-from"
                   type="date"
                   value={dateRange.from}
                   onChange={(event) => setDateRange((range) => ({ ...range, from: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-slate-900"
+                  className="tw-rounded-xl tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-slate-900"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm font-medium text-slate-700" htmlFor="reports-date-to">
+              <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700" htmlFor="reports-date-to">
                 {t('reports.to')}
                 <input
                   id="reports-date-to"
                   type="date"
                   value={dateRange.to}
                   onChange={(event) => setDateRange((range) => ({ ...range, to: event.target.value }))}
-                  className="rounded-xl border border-slate-300 px-3 py-2 text-slate-900"
+                  className="tw-rounded-xl tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-slate-900"
                 />
               </label>
             </div>
-            {loading && <p className="text-sm text-slate-600">{t('reports.loading')}</p>}
-            {error && <p className="text-sm text-rose-600">{error}</p>}
+            {loading && <p className="tw-text-sm tw-text-slate-600">{t('reports.loading')}</p>}
+            {error && <p className="tw-text-sm tw-text-rose-600">{error}</p>}
             {!loading && !error && summary && (
-              <div className="mb-6 flex justify-center">
-                <div className="w-full max-w-2xl rounded-lg bg-slate-50 p-6 border border-slate-200 text-center">
-                  <p className="text-sm font-semibold text-slate-500">{t('reports.total')}</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatDuration(summary.total_seconds)}</p>
+              <div className="tw-mb-6 tw-flex tw-justify-center">
+                <div className="tw-w-full tw-max-w-2xl tw-rounded-lg tw-bg-slate-50 tw-p-6 tw-border tw-border-slate-200 tw-text-center">
+                  <p className="tw-text-sm tw-font-semibold tw-text-slate-500">{t('reports.total')}</p>
+                  <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-slate-900">{formatDuration(summary.total_seconds)}</p>
                 </div>
               </div>
             )}
             {!loading && !error && summary && (
-              <div className="mt-6 rounded-3xl border border-slate-200 p-5">
-                <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <p className="text-sm font-semibold text-slate-500">{t('reports.by_project')}</p>
-                  <div className="w-full md:max-w-sm">
+              <div className="tw-mt-6 tw-rounded-3xl tw-border tw-border-slate-200 tw-p-5">
+                <div className="tw-mb-4 tw-flex tw-flex-col tw-gap-3 tw-md:flex-row tw-md:items-center tw-md:justify-between">
+                  <p className="tw-text-sm tw-font-semibold tw-text-slate-500">{t('reports.by_project')}</p>
+                  <div className="tw-w-full tw-md:max-w-sm">
                     <input
                       type="search"
                       value={projectSearch}
                       onChange={(event) => setProjectSearch(event.target.value)}
                       placeholder={t('reports.search_project')}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                      className="tw-w-full tw-rounded-xl tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-text-slate-900"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-3 text-sm text-slate-700">
+                <div className="tw-space-y-3 tw-text-sm tw-text-slate-700">
                   {visibleProjectRows.length === 0 ? (
-                    <p className="text-sm text-slate-500">{t('reports.no_project_match')}</p>
+                    <p className="tw-text-sm tw-text-slate-500">{t('reports.no_project_match')}</p>
                   ) : (
                     visibleProjectRows.map((project) => (
-                      <div key={project.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate pr-2">{project.label}</span>
+                      <div key={project.id} className="tw-rounded-xl tw-border tw-border-slate-200 tw-bg-slate-50 tw-p-3">
+                        <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
+                          <span className="tw-truncate tw-pr-2">{project.label}</span>
                           <strong>{formatDuration(project.total)}</strong>
                         </div>
-                        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200">
+                        <div className="tw-mt-2 tw-h-2.5 tw-overflow-hidden tw-rounded-full tw-bg-slate-200">
                           <div
-                            className="h-full rounded-full bg-[#4d5fca]"
+                            className="tw-h-full tw-rounded-full tw-bg-[#4d5fca]"
                             style={{ width: `${(project.total / maxProjectTotal) * 100}%` }}
                           />
                         </div>
@@ -244,11 +244,11 @@ export default function ReportsPage() {
                   )}
 
                   {otherProjectRows.length > 0 && (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50">
+                    <div className="tw-rounded-xl tw-border tw-border-slate-200 tw-bg-slate-50">
                       <button
                         type="button"
                         onClick={() => setShowOtherProjects((value) => !value)}
-                        className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left text-sm font-medium text-slate-700"
+                        className="tw-flex tw-w-full tw-items-center tw-justify-between tw-gap-3 tw-px-3 tw-py-3 tw-text-left tw-text-sm tw-font-medium tw-text-slate-700"
                       >
                         <span>
                           {t('reports.other_projects', { count: otherProjectRows.length })} — {formatDuration(totalOtherSeconds)}
@@ -256,9 +256,9 @@ export default function ReportsPage() {
                         <span>{showOtherProjects ? '▾' : '▸'}</span>
                       </button>
                       {showOtherProjects && (
-                        <div className="space-y-2 border-t border-slate-200 p-3">
+                        <div className="tw-space-y-2 tw-border-t tw-border-slate-200 tw-p-3">
                           {otherProjectRows.map((project) => (
-                            <div key={`other-${project.id}`} className="flex items-center justify-between gap-3 text-sm text-slate-700">
+                            <div key={`other-${project.id}`} className="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-text-sm tw-text-slate-700">
                               <span>{project.label}</span>
                               <strong>{formatDuration(project.total)}</strong>
                             </div>
@@ -270,21 +270,21 @@ export default function ReportsPage() {
                 </div>
 
                 {primaryProjectRows.length > PROJECTS_PER_PAGE && (
-                  <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                  <div className="tw-mt-5 tw-flex tw-items-center tw-justify-between tw-gap-3 tw-border-t tw-border-slate-200 tw-pt-4">
                     <button
                       type="button"
                       onClick={() => setProjectPage((page) => Math.max(1, page - 1))}
                       disabled={projectPage === 1}
-                      className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="tw-rounded-xl tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 tw-disabled:cursor-not-allowed tw-disabled:opacity-50"
                     >
                       {t('processed_history.pagination.previous')}
                     </button>
-                    <span className="text-sm text-slate-600">{t('reports.pagination.page', { current: projectPage, total: totalPages })}</span>
+                    <span className="tw-text-sm tw-text-slate-600">{t('reports.pagination.page', { current: projectPage, total: totalPages })}</span>
                     <button
                       type="button"
                       onClick={() => setProjectPage((page) => Math.min(totalPages, page + 1))}
                       disabled={projectPage >= totalPages}
-                      className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="tw-rounded-xl tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 tw-disabled:cursor-not-allowed tw-disabled:opacity-50"
                     >
                       {t('processed_history.pagination.next')}
                     </button>
@@ -296,44 +296,44 @@ export default function ReportsPage() {
         )}
 
         {activeTab === 'employees' && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm overflow-hidden">
-            <div className="mb-6"><p className="text-sm font-semibold uppercase tracking-[.24em] text-slate-500">{t('reports.daily_reports')}</p><h2 className="text-2xl font-semibold text-slate-900">{t('reports.daily_reports_title')}</h2><p className="mt-2 text-sm text-slate-600">{t('reports.daily_reports_description')}</p></div>
+          <section className="tw-rounded-3xl tw-border tw-border-slate-200 tw-bg-white tw-p-6 tw-shadow-sm tw-overflow-hidden">
+            <div className="tw-mb-6"><p className="tw-text-sm tw-font-semibold tw-uppercase tw-tracking-[.24em] tw-text-slate-500">{t('reports.daily_reports')}</p><h2 className="tw-text-2xl tw-font-semibold tw-text-slate-900">{t('reports.daily_reports_title')}</h2><p className="tw-mt-2 tw-text-sm tw-text-slate-600">{t('reports.daily_reports_description')}</p></div>
             <div>
-              <div className="mb-4 flex flex-wrap items-end gap-4"><label className="flex flex-col gap-1 text-sm font-medium text-slate-700">{t('reports.employee')}<select aria-label={t('reports.filter_employee')} value={dailyEmployeeId} onChange={(event) => setDailyEmployeeId(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2"><option value="">{t('reports.all_employees')}</option>{dailyEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}</select></label><span className="text-sm text-slate-500">{t('reports.period')} : {dateRange.from} → {dateRange.to}</span></div>
-              {dailyError && <p className="mb-3 text-sm text-rose-600">{dailyError}</p>}
+              <div className="tw-mb-4 tw-flex tw-flex-wrap tw-items-end tw-gap-4"><label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700">{t('reports.employee')}<select aria-label={t('reports.filter_employee')} value={dailyEmployeeId} onChange={(event) => setDailyEmployeeId(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 tw-px-3 tw-py-2"><option value="">{t('reports.all_employees')}</option>{dailyEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}</select></label><span className="tw-text-sm tw-text-slate-500">{t('reports.period')} : {dateRange.from} → {dateRange.to}</span></div>
+              {dailyError && <p className="tw-mb-3 tw-text-sm tw-text-rose-600">{dailyError}</p>}
               {dailyReports.length === 0 ? (
-                <p className="text-sm text-slate-500">{t('reports.no_reports_for_period')}</p>
+                <p className="tw-text-sm tw-text-slate-500">{t('reports.no_reports_for_period')}</p>
               ) : (
-                <div className="space-y-3">
+                <div className="tw-space-y-3">
                   {dailyReports.map((report) => (
-                    <article key={report.id} className="rounded-2xl border border-slate-200 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3 min-w-0">
-                        <div className="min-w-0 flex items-center gap-2">
-                          <strong className="text-slate-900">{report.user_label}</strong>
-                          <span className="text-sm text-slate-500">{report.date_report}</span>
+                    <article key={report.id} className="tw-rounded-2xl tw-border tw-border-slate-200 tw-p-4">
+                      <div className="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3 tw-min-w-0">
+                        <div className="tw-min-w-0 tw-flex tw-items-center tw-gap-2">
+                          <strong className="tw-text-slate-900">{report.user_label}</strong>
+                          <span className="tw-text-sm tw-text-slate-500">{report.date_report}</span>
                           {isManuallyModifiedRecord(report.date_creation, report.date_last_content_edit) && (
                             <ModifiedManuallyBadge title={t('timeentry.corrected_traced')} />
                           )}
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="tw-flex tw-items-center tw-gap-3">
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleDailyReportDecision(report.id, 'validate'); }}
-                            className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
+                            className="tw-rounded-full tw-bg-emerald-100 tw-px-2 tw-py-1 tw-text-xs tw-font-medium tw-text-emerald-800"
                           >
                             {t('reports.validate')}
                           </button>
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleDailyReportDecision(report.id, 'reject'); }}
-                            className="rounded-full bg-rose-100 px-2 py-1 text-xs font-medium text-rose-800"
+                            className="tw-rounded-full tw-bg-rose-100 tw-px-2 tw-py-1 tw-text-xs tw-font-medium tw-text-rose-800"
                           >
                             {t('reports.reject')}
                           </button>
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); openReportModal(report); }}
-                            className="text-sm text-slate-600"
+                            className="tw-text-sm tw-text-slate-600"
                           >
                             {t('reports.read')}
                           </button>
@@ -353,4 +353,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-

@@ -88,10 +88,10 @@ export default function ValidationPage() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <Card size="section" titleSize="xl" headerLabel={t('validation.section')} title={t('validation.heading')} headerRight={<span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">{t('entries', { count: entries.length })}</span>}>
-        {loading && <p className="text-sm text-slate-600">{t('loading')}</p>}
-        {error && <p className="text-sm text-rose-600">{error}</p>}
+    <div className="tw-space-y-6">
+      <Card size="section" titleSize="xl" headerLabel={t('validation.section')} title={t('validation.heading')} headerRight={<span className="tw-inline-flex tw-rounded-full tw-bg-slate-100 tw-px-3 tw-py-1 tw-text-sm tw-text-slate-700">{t('entries', { count: entries.length })}</span>}>
+        {loading && <p className="tw-text-sm tw-text-slate-600">{t('loading')}</p>}
+        {error && <p className="tw-text-sm tw-text-rose-600">{error}</p>}
         {!loading && !error && <TimeEntryList entries={entries} setEntries={setEntries} showWorker showValidationActions />}
       </Card>
     </div>

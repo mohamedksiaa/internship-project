@@ -232,31 +232,31 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout summary={summaryStats} canReadAll={canReadAll}>
-      <div className="space-y-6">
-        {loading && <p className="text-sm text-[#71838f]">{t('loading')}</p>}
-        {error && <p className="text-sm text-[#d64c4c]">{error}</p>}
+      <div className="tw-space-y-6">
+        {loading && <p className="tw-text-sm tw-text-[#71838f]">{t('loading')}</p>}
+        {error && <p className="tw-text-sm tw-text-[#d64c4c]">{error}</p>}
         {!loading && !error && (
           <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="tw-grid tw-gap-4 tw-md:grid-cols-2 tw-xl:grid-cols-4">
               <Card headerLabel={t('dashboard.current_month_total')}>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">{formatDuration(monthlyTotalSeconds)}</p>
+                <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-slate-900">{formatDuration(monthlyTotalSeconds)}</p>
               </Card>
               <Card headerLabel={t('dashboard.variation_vs_previous')}>
-                <div className={`mt-2 text-2xl font-semibold ${monthDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <div className={`tw-mt-2 tw-text-2xl tw-font-semibold ${monthDelta >= 0 ? 'tw-text-emerald-600' : 'tw-text-rose-600'}`}>
                   {monthDelta >= 0 ? '+' : ''}{monthDelta.toFixed(1)}%
                 </div>
               </Card>
               <Card headerLabel={t('dashboard.pending_reports')}>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">{pendingReports.length}</p>
+                <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-slate-900">{pendingReports.length}</p>
               </Card>
               <Card headerLabel={t('dashboard.period')}>
-                <div className="mt-2 text-xl font-semibold text-slate-900">{currentMonth.from} → {currentMonth.to}</div>
+                <div className="tw-mt-2 tw-text-xl tw-font-semibold tw-text-slate-900">{currentMonth.from} → {currentMonth.to}</div>
               </Card>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-2">
+            <div className="tw-grid tw-gap-6 tw-xl:grid-cols-2">
               <Card size="section" headerLabel={t('dashboard.top_projects')} title={t('dashboard.top_projects_title')}>
-                <div className="h-[280px]">
+                <div className="tw-h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topProjects} layout="vertical" margin={{ top: 10, right: 20, left: 12, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e7edf1" />
@@ -272,7 +272,7 @@ export default function DashboardPage() {
               </Card>
 
               <Card size="section" headerLabel={t('dashboard.trend')} title={t('dashboard.weekly_trend')}>
-                <div className="h-[280px]">
+                <div className="tw-h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={weeklyTrendData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e7edf1" />
@@ -287,20 +287,20 @@ export default function DashboardPage() {
             </div>
 
             {canValidate && (
-              <Card size="section" headerLabel={t('dashboard.alerts')} title={t('dashboard.alerts_title')} headerRight={<Link to="/reports" className="text-sm font-medium text-[#5B8FA8] hover:text-[#4A7690]">{t('dashboard.see_all_reports')}</Link>}>
+              <Card size="section" headerLabel={t('dashboard.alerts')} title={t('dashboard.alerts_title')} headerRight={<Link to="/reports" className="tw-text-sm tw-font-medium tw-text-[#5B8FA8] tw-hover:text-[#4A7690]">{t('dashboard.see_all_reports')}</Link>}>
                 {alerts.length === 0 ? (
-                  <p className="text-sm text-slate-500">{t('dashboard.no_alerts')}</p>
+                  <p className="tw-text-sm tw-text-slate-500">{t('dashboard.no_alerts')}</p>
                 ) : (
-                  <ul className="space-y-3">
+                  <ul className="tw-space-y-3">
                     {alerts.map((alert) => (
-                      <li key={alert.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-start justify-between gap-3">
+                      <li key={alert.id} className="tw-rounded-xl tw-border tw-border-slate-200 tw-bg-slate-50 tw-p-3">
+                        <div className="tw-flex tw-items-start tw-justify-between tw-gap-3">
                           <div>
-                            <p className="text-sm font-medium text-slate-900">{alert.label}</p>
-                            <p className="text-xs text-slate-500">{alert.detail}</p>
+                            <p className="tw-text-sm tw-font-medium tw-text-slate-900">{alert.label}</p>
+                            <p className="tw-text-xs tw-text-slate-500">{alert.detail}</p>
                           </div>
                           {alert.tone === 'warning' && (
-                            <span className="rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wide bg-amber-50 text-amber-700">
+                            <span className="tw-rounded-full tw-px-2 tw-py-1 tw-text-[10px] tw-font-medium tw-uppercase tw-tracking-wide tw-bg-amber-50 tw-text-amber-700">
                               {t('dashboard.warning')}
                             </span>
                           )}

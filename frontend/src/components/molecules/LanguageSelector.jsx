@@ -22,7 +22,7 @@ export default function LanguageSelector() {
         }
         i18n.changeLanguage(val);
       }}
-      className="rounded border px-2 py-1 text-sm"
+      className="tw-rounded tw-border tw-px-2 tw-py-1 tw-text-sm"
       aria-label={t('app.language_selector')}
     >
       {langs.map((l) => (

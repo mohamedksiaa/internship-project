@@ -9,7 +9,7 @@ export default function ProjectSelector({ projects = [], value, onChange = () =>
   }, {});
 
   return (
-    <select id="timeflow-project" name="project" value={value ?? ''} onChange={(e) => onChange(e.target.value)} className="min-w-[110px] bg-transparent text-sm text-[#5B8FA8] outline-none">
+    <select id="timeflow-project" name="project" value={value ?? ''} onChange={(e) => onChange(e.target.value)} className="tw-min-w-[110px] tw-bg-transparent tw-text-sm tw-text-[#5B8FA8] tw-outline-none">
       <option value="">{t('project_selector.placeholder')}</option>
       {Object.entries(groups).map(([client, clientProjects]) => (
         <optgroup key={client} label={client}>
