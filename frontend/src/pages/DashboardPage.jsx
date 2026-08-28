@@ -18,7 +18,7 @@ import {
   YAxis,
 } from 'recharts';
 
-const TEAM_CHART_COLORS = ['#03a9f4', '#4d5fca', '#35a66f', '#f59e0b', '#d66', '#8a9aa4'];
+const TEAM_CHART_COLORS = ['#5B8FA8', '#4d5fca', '#35a66f', '#f59e0b', '#d66', '#8a9aa4'];
 const ALERT_DAYS_THRESHOLD = 3;
 
 function entryDate(value) {
@@ -291,7 +291,7 @@ export default function DashboardPage() {
                       <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
                       <YAxis tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
                       <Tooltip formatter={(value) => formatDuration(value)} />
-                      <Line type="monotone" dataKey="total" stroke="#03a9f4" strokeWidth={3} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="total" stroke="#5B8FA8" strokeWidth={3} dot={{ r: 3 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -305,7 +305,7 @@ export default function DashboardPage() {
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.alerts')}</p>
                     <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.alerts_title')}</h3>
                   </div>
-                  <Link to="/reports" className="text-sm font-medium text-[#03a9f4] hover:text-[#0288c7]">{t('dashboard.see_all_reports')}</Link>
+                  <Link to="/reports" className="text-sm font-medium text-[#5B8FA8] hover:text-[#4A7690]">{t('dashboard.see_all_reports')}</Link>
                 </div>
                 {alerts.length === 0 ? (
                   <p className="text-sm text-slate-500">{t('dashboard.no_alerts')}</p>
@@ -319,7 +319,7 @@ export default function DashboardPage() {
                             <p className="text-xs text-slate-500">{alert.detail}</p>
                           </div>
                           {alert.tone === 'warning' && (
-                            <span className="rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wide bg-amber-100 text-amber-800">
+                            <span className="rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wide bg-amber-50 text-amber-700">
                               {t('dashboard.warning')}
                             </span>
                           )}
