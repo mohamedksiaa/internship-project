@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import Card from '../components/atoms/Card';
 import { getDailyReports, getSummaryReports, rejectDailyReport, validateDailyReport } from '../api/timeflowApi';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import { ModifiedManuallyBadge, isManuallyModifiedRecord } from '../components/organisms/TimeEntryList.jsx';
@@ -173,12 +174,8 @@ export default function ReportsPage() {
         </div>
 
         {activeTab === 'activity' && (
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm overflow-hidden">
-            <div className="mb-6">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">{t('reports.title')}</p>
-              <h2 className="text-2xl font-semibold text-slate-900">{t('reports.activity_title')}</h2>
-              <p className="mt-2 text-sm text-slate-600">{t('reports.summary_text')}</p>
-            </div>
+          <Card size="section" titleSize="xl" headerLabel={t('reports.title')} title={t('reports.activity_title')} className="overflow-hidden">
+            <p className="mt-2 text-sm text-slate-600">{t('reports.summary_text')}</p>
             <div className="mb-6 flex flex-wrap gap-4">
               <label className="flex flex-col gap-1 text-sm font-medium text-slate-700" htmlFor="reports-date-from">
                 {t('reports.from')}
@@ -295,7 +292,7 @@ export default function ReportsPage() {
                 )}
               </div>
             )}
-          </div>
+          </Card>
         )}
 
         {activeTab === 'employees' && (

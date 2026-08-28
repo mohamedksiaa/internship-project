@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import Card from '../components/atoms/Card';
 import TimeEntryList from '../components/organisms/TimeEntryList';
 import { getTimeEntryUpdates, getValidationEntries } from '../api/timeflowApi';
 
@@ -88,18 +89,11 @@ export default function ValidationPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">{t('validation.section')}</p>
-            <h2 className="text-2xl font-semibold text-slate-900">{t('validation.heading')}</h2>
-          </div>
-          <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">{t('entries', { count: entries.length })}</span>
-        </div>
+      <Card size="section" titleSize="xl" headerLabel={t('validation.section')} title={t('validation.heading')} headerRight={<span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">{t('entries', { count: entries.length })}</span>}>
         {loading && <p className="text-sm text-slate-600">{t('loading')}</p>}
         {error && <p className="text-sm text-rose-600">{error}</p>}
         {!loading && !error && <TimeEntryList entries={entries} setEntries={setEntries} showWorker showValidationActions />}
-      </div>
+      </Card>
     </div>
   );
 }
