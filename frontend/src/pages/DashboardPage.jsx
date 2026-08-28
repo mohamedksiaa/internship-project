@@ -255,13 +255,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.top_projects')}</p>
-                    <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.top_projects_title')}</h3>
-                  </div>
-                </div>
+              <Card size="section" headerLabel={t('dashboard.top_projects')} title={t('dashboard.top_projects_title')}>
                 <div className="h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topProjects} layout="vertical" margin={{ top: 10, right: 20, left: 12, bottom: 0 }}>
@@ -275,15 +269,9 @@ export default function DashboardPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-              </section>
+              </Card>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.trend')}</p>
-                    <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.weekly_trend')}</h3>
-                  </div>
-                </div>
+              <Card size="section" headerLabel={t('dashboard.trend')} title={t('dashboard.weekly_trend')}>
                 <div className="h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={weeklyTrendData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
@@ -295,18 +283,11 @@ export default function DashboardPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              </section>
+              </Card>
             </div>
 
             {canValidate && (
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{t('dashboard.alerts')}</p>
-                    <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.alerts_title')}</h3>
-                  </div>
-                  <Link to="/reports" className="text-sm font-medium text-[#5B8FA8] hover:text-[#4A7690]">{t('dashboard.see_all_reports')}</Link>
-                </div>
+              <Card size="section" headerLabel={t('dashboard.alerts')} title={t('dashboard.alerts_title')} headerRight={<Link to="/reports" className="text-sm font-medium text-[#5B8FA8] hover:text-[#4A7690]">{t('dashboard.see_all_reports')}</Link>}>
                 {alerts.length === 0 ? (
                   <p className="text-sm text-slate-500">{t('dashboard.no_alerts')}</p>
                 ) : (
@@ -328,7 +309,7 @@ export default function DashboardPage() {
                     ))}
                   </ul>
                 )}
-              </section>
+              </Card>
             )}
           </>
         )}
