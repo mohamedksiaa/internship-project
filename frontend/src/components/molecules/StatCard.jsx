@@ -6,12 +6,12 @@ export default function StatCard({ label, value, description, accent = 'slate' }
   }[accent] || 'text-slate-900';
 
   return (
-    <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5 shadow-sm overflow-hidden">
-      <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
-      <div className="mt-4 flex items-end justify-between gap-4 min-w-0">
-        <p className={`text-3xl font-semibold ${accentClass}`}>{value}</p>
+    <div className="tw-rounded-[1.75rem] tw-border tw-border-slate-200 tw-bg-slate-50 tw-p-5 tw-shadow-sm tw-overflow-hidden">
+      <p className="tw-text-sm tw-font-semibold tw-uppercase tw-tracking-[0.24em] tw-text-slate-500">{label}</p>
+      <div className="tw-mt-4 tw-flex tw-items-end tw-justify-between tw-gap-4 tw-min-w-0">
+        <p className={`tw-text-3xl tw-font-semibold ${accentClass}`}>{value}</p>
       </div>
-      {description && <p className="mt-3 text-sm text-slate-500">{description}</p>}
+      {description && <p className="tw-mt-3 tw-text-sm tw-text-slate-500">{description}</p>}
     </div>
   );
 }

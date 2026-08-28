@@ -182,58 +182,58 @@ export default function HistoryPage() {
   }, [weekData.weekStart, appLocale]);
 
   return (
-    <div className="flex h-full flex-col space-y-4">
+    <div className="tw-flex tw-h-full tw-flex-col tw-space-y-4">
       <Card
         size="section"
         titleSize="xl"
         headerLabel={t('history.calendar')}
         title={viewType === 'timeGridDay' ? t('history.daily_planning') : t('history.weekly_planning')}
         headerRight={(
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="mr-4 flex rounded-lg border border-slate-200 p-1">
+          <div className="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
+            <div className="tw-mr-4 tw-flex tw-rounded-lg tw-border tw-border-slate-200 tw-p-1">
               <button
                 onClick={() => toggleView('timeGridWeek')}
-                className={`rounded-md px-3 py-1 text-sm ${viewType === 'timeGridWeek' ? 'bg-slate-100 font-medium text-slate-900' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`tw-rounded-md tw-px-3 tw-py-1 tw-text-sm ${viewType === 'timeGridWeek' ? 'tw-bg-slate-100 tw-font-medium tw-text-slate-900' : 'tw-text-slate-500 tw-hover:bg-slate-50'}`}
               >
                 {t('history.view_week')}
               </button>
               <button
                 onClick={() => toggleView('timeGridDay')}
-                className={`rounded-md px-3 py-1 text-sm ${viewType === 'timeGridDay' ? 'bg-slate-100 font-medium text-slate-900' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`tw-rounded-md tw-px-3 tw-py-1 tw-text-sm ${viewType === 'timeGridDay' ? 'tw-bg-slate-100 tw-font-medium tw-text-slate-900' : 'tw-text-slate-500 tw-hover:bg-slate-50'}`}
               >
                 {t('history.view_day')}
               </button>
             </div>
 
-            <div className="flex items-center gap-1">
-              <button onClick={handlePrev} className="rounded-full border border-slate-200 p-2 text-slate-600 hover:bg-slate-50">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+            <div className="tw-flex tw-items-center tw-gap-1">
+              <button onClick={handlePrev} className="tw-rounded-full tw-border tw-border-slate-200 tw-p-2 tw-text-slate-600 tw-hover:bg-slate-50">
+                <svg className="tw-h-4 tw-w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
               </button>
-              <button onClick={handleToday} className="rounded-lg border border-slate-200 px-4 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <button onClick={handleToday} className="tw-rounded-lg tw-border tw-border-slate-200 tw-px-4 tw-py-1 tw-text-sm tw-font-medium tw-text-slate-700 tw-hover:bg-slate-50">
                 {t('history.today')}
               </button>
-              <button onClick={handleNext} className="rounded-full border border-slate-200 p-2 text-slate-600 hover:bg-slate-50">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+              <button onClick={handleNext} className="tw-rounded-full tw-border tw-border-slate-200 tw-p-2 tw-text-slate-600 tw-hover:bg-slate-50">
+                <svg className="tw-h-4 tw-w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
 
-            <div className="ml-4 flex items-center gap-1 border-l border-slate-200 pl-4">
-              <button onClick={zoomOut} title={t('history.zoom_out')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">−</button>
-              <button onClick={zoomIn} title={t('history.zoom_in')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">+</button>
+            <div className="tw-ml-4 tw-flex tw-items-center tw-gap-1 tw-border-l tw-border-slate-200 tw-pl-4">
+              <button onClick={zoomOut} title={t('history.zoom_out')} className="tw-flex tw-h-8 tw-w-8 tw-items-center tw-justify-center tw-rounded-lg tw-border tw-border-slate-200 tw-text-slate-600 tw-hover:bg-slate-50">−</button>
+              <button onClick={zoomIn} title={t('history.zoom_in')} className="tw-flex tw-h-8 tw-w-8 tw-items-center tw-justify-center tw-rounded-lg tw-border tw-border-slate-200 tw-text-slate-600 tw-hover:bg-slate-50">+</button>
             </div>
           </div>
         )}
       >
         {weekLabel && (
-          <p className="mt-1 text-sm text-slate-500">{weekLabel}</p>
+          <p className="tw-mt-1 tw-text-sm tw-text-slate-500">{weekLabel}</p>
         )}
 
-        {error && <div className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-600">{error}</div>}
+        {error && <div className="tw-mt-4 tw-rounded-lg tw-bg-rose-50 tw-p-3 tw-text-sm tw-text-rose-600">{error}</div>}
 
-        <div className="calendar-container relative mt-4 min-h-[600px] flex-1 overflow-hidden rounded-xl border border-slate-100">
+        <div className="calendar-container tw-relative tw-mt-4 tw-min-h-[600px] tw-flex-1 tw-overflow-hidden tw-rounded-xl tw-border tw-border-slate-100">
           {loading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+            <div className="tw-absolute tw-inset-0 tw-z-10 tw-flex tw-items-center tw-justify-center tw-bg-white/50 tw-backdrop-blur-[1px]">
+              <div className="tw-h-8 tw-w-8 tw-animate-spin tw-rounded-full tw-border-2 tw-border-blue-500 tw-border-t-transparent"></div>
             </div>
           )}
 
@@ -270,10 +270,10 @@ export default function HistoryPage() {
               const isSmall = event.height < 40;
 
               return (
-                <div className="flex h-full flex-col overflow-hidden px-1.5 py-0.5 text-[11px] leading-tight">
-                  <div className="font-semibold truncate">{event.title}</div>
+                <div className="tw-flex tw-h-full tw-flex-col tw-overflow-hidden tw-px-1.5 tw-py-0.5 tw-text-[11px] tw-leading-tight">
+                  <div className="tw-font-semibold tw-truncate">{event.title}</div>
                   {!isSmall && startTime && endTime && (
-                    <div className="opacity-80">{startTime} - {endTime}</div>
+                    <div className="tw-opacity-80">{startTime} - {endTime}</div>
                   )}
                 </div>
               );

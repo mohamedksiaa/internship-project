@@ -1,5 +1,5 @@
 import DailyReportComposer from '../components/organisms/DailyReportComposer';
 
 export default function DailyReportPage() {
-  return <div className="mx-auto max-w-5xl p-5 lg:p-7"><DailyReportComposer /></div>;
+  return <div className="tw-mx-auto tw-max-w-5xl tw-p-5 tw-lg:p-7"><DailyReportComposer /></div>;
 }

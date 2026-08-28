@@ -41,7 +41,7 @@ export function isManuallyModifiedRecord(dateCreation, dateLastContentEdit) {
   return String(dateLastContentEdit) !== String(dateCreation);
 }
 
-export function ModifiedManuallyBadge({ onClick, title, className = '' }) {
+export function ModifiedManuallyBadge({ onClick, title, className='' }) {
   const { t } = useTranslation();
 
   return (
@@ -49,7 +49,7 @@ export function ModifiedManuallyBadge({ onClick, title, className = '' }) {
       type="button"
       onClick={onClick}
       title={title ?? t('timeentry.corrected_traced')}
-      className={`rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ${className}`}
+      className={`tw-rounded-full tw-bg-amber-50 tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-amber-700 ${className}`}
     >
       {t('timeentry.modified_manually')}
     </button>
@@ -347,22 +347,22 @@ export default function TimeEntryList({
 
   if (!entries.length) {
     return (
-      <div className="border border-[#dce5ea] bg-white px-5 py-6 text-sm text-[#71838f]">
+      <div className="tw-border tw-border-[#dce5ea] tw-bg-white tw-px-5 tw-py-6 tw-text-sm tw-text-[#71838f]">
         {t('timeentry.no_entries')}
       </div>
     );
   }
 
   return (
-    <section className="space-y-6">
-      {error && <p className="whitespace-pre-line text-sm text-[#d64c4c]">{error}</p>}
+    <section className="tw-space-y-6">
+      {error && <p className="tw-whitespace-pre-line tw-text-sm tw-text-[#d64c4c]">{error}</p>}
       {selectedIds.size > 0 && (
-        <div className="flex justify-end">
+        <div className="tw-flex tw-justify-end">
           <button
             type="button"
             onClick={confirmDeleteSelection}
             disabled={busyBatch}
-            className="rounded bg-[#d64c4c] px-3 py-1 text-sm font-medium text-white hover:bg-[#b93d3d] disabled:opacity-50"
+            className="tw-rounded tw-bg-[#d64c4c] tw-px-3 tw-py-1 tw-text-sm tw-font-medium tw-text-white tw-hover:bg-[#b93d3d] tw-disabled:opacity-50"
           >
             {t('processed_history.delete.selection', { count: selectedIds.size })}
           </button>
@@ -371,9 +371,9 @@ export default function TimeEntryList({
       {currentGroups.map(([key, group]) => {
         const total = group.reduce((sum, entry) => sum + displayedDuration(entry), 0);
         return (
-          <div key={key} className="border-b-4 border-[#e3ebef] bg-white overflow-x-auto">
-            <div className="flex items-center justify-between bg-[#e5edf1] px-5 py-2 text-sm text-[#52656f]">
-              <div className="flex items-center gap-3">
+          <div key={key} className="tw-border-b-4 tw-border-[#e3ebef] tw-bg-white tw-overflow-x-auto">
+            <div className="tw-flex tw-items-center tw-justify-between tw-bg-[#e5edf1] tw-px-5 tw-py-2 tw-text-sm tw-text-[#52656f]">
+              <div className="tw-flex tw-items-center tw-gap-3">
                 {/** group selection checkbox */}
                 {(() => {
                   const allSelected = group.every((e) => selectedIds.has(e.id));
@@ -383,68 +383,68 @@ export default function TimeEntryList({
                       checked={allSelected}
                       onChange={() => toggleSelectGroup(group)}
                       aria-label={t('processed_history.select_group_aria', { day: key })}
-                      className="h-4 w-4"
+                      className="tw-h-4 tw-w-4"
                     />
                   );
                 })()}
                 <span>{key === 'unknown-date' ? t('timeentry.date_unknown') : dateLabel(group[0].date_start, t)}</span>
               </div>
               <span>
-                {t('timeentry.total')}:&nbsp; <strong className="text-sm text-[#2a3c47]">{formatDuration(total)}</strong>
+                {t('timeentry.total')}:&nbsp; <strong className="tw-text-sm tw-text-[#2a3c47]">{formatDuration(total)}</strong>
               </span>
             </div>
 
-            <table className="w-full text-left border-collapse">
+            <table className="tw-w-full tw-text-left tw-border-collapse">
               <thead>
-                <tr className="border-b border-[#dce5ea] bg-white text-[11px] font-medium uppercase tracking-wide text-[#8a9aa4]">
-                  <th className="px-3 py-2" />
-                  <th className="px-5 py-2">{t('timeentry.col_task')}</th>
-                  <th className="px-3 py-2">{t('timeentry.col_project')}</th>
-                  {showWorker && <th className="px-3 py-2">{t('timeentry.col_who')}</th>}
-                  <th className="px-3 py-2">{t('timeentry.col_start')}</th>
-                  <th className="px-3 py-2">{t('timeentry.col_end')}</th>
-                  <th className="px-3 py-2">{t('timeentry.col_status')}</th>
-                  <th className="px-3 py-2 text-right">{t('timeentry.col_duration')}</th>
-                  <th className="px-3 py-2 text-center">{t('timeentry.col_modified')}</th>
-                  <th className="px-5 py-2 text-right">{t('timeentry.col_actions')}</th>
+                <tr className="tw-border-b tw-border-[#dce5ea] tw-bg-white tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wide tw-text-[#8a9aa4]">
+                  <th className="tw-px-3 tw-py-2" />
+                  <th className="tw-px-5 tw-py-2">{t('timeentry.col_task')}</th>
+                  <th className="tw-px-3 tw-py-2">{t('timeentry.col_project')}</th>
+                  {showWorker && <th className="tw-px-3 tw-py-2">{t('timeentry.col_who')}</th>}
+                  <th className="tw-px-3 tw-py-2">{t('timeentry.col_start')}</th>
+                  <th className="tw-px-3 tw-py-2">{t('timeentry.col_end')}</th>
+                  <th className="tw-px-3 tw-py-2">{t('timeentry.col_status')}</th>
+                  <th className="tw-px-3 tw-py-2 tw-text-right">{t('timeentry.col_duration')}</th>
+                  <th className="tw-px-3 tw-py-2 tw-text-center">{t('timeentry.col_modified')}</th>
+                  <th className="tw-px-5 tw-py-2 tw-text-right">{t('timeentry.col_actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {group.map((entry) => (
-                  <tr key={entry.id} className="border-b border-[#dce5ea] hover:bg-[#f9fbfd] text-sm text-[#2c3e49]">
-                    <td className="px-3 py-3 w-8">
+                  <tr key={entry.id} className="tw-border-b tw-border-[#dce5ea] tw-hover:bg-[#f9fbfd] tw-text-sm tw-text-[#2c3e49]">
+                    <td className="tw-px-3 tw-py-3 tw-w-8">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(entry.id)}
                         onChange={() => toggleSelect(entry.id)}
                         aria-label={t('processed_history.select_entry_aria')}
-                        className="h-4 w-4"
+                        className="tw-h-4 tw-w-4"
                       />
                     </td>
-                    <td className="px-5 py-3 min-w-[180px]">
-                      <p className="font-medium text-[#2c3e49] truncate">{entry.note || t('timeentry.no_description')}</p>
+                    <td className="tw-px-5 tw-py-3 tw-min-w-[180px]">
+                      <p className="tw-font-medium tw-text-[#2c3e49] tw-truncate">{entry.note || t('timeentry.no_description')}</p>
                     </td>
-                    <td className="px-3 py-3 text-[#5B8FA8] font-medium truncate min-w-[120px]">
+                    <td className="tw-px-3 tw-py-3 tw-text-[#5B8FA8] tw-font-medium tw-truncate tw-min-w-[120px]">
                       {projectName(entry)}
                     </td>
                     {showWorker && (
-                      <td className="px-3 py-3 text-[#52656f] truncate">
+                      <td className="tw-px-3 tw-py-3 tw-text-[#52656f] tw-truncate">
                         {workerName(entry)}
                       </td>
                     )}
-                    <td className="px-3 py-3 text-[#4d606b] whitespace-nowrap">
+                    <td className="tw-px-3 tw-py-3 tw-text-[#4d606b] tw-whitespace-nowrap">
                       {timeLabel(entry.date_start, t)}
                     </td>
-                    <td className="px-3 py-3 text-[#4d606b] whitespace-nowrap">
+                    <td className="tw-px-3 tw-py-3 tw-text-[#4d606b] tw-whitespace-nowrap">
                       {endTimeLabel(entry, t)}
                     </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
+                    <td className="tw-px-3 tw-py-3 tw-whitespace-nowrap">
                       <StatusBadge status={Number(entry.status)} />
                     </td>
-                    <td className="px-3 py-3 text-right font-bold text-[#2b3d48] whitespace-nowrap">
+                    <td className="tw-px-3 tw-py-3 tw-text-right tw-font-bold tw-text-[#2b3d48] tw-whitespace-nowrap">
                       {formatDuration(displayedDuration(entry))}
                     </td>
-                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                    <td className="tw-px-3 tw-py-3 tw-text-center tw-whitespace-nowrap">
                       {entry.manual_modified ? (
                         <ModifiedManuallyBadge
                           onClick={() => setHistoryEntry(entry)}
@@ -452,14 +452,14 @@ export default function TimeEntryList({
                         />
                       ) : '—'}
                     </td>
-                    <td className="px-5 py-3 text-right whitespace-nowrap">
-                      <div className="flex justify-end items-center gap-2 text-[#78909c]">
+                    <td className="tw-px-5 tw-py-3 tw-text-right tw-whitespace-nowrap">
+                      <div className="tw-flex tw-justify-end tw-items-center tw-gap-2 tw-text-[#78909c]">
                         {entry.id != null && entry.status === 0 && (
                           <button
                             title={t('timeentry.title_submit')}
                             onClick={() => submitDraft(entry)}
                             disabled={busyId === entry.id}
-                            className="text-[#5B8FA8]"
+                            className="tw-text-[#5B8FA8]"
                           >
                             {busyId === entry.id ? '…' : '⇪'}
                           </button>
@@ -470,7 +470,7 @@ export default function TimeEntryList({
                               title={t('timeentry.title_validate')}
                               onClick={() => decide(entry.id, 2)}
                               disabled={busyId === entry.id}
-                              className="text-[#5B8FA8]"
+                              className="tw-text-[#5B8FA8]"
                             >
                               {busyId === entry.id ? '…' : '✓'}
                             </button>
@@ -478,7 +478,7 @@ export default function TimeEntryList({
                               title={t('timeentry.title_reject')}
                               onClick={() => decide(entry.id, 9)}
                               disabled={busyId === entry.id}
-                              className="text-[#d66]"
+                              className="tw-text-[#d66]"
                             >
                               ×
                             </button>
@@ -488,7 +488,7 @@ export default function TimeEntryList({
                           title={t('timeentry.title_restart')}
                           onClick={() => restartEntry(entry)}
                           disabled={busyId !== null}
-                          className="text-[#5B8FA8]"
+                          className="tw-text-[#5B8FA8]"
                         >
                           ▷
                         </button>}
@@ -502,7 +502,7 @@ export default function TimeEntryList({
                             aria-label={t('timeentry.title_edit')}
                             onClick={() => openCorrection(entry)}
                             disabled={busyId !== null}
-                            className="text-[#5B8FA8]"
+                            className="tw-text-[#5B8FA8]"
                           >
                             {t('timeentry.title_edit')}
                           </button>
@@ -514,14 +514,14 @@ export default function TimeEntryList({
                             aria-label={t('timeentry.title_delete')}
                             onClick={() => deleteEntry(entry)}
                             disabled={busyId !== null}
-                            className="text-[#d64c4c] disabled:opacity-50"
+                            className="tw-text-[#d64c4c] tw-disabled:opacity-50"
                           >
                             {busyId === entry.id ? '…' : '🗑'}
                           </button>
                         )}
                         <span
                           title={t('timeentry.title_occurrences')}
-                          className="rounded-full bg-[#eaf6fd] px-2 py-0.5 text-xs font-medium text-[#5B8FA8]"
+                          className="tw-rounded-full tw-bg-[#eaf6fd] tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-[#5B8FA8]"
                         >
                           ×{Math.max(1, Number(entry.occurrence_count || 1))}
                         </span>
@@ -535,53 +535,53 @@ export default function TimeEntryList({
         );
       })}
       {pages.length > 1 && (
-        <div className="flex items-center justify-between">
+        <div className="tw-flex tw-items-center tw-justify-between">
           <button
             type="button"
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
-            className="rounded bg-[#e5edf1] px-3 py-1 text-sm text-[#52656f] disabled:opacity-50"
+            className="tw-rounded tw-bg-[#e5edf1] tw-px-3 tw-py-1 tw-text-sm tw-text-[#52656f] tw-disabled:opacity-50"
           >
             ← {t('processed_history.pagination.previous')}
           </button>
-          <span className="text-sm text-slate-600">{t('processed_history.pagination.page', { current: currentPage, total: pages.length })}</span>
+          <span className="tw-text-sm tw-text-slate-600">{t('processed_history.pagination.page', { current: currentPage, total: pages.length })}</span>
           <button
             type="button"
             onClick={() => setCurrentPage((p) => Math.min(pages.length, p + 1))}
             disabled={currentPage >= pages.length}
-            className="rounded bg-[#e5edf1] px-3 py-1 text-sm text-[#52656f] disabled:opacity-50"
+            className="tw-rounded tw-bg-[#e5edf1] tw-px-3 tw-py-1 tw-text-sm tw-text-[#52656f] tw-disabled:opacity-50"
           >
             {t('processed_history.pagination.next')} →
           </button>
         </div>
       )}
       {entryToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-title">
-          <div className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
+        <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-p-4" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+          <div className="tw-w-full tw-max-w-md tw-space-y-4 tw-rounded-lg tw-bg-white tw-p-6 tw-shadow-xl">
+            <div className="tw-flex tw-items-start tw-justify-between tw-gap-4">
               <div>
-                <h2 id="delete-title" className="text-lg font-semibold text-[#263746]">{t('timeentry.delete_title')}</h2>
-                <p className="mt-1 text-sm text-[#52656f]">{t('timeentry.delete_irreversible')}</p>
+                <h2 id="delete-title" className="tw-text-lg tw-font-semibold tw-text-[#263746]">{t('timeentry.delete_title')}</h2>
+                <p className="tw-mt-1 tw-text-sm tw-text-[#52656f]">{t('timeentry.delete_irreversible')}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setEntryToDelete(null)}
                 aria-label={t('timeentry.close')}
-                className="text-lg leading-none text-[#78909c] hover:text-[#2c3e49]"
+                className="tw-text-lg tw-leading-none tw-text-[#78909c] tw-hover:text-[#2c3e49]"
               >
                 ×
               </button>
             </div>
 
-            <p className="text-sm text-[#52656f]">
+            <p className="tw-text-sm tw-text-[#52656f]">
                 {entryToDelete.delete_requires_strong_confirmation
                 ? t('timeentry.delete_requires_confirmation')
                 : t('timeentry.delete_confirm')}
             </p>
 
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setEntryToDelete(null)} className="text-sm text-[#52656f]">{t('timeentry.cancel')}</button>
-              <button type="button" onClick={confirmDeleteEntry} className="rounded bg-[#d64c4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#b93d3d]">
+            <div className="tw-flex tw-justify-end tw-gap-3">
+              <button type="button" onClick={() => setEntryToDelete(null)} className="tw-text-sm tw-text-[#52656f]">{t('timeentry.cancel')}</button>
+              <button type="button" onClick={confirmDeleteEntry} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white tw-hover:bg-[#b93d3d]">
                 {t('timeentry.confirm')}
               </button>
             </div>
@@ -589,50 +589,50 @@ export default function TimeEntryList({
         </div>
       )}
       {entryToCorrect && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="correction-title">
-          <form onSubmit={saveCorrection} className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-xl">
+        <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-p-4" role="dialog" aria-modal="true" aria-labelledby="correction-title">
+          <form onSubmit={saveCorrection} className="tw-w-full tw-max-w-md tw-space-y-4 tw-rounded-lg tw-bg-white tw-p-6 tw-shadow-xl">
             <div>
-              <h2 id="correction-title" className="text-lg font-semibold text-[#263746]">{t('timeentry.edit_title')}</h2>
-              <p className="mt-1 text-sm text-[#52656f]">
+              <h2 id="correction-title" className="tw-text-lg tw-font-semibold tw-text-[#263746]">{t('timeentry.edit_title')}</h2>
+              <p className="tw-mt-1 tw-text-sm tw-text-[#52656f]">
                 {entryToCorrect.manual_edit_message || t('timeentry.edit_manual_message')}
               </p>
             </div>
             {correctionError && (
-              <p className="whitespace-pre-line rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-600">{correctionError}</p>
+              <p className="tw-whitespace-pre-line tw-rounded-md tw-bg-rose-50 tw-px-3 tw-py-2 tw-text-sm tw-text-rose-600">{correctionError}</p>
             )}
-            <label className="block text-sm font-medium text-[#2c3e49]">
+            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49]">
               {t('timeentry.col_start')}
               <input
                 type="datetime-local"
                 value={correction.date_start}
                 disabled={entryToCorrect.manual_edit_end_only}
                 onChange={(event) => setCorrection((current) => ({ ...current, date_start: event.target.value }))}
-                className="mt-1 w-full rounded border border-[#cfd9df] px-3 py-2 disabled:bg-slate-100"
+                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] tw-px-3 tw-py-2 tw-disabled:bg-slate-100"
                 required
               />
             </label>
-            <label className="block text-sm font-medium text-[#2c3e49]">
+            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49]">
               {t('timeentry.col_end')}
               <input
                 type="datetime-local"
                 value={correction.date_end}
                 onChange={(event) => setCorrection((current) => ({ ...current, date_end: event.target.value }))}
-                className="mt-1 w-full rounded border border-[#cfd9df] px-3 py-2"
+                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] tw-px-3 tw-py-2"
                 required
               />
             </label>
-            <label className="block text-sm font-medium text-[#2c3e49]">
+            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49]">
               {t('timeentry.edit_reason')}
               <textarea
                 value={correction.reason}
                 onChange={(event) => setCorrection((current) => ({ ...current, reason: event.target.value }))}
-                className="mt-1 w-full rounded border border-[#cfd9df] px-3 py-2"
+                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] tw-px-3 tw-py-2"
                 rows="3"
               />
             </label>
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="text-sm text-[#52656f]">{t('cancel')}</button>
-              <button type="submit" disabled={busyId === entryToCorrect.id || correction.reason.trim().length < 5} className="rounded bg-[#5B8FA8] px-4 py-2 text-sm font-medium text-white">
+            <div className="tw-flex tw-justify-end tw-gap-3">
+              <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="tw-text-sm tw-text-[#52656f]">{t('cancel')}</button>
+              <button type="submit" disabled={busyId === entryToCorrect.id || correction.reason.trim().length < 5} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white">
                 {busyId === entryToCorrect.id ? t('timeentry.saving') : t('save')}
               </button>
             </div>

@@ -29,7 +29,7 @@ describe('DashboardPage KPI cards padding', () => {
     await i18n.changeLanguage('fr');
   });
 
-  it('renders seven KPI cards each using p-6 (via Card or direct)', async () => {
+  it('renders seven KPI cards each using tw-p-6 (via Card or direct)', async () => {
     await i18n.changeLanguage('fr');
 
     const { container } = render(
@@ -50,17 +50,17 @@ describe('DashboardPage KPI cards padding', () => {
 
     for (const label of labels) {
       const el = await screen.findByText(label);
-      // climb ancestors up to 5 levels to find an element with class p-6
+      // climb ancestors up to 5 levels to find an element with class tw-p-6
       let node = el;
       let found = false;
       for (let i = 0; i < 6 && node; i++) {
-        if (node.classList && node.classList.contains('p-6')) {
+        if (node.classList && node.classList.contains('tw-p-6')) {
           found = true;
           break;
         }
         node = node.parentElement;
       }
-      expect(found, `Expected card for "${label}" to include class p-6`).toBeTruthy();
+      expect(found, `Expected card for "${label}" to include class tw-p-6`).toBeTruthy();
     }
   });
 });

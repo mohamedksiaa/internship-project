@@ -147,7 +147,7 @@ export default function TimerPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1680px] px-5 py-7">
+    <div className="tw-mx-auto tw-w-full tw-max-w-[1680px] tw-px-5 tw-py-7">
       <TimerWidget 
         timer={timer}
         projects={projects} 
@@ -156,9 +156,9 @@ export default function TimerPage() {
         onEntryCreated={handleEntryCreated} 
       />
 
-      <div className="mt-10">
-        <div className="mb-4 flex items-center justify-between text-sm text-[#52656f]">
-          <h1 className="font-medium text-[#263746]">{t('timer_page.task_history')}</h1>
+      <div className="tw-mt-10">
+        <div className="tw-mb-4 tw-flex tw-items-center tw-justify-between tw-text-sm tw-text-[#52656f]">
+          <h1 className="tw-font-medium tw-text-[#263746]">{t('timer_page.task_history')}</h1>
           <span>
             {t(entries.length > 1 ? 'timer_page.entries_plural' : 'timer_page.entries_one', { count: entries.length })}
           </span>
