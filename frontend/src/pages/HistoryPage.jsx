@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import Card from '../components/atoms/Card';
 import FullCalendar from '@fullcalendar/react';
 import enLocale from '@fullcalendar/core/locales/en-gb';
 import frLocale from '@fullcalendar/core/locales/fr';
@@ -182,18 +183,12 @@ export default function HistoryPage() {
 
   return (
     <div className="flex h-full flex-col space-y-4">
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">{t('history.calendar')}</p>
-            <h2 className="text-2xl font-semibold text-slate-900">
-              {viewType === 'timeGridDay' ? t('history.daily_planning') : t('history.weekly_planning')}
-            </h2>
-            {weekLabel && (
-              <p className="mt-1 text-sm text-slate-500">{weekLabel}</p>
-            )}
-          </div>
-
+      <Card
+        size="section"
+        titleSize="xl"
+        headerLabel={t('history.calendar')}
+        title={viewType === 'timeGridDay' ? t('history.daily_planning') : t('history.weekly_planning')}
+        headerRight={(
           <div className="flex flex-wrap items-center gap-2">
             <div className="mr-4 flex rounded-lg border border-slate-200 p-1">
               <button
@@ -227,7 +222,11 @@ export default function HistoryPage() {
               <button onClick={zoomIn} title={t('history.zoom_in')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">+</button>
             </div>
           </div>
-        </div>
+        )}
+      >
+        {weekLabel && (
+          <p className="mt-1 text-sm text-slate-500">{weekLabel}</p>
+        )}
 
         {error && <div className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-600">{error}</div>}
 
@@ -282,7 +281,7 @@ export default function HistoryPage() {
             className="timeflow-calendar"
           />
         </div>
-      </div>
+      </Card>
 
       <style dangerouslySetInnerHTML={{ __html: `
         .fc {
