@@ -16,7 +16,7 @@ function formatTime(date, locale) {
 const ZOOM_LEVELS = ['01:00:00', '00:30:00', '00:15:00', '00:05:00'];
 
 const PROJECT_COLORS = [
-  { bg: '#e8f5fd', border: '#03a9f4', text: '#01579b' },
+  { bg: '#e8f5fd', border: '#5B8FA8', text: '#01579b' },
   { bg: '#f3e8fd', border: '#9c27b0', text: '#4a148c' },
   { bg: '#e8fdf0', border: '#35a66f', text: '#1b5e20' },
   { bg: '#fdf3e8', border: '#f59e0b', text: '#b45309' },

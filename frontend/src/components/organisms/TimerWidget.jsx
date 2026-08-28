@@ -52,7 +52,7 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             onChange={(e) => setNote(e.target.value)}
             aria-label={t('timer_widget.description_label')}
             placeholder={t('timer_widget.description_placeholder')}
-            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#03a9f4] focus:bg-white focus:ring-2 focus:ring-[#03a9f4]/10"
+            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5B8FA8] focus:bg-white focus:ring-2 focus:ring-[#5B8FA8]/10"
           />
           <input
             id="timeflow-project"
@@ -61,7 +61,7 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             onChange={(e) => handleProjectChange(e.target.value)}
             aria-label={t('timer_widget.project_label')}
             placeholder={t('timer_widget.project_placeholder')}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#03a9f4] focus:bg-white focus:ring-2 focus:ring-[#03a9f4]/10 md:w-48"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#5B8FA8] focus:bg-white focus:ring-2 focus:ring-[#5B8FA8]/10 md:w-48"
           />
           <div className="flex items-center justify-center md:w-32">
             <TimeDisplay seconds={seconds} />
@@ -70,7 +70,7 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             type="button"
             onClick={isRunning ? handleStop : handleStart}
             disabled={isDisabled}
-            className="w-full rounded-xl bg-[#03a9f4] px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-[#0398dc] hover:shadow-lg hover:shadow-[#03a9f4]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none md:w-auto"
+            className="w-full rounded-xl bg-[#5B8FA8] px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-[#4A7690] hover:shadow-lg hover:shadow-[#4A7690]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none md:w-auto"
           >
             {loading ? '...' : isRunning ? t('timer_widget.stop') : t('timer_widget.start')}
           </button>
