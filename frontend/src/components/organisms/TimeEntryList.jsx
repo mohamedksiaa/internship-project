@@ -49,7 +49,7 @@ export function ModifiedManuallyBadge({ onClick, title, className = '' }) {
       type="button"
       onClick={onClick}
       title={title ?? t('timeentry.corrected_traced')}
-      className={`rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 ${className}`}
+      className={`rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ${className}`}
     >
       {t('timeentry.modified_manually')}
     </button>
@@ -424,7 +424,7 @@ export default function TimeEntryList({
                     <td className="px-5 py-3 min-w-[180px]">
                       <p className="font-medium text-[#2c3e49] truncate">{entry.note || t('timeentry.no_description')}</p>
                     </td>
-                    <td className="px-3 py-3 text-[#03a9f4] font-medium truncate min-w-[120px]">
+                    <td className="px-3 py-3 text-[#5B8FA8] font-medium truncate min-w-[120px]">
                       {projectName(entry)}
                     </td>
                     {showWorker && (
@@ -459,7 +459,7 @@ export default function TimeEntryList({
                             title={t('timeentry.title_submit')}
                             onClick={() => submitDraft(entry)}
                             disabled={busyId === entry.id}
-                            className="text-[#03a9f4]"
+                            className="text-[#5B8FA8]"
                           >
                             {busyId === entry.id ? '…' : '⇪'}
                           </button>
@@ -470,7 +470,7 @@ export default function TimeEntryList({
                               title={t('timeentry.title_validate')}
                               onClick={() => decide(entry.id, 2)}
                               disabled={busyId === entry.id}
-                              className="text-[#03a9f4]"
+                              className="text-[#5B8FA8]"
                             >
                               {busyId === entry.id ? '…' : '✓'}
                             </button>
@@ -488,7 +488,7 @@ export default function TimeEntryList({
                           title={t('timeentry.title_restart')}
                           onClick={() => restartEntry(entry)}
                           disabled={busyId !== null}
-                          className="text-[#03a9f4]"
+                          className="text-[#5B8FA8]"
                         >
                           ▷
                         </button>}
@@ -502,7 +502,7 @@ export default function TimeEntryList({
                             aria-label={t('timeentry.title_edit')}
                             onClick={() => openCorrection(entry)}
                             disabled={busyId !== null}
-                            className="text-[#03a9f4]"
+                            className="text-[#5B8FA8]"
                           >
                             {t('timeentry.title_edit')}
                           </button>
@@ -521,7 +521,7 @@ export default function TimeEntryList({
                         )}
                         <span
                           title={t('timeentry.title_occurrences')}
-                          className="rounded-full bg-[#eaf6fd] px-2 py-0.5 text-xs font-medium text-[#03a9f4]"
+                          className="rounded-full bg-[#eaf6fd] px-2 py-0.5 text-xs font-medium text-[#5B8FA8]"
                         >
                           ×{Math.max(1, Number(entry.occurrence_count || 1))}
                         </span>
@@ -632,7 +632,7 @@ export default function TimeEntryList({
             </label>
             <div className="flex justify-end gap-3">
               <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="text-sm text-[#52656f]">{t('cancel')}</button>
-              <button type="submit" disabled={busyId === entryToCorrect.id || correction.reason.trim().length < 5} className="rounded bg-[#03a9f4] px-4 py-2 text-sm font-medium text-white">
+              <button type="submit" disabled={busyId === entryToCorrect.id || correction.reason.trim().length < 5} className="rounded bg-[#5B8FA8] px-4 py-2 text-sm font-medium text-white">
                 {busyId === entryToCorrect.id ? t('timeentry.saving') : t('save')}
               </button>
             </div>

@@ -349,7 +349,7 @@ export default function ProcessedHistoryPage() {
           </button>
         </div>
         <div className="mb-4 flex items-center justify-end">
-          <button type="button" onClick={csv} className="rounded bg-[#03a9f4] px-4 py-2 text-white">
+          <button type="button" onClick={csv} className="rounded bg-[#5B8FA8] px-4 py-2 text-white">
             {t('processed_history.export_csv')}
           </button>
         </div>

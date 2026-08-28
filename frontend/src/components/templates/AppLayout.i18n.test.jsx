@@ -88,7 +88,7 @@ describe('AppLayout i18n integration', () => {
       expect(activeLink).toBeTruthy();
       expect(activeLink.textContent).toContain(expectedLabel);
       expect(activeLink.className).toContain('bg-[#e8f4f9]');
-      expect(activeLink.className).toContain('border-[#03a9f4]');
+      expect(activeLink.className).toContain('border-[#5B8FA8]');
     });
   });
 

@@ -34,7 +34,7 @@ export default function AppLayout() {
         </div>
         <div className="ml-6 hidden items-center gap-4 text-sm text-[#455a64] sm:flex">
           <span>{t('app.workspace')}</span><span className="text-[#9aaab5]">•••</span>
-          <span className="border border-[#03a9f4] bg-[#03a9f4] px-3 py-1.5 text-xs font-medium text-white">{t('app.upgrade')}</span>
+          <span className="border border-[#5B8FA8] bg-[#5B8FA8] px-3 py-1.5 text-xs font-medium text-white">{t('app.upgrade')}</span>
         </div>
         <div className="ml-auto flex items-center gap-5 text-[#78909c]">
           <LanguageSelector />
@@ -53,7 +53,7 @@ export default function AppLayout() {
                   {showSection && index > 0 && <p className="px-5 pb-2 pt-6 text-xs tracking-wide text-[#8b9aa5]">{item.section}</p>}
                   <NavLink key={item.path} to={item.path} className={({ isActive }) => classNames(
                     'flex items-center gap-3 border-l-[3px] px-5 py-3 text-sm font-medium transition',
-                    isActive ? 'border-[#03a9f4] bg-[#e8f4f9] text-[#263746]' : 'border-transparent text-[#344955] hover:bg-[#f5f8fa]'
+                    isActive ? 'border-[#5B8FA8] bg-[#e8f4f9] text-[#263746]' : 'border-transparent text-[#344955] hover:bg-[#f5f8fa]'
                   )}>
                     <span className="w-4 text-center text-lg font-normal text-[#607d8b]">{item.icon}</span>{item.label}
                   </NavLink>
