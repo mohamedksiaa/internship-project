@@ -1,6 +1,5 @@
 node_modules/
 frontend/node_modules/
 frontend/dist/
-backup_avant_fix_*.sql
-frontend/dist/
-backup_avant_fix_*.sql
+backup_avant_*.sql
+.git.backup-*/
