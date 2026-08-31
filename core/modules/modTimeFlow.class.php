@@ -88,7 +88,17 @@ class modTimeFlow extends DolibarrModules
 		// If file is in theme/yourtheme/img directory under name object_pictovalue.png, use this->picto='pictovalue'
 		// If file is in module/img directory under name object_pictovalue.png, use this->picto='pictovalue@module'
 		// To use a supported fa-xxx css style of font awesome, use this->picto='xxx'
-		$this->picto = 'timeflow@timeflow';
+		// A "xxx@module" (PNG-file) picto cannot work for a module under
+		// htdocs/custom/: both img_picto() AND the top-menu icon CSS Dolibarr
+		// generates per-theme (theme/{eldy,md}/style.css.php) build the file's
+		// URL as DOL_URL_ROOT.'/'.$module.'/img/...' — never prepending
+		// "custom/" — so the PNG 404s everywhere it's used, including outside
+		// our own control (the top-menu bar's icon is theme-generated CSS, not
+		// something this module renders). A fa-xxx keyword sidesteps this
+		// entirely: it resolves via FontAwesome's own stylesheet, independent
+		// of where the module lives on disk — the same mechanism core modules
+		// like hrm use (see modHRM.class.php: $this->picto = 'hrm';).
+		$this->picto = 'fa-clock';
 
 		// Define some features supported by module (triggers, login, substitutions, menus, css, etc...)
 		$this->module_parts = array(

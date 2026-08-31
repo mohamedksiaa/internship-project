@@ -21,6 +21,7 @@ if (!$res) {
 }
 
 dol_include_once('/timeflow/class/timeentry.class.php');
+dol_include_once('/timeflow/class/timeimport.class.php');
 dol_include_once('/timeflow/lib/timeflow.lib.php');
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
@@ -567,6 +568,58 @@ function timeflowTaskLabel($object)
         return $object->ref;
     }
     return 'Tâche';
+}
+
+function timeflowFetchUserGroups($db)
+{
+    $groups = array();
+    $sql = 'SELECT rowid, nom';
+    $sql .= ' FROM '.$db->prefix().'usergroup';
+    $sql .= ' WHERE entity IN ('.getEntity('usergroup').')';
+    $sql .= ' ORDER BY nom ASC';
+
+    $resql = $db->query($sql);
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $groups[] = array(
+                'id' => (int) $obj->rowid,
+                'rowid' => (int) $obj->rowid,
+                'title' => (string) $obj->nom,
+                'label' => (string) $obj->nom,
+            );
+        }
+        $db->free($resql);
+    }
+
+    return $groups;
+}
+
+function timeflowFetchActiveUsers($db)
+{
+    $users = array();
+    $sql = 'SELECT rowid, login, firstname, lastname';
+    $sql .= ' FROM '.$db->prefix().'user';
+    $sql .= ' WHERE statut = 1';
+    $sql .= ' AND entity IN ('.getEntity('user').')';
+    $sql .= ' ORDER BY lastname ASC, firstname ASC, login ASC';
+
+    $resql = $db->query($sql);
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+            $users[] = array(
+                'id' => (int) $obj->rowid,
+                'rowid' => (int) $obj->rowid,
+                'login' => (string) $obj->login,
+                'firstname' => (string) $obj->firstname,
+                'lastname' => (string) $obj->lastname,
+                'label' => $fullName !== '' ? $fullName : (string) $obj->login,
+            );
+        }
+        $db->free($resql);
+    }
+
+    return $users;
 }
 
 function timeflowFetchProjects($db)
@@ -1160,6 +1213,65 @@ switch ($action) {
     case 'exportProcessedHistory':
         $input = $postData ?: $_REQUEST; $input['page'] = 1; $input['per_page'] = 10000; $input['export'] = true;
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($input, $user)));
+        break;
+
+    case 'previewClockifyImport':
+        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+
+        if (empty($_FILES['csv_file']['tmp_name'])) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Fichier CSV manquant.'), 400);
+        }
+
+        try {
+            $clockifyImport = new TimeImportClockify($db);
+            $summary = $clockifyImport->previewFromUploadedFile($_FILES['csv_file']);
+            timeflowJsonResponse(array('status' => 'success', 'data' => $summary));
+        } catch (InvalidArgumentException $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
+        } catch (RuntimeException $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
+        } catch (Exception $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur lors du prévisualisation du CSV.'), 500);
+        }
+        break;
+
+    case 'listActiveUsers':
+        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveUsers($db)));
+        break;
+
+    case 'listUserGroups':
+        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchUserGroups($db)));
+        break;
+
+    case 'resolveClockifyMapping':
+        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+
+        $decisions = $postData['decisions'] ?? null;
+        if (!is_array($decisions)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Liste de décisions manquante ou invalide.'), 400);
+        }
+
+        try {
+            $clockifyImport = new TimeImportClockify($db);
+            $updatedMapping = $clockifyImport->resolveMappingDecisions($decisions);
+            timeflowJsonResponse(array('status' => 'success', 'data' => $updatedMapping));
+        } catch (InvalidArgumentException $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
+        } catch (RuntimeException $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
+        } catch (Exception $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur lors de la résolution du mapping.'), 500);
+        }
         break;
 
     case 'hardDeleteTimeEntry':
