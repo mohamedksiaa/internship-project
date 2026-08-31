@@ -234,6 +234,7 @@
   "processed_history": {
     "title": "السجل المعالَج",
     "export_csv": "تصدير CSV",
+    "import_csv": "استيراد CSV",
     "select_page": "تحديد الصفحة",
     "select_page_aria": "تحديد الكل في هذه الصفحة",
     "select_group_aria": "تحديد مجموعة {{day}}",
@@ -292,6 +293,45 @@
       "success": "تم حذف {{count}} من الإدخالات",
       "confirm_title": "تأكيد الحذف",
       "confirm_text": "حذف {{count}} تقرير(تقارير) نهائياً؟ هذا الإجراء لا رجعة فيه وسيزيل البيانات من قاعدة البيانات."
+    },
+    "import": {
+      "modal_title": "معاينة الاستيراد",
+      "modal_subtitle": "Clockify",
+      "loading": "جارٍ تحليل الملف…",
+      "close": "إغلاق",
+      "invalid_file_type": "يرجى اختيار ملف .csv.",
+      "generic_error": "حدث خطأ أثناء تحليل الملف.",
+      "summary": {
+        "total_rows": "إجمالي الصفوف",
+        "blocked_rows": "الصفوف المحظورة",
+        "skipped_rows": "الصفوف المتجاهلة"
+      },
+      "blocked_warning": "{{count}} صف (صفوف) محظور(ة): يجب حل ربط المستخدم/المشروع قبل إمكانية الاستيراد.",
+      "pending_mapping_warning": "{{count}} عنصر(عناصر) بحاجة إلى الحل قبل إمكانية الاستيراد.",
+      "ready_message": "الربط مكتمل، جاهز للاستيراد.",
+      "users_title": "المستخدمون المكتشفون",
+      "projects_title": "المشاريع المكتشفة",
+      "groups_title": "المجموعات المكتشفة",
+      "no_users": "لم يتم اكتشاف أي مستخدمين في هذا الملف.",
+      "no_projects": "لم يتم اكتشاف أي مشاريع في هذا الملف.",
+      "no_groups": "لم يتم اكتشاف أي مجموعات في هذا الملف.",
+      "status": {
+        "matched": "تم الحل",
+        "create_pending": "بحاجة إلى إنشاء",
+        "create_confirmed": "سيتم إنشاؤه تلقائياً",
+        "ignored": "متجاهَل"
+      },
+      "select_user_placeholder": "— اختر مستخدماً —",
+      "select_project_placeholder": "— اختر مشروعاً موجوداً —",
+      "create_new_project_checkbox": "إنشاء هذا المشروع تلقائياً",
+      "new_project_title_aria": "اسم المشروع الجديد",
+      "select_group_placeholder": "— اختر مجموعة موجودة —",
+      "create_new_group_checkbox": "إنشاء هذه المجموعة تلقائياً",
+      "new_group_title_aria": "اسم المجموعة الجديدة",
+      "resolve_button": "تأكيد الربط",
+      "resolving": "جارٍ الحل…",
+      "selection_required": "اختر حلاً واحداً على الأقل قبل التأكيد.",
+      "resolve_generic_error": "حدث خطأ أثناء حل الربط."
     }
   }
 }

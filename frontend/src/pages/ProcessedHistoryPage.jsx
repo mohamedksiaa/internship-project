@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import Card from '../components/atoms/Card';
 import {
   deleteDailyReport,
   exportProcessedHistory,
@@ -11,9 +12,11 @@ import {
   hardDeleteTimeEntries,
   hardDeleteDailyReport,
   hardDeleteDailyReports,
+  previewClockifyImport,
 } from '../api/timeflowApi';
 import StatusBadge from '../components/atoms/StatusBadge';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
+import ImportPreviewModal from '../components/molecules/ImportPreviewModal.jsx';
 import { ModifiedManuallyBadge, isManuallyModifiedRecord } from '../components/organisms/TimeEntryList.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
 
@@ -46,7 +49,9 @@ export default function ProcessedHistoryPage() {
   const [reportHistoryError, setReportHistoryError] = useState('');
   const [reportEmployees, setReportEmployees] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
+  const [importState, setImportState] = useState({ open: false, loading: false, error: '', data: null });
   const globalCheckboxRef = useRef(null);
+  const importFileInputRef = useRef(null);
 
   useEffect(() => {
     getProjects().then(setProjects).catch(() => setProjects([]));
@@ -296,6 +301,33 @@ export default function ProcessedHistoryPage() {
     URL.revokeObjectURL(url);
   };
 
+  const openImportFilePicker = () => {
+    importFileInputRef.current?.click();
+  };
+
+  const handleImportFileSelected = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!/\.csv$/i.test(file.name)) {
+      setImportState({ open: true, loading: false, error: t('processed_history.import.invalid_file_type'), data: null });
+      return;
+    }
+
+    setImportState({ open: true, loading: true, error: '', data: null });
+    try {
+      const preview = await previewClockifyImport(file);
+      setImportState({ open: true, loading: false, error: '', data: preview });
+    } catch (err) {
+      setImportState({ open: true, loading: false, error: err.message || t('processed_history.import.generic_error'), data: null });
+    }
+  };
+
+  const closeImportModal = () => {
+    setImportState({ open: false, loading: false, error: '', data: null });
+  };
+
   const submitHardDelete = async () => {
     if (!deleteRequest) return;
 
@@ -331,36 +363,46 @@ export default function ProcessedHistoryPage() {
 
   return (
     <div className="tw-mx-auto tw-w-full tw-max-w-[1680px] tw-space-y-6 tw-px-5 tw-py-7">
-      <div className="tw-rounded-3xl tw-border tw-border-slate-200 tw-bg-white tw-p-4 tw-shadow-sm">
+      <Card size="section">
         <div className="tw-mb-4 tw-flex tw-flex-wrap tw-gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('tasks')}
-            className={`tw-rounded-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium ${activeTab === 'tasks' ? 'tw-bg-slate-900 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-700 tw-hover:bg-slate-200'}`}
+            className={`tw-rounded-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium ${activeTab === 'tasks' ? 'tw-bg-slate-900 tw-text-white dark:tw-bg-slate-100 dark:tw-text-slate-900' : 'tw-bg-slate-100 dark:tw-bg-slate-800 tw-text-slate-700 dark:tw-text-slate-300 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-700'}`}
           >
             {t('history.task_history')}
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('reports')}
-            className={`tw-rounded-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium ${activeTab === 'reports' ? 'tw-bg-slate-900 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-700 tw-hover:bg-slate-200'}`}
+            className={`tw-rounded-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium ${activeTab === 'reports' ? 'tw-bg-slate-900 tw-text-white dark:tw-bg-slate-100 dark:tw-text-slate-900' : 'tw-bg-slate-100 dark:tw-bg-slate-800 tw-text-slate-700 dark:tw-text-slate-300 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-700'}`}
           >
             {t('history.report_history')}
           </button>
         </div>
-        <div className="tw-mb-4 tw-flex tw-items-center tw-justify-end">
-          <button type="button" onClick={csv} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-white">
+        <div className="tw-mb-4 tw-flex tw-items-center tw-justify-end tw-gap-2">
+          <button type="button" onClick={openImportFilePicker} className="tw-rounded tw-border tw-border-[#5B8FA8] tw-px-4 tw-py-2 tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9] hover:tw-bg-[#5B8FA8]/10 dark:hover:tw-bg-[#5B8FA8]/20">
+            {t('processed_history.import_csv')}
+          </button>
+          <input
+            ref={importFileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleImportFileSelected}
+            className="tw-hidden"
+          />
+          <button type="button" onClick={csv} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba]">
             {t('processed_history.export_csv')}
           </button>
         </div>
 
         {activeTab === 'tasks' && (
           <>
-            <section className="tw-rounded-3xl tw-border tw-border-slate-200 tw-bg-white tw-p-5 tw-shadow-sm">
+            <section className="tw-rounded-3xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-p-5 tw-shadow-sm dark:tw-shadow-none">
               <div className="tw-mb-4 tw-flex tw-items-center tw-justify-between">
                 <div>
-                  <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-[.24em] tw-text-slate-500">{t('app.section_manage')}</p>
-                  <h1 className="tw-text-2xl tw-font-semibold">{t('processed_history.title')}</h1>
+                  <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-[.24em] tw-text-slate-500 dark:tw-text-slate-400">{t('app.section_manage')}</p>
+                  <h1 className="tw-text-2xl tw-font-semibold dark:tw-text-slate-100">{t('processed_history.title')}</h1>
                 </div>
                 <div className="tw-flex tw-items-center tw-gap-3">
                   {canReadAll && (
@@ -373,13 +415,13 @@ export default function ProcessedHistoryPage() {
                           checked={data.rows.length > 0 && data.rows.every((row) => selectedIds.includes(Number(row.id)))}
                           onChange={(event) => selectAllForPage(event.target.checked)}
                         />
-                        <span className="tw-text-sm tw-text-slate-700">{t('processed_history.select_page')}</span>
+                        <span className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">{t('processed_history.select_page')}</span>
                       </label>
                       {selectedIds.length > 0 && (
                         <button
                           type="button"
                           onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })}
-                          className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-white"
+                          className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#b23f3f]"
                         >
                           {t('processed_history.delete.selection', { count: selectedIds.length })}
                         </button>
@@ -389,20 +431,20 @@ export default function ProcessedHistoryPage() {
                 </div>
               </div>
 
-              <div className="tw-grid tw-gap-3 tw-md:grid-cols-3 tw-xl:grid-cols-6">
-                <select aria-label={t('processed_history.filters.status')} value={filters.status} onChange={(event) => update('status', event.target.value)} className="tw-rounded tw-border tw-p-2">
+              <div className="tw-grid tw-gap-3 md:tw-grid-cols-3 xl:tw-grid-cols-6">
+                <select aria-label={t('processed_history.filters.status')} value={filters.status} onChange={(event) => update('status', event.target.value)} className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100">
                   <option value="all">{t('processed_history.filters.validated_and_rejected')}</option>
                   <option value="validated">{t('status.validated')}</option>
                   <option value="refused">{t('status.rejected')}</option>
                 </select>
 
                 {!canReadAll && (
-                  <div className="tw-rounded tw-border tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-py-2 tw-text-sm tw-text-slate-600">
+                  <div className="tw-rounded tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800/60 tw-px-3 tw-py-2 tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">
                     {t('processed_history.filters.all_employees')}
                   </div>
                 )}
                 {canReadAll && (
-                  <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="tw-rounded tw-border tw-p-2">
+                  <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100">
                     <option value="">{t('processed_history.filters.all_employees')}</option>
                     {data.employees?.map((user) => (
                       <option key={user.id} value={user.id}>{user.label}</option>
@@ -410,54 +452,54 @@ export default function ProcessedHistoryPage() {
                   </select>
                 )}
 
-                <select aria-label={t('processed_history.filters.project')} value={filters.project_id} onChange={(event) => update('project_id', event.target.value)} className="tw-rounded tw-border tw-p-2">
+                <select aria-label={t('processed_history.filters.project')} value={filters.project_id} onChange={(event) => update('project_id', event.target.value)} className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100">
                   <option value="">{t('processed_history.filters.all_projects')}</option>
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>{project.title}</option>
                   ))}
                 </select>
 
-                <input aria-label={t('processed_history.filters.start_date')} type="date" value={filters.date_from} onChange={(event) => update('date_from', event.target.value)} className="tw-rounded tw-border tw-p-2" />
-                <input aria-label={t('processed_history.filters.end_date')} type="date" value={filters.date_to} onChange={(event) => update('date_to', event.target.value)} className="tw-rounded tw-border tw-p-2" />
+                <input aria-label={t('processed_history.filters.start_date')} type="date" value={filters.date_from} onChange={(event) => update('date_from', event.target.value)} className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
+                <input aria-label={t('processed_history.filters.end_date')} type="date" value={filters.date_to} onChange={(event) => update('date_to', event.target.value)} className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
 
-                <label className="tw-flex tw-items-center tw-gap-2">
+                <label className="tw-flex tw-items-center tw-gap-2 dark:tw-text-slate-300">
                   <input type="checkbox" checked={filters.manual_only} onChange={(event) => update('manual_only', event.target.checked)} />
                   {t('processed_history.filters.modified_only')}
                 </label>
               </div>
             </section>
 
-            <section className="tw-grid tw-gap-4 tw-md:grid-cols-4">
-              <div className="tw-rounded tw-bg-white tw-p-4">
+            <section className="tw-grid tw-gap-4 md:tw-grid-cols-4">
+              <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
                 {t('processed_history.total')} <strong>{data.pagination?.total || 0}</strong>
               </div>
-              <div className="tw-rounded tw-bg-white tw-p-4">
+              <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
                 {t('processed_history.stats.validated_entries')} <strong>{data.stats.validated_count || 0}</strong>
               </div>
-              <div className="tw-rounded tw-bg-white tw-p-4">
+              <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
                 {t('processed_history.stats.rejected_entries')} <strong>{data.stats.refused_count || 0}</strong>
               </div>
-              <div className="tw-rounded tw-bg-white tw-p-4">
+              <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
                 {t('processed_history.stats.modified_entries')} <strong>{data.stats.manual_count || 0}</strong>
               </div>
             </section>
 
-            {error && <p className="tw-text-red-600">{error}</p>}
-            {success && <p className="tw-text-green-600">{success}</p>}
-            {loading && <p>{t('loading')}</p>}
+            {error && <p className="tw-text-red-600 dark:tw-text-red-400">{error}</p>}
+            {success && <p className="tw-text-green-600 dark:tw-text-green-400">{success}</p>}
+            {loading && <p className="dark:tw-text-slate-300">{t('loading')}</p>}
 
             {!loading && Object.entries(grouped).map(([day, rows]) => (
-              <section key={day} className="tw-overflow-x-auto tw-bg-white">
-                <div className="tw-flex tw-justify-between tw-bg-slate-100 tw-p-3">
+              <section key={day} className="tw-overflow-x-auto tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-rounded">
+                <div className="tw-flex tw-justify-between tw-bg-slate-100 dark:tw-bg-slate-800 tw-p-3 dark:tw-text-slate-200">
                   <strong>{day}</strong>
                   <span>{t('processed_history.total')}: {formatDuration(rows.reduce((sum, row) => sum + Number(row.duration || 0), 0))}</span>
                 </div>
 
-                <table className="tw-w-full tw-text-left tw-text-sm tw-border-collapse">
+                <table className="tw-w-full tw-text-left tw-text-sm tw-border-collapse dark:tw-text-slate-200">
                   <thead>
                     <tr>
                       {canReadAll && (
-                        <th className="tw-w-10 tw-px-2 tw-py-2 tw-text-center tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">
+                        <th className="tw-w-10 tw-px-2 tw-py-2 tw-text-center tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">
                           <input
                             aria-label={t('processed_history.select_group_aria', { day })}
                             type="checkbox"
@@ -473,24 +515,24 @@ export default function ProcessedHistoryPage() {
                           />
                         </th>
                       )}
-                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{t('processed_history.columns.task')}</th>
-                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{t('processed_history.columns.project')}</th>
-                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{t('processed_history.columns.who')}</th>
-                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{t('processed_history.columns.start')}</th>
-                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{t('processed_history.columns.end')}</th>
-                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{t('processed_history.columns.status')}</th>
-                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{t('processed_history.columns.duration')}</th>
-                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{t('processed_history.columns.modification')}</th>
-                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{t('processed_history.columns.processed_by_at')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.task')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.project')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.who')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.start')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.end')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.status')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.duration')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.modification')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.processed_by_at')}</th>
                       {canReadAll && <th className="tw-px-2 tw-py-2 tw-text-right">{t('processed_history.columns.actions')}</th>}
                     </tr>
                   </thead>
 
                   <tbody>
                     {rows.map((entry) => (
-                      <tr key={entry.id} className="tw-border-t">
+                      <tr key={entry.id} className="tw-border-t dark:tw-border-slate-700">
                           {canReadAll && (
-                            <td className="tw-px-2 tw-py-2 tw-text-center tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">
+                            <td className="tw-px-2 tw-py-2 tw-text-center tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">
                             <input
                               aria-label={t('processed_history.select_entry_aria')}
                               type="checkbox"
@@ -499,15 +541,15 @@ export default function ProcessedHistoryPage() {
                             />
                           </td>
                         )}
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{entry.note || t('timeentry.no_description')}</td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{entry.project_label}</td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{entry.user_label}</td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{dateTime(entry.date_start)}</td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{dateTime(entry.date_end)}</td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0"><StatusBadge status={Number(entry.status)} /></td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{formatDuration(entry.duration)}</td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">{entry.manual_modified ? t('processed_history.modified_manually') : '—'}</td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] tw-last:border-r-0">
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.note || t('timeentry.no_description')}</td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.project_label}</td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.user_label}</td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{dateTime(entry.date_start)}</td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{dateTime(entry.date_end)}</td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0"><StatusBadge status={Number(entry.status)} /></td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{formatDuration(entry.duration)}</td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.manual_modified ? t('processed_history.modified_manually') : '—'}</td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">
                           {entry.processed_by_label || '—'}
                           <br />
                           {dateTime(entry.processed_at)}
@@ -538,12 +580,12 @@ export default function ProcessedHistoryPage() {
                   type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  className={`tw-rounded tw-px-4 tw-py-2 ${page <= 1 ? 'tw-bg-slate-200 tw-text-slate-500' : 'tw-bg-slate-100 tw-text-slate-700 tw-hover:bg-slate-200'}`}
+                  className={`tw-rounded tw-px-4 tw-py-2 ${page <= 1 ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
                 >
                   {t('processed_history.pagination.previous')}
                 </button>
 
-                <div className="tw-text-sm tw-text-slate-700">
+                <div className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">
                   {t('processed_history.pagination.page', { current: data.pagination?.page || page, total: data.pagination?.pages || 1 })}
                 </div>
 
@@ -551,26 +593,26 @@ export default function ProcessedHistoryPage() {
                   type="button"
                   onClick={() => setPage((p) => Math.min(data.pagination?.pages || p, p + 1))}
                   disabled={page >= (data.pagination?.pages || 1)}
-                  className={`tw-rounded tw-px-4 tw-py-2 ${page >= (data.pagination?.pages || 1) ? 'tw-bg-slate-200 tw-text-slate-500' : 'tw-bg-slate-100 tw-text-slate-700 tw-hover:bg-slate-200'}`}
+                  className={`tw-rounded tw-px-4 tw-py-2 ${page >= (data.pagination?.pages || 1) ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
                 >
                   {t('processed_history.pagination.next')}
                 </button>
               </div>
             )}
 
-            {!loading && !data.rows.length && <p className="tw-rounded tw-bg-white tw-p-5">{t('processed_history.empty')}</p>}
+            {!loading && !data.rows.length && <p className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-5 dark:tw-text-slate-300">{t('processed_history.empty')}</p>}
           </>
         )}
 
         {activeTab === 'reports' && (
-          <div className="tw-rounded-2xl tw-border tw-border-slate-200 tw-bg-slate-50 tw-p-4">
-            {reportHistoryLoading && <p className="tw-text-sm tw-text-slate-500">{t('loading')}</p>}
-            {reportHistoryError && <p className="tw-text-sm tw-text-rose-600">{reportHistoryError}</p>}
+          <div className="tw-rounded-2xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800/60 tw-p-4">
+            {reportHistoryLoading && <p className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('loading')}</p>}
+            {reportHistoryError && <p className="tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{reportHistoryError}</p>}
 
             <div className="tw-mb-4 tw-flex tw-items-center tw-justify-between">
               <div>
-                <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-[.24em] tw-text-slate-500">{t('app.section_manage')}</p>
-                <h1 className="tw-text-2xl tw-font-semibold">{t('history.report_history')}</h1>
+                <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-[.24em] tw-text-slate-500 dark:tw-text-slate-400">{t('app.section_manage')}</p>
+                <h1 className="tw-text-2xl tw-font-semibold dark:tw-text-slate-100">{t('history.report_history')}</h1>
               </div>
               <div className="tw-flex tw-items-center tw-gap-3">
                 {canReadAll && (
@@ -589,11 +631,11 @@ export default function ProcessedHistoryPage() {
                         checked={reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)))}
                         onChange={(event) => selectAllReportsForPage(event.target.checked)}
                       />
-                      <span className="tw-text-sm tw-text-slate-700">{t('processed_history.select_page')}</span>
+                      <span className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">{t('processed_history.select_page')}</span>
                     </label>
 
                     {selectedIds.length > 0 && (
-                      <button type="button" onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-white">
+                      <button type="button" onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#b23f3f]">
                         {t('processed_history.delete.selection', { count: selectedIds.length })}
                       </button>
                     )}
@@ -602,21 +644,21 @@ export default function ProcessedHistoryPage() {
               </div>
             </div>
 
-            <section className="tw-rounded-3xl tw-border tw-border-slate-200 tw-bg-white tw-p-5 tw-shadow-sm">
-              <div className="tw-grid tw-gap-3 tw-md:grid-cols-3 tw-xl:grid-cols-6">
-                <select aria-label={t('processed_history.filters.status')} value={filters.status} onChange={(event) => update('status', event.target.value)} className="tw-rounded tw-border tw-p-2">
+            <section className="tw-rounded-3xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-p-5 tw-shadow-sm dark:tw-shadow-none">
+              <div className="tw-grid tw-gap-3 md:tw-grid-cols-3 xl:tw-grid-cols-6">
+                <select aria-label={t('processed_history.filters.status')} value={filters.status} onChange={(event) => update('status', event.target.value)} className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100">
                   <option value="all">{t('processed_history.filters.validated_and_rejected')}</option>
                   <option value="validated">{t('status.validated')}</option>
                   <option value="refused">{t('status.rejected')}</option>
                 </select>
 
                 {!canReadAll && (
-                  <div className="tw-rounded tw-border tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-py-2 tw-text-sm tw-text-slate-600">
+                  <div className="tw-rounded tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800/60 tw-px-3 tw-py-2 tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">
                     {t('processed_history.filters.all_employees')}
                   </div>
                 )}
                 {canReadAll && (
-                  <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="tw-rounded tw-border tw-p-2">
+                  <select aria-label={t('processed_history.filters.employee')} value={filters.employee_id} onChange={(event) => update('employee_id', event.target.value)} className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100">
                     <option value="">{t('processed_history.filters.all_employees')}</option>
                     {reportEmployees.map((user) => (
                       <option key={user.id} value={user.id}>{user.label}</option>
@@ -624,58 +666,58 @@ export default function ProcessedHistoryPage() {
                   </select>
                 )}
 
-                <input aria-label={t('processed_history.filters.start_date')} type="date" value={filters.date_from} onChange={(event) => update('date_from', event.target.value)} className="tw-rounded tw-border tw-p-2" />
-                <input aria-label={t('processed_history.filters.end_date')} type="date" value={filters.date_to} onChange={(event) => update('date_to', event.target.value)} className="tw-rounded tw-border tw-p-2" />
+                <input aria-label={t('processed_history.filters.start_date')} type="date" value={filters.date_from} onChange={(event) => update('date_from', event.target.value)} className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
+                <input aria-label={t('processed_history.filters.end_date')} type="date" value={filters.date_to} onChange={(event) => update('date_to', event.target.value)} className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
 
-                <label className="tw-flex tw-items-center tw-gap-2">
+                <label className="tw-flex tw-items-center tw-gap-2 dark:tw-text-slate-300">
                   <input type="checkbox" checked={filters.manual_only} onChange={(event) => update('manual_only', event.target.checked)} />
                   {t('processed_history.filters.modified_only')}
                 </label>
               </div>
             </section>
 
-            <section className="tw-mt-4 tw-grid tw-gap-4 tw-md:grid-cols-4">
-              <div className="tw-rounded tw-bg-white tw-p-4">
+            <section className="tw-mt-4 tw-grid tw-gap-4 md:tw-grid-cols-4">
+              <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
                 {t('processed_history.total')} <strong>{visibleReportHistory.length}</strong>
               </div>
-              <div className="tw-rounded tw-bg-white tw-p-4">
+              <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
                 {t('status.validated')} <strong>{visibleReportHistory.filter((r) => Number(r.status) === 2).length}</strong>
               </div>
-              <div className="tw-rounded tw-bg-white tw-p-4">
+              <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
                 {t('status.rejected')} <strong>{visibleReportHistory.filter((r) => Number(r.status) === 9).length}</strong>
               </div>
-              <div className="tw-rounded tw-bg-white tw-p-4">
+              <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
                 {t('processed_history.stats.modified_entries')} <strong>{visibleReportHistory.filter((r) => isModifiedReport(r)).length}</strong>
               </div>
             </section>
 
             {!reportHistoryLoading && visibleReportHistory.length === 0 && (
-              <p className="tw-mt-4 tw-text-sm tw-text-slate-500">{t('history.no_report_history')}</p>
+              <p className="tw-mt-4 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('history.no_report_history')}</p>
             )}
 
             {!reportHistoryLoading && visibleReportHistory.length > 0 && (
               <div className="tw-mt-4 tw-space-y-3">
                 {Object.entries(groupedReports).map(([day, rows]) => (
-                  <div key={day} className="tw-rounded-xl tw-border tw-border-slate-200 tw-bg-white tw-p-4">
+                  <div key={day} className="tw-rounded-xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-p-4">
                     <div className="tw-flex tw-items-start tw-justify-between tw-gap-3">
                       <div>
-                        <p className="tw-font-semibold tw-text-slate-900">{day}</p>
-                        <p className="tw-text-sm tw-text-slate-500">{t('processed_history.total')}: {rows.length}</p>
+                        <p className="tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{day}</p>
+                        <p className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('processed_history.total')}: {rows.length}</p>
                       </div>
                       {canReadAll && (
-                        <label className="tw-flex tw-items-center tw-gap-2">
+                        <label className="tw-flex tw-items-center tw-gap-2 dark:tw-text-slate-300">
                           <input type="checkbox" checked={rows.every((r) => selectedIds.includes(Number(r.id)))} onChange={(e) => selectReportGroup(rows, e.target.checked)} />
-                          <span className="tw-text-sm tw-text-slate-700">{t('processed_history.select_group_aria', { day })}</span>
+                          <span className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">{t('processed_history.select_group_aria', { day })}</span>
                         </label>
                       )}
                     </div>
                     <div className="tw-mt-3">
                       {rows.map((report) => (
-                        <div key={report.id} className="tw-mb-4 tw-rounded tw-border tw-border-slate-200 tw-p-3">
+                        <div key={report.id} className="tw-mb-4 tw-rounded tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-p-3">
                           <div className="tw-flex tw-items-start tw-justify-between tw-gap-3">
                             <div>
-                              <p className="tw-font-semibold tw-text-slate-900">{report.user_label}</p>
-                              <p className="tw-text-sm tw-text-slate-500">{report.date_report}</p>
+                              <p className="tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{report.user_label}</p>
+                              <p className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{report.date_report}</p>
                             </div>
                             <div className="tw-flex tw-items-center tw-gap-2">
                               <StatusBadge status={Number(report.status)} />
@@ -685,7 +727,7 @@ export default function ProcessedHistoryPage() {
                               {canReadAll && (
                                 <>
                                   <input aria-label={t('processed_history.select_entry_aria')} type="checkbox" checked={selectedIds.includes(Number(report.id))} onChange={() => toggleSelected(report.id)} />
-                                  <button type="button" onClick={() => setDeleteRequest({ type: 'single', ids: [Number(report.id)] })} className="tw-rounded-lg tw-border tw-border-rose-200 tw-bg-rose-50 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-rose-700 tw-hover:bg-rose-100">
+                                  <button type="button" onClick={() => setDeleteRequest({ type: 'single', ids: [Number(report.id)] })} className="tw-rounded-lg tw-border tw-border-rose-200 dark:tw-border-rose-800 tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-rose-700 dark:tw-text-rose-300 hover:tw-bg-rose-100 dark:hover:tw-bg-rose-900/50">
                                     {t('daily_report.delete')}
                                   </button>
                                 </>
@@ -696,7 +738,7 @@ export default function ProcessedHistoryPage() {
                             <button
                               type="button"
                               onClick={() => setSelectedReport(report)}
-                              className="tw-rounded-lg tw-border tw-border-sky-200 tw-bg-sky-50 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-sky-700 tw-hover:bg-sky-100"
+                              className="tw-rounded-lg tw-border tw-border-sky-200 dark:tw-border-sky-800 tw-bg-sky-50 dark:tw-bg-sky-900/30 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-sky-700 dark:tw-text-sky-300 hover:tw-bg-sky-100 dark:hover:tw-bg-sky-900/50"
                             >
                               {t('daily_report.read_report')}
                             </button>
@@ -710,18 +752,18 @@ export default function ProcessedHistoryPage() {
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       {deleteRequest && (
         <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-slate-900/40 tw-px-4">
-          <div className="tw-w-full tw-max-w-md tw-rounded-2xl tw-bg-white tw-p-6 tw-shadow-xl">
-            <h3 className="tw-text-lg tw-font-semibold tw-text-slate-900">{t('processed_history.delete.confirm_title')}</h3>
-            <p className="tw-mt-2 tw-text-sm tw-text-slate-600">{t('processed_history.delete.confirm_text', { count: deleteRequest.ids.length })}</p>
+          <div className="tw-w-full tw-max-w-md tw-rounded-2xl tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-6 tw-shadow-xl">
+            <h3 className="tw-text-lg tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{t('processed_history.delete.confirm_title')}</h3>
+            <p className="tw-mt-2 tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('processed_history.delete.confirm_text', { count: deleteRequest.ids.length })}</p>
             <div className="tw-mt-5 tw-flex tw-justify-end tw-gap-3">
-              <button type="button" onClick={() => setDeleteRequest(null)} className="tw-rounded tw-border tw-border-slate-200 tw-px-4 tw-py-2 tw-text-sm tw-text-slate-700">
+              <button type="button" onClick={() => setDeleteRequest(null)} className="tw-rounded tw-border tw-border-slate-200 dark:tw-border-slate-600 tw-px-4 tw-py-2 tw-text-sm tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-50 dark:hover:tw-bg-slate-800">
                 {t('common.cancel')}
               </button>
-              <button type="button" onClick={submitHardDelete} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-sm tw-text-white">
+              <button type="button" onClick={submitHardDelete} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-sm tw-text-white hover:tw-bg-[#b23f3f]">
                 {t('timeentry.confirm')}
               </button>
             </div>
@@ -729,6 +771,13 @@ export default function ProcessedHistoryPage() {
         </div>
       )}
       {selectedReport && <ReadDailyReportModal report={selectedReport} onClose={() => setSelectedReport(null)} />}
+      <ImportPreviewModal
+        open={importState.open}
+        loading={importState.loading}
+        error={importState.error}
+        data={importState.data}
+        onClose={closeImportModal}
+      />
     </div>
   );
 }

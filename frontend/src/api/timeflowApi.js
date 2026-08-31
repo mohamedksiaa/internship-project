@@ -296,6 +296,36 @@ function handleMockRequest(action, body) {
 
     case 'submitWeeklyApproval':
       return Promise.resolve({ status: 'success', data: [] });
+
+    case 'listActiveUsers':
+      return Promise.resolve({
+        status: 'success',
+        data: [
+          { id: 1, login: 'jdupont', firstname: 'Jean', lastname: 'Dupont', label: 'Jean Dupont' },
+          { id: 2, login: 'msmith', firstname: 'Mary', lastname: 'Smith', label: 'Mary Smith' },
+        ],
+      });
+    case 'listUserGroups':
+      return Promise.resolve({
+        status: 'success',
+        data: [
+          { id: 2, rowid: 2, title: 'idara', label: 'idara' },
+        ],
+      });
+    case 'resolveClockifyMapping': {
+      const decisions = Array.isArray(body?.decisions) ? body.decisions : [];
+      const updated = decisions.map((decision) => ({
+        mapping_type: decision.mapping_type,
+        source_system: 'clockify',
+        source_value: decision.source_value,
+        target_id: decision.resolution === 'matched' ? Number(decision.target_id) : null,
+        target_action: decision.resolution === 'matched' ? 'matched' : 'create_confirmed',
+        status: decision.resolution === 'matched' ? 'matched' : 'create_confirmed',
+        new_label: decision.resolution === 'create_new' ? (decision.new_title || decision.source_value) : null,
+      }));
+      return Promise.resolve({ status: 'success', data: updated });
+    }
+
     default:
       return Promise.resolve({ status: 'success', data: [] });
   }
@@ -501,6 +531,78 @@ export async function getModificationHistory(entryId) {
 
 export async function submitWeeklyApproval(ids = []) {
   const data = await moduleTimerRequest('submitWeeklyApproval', { ids });
+  return data?.data ?? data;
+}
+
+export async function listActiveUsers() {
+  const data = await moduleTimerRequest('listActiveUsers');
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+export async function listUserGroups() {
+  const data = await moduleTimerRequest('listUserGroups');
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+/**
+ * Persists a batch of mapping resolution decisions (user -> existing
+ * Dolibarr user, project -> existing timeflow project or a confirmed new
+ * project title). Writes only to llx_timeflow_import_mapping — never
+ * creates a Dolibarr user account or a real llx_timeflow_project row.
+ */
+export async function resolveClockifyMapping(decisions = []) {
+  const data = await moduleTimerRequest('resolveClockifyMapping', { decisions });
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+/**
+ * Uploads a Clockify CSV export for a dry-run preview (mapping resolution
+ * only, no writes to llx_timeflow_timeentry). Unlike moduleTimerRequest,
+ * the body is multipart/form-data, so no Content-Type header is set here —
+ * the browser generates the boundary for FormData automatically.
+ */
+export async function previewClockifyImport(file) {
+  if (API_MODE === 'mock') {
+    return Promise.resolve({
+      source: 'clockify',
+      total_rows: 3,
+      blocked_rows: 1,
+      skipped_rows: 0,
+      users: [
+        { mapping_type: 'user', source_value: 'jane@example.com', target_action: 'matched' },
+        { mapping_type: 'user', source_value: 'new.hire@example.com', target_action: 'create_pending' },
+      ],
+      projects: [
+        { mapping_type: 'project', source_value: 'Projet Alpha', target_action: 'matched' },
+        { mapping_type: 'project', source_value: '', target_action: 'ignored' },
+      ],
+      stats: { matched_users: 1, pending_users: 1, ignored_users: 0, matched_projects: 1, pending_projects: 0, ignored_projects: 1 },
+    });
+  }
+
+  const formData = new FormData();
+  formData.append('csv_file', file);
+
+  const url = `${buildApiUrl('previewClockifyImport')}&token=${encodeURIComponent(TIMEFLOW_TOKEN)}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+    credentials: 'include',
+    body: formData,
+  });
+
+  const responseText = await response.text();
+  let data = null;
+  try {
+    data = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    throw new Error(responseText || 'Réponse invalide du serveur.');
+  }
+
+  if (!response.ok || data?.status === 'error') {
+    throw new Error(data?.message || data?.error || `Erreur d’import (${response.status})`);
+  }
+
   return data?.data ?? data;
 }
 

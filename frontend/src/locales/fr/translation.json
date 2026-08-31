@@ -232,6 +232,7 @@
   "processed_history": {
     "title": "Historique traité",
     "export_csv": "Exporter en CSV",
+    "import_csv": "Importer CSV",
     "select_page": "Sélection page",
     "select_page_aria": "Tout sélectionner sur la page",
     "select_group_aria": "Sélectionner le groupe {{day}}",
@@ -290,6 +291,45 @@
       "success": "{{count}} entrée(s) supprimée(s)",
       "confirm_title": "Confirmer la suppression",
       "confirm_text": "Supprimer définitivement {{count}} rapport(s) ? Cette action est irréversible et supprimera les données de la base de données."
+    },
+    "import": {
+      "modal_title": "Prévisualisation de l'import",
+      "modal_subtitle": "Clockify",
+      "loading": "Analyse du fichier en cours…",
+      "close": "Fermer",
+      "invalid_file_type": "Merci de sélectionner un fichier .csv.",
+      "generic_error": "Une erreur est survenue lors de l'analyse du fichier.",
+      "summary": {
+        "total_rows": "Lignes totales",
+        "blocked_rows": "Lignes bloquées",
+        "skipped_rows": "Lignes ignorées"
+      },
+      "blocked_warning": "{{count}} ligne(s) bloquée(s) : résolvez le mapping utilisateur/projet avant de pouvoir importer.",
+      "pending_mapping_warning": "{{count}} élément(s) à résoudre avant de pouvoir importer.",
+      "ready_message": "Mapping complet, prêt pour l'import.",
+      "users_title": "Utilisateurs détectés",
+      "projects_title": "Projets détectés",
+      "groups_title": "Groupes détectés",
+      "no_users": "Aucun utilisateur détecté dans ce fichier.",
+      "no_projects": "Aucun projet détecté dans ce fichier.",
+      "no_groups": "Aucun groupe détecté dans ce fichier.",
+      "status": {
+        "matched": "Résolu",
+        "create_pending": "À créer",
+        "create_confirmed": "Sera créé automatiquement",
+        "ignored": "Ignoré"
+      },
+      "select_user_placeholder": "— Choisir un utilisateur —",
+      "select_project_placeholder": "— Choisir un projet existant —",
+      "create_new_project_checkbox": "Créer automatiquement ce projet",
+      "new_project_title_aria": "Nom du nouveau projet",
+      "select_group_placeholder": "— Choisir un groupe existant —",
+      "create_new_group_checkbox": "Créer automatiquement ce groupe",
+      "new_group_title_aria": "Nom du nouveau groupe",
+      "resolve_button": "Valider la résolution",
+      "resolving": "Résolution en cours…",
+      "selection_required": "Sélectionnez au moins une résolution avant de valider.",
+      "resolve_generic_error": "Une erreur est survenue lors de la résolution du mapping."
     }
   },
   "entries_few": "",

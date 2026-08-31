@@ -5,6 +5,7 @@ import DashboardLayout from '../components/templates/DashboardLayout';
 import { getDailyReports, getMyDailyReports, getSummaryReports, getTimeEntries, getWeeklyTimesheet } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 import Card from '../components/atoms/Card';
+import useDarkMode from '../hooks/useDarkMode';
 import {
   Bar,
   BarChart,
@@ -75,6 +76,7 @@ function diffDays(dateA, dateB) {
 
 export default function DashboardPage() {
   const { t, i18n } = useTranslation();
+  const isDark = useDarkMode();
   const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
   const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
   const [summary, setSummary] = useState(null);
@@ -233,36 +235,36 @@ export default function DashboardPage() {
   return (
     <DashboardLayout summary={summaryStats} canReadAll={canReadAll}>
       <div className="tw-space-y-6">
-        {loading && <p className="tw-text-sm tw-text-[#71838f]">{t('loading')}</p>}
-        {error && <p className="tw-text-sm tw-text-[#d64c4c]">{error}</p>}
+        {loading && <p className="tw-text-sm tw-text-[#71838f] dark:tw-text-slate-400">{t('loading')}</p>}
+        {error && <p className="tw-text-sm tw-text-[#d64c4c] dark:tw-text-[#f0908f]">{error}</p>}
         {!loading && !error && (
           <>
-            <div className="tw-grid tw-gap-4 tw-md:grid-cols-2 tw-xl:grid-cols-4">
+            <div className="tw-grid tw-gap-4 md:tw-grid-cols-2 xl:tw-grid-cols-4">
               <Card headerLabel={t('dashboard.current_month_total')}>
-                <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-slate-900">{formatDuration(monthlyTotalSeconds)}</p>
+                <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{formatDuration(monthlyTotalSeconds)}</p>
               </Card>
               <Card headerLabel={t('dashboard.variation_vs_previous')}>
-                <div className={`tw-mt-2 tw-text-2xl tw-font-semibold ${monthDelta >= 0 ? 'tw-text-emerald-600' : 'tw-text-rose-600'}`}>
+                <div className={`tw-mt-2 tw-text-2xl tw-font-semibold ${monthDelta >= 0 ? 'tw-text-emerald-600 dark:tw-text-emerald-400' : 'tw-text-rose-600 dark:tw-text-rose-400'}`}>
                   {monthDelta >= 0 ? '+' : ''}{monthDelta.toFixed(1)}%
                 </div>
               </Card>
               <Card headerLabel={t('dashboard.pending_reports')}>
-                <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-slate-900">{pendingReports.length}</p>
+                <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{pendingReports.length}</p>
               </Card>
               <Card headerLabel={t('dashboard.period')}>
-                <div className="tw-mt-2 tw-text-xl tw-font-semibold tw-text-slate-900">{currentMonth.from} → {currentMonth.to}</div>
+                <div className="tw-mt-2 tw-text-xl tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{currentMonth.from} → {currentMonth.to}</div>
               </Card>
             </div>
 
-            <div className="tw-grid tw-gap-6 tw-xl:grid-cols-2">
+            <div className="tw-grid tw-gap-6 xl:tw-grid-cols-2">
               <Card size="section" headerLabel={t('dashboard.top_projects')} title={t('dashboard.top_projects_title')}>
                 <div className="tw-h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topProjects} layout="vertical" margin={{ top: 10, right: 20, left: 12, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e7edf1" />
-                      <XAxis type="number" tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
-                      <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
-                      <Tooltip formatter={(value) => formatDuration(value)} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#232d42' : '#e7edf1'} />
+                      <XAxis type="number" tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: isDark ? '#334155' : '#dce5ea' }} tick={{ fill: isDark ? '#94a3b8' : '#334155' }} />
+                      <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={{ stroke: isDark ? '#334155' : '#dce5ea' }} tick={{ fill: isDark ? '#94a3b8' : '#334155' }} />
+                      <Tooltip formatter={(value) => formatDuration(value)} contentStyle={isDark ? { background: '#141b2d', border: '1px solid #334155', color: '#e2e8f0' } : undefined} />
                       <Bar dataKey="value" radius={[0, 8, 8, 0]} fill="#4d5fca">
                         {topProjects.map((entry, index) => <Cell key={entry.id || entry.name} fill={TEAM_CHART_COLORS[index % TEAM_CHART_COLORS.length]} />)}
                       </Bar>
@@ -275,10 +277,10 @@ export default function DashboardPage() {
                 <div className="tw-h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={weeklyTrendData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e7edf1" />
-                      <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
-                      <YAxis tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: '#dce5ea' }} />
-                      <Tooltip formatter={(value) => formatDuration(value)} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#232d42' : '#e7edf1'} />
+                      <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: isDark ? '#334155' : '#dce5ea' }} tick={{ fill: isDark ? '#94a3b8' : '#334155' }} />
+                      <YAxis tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: isDark ? '#334155' : '#dce5ea' }} tick={{ fill: isDark ? '#94a3b8' : '#334155' }} />
+                      <Tooltip formatter={(value) => formatDuration(value)} contentStyle={isDark ? { background: '#141b2d', border: '1px solid #334155', color: '#e2e8f0' } : undefined} />
                       <Line type="monotone" dataKey="total" stroke="#5B8FA8" strokeWidth={3} dot={{ r: 3 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -287,20 +289,20 @@ export default function DashboardPage() {
             </div>
 
             {canValidate && (
-              <Card size="section" headerLabel={t('dashboard.alerts')} title={t('dashboard.alerts_title')} headerRight={<Link to="/reports" className="tw-text-sm tw-font-medium tw-text-[#5B8FA8] tw-hover:text-[#4A7690]">{t('dashboard.see_all_reports')}</Link>}>
+              <Card size="section" headerLabel={t('dashboard.alerts')} title={t('dashboard.alerts_title')} headerRight={<Link to="/reports" className="tw-text-sm tw-font-medium tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9] hover:tw-text-[#4A7690] dark:hover:tw-text-[#a9d2e6]">{t('dashboard.see_all_reports')}</Link>}>
                 {alerts.length === 0 ? (
-                  <p className="tw-text-sm tw-text-slate-500">{t('dashboard.no_alerts')}</p>
+                  <p className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('dashboard.no_alerts')}</p>
                 ) : (
                   <ul className="tw-space-y-3">
                     {alerts.map((alert) => (
-                      <li key={alert.id} className="tw-rounded-xl tw-border tw-border-slate-200 tw-bg-slate-50 tw-p-3">
+                      <li key={alert.id} className="tw-rounded-xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800/60 tw-p-3">
                         <div className="tw-flex tw-items-start tw-justify-between tw-gap-3">
                           <div>
-                            <p className="tw-text-sm tw-font-medium tw-text-slate-900">{alert.label}</p>
-                            <p className="tw-text-xs tw-text-slate-500">{alert.detail}</p>
+                            <p className="tw-text-sm tw-font-medium tw-text-slate-900 dark:tw-text-slate-100">{alert.label}</p>
+                            <p className="tw-text-xs tw-text-slate-500 dark:tw-text-slate-400">{alert.detail}</p>
                           </div>
                           {alert.tone === 'warning' && (
-                            <span className="tw-rounded-full tw-px-2 tw-py-1 tw-text-[10px] tw-font-medium tw-uppercase tw-tracking-wide tw-bg-amber-50 tw-text-amber-700">
+                            <span className="tw-rounded-full tw-px-2 tw-py-1 tw-text-[10px] tw-font-medium tw-uppercase tw-tracking-wide tw-bg-amber-50 dark:tw-bg-amber-900/40 tw-text-amber-700 dark:tw-text-amber-300">
                               {t('dashboard.warning')}
                             </span>
                           )}

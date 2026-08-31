@@ -81,7 +81,7 @@ export default function EditHistoryModal({ entry, onClose }) {
             type="button"
             onClick={onClose}
             aria-label={t('history.close')}
-            className="tw-text-lg tw-leading-none tw-text-[#78909c] tw-hover:text-[#2c3e49]"
+            className="tw-text-lg tw-leading-none tw-text-[#78909c] hover:tw-text-[#2c3e49]"
           >
             ×
           </button>

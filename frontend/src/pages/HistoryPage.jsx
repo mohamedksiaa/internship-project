@@ -9,6 +9,7 @@ import arLocale from '@fullcalendar/core/locales/ar';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { getWeeklyTimesheet } from '../api/timeflowApi';
+import useDarkMode from '../hooks/useDarkMode';
 
 function formatTime(date, locale) {
   return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -25,13 +26,26 @@ const PROJECT_COLORS = [
   { bg: '#e8f0fd', border: '#4d5fca', text: '#1e3a8a' },
 ];
 
-function getProjectColor(projectId) {
-  const idx = Number(projectId) % PROJECT_COLORS.length;
-  return PROJECT_COLORS[idx >= 0 ? idx : 0];
+// Same hue families as PROJECT_COLORS, re-tuned for a dark calendar surface:
+// tinted-dark backgrounds instead of pastels, brighter borders/text for contrast.
+const PROJECT_COLORS_DARK = [
+  { bg: '#17273a', border: '#5B8FA8', text: '#bcdcec' },
+  { bg: '#241a35', border: '#c084e0', text: '#e6c6f2' },
+  { bg: '#12271d', border: '#35a66f', text: '#a8e6c4' },
+  { bg: '#2c2013', border: '#f59e0b', text: '#fbd38d' },
+  { bg: '#2c1717', border: '#ef4444', text: '#fca5a5' },
+  { bg: '#171b34', border: '#6b7fe0', text: '#b8c2f2' },
+];
+
+function getProjectColor(projectId, isDark = false) {
+  const palette = isDark ? PROJECT_COLORS_DARK : PROJECT_COLORS;
+  const idx = Number(projectId) % palette.length;
+  return palette[idx >= 0 ? idx : 0];
 }
 
 export default function HistoryPage() {
   const { t, i18n } = useTranslation();
+  const isDark = useDarkMode();
   const calendarRef = useRef(null);
   const [requestedWeekStart, setRequestedWeekStart] = useState('');
   const [weekData, setWeekData] = useState({ weekStart: '', weekEnd: '', rows: [] });
@@ -103,7 +117,7 @@ export default function HistoryPage() {
       const note = entry.note ? ` — ${entry.note}` : '';
       const title = `${project}${task}${note}`;
 
-      const colors = getProjectColor(entry.fk_project || 0);
+      const colors = getProjectColor(entry.fk_project || 0, isDark);
 
       return {
         id: String(entry.id),
@@ -123,7 +137,7 @@ export default function HistoryPage() {
         textColor: colors.text,
       };
     });
-  }, [weekData.rows, appLocale, t]);
+  }, [weekData.rows, appLocale, t, isDark]);
 
   const handlePrev = () => {
     const api = calendarRef.current.getApi();
@@ -182,7 +196,7 @@ export default function HistoryPage() {
   }, [weekData.weekStart, appLocale]);
 
   return (
-    <div className="tw-flex tw-h-full tw-flex-col tw-space-y-4">
+    <div className="tw-mx-auto tw-flex tw-h-full tw-w-full tw-max-w-[1680px] tw-flex-col tw-space-y-4 tw-px-5 tw-py-7">
       <Card
         size="section"
         titleSize="xl"
@@ -190,49 +204,49 @@ export default function HistoryPage() {
         title={viewType === 'timeGridDay' ? t('history.daily_planning') : t('history.weekly_planning')}
         headerRight={(
           <div className="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
-            <div className="tw-mr-4 tw-flex tw-rounded-lg tw-border tw-border-slate-200 tw-p-1">
+            <div className="tw-mr-4 tw-flex tw-rounded-lg tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-p-1">
               <button
                 onClick={() => toggleView('timeGridWeek')}
-                className={`tw-rounded-md tw-px-3 tw-py-1 tw-text-sm ${viewType === 'timeGridWeek' ? 'tw-bg-slate-100 tw-font-medium tw-text-slate-900' : 'tw-text-slate-500 tw-hover:bg-slate-50'}`}
+                className={`tw-rounded-md tw-px-3 tw-py-1 tw-text-sm ${viewType === 'timeGridWeek' ? 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-font-medium tw-text-slate-900 dark:tw-text-slate-100' : 'tw-text-slate-500 dark:tw-text-slate-400 hover:tw-bg-slate-50 dark:hover:tw-bg-slate-800'}`}
               >
                 {t('history.view_week')}
               </button>
               <button
                 onClick={() => toggleView('timeGridDay')}
-                className={`tw-rounded-md tw-px-3 tw-py-1 tw-text-sm ${viewType === 'timeGridDay' ? 'tw-bg-slate-100 tw-font-medium tw-text-slate-900' : 'tw-text-slate-500 tw-hover:bg-slate-50'}`}
+                className={`tw-rounded-md tw-px-3 tw-py-1 tw-text-sm ${viewType === 'timeGridDay' ? 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-font-medium tw-text-slate-900 dark:tw-text-slate-100' : 'tw-text-slate-500 dark:tw-text-slate-400 hover:tw-bg-slate-50 dark:hover:tw-bg-slate-800'}`}
               >
                 {t('history.view_day')}
               </button>
             </div>
 
             <div className="tw-flex tw-items-center tw-gap-1">
-              <button onClick={handlePrev} className="tw-rounded-full tw-border tw-border-slate-200 tw-p-2 tw-text-slate-600 tw-hover:bg-slate-50">
+              <button onClick={handlePrev} className="tw-rounded-full tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-p-2 tw-text-slate-600 dark:tw-text-slate-300 hover:tw-bg-slate-50 dark:hover:tw-bg-slate-800">
                 <svg className="tw-h-4 tw-w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
               </button>
-              <button onClick={handleToday} className="tw-rounded-lg tw-border tw-border-slate-200 tw-px-4 tw-py-1 tw-text-sm tw-font-medium tw-text-slate-700 tw-hover:bg-slate-50">
+              <button onClick={handleToday} className="tw-rounded-lg tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-px-4 tw-py-1 tw-text-sm tw-font-medium tw-text-slate-700 dark:tw-text-slate-300 hover:tw-bg-slate-50 dark:hover:tw-bg-slate-800">
                 {t('history.today')}
               </button>
-              <button onClick={handleNext} className="tw-rounded-full tw-border tw-border-slate-200 tw-p-2 tw-text-slate-600 tw-hover:bg-slate-50">
+              <button onClick={handleNext} className="tw-rounded-full tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-p-2 tw-text-slate-600 dark:tw-text-slate-300 hover:tw-bg-slate-50 dark:hover:tw-bg-slate-800">
                 <svg className="tw-h-4 tw-w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
 
-            <div className="tw-ml-4 tw-flex tw-items-center tw-gap-1 tw-border-l tw-border-slate-200 tw-pl-4">
-              <button onClick={zoomOut} title={t('history.zoom_out')} className="tw-flex tw-h-8 tw-w-8 tw-items-center tw-justify-center tw-rounded-lg tw-border tw-border-slate-200 tw-text-slate-600 tw-hover:bg-slate-50">−</button>
-              <button onClick={zoomIn} title={t('history.zoom_in')} className="tw-flex tw-h-8 tw-w-8 tw-items-center tw-justify-center tw-rounded-lg tw-border tw-border-slate-200 tw-text-slate-600 tw-hover:bg-slate-50">+</button>
+            <div className="tw-ml-4 tw-flex tw-items-center tw-gap-1 tw-border-l tw-border-slate-200 dark:tw-border-slate-700 tw-pl-4">
+              <button onClick={zoomOut} title={t('history.zoom_out')} className="tw-flex tw-h-8 tw-w-8 tw-items-center tw-justify-center tw-rounded-lg tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-text-slate-600 dark:tw-text-slate-300 hover:tw-bg-slate-50 dark:hover:tw-bg-slate-800">−</button>
+              <button onClick={zoomIn} title={t('history.zoom_in')} className="tw-flex tw-h-8 tw-w-8 tw-items-center tw-justify-center tw-rounded-lg tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-text-slate-600 dark:tw-text-slate-300 hover:tw-bg-slate-50 dark:hover:tw-bg-slate-800">+</button>
             </div>
           </div>
         )}
       >
         {weekLabel && (
-          <p className="tw-mt-1 tw-text-sm tw-text-slate-500">{weekLabel}</p>
+          <p className="tw-mt-1 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{weekLabel}</p>
         )}
 
-        {error && <div className="tw-mt-4 tw-rounded-lg tw-bg-rose-50 tw-p-3 tw-text-sm tw-text-rose-600">{error}</div>}
+        {error && <div className="tw-mt-4 tw-rounded-lg tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-p-3 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">{error}</div>}
 
-        <div className="calendar-container tw-relative tw-mt-4 tw-min-h-[600px] tw-flex-1 tw-overflow-hidden tw-rounded-xl tw-border tw-border-slate-100">
+        <div className="calendar-container tw-relative tw-mt-4 tw-min-h-[600px] tw-flex-1 tw-overflow-hidden tw-rounded-xl tw-border tw-border-slate-100 dark:tw-border-slate-700">
           {loading && (
-            <div className="tw-absolute tw-inset-0 tw-z-10 tw-flex tw-items-center tw-justify-center tw-bg-white/50 tw-backdrop-blur-[1px]">
+            <div className="tw-absolute tw-inset-0 tw-z-10 tw-flex tw-items-center tw-justify-center tw-bg-white/50 dark:tw-bg-slate-900/60 tw-backdrop-blur-[1px]">
               <div className="tw-h-8 tw-w-8 tw-animate-spin tw-rounded-full tw-border-2 tw-border-blue-500 tw-border-t-transparent"></div>
             </div>
           )}
@@ -346,6 +360,41 @@ export default function HistoryPage() {
         }
         .fc .fc-event {
           cursor: pointer;
+        }
+
+        /* Scoped to the "dark" class useDarkMode() toggles on #root, not a
+           prefers-color-scheme media query — this must follow the same
+           Dolibarr-aware resolution as the rest of the module, not just the
+           raw browser preference. */
+        #root.tw-dark .fc {
+          --fc-border-color: #232d42;
+          --fc-today-bg-color: #141b2d;
+          --fc-page-bg-color: transparent;
+          --fc-neutral-bg-color: #1c2438;
+        }
+        #root.tw-dark .fc .fc-timegrid-col.fc-day-today {
+          background-color: rgba(91, 143, 168, 0.08);
+        }
+        #root.tw-dark .fc .fc-v-event {
+          box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+        }
+        #root.tw-dark .fc .fc-v-event:hover {
+          box-shadow: 0 4px 8px rgba(0,0,0,0.45);
+        }
+        #root.tw-dark .fc-timegrid-axis-cushion, #root.tw-dark .fc-timegrid-slot-label-cushion {
+          color: #8b98ab;
+        }
+        #root.tw-dark .fc-col-header-cell-cushion {
+          color: #cbd5e1;
+        }
+        #root.tw-dark .fc .fc-scrollgrid td, #root.tw-dark .fc .fc-scrollgrid th {
+          border-color: #232d42;
+        }
+        #root.tw-dark .fc .fc-timegrid-axis-frame {
+          border-right-color: #232d42;
+        }
+        #root.tw-dark .fc .fc-timegrid-divider {
+          border-top-color: #141b2d;
         }
       `}} />
     </div>
