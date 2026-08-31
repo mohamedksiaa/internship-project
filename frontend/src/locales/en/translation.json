@@ -231,6 +231,7 @@
   "processed_history": {
     "title": "Processed history",
     "export_csv": "Export CSV",
+    "import_csv": "Import CSV",
     "select_page": "Select page",
     "select_page_aria": "Select all on this page",
     "select_group_aria": "Select group {{day}}",
@@ -289,6 +290,45 @@
       "success": "{{count}} entry deleted",
       "confirm_title": "Confirm deletion",
       "confirm_text": "Permanently delete {{count}} report(s)? This action is irreversible and will remove the data from the database."
+    },
+    "import": {
+      "modal_title": "Import preview",
+      "modal_subtitle": "Clockify",
+      "loading": "Analyzing file…",
+      "close": "Close",
+      "invalid_file_type": "Please select a .csv file.",
+      "generic_error": "An error occurred while analyzing the file.",
+      "summary": {
+        "total_rows": "Total rows",
+        "blocked_rows": "Blocked rows",
+        "skipped_rows": "Skipped rows"
+      },
+      "blocked_warning": "{{count}} blocked row(s): resolve the user/project mapping before you can import.",
+      "pending_mapping_warning": "{{count}} item(s) left to resolve before you can import.",
+      "ready_message": "Mapping complete, ready for import.",
+      "users_title": "Detected users",
+      "projects_title": "Detected projects",
+      "groups_title": "Detected groups",
+      "no_users": "No users detected in this file.",
+      "no_projects": "No projects detected in this file.",
+      "no_groups": "No groups detected in this file.",
+      "status": {
+        "matched": "Resolved",
+        "create_pending": "To create",
+        "create_confirmed": "Will be created automatically",
+        "ignored": "Ignored"
+      },
+      "select_user_placeholder": "— Choose a user —",
+      "select_project_placeholder": "— Choose an existing project —",
+      "create_new_project_checkbox": "Automatically create this project",
+      "new_project_title_aria": "New project name",
+      "select_group_placeholder": "— Choose an existing group —",
+      "create_new_group_checkbox": "Automatically create this group",
+      "new_group_title_aria": "New group name",
+      "resolve_button": "Confirm resolution",
+      "resolving": "Resolving…",
+      "selection_required": "Select at least one resolution before confirming.",
+      "resolve_generic_error": "An error occurred while resolving the mapping."
     }
   },
   "entries_few": "",

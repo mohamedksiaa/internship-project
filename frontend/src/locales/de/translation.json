@@ -230,6 +230,7 @@
   "processed_history": {
     "title": "Verarbeiteter Verlauf",
     "export_csv": "Als CSV exportieren",
+    "import_csv": "CSV importieren",
     "select_page": "Seite auswählen",
     "select_page_aria": "Alle auf dieser Seite auswählen",
     "select_group_aria": "Gruppe {{day}} auswählen",
@@ -288,6 +289,45 @@
       "success": "{{count}} Eintrag/Einträge gelöscht",
       "confirm_title": "Löschung bestätigen",
       "confirm_text": "Diesen {{count}} Bericht(e) dauerhaft löschen? Diese Aktion ist irreversibel und entfernt die Daten aus der Datenbank."
+    },
+    "import": {
+      "modal_title": "Import-Vorschau",
+      "modal_subtitle": "Clockify",
+      "loading": "Datei wird analysiert…",
+      "close": "Schließen",
+      "invalid_file_type": "Bitte wählen Sie eine .csv-Datei aus.",
+      "generic_error": "Bei der Analyse der Datei ist ein Fehler aufgetreten.",
+      "summary": {
+        "total_rows": "Zeilen gesamt",
+        "blocked_rows": "Blockierte Zeilen",
+        "skipped_rows": "Übersprungene Zeilen"
+      },
+      "blocked_warning": "{{count}} blockierte Zeile(n): Lösen Sie das Benutzer-/Projekt-Mapping auf, bevor Sie importieren können.",
+      "pending_mapping_warning": "{{count}} Element(e) noch zu klären, bevor Sie importieren können.",
+      "ready_message": "Mapping vollständig, bereit für den Import.",
+      "users_title": "Erkannte Benutzer",
+      "projects_title": "Erkannte Projekte",
+      "groups_title": "Erkannte Gruppen",
+      "no_users": "Keine Benutzer in dieser Datei erkannt.",
+      "no_projects": "Keine Projekte in dieser Datei erkannt.",
+      "no_groups": "Keine Gruppen in dieser Datei erkannt.",
+      "status": {
+        "matched": "Gelöst",
+        "create_pending": "Zu erstellen",
+        "create_confirmed": "Wird automatisch erstellt",
+        "ignored": "Ignoriert"
+      },
+      "select_user_placeholder": "— Benutzer auswählen —",
+      "select_project_placeholder": "— Bestehendes Projekt auswählen —",
+      "create_new_project_checkbox": "Dieses Projekt automatisch erstellen",
+      "new_project_title_aria": "Name des neuen Projekts",
+      "select_group_placeholder": "— Bestehende Gruppe auswählen —",
+      "create_new_group_checkbox": "Diese Gruppe automatisch erstellen",
+      "new_group_title_aria": "Name der neuen Gruppe",
+      "resolve_button": "Zuordnung bestätigen",
+      "resolving": "Wird aufgelöst…",
+      "selection_required": "Wählen Sie mindestens eine Zuordnung, bevor Sie bestätigen.",
+      "resolve_generic_error": "Bei der Auflösung des Mappings ist ein Fehler aufgetreten."
     }
   },
   "entries_few": "",
