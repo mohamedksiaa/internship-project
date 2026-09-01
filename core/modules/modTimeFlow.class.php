@@ -89,15 +89,22 @@ class modTimeFlow extends DolibarrModules
 		// If file is in module/img directory under name object_pictovalue.png, use this->picto='pictovalue@module'
 		// To use a supported fa-xxx css style of font awesome, use this->picto='xxx'
 		// A "xxx@module" (PNG-file) picto cannot work for a module under
-		// htdocs/custom/: both img_picto() AND the top-menu icon CSS Dolibarr
-		// generates per-theme (theme/{eldy,md}/style.css.php) build the file's
-		// URL as DOL_URL_ROOT.'/'.$module.'/img/...' — never prepending
-		// "custom/" — so the PNG 404s everywhere it's used, including outside
-		// our own control (the top-menu bar's icon is theme-generated CSS, not
-		// something this module renders). A fa-xxx keyword sidesteps this
-		// entirely: it resolves via FontAwesome's own stylesheet, independent
-		// of where the module lives on disk — the same mechanism core modules
-		// like hrm use (see modHRM.class.php: $this->picto = 'hrm';).
+		// htdocs/custom/: img_picto()'s "@module" resolution (and the
+		// equivalent lookup theme/{eldy,md}/style.css.php does for the
+		// top-menu icon) builds the file's URL as DOL_URL_ROOT.'/'.$module.'/img/...'
+		// — never prepending "custom/" — so the PNG 404s.
+		// This also explains why the top-menu bar rendered an empty
+		// <span class="tmenuimageforpng">: core/menus/standard/eldy.lib.php
+		// (print_text_menu_entry) only prints this $this->menu[]['prefix']
+		// HTML verbatim when it starts with "<span" (or is a bare "fa-xxx"
+		// string) — an <img> tag (what img_picto() returns for an "@module"
+		// picto) matches neither case, so it falls back to an empty span that
+		// depends on theme-generated CSS to fill in a background-image, which
+		// has the exact same "custom/" bug independently.
+		// A fa-xxx keyword sidesteps all of this: img_picto() returns a ready
+		// '<span class="fas fa-xxx ...">' for it, which eldy.lib.php detects
+		// and prints as-is — no file path, no theme CSS involved. Same
+		// mechanism core modules use (see modHRM.class.php: $this->picto = 'hrm';).
 		$this->picto = 'fa-clock';
 
 		// Define some features supported by module (triggers, login, substitutions, menus, css, etc...)

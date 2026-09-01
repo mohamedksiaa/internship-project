@@ -8,6 +8,9 @@ const API_MODE = import.meta.env.VITE_API_MODE || 'real';
 
 let mockActiveTimer = null;
 let mockDailyReports = [];
+let mockTimeFlowProjects = [
+  { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', source: 'manual', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0 },
+];
 const mockEntries = [
   {
     id: 101,
@@ -239,7 +242,7 @@ function handleMockRequest(action, body) {
     case 'getWeeklyTimesheet':
       return Promise.resolve({ status: 'success', data: { weekStart: '2026-07-28', weekEnd: '2026-08-04', rows: mockEntries.map(normalizeEntry) } });
     case 'getSummaryReports':
-      return Promise.resolve({ status: 'success', data: { total_seconds: mockEntries.reduce((sum, entry) => sum + Number(entry.duration || 0), 0), billable_seconds: 0, non_billable_seconds: 0, by_project: {}, by_tag: {}, by_status: {} } });
+      return Promise.resolve({ status: 'success', data: { total_seconds: mockEntries.reduce((sum, entry) => sum + Number(entry.duration || 0), 0), billable_seconds: 0, non_billable_seconds: 0, by_project: {}, project_labels: {}, by_client: {}, client_labels: {}, by_user: {}, user_labels: {}, by_group: {}, group_labels: {}, by_tag: {}, by_status: {} } });
     case 'generateInvoiceLines':
       return Promise.resolve({ status: 'success', data: [] });
 
@@ -312,6 +315,46 @@ function handleMockRequest(action, body) {
           { id: 2, rowid: 2, title: 'idara', label: 'idara' },
         ],
       });
+    case 'getTimeFlowProjects':
+      return Promise.resolve({ status: 'success', data: mockTimeFlowProjects });
+    case 'createTimeFlowProject': {
+      const assignedUserIds = Array.isArray(body?.assigned_user_ids) ? body.assigned_user_ids.map(Number) : [];
+      const project = {
+        id: Date.now(),
+        rowid: Date.now(),
+        title: body?.title ?? '',
+        ref: 'CPJ-MOCK'+Date.now(),
+        description: body?.description ?? '',
+        source: 'manual',
+        fk_dolibarr_project: 0,
+        fk_soc: Number(body?.fk_soc || 0),
+        client: '',
+        entry_count: 0,
+        assigned_user_ids: assignedUserIds,
+        assigned_count: assignedUserIds.length,
+      };
+      mockTimeFlowProjects = [project, ...mockTimeFlowProjects];
+      return Promise.resolve({ status: 'success', data: { id: project.id, title: project.title } });
+    }
+    case 'updateTimeFlowProject': {
+      const id = Number(body?.id);
+      const assignedUserIds = Array.isArray(body?.assigned_user_ids) ? body.assigned_user_ids.map(Number) : [];
+      mockTimeFlowProjects = mockTimeFlowProjects.map((project) => project.id === id
+        ? { ...project, title: body?.title ?? project.title, description: body?.description ?? project.description, fk_soc: Number(body?.fk_soc || 0), assigned_user_ids: assignedUserIds, assigned_count: assignedUserIds.length }
+        : project);
+      return Promise.resolve({ status: 'success', data: { id } });
+    }
+    case 'deleteTimeFlowProject': {
+      const id = Number(body?.id);
+      mockTimeFlowProjects = mockTimeFlowProjects.filter((project) => project.id !== id);
+      return Promise.resolve({ status: 'success', data: { id } });
+    }
+    case 'listActiveThirdParties':
+      return Promise.resolve({
+        status: 'success',
+        data: [{ id: 1, rowid: 1, title: 'Client Test', label: 'Client Test' }],
+      });
+
     case 'resolveClockifyMapping': {
       const decisions = Array.isArray(body?.decisions) ? body.decisions : [];
       const updated = decisions.map((decision) => ({
@@ -336,14 +379,11 @@ export async function getActiveTimer() {
   return normalizeEntry(data?.data ?? null);
 }
 
-export async function startTimer(projectLabel = '', fkTask = 0, note = '') {
+export async function startTimer(fkProject = 0, fkTask = 0, note = '') {
   const data = await moduleTimerRequest('startTimer', {
-    fk_project: 0,
+    fk_project: fkProject,
     fk_task: fkTask,
     note,
-    project_label: projectLabel,
-    // Explicit flag: caller started without selecting a project
-    allow_no_project: projectLabel === '' ? true : false,
   });
   const payload = data?.data ?? data;
   const numericId = typeof payload === 'number' || (typeof payload === 'string' && /^\d+$/.test(payload.trim()));
@@ -454,6 +494,31 @@ export async function getProjects() {
 export async function getTasks(projectId = 0, limit = 100) {
   const data = await moduleTimerRequest('getTasks', { projectId, limit });
   return normalizeTasks(data?.data ?? data);
+}
+
+export async function getTimeFlowProjects() {
+  const data = await moduleTimerRequest('getTimeFlowProjects');
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+export async function createTimeFlowProject(title, fkSoc = 0, description = '', assignedUserIds = []) {
+  const data = await moduleTimerRequest('createTimeFlowProject', { title, fk_soc: fkSoc, description, assigned_user_ids: assignedUserIds });
+  return data?.data ?? data;
+}
+
+export async function updateTimeFlowProject(id, title, fkSoc = 0, description = '', assignedUserIds = []) {
+  const data = await moduleTimerRequest('updateTimeFlowProject', { id, title, fk_soc: fkSoc, description, assigned_user_ids: assignedUserIds });
+  return data?.data ?? data;
+}
+
+export async function deleteTimeFlowProject(id) {
+  const data = await moduleTimerRequest('deleteTimeFlowProject', { id });
+  return data?.data ?? data;
+}
+
+export async function listActiveThirdParties() {
+  const data = await moduleTimerRequest('listActiveThirdParties');
+  return Array.isArray(data?.data) ? data.data : [];
 }
 
 export async function getWeeklyTimesheet(weekStart = '') {

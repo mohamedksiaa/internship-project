@@ -21,6 +21,7 @@ export default function AppLayout() {
     { path: '/reports', label: t('nav.reports'), icon: '▥', section: t('app.section_analyze') },
     { path: '/validation', label: t('nav.validations'), icon: '✓', section: t('app.section_manage') },
     { path: '/processed-history', label: t('nav.history'), icon: '◫', section: t('app.section_manage') },
+    { path: '/projects', label: t('nav.projects'), icon: '⬒', section: t('app.section_manage') },
   ];
   const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
   const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;

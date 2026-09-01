@@ -622,13 +622,76 @@ function timeflowFetchActiveUsers($db)
     return $users;
 }
 
-function timeflowFetchProjects($db)
+/**
+ * Whether llx_timeflow_project_user exists yet. The migration that creates
+ * it (sql/migrate_timeflow_project_user.sql) is provided but NOT applied
+ * automatically — every function that reads this table must check this
+ * first and fail OPEN (behave as "unrestricted") when it's false, so
+ * shipping this code ahead of the migration never breaks project listing
+ * or timer start for anyone. Memoized per-request: cheap, but no need to
+ * repeat the existence probe on every call within the same page load.
+ */
+function timeflowProjectUserTableExists($db)
+{
+    static $exists = null;
+    if ($exists !== null) {
+        return $exists;
+    }
+    $resql = @$db->query('SELECT 1 FROM '.$db->prefix().'timeflow_project_user LIMIT 1');
+    $exists = (bool) $resql;
+    return $exists;
+}
+
+/**
+ * Whether $user may use $fkProject on a time entry. A project with no rows
+ * in llx_timeflow_project_user is open to everyone (default, preserves
+ * current behavior for every project that predates this feature); once at
+ * least one user is assigned, only admins, users with the readall right,
+ * and assigned users may use it.
+ */
+function timeflowCanAccessProject($db, $user, $fkProject)
+{
+    if (!empty($user->admin) || timeflowCanReadAllTimeEntries($user)) {
+        return true;
+    }
+    if (!timeflowProjectUserTableExists($db)) {
+        return true;
+    }
+
+    $sql = 'SELECT fk_user FROM '.$db->prefix().'timeflow_project_user';
+    $sql .= ' WHERE fk_project = '.(int) $fkProject;
+    $resql = $db->query($sql);
+    if (!$resql || $db->num_rows($resql) === 0) {
+        // No assignment row at all (or a query error we don't want to turn
+        // into a hard lockout) => unrestricted.
+        return true;
+    }
+    while ($obj = $db->fetch_object($resql)) {
+        if ((int) $obj->fk_user === (int) $user->id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function timeflowFetchProjects($db, $user = null)
 {
     $projects = array();
+
+    $restrictionClause = '';
+    $mustRestrict = $user && empty($user->admin) && !timeflowCanReadAllTimeEntries($user) && timeflowProjectUserTableExists($db);
+    if ($mustRestrict) {
+        $restrictionClause = ' AND (';
+        $restrictionClause .= '  NOT EXISTS (SELECT 1 FROM '.$db->prefix().'timeflow_project_user AS pu WHERE pu.fk_project = p.rowid)';
+        $restrictionClause .= '  OR EXISTS (SELECT 1 FROM '.$db->prefix().'timeflow_project_user AS pu2 WHERE pu2.fk_project = p.rowid AND pu2.fk_user = '.(int) $user->id.')';
+        $restrictionClause .= ' )';
+    }
+
     $sql = 'SELECT p.rowid, p.ref, p.title, p.fk_soc, s.nom as soc_name';
     $sql .= ' FROM '.$db->prefix().'timeflow_project AS p';
     $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
     $sql .= ' WHERE p.entity IN ('.getEntity('timeflow_project').')';
+    $sql .= $restrictionClause;
     $sql .= ' ORDER BY p.title ASC, p.ref ASC, p.rowid DESC';
 
     $resql = $db->query($sql);
@@ -711,7 +774,21 @@ function timeflowFetchWeeklyTimesheet($timeentry, $user, $weekStart = null)
     return array('weekStart' => date('Y-m-d', $weekStart), 'weekEnd' => date('Y-m-d', $weekEnd), 'rows' => $rows);
 }
 
-function timeflowBuildSummary($entries)
+/**
+ * Builds the dashboard/reports aggregate summary for a set of already-fetched
+ * time entries: one pass computes every "by_X" breakdown at once (project,
+ * client, employee, group, tag, status) so a single getSummaryReports call
+ * can feed the period cards AND the customizable chart widget together.
+ *
+ * Label sentinel keys (project '0', client '0', group '0') are left for the
+ * frontend to translate ("Sans projet"/"Client inconnu"/"Sans groupe"), the
+ * same way it already handles the project '0' bucket — no i18n in this file.
+ *
+ * @param array $entries Exported time entries (see timeflowExportTimeEntry)
+ * @param DoliDB $db
+ * @return array
+ */
+function timeflowBuildSummary($entries, $db)
 {
     $summary = array(
         'total_seconds' => 0,
@@ -719,9 +796,66 @@ function timeflowBuildSummary($entries)
         'non_billable_seconds' => 0,
         'by_project' => array(),
         'project_labels' => array(),
+        'by_client' => array(),
+        'client_labels' => array(),
+        'by_user' => array(),
+        'user_labels' => array(),
+        'by_group' => array(),
+        'group_labels' => array(),
         'by_tag' => array(),
         'by_status' => array(),
     );
+
+    // fk_project -> fk_soc, one query for every project actually referenced.
+    $projectClientMap = array();
+    $projectIds = array();
+    foreach ($entries as $entry) {
+        $pid = (int) ($entry['fk_project'] ?? 0);
+        if ($pid > 0) {
+            $projectIds[$pid] = true;
+        }
+    }
+    if (!empty($projectIds)) {
+        $sql = 'SELECT rowid, fk_soc FROM '.$db->prefix().'timeflow_project';
+        $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', array_keys($projectIds))).')';
+        $resql = $db->query($sql);
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $projectClientMap[(int) $obj->rowid] = (int) $obj->fk_soc;
+            }
+        }
+    }
+
+    // fk_soc -> nom, one query for every client actually referenced (almost
+    // always none today: llx_timeflow_project.fk_soc is not populated by any
+    // current project form, so this map is expected to stay empty).
+    $clientLabelMap = array();
+    $clientIds = array_values(array_unique(array_filter($projectClientMap)));
+    if (!empty($clientIds)) {
+        $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
+        $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', $clientIds)).')';
+        $resql = $db->query($sql);
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $clientLabelMap[(int) $obj->rowid] = (string) $obj->nom;
+            }
+        }
+    }
+
+    // fk_user -> [fk_usergroup...] + group labels. Table is tiny today (no
+    // group-management UI exists yet beyond the CSV import mapping), so a
+    // single unfiltered join is simplest and still cheap at any realistic size.
+    $userGroupsMap = array();
+    $groupLabelMap = array();
+    $sql = 'SELECT ug.fk_user, ug.fk_usergroup, g.nom FROM '.$db->prefix().'usergroup_user AS ug';
+    $sql .= ' INNER JOIN '.$db->prefix().'usergroup AS g ON g.rowid = ug.fk_usergroup';
+    $resql = $db->query($sql);
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $userGroupsMap[(int) $obj->fk_user][] = (int) $obj->fk_usergroup;
+            $groupLabelMap[(int) $obj->fk_usergroup] = (string) $obj->nom;
+        }
+    }
 
     foreach ($entries as $entry) {
         $duration = (int) ($entry['duration'] ?? 0);
@@ -732,13 +866,60 @@ function timeflowBuildSummary($entries)
             $summary['non_billable_seconds'] += $duration;
         }
 
-        $projectKey = (string) ($entry['fk_project'] ?? 0);
+        $fkProject = (int) ($entry['fk_project'] ?? 0);
+        $projectKey = (string) $fkProject;
         if (!isset($summary['by_project'][$projectKey])) {
             $summary['by_project'][$projectKey] = 0;
         }
         $summary['by_project'][$projectKey] += $duration;
         if (!isset($summary['project_labels'][$projectKey])) {
             $summary['project_labels'][$projectKey] = $entry['project_label'] ?? ('Projet #'.$projectKey);
+        }
+
+        // Client, via the entry's project's fk_soc. No project or no client on
+        // the project both land in the same "0" bucket (frontend: "Client inconnu").
+        $fkSoc = $fkProject > 0 ? ($projectClientMap[$fkProject] ?? 0) : 0;
+        $clientKey = (string) $fkSoc;
+        if (!isset($summary['by_client'][$clientKey])) {
+            $summary['by_client'][$clientKey] = 0;
+        }
+        $summary['by_client'][$clientKey] += $duration;
+        if ($fkSoc > 0 && !isset($summary['client_labels'][$clientKey])) {
+            $summary['client_labels'][$clientKey] = $clientLabelMap[$fkSoc] ?? ('Client #'.$clientKey);
+        }
+
+        $fkUser = (int) ($entry['fk_user'] ?? 0);
+        $userKey = (string) $fkUser;
+        if (!isset($summary['by_user'][$userKey])) {
+            $summary['by_user'][$userKey] = 0;
+        }
+        $summary['by_user'][$userKey] += $duration;
+        if (!isset($summary['user_labels'][$userKey])) {
+            $summary['user_labels'][$userKey] = $entry['user_label'] ?? ('Utilisateur #'.$userKey);
+        }
+
+        // Group(s): an employee can belong to several groups at once, so a
+        // single entry's duration can be counted into more than one bucket
+        // — this is a deliberate departure from the other dimensions, which
+        // partition duration exactly once. Employees with no group land in
+        // an explicit "0" bucket (frontend: "Sans groupe").
+        $groupsForUser = $userGroupsMap[$fkUser] ?? array();
+        if (empty($groupsForUser)) {
+            if (!isset($summary['by_group']['0'])) {
+                $summary['by_group']['0'] = 0;
+            }
+            $summary['by_group']['0'] += $duration;
+        } else {
+            foreach ($groupsForUser as $fkGroup) {
+                $groupKey = (string) $fkGroup;
+                if (!isset($summary['by_group'][$groupKey])) {
+                    $summary['by_group'][$groupKey] = 0;
+                }
+                $summary['by_group'][$groupKey] += $duration;
+                if (!isset($summary['group_labels'][$groupKey])) {
+                    $summary['group_labels'][$groupKey] = $groupLabelMap[$fkGroup] ?? ('Groupe #'.$groupKey);
+                }
+            }
         }
 
         foreach (preg_split('/\s*,\s*/', (string) ($entry['tags'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $tag) {
@@ -995,6 +1176,9 @@ switch ($action) {
             if (!$resql || $db->num_rows($resql) <= 0) {
                 timeflowStartTimerRejected('Projet introuvable', array('stage' => 'project_not_found', 'fk_project' => $fk_project, 'db_error' => !$resql ? $db->lasterror() : ''));
             }
+            if (!timeflowCanAccessProject($db, $user, $fk_project)) {
+                timeflowStartTimerRejected('Ce projet est restreint à certains utilisateurs', array('stage' => 'project_access_denied', 'fk_project' => $fk_project));
+            }
         }
 
         if ($fk_task > 0) {
@@ -1052,6 +1236,9 @@ switch ($action) {
             if ($fk_project <= 0) {
                 timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de créer ou retrouver le projet'), 400);
             }
+        }
+        if ($fk_project > 0 && !timeflowCanAccessProject($db, $user, $fk_project)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Ce projet est restreint à certains utilisateurs'), 403);
         }
 
         $startTimestamp = timeflowParseIncomingDate($date_start);
@@ -1130,7 +1317,7 @@ switch ($action) {
         break;
 
     case 'getProjects':
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchProjects($db)));
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchProjects($db, $user)));
         break;
 
     case 'getTimeFlowProjects':
@@ -1146,11 +1333,58 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Le titre du projet est requis'), 400);
         }
         $fkSoc = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        $res = timeflowCreateProject($db, $user, $title, $fkSoc);
+        $description = trim((string) ($postData['description'] ?? GETPOST('description', 'restricthtml')));
+        $assignedUserIds = $postData['assigned_user_ids'] ?? GETPOST('assigned_user_ids', 'array:int');
+        $res = timeflowCreateProject($db, $user, $title, $fkSoc, $description);
         if ($res > 0) {
+            timeflowSyncProjectAssignments($db, $user, $res, is_array($assignedUserIds) ? $assignedUserIds : array());
             timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $res, 'title' => $title)));
         }
         timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur à la création du projet'), 400);
+        break;
+
+    case 'updateTimeFlowProject':
+        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $projectId = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        if ($projectId <= 0) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant de projet invalide'), 400);
+        }
+        $title = trim($postData['title'] ?? GETPOST('title', 'alphanohtml'));
+        if ($title === '') {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Le titre du projet est requis'), 400);
+        }
+        $fkSoc = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
+        $description = trim((string) ($postData['description'] ?? GETPOST('description', 'restricthtml')));
+        $assignedUserIds = $postData['assigned_user_ids'] ?? GETPOST('assigned_user_ids', 'array:int');
+        if (timeflowUpdateProject($db, $projectId, $title, $fkSoc, $description)) {
+            timeflowSyncProjectAssignments($db, $user, $projectId, is_array($assignedUserIds) ? $assignedUserIds : array());
+            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $projectId)));
+        }
+        timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur lors de la mise à jour du projet'), 400);
+        break;
+
+    case 'deleteTimeFlowProject':
+        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $projectId = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
+        if ($projectId <= 0) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant de projet invalide'), 400);
+        }
+        $deleteResult = timeflowDeleteProject($db, $projectId);
+        if ($deleteResult === true) {
+            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $projectId)));
+        }
+        timeflowJsonResponse(array('status' => 'error', 'message' => is_string($deleteResult) ? $deleteResult : 'Erreur lors de la suppression du projet'), 400);
+        break;
+
+    case 'listActiveThirdParties':
+        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveThirdParties($db)));
         break;
 
     case 'getTasks':
@@ -1602,7 +1836,7 @@ switch ($action) {
                 $rows[] = timeflowExportTimeEntry($obj);
             }
         }
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowBuildSummary($rows)));
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowBuildSummary($rows, $db)));
         break;
 
     case 'generateInvoiceLines':
@@ -1952,18 +2186,38 @@ switch ($action) {
 function timeflowFetchTimeFlowProjects($db, $user)
 {
     $projects = array();
-    $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.source, p.fk_dolibarr_project, p.fk_soc, s.nom as soc_name';
+    $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.source, p.fk_dolibarr_project, p.fk_soc, s.nom as soc_name,';
+    $sql .= ' (SELECT COUNT(*) FROM '.$db->prefix().'timeflow_timeentry AS t';
+    $sql .= '  WHERE t.fk_project = p.rowid AND t.date_delete IS NULL) AS entry_count';
     $sql .= ' FROM '.$db->prefix().'timeflow_project AS p';
     $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
     $sql .= ' WHERE p.entity IN ('.getEntity('timeflow_project').')';
     $sql .= ' ORDER BY p.title ASC, p.rowid DESC';
 
+    // Assigned users per project, keyed by fk_project — a separate query
+    // (rather than GROUP_CONCAT) to avoid MySQL's group_concat length limit
+    // and keep string parsing out of it. Empty/missing table => every
+    // project just gets an empty assignment list (unrestricted), consistent
+    // with timeflowCanAccessProject()'s fail-open behavior.
+    $assignmentsByProject = array();
+    if (timeflowProjectUserTableExists($db)) {
+        $assignSql = 'SELECT fk_project, fk_user FROM '.$db->prefix().'timeflow_project_user';
+        $assignResql = $db->query($assignSql);
+        if ($assignResql) {
+            while ($assignObj = $db->fetch_object($assignResql)) {
+                $assignmentsByProject[(int) $assignObj->fk_project][] = (int) $assignObj->fk_user;
+            }
+        }
+    }
+
     $resql = $db->query($sql);
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
+            $projectId = (int) $obj->rowid;
+            $assignedUserIds = $assignmentsByProject[$projectId] ?? array();
             $projects[] = array(
-                'id' => (int) $obj->rowid,
-                'rowid' => (int) $obj->rowid,
+                'id' => $projectId,
+                'rowid' => $projectId,
                 'title' => $obj->title,
                 'ref' => !empty($obj->ref) ? $obj->ref : '',
                 'description' => !empty($obj->description) ? $obj->description : '',
@@ -1971,11 +2225,38 @@ function timeflowFetchTimeFlowProjects($db, $user)
                 'fk_dolibarr_project' => (int) $obj->fk_dolibarr_project,
                 'fk_soc' => (int) $obj->fk_soc,
                 'client' => !empty($obj->soc_name) ? $obj->soc_name : '',
+                'entry_count' => (int) $obj->entry_count,
+                'assigned_user_ids' => $assignedUserIds,
+                'assigned_count' => count($assignedUserIds),
             );
         }
     }
 
     return $projects;
+}
+
+function timeflowFetchActiveThirdParties($db)
+{
+    $thirdParties = array();
+    $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
+    $sql .= ' WHERE entity IN ('.getEntity('societe').')';
+    $sql .= ' AND status = 1';
+    $sql .= ' AND client <> 0';
+    $sql .= ' ORDER BY nom ASC';
+
+    $resql = $db->query($sql);
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $thirdParties[] = array(
+                'id' => (int) $obj->rowid,
+                'rowid' => (int) $obj->rowid,
+                'title' => (string) $obj->nom,
+                'label' => (string) $obj->nom,
+            );
+        }
+    }
+
+    return $thirdParties;
 }
 
 function timeflowResolveOrCreateProjectByLabel($db, $user, $projectLabel, $fkSoc = 0)
@@ -1995,7 +2276,16 @@ function timeflowResolveOrCreateProjectByLabel($db, $user, $projectLabel, $fkSoc
     if ($resql && $db->num_rows($resql) > 0) {
         $obj = $db->fetch_object($resql);
         $db->free($resql);
-        return (int) $obj->rowid;
+        $existingId = (int) $obj->rowid;
+        // Defense in depth: this label-matching fallback only fires when the
+        // caller didn't already send an fk_project (the normal path once the
+        // UI picks from a restricted project list), but a client could still
+        // submit project_label directly — don't let that bypass the same
+        // restriction fk_project submissions are checked against.
+        if (!timeflowCanAccessProject($db, $user, $existingId)) {
+            return 0;
+        }
+        return $existingId;
     }
 
     return timeflowCreateProject($db, $user, $label, $fkSoc);
@@ -2046,7 +2336,7 @@ function timeflowStoreProjectText($db, $user, $fkTimeentry, $projectLabel, $desc
     return $resql ? true : false;
 }
 
-function timeflowCreateProject($db, $user, $title, $fkSoc = 0)
+function timeflowCreateProject($db, $user, $title, $fkSoc = 0, $description = '')
 {
     global $conf;
 
@@ -2058,7 +2348,7 @@ function timeflowCreateProject($db, $user, $title, $fkSoc = 0)
     $sql .= ' VALUES ('.getEntity('timeflow_project').',';
     $sql .= " '".$db->escape($ref)."',";
     $sql .= " '".$db->escape($title)."',";
-    $sql .= " '',";
+    $sql .= " '".$db->escape(trim((string) $description))."',";
     $sql .= " 'manual',";
     $sql .= ' NULL,';
     $sql .= ' '.((int) $fkSoc).',';
@@ -2072,4 +2362,84 @@ function timeflowCreateProject($db, $user, $title, $fkSoc = 0)
     }
 
     return -1;
+}
+
+/**
+ * Updates a TimeFlow project's editable fields (title, description, client).
+ * ref/source/fk_dolibarr_project are never touched here.
+ *
+ * @return bool true on success
+ */
+function timeflowUpdateProject($db, $projectId, $title, $fkSoc, $description)
+{
+    $sql = 'UPDATE '.$db->prefix().'timeflow_project SET';
+    $sql .= ' title = \''.$db->escape($title).'\',';
+    $sql .= ' description = \''.$db->escape(trim((string) $description)).'\',';
+    $sql .= ' fk_soc = '.($fkSoc > 0 ? (int) $fkSoc : 'NULL');
+    $sql .= ' WHERE rowid = '.(int) $projectId;
+    $sql .= ' AND entity IN ('.getEntity('timeflow_project').')';
+
+    return (bool) $db->query($sql);
+}
+
+/**
+ * Replaces the full set of users a project is restricted to. An empty
+ * $userIds array clears all rows, putting the project back to "open to
+ * everyone" — matches timeflowCanAccessProject()'s "no rows = unrestricted"
+ * rule exactly. No-ops silently if the migration hasn't been applied yet
+ * (llx_timeflow_project_user missing) rather than erroring the whole
+ * create/update out.
+ */
+function timeflowSyncProjectAssignments($db, $user, $projectId, array $userIds)
+{
+    if (!timeflowProjectUserTableExists($db)) {
+        dol_syslog('timeflow.syncProjectAssignments skipped: llx_timeflow_project_user does not exist yet (migration not applied)', LOG_WARNING);
+        return;
+    }
+
+    $sql = 'DELETE FROM '.$db->prefix().'timeflow_project_user WHERE fk_project = '.(int) $projectId;
+    $db->query($sql);
+
+    $now = dol_now();
+    foreach (array_unique(array_map('intval', $userIds)) as $assignedUserId) {
+        if ($assignedUserId <= 0) {
+            continue;
+        }
+        $sql = 'INSERT INTO '.$db->prefix().'timeflow_project_user';
+        $sql .= ' (entity, fk_project, fk_user, date_creation, fk_user_creat)';
+        $sql .= ' VALUES ('.getEntity('timeflow_project').', '.(int) $projectId.', '.$assignedUserId.', \''.$db->idate($now).'\', '.(int) $user->id.')';
+        $db->query($sql);
+    }
+}
+
+/**
+ * Hard-deletes a TimeFlow project. Refuses if any (non-deleted) time entry
+ * still references it — deleting the project would silently orphan those
+ * entries' fk_project, which is worse than making the user reassign them
+ * first.
+ *
+ * @return true|string true on success, an error message string otherwise
+ */
+function timeflowDeleteProject($db, $projectId)
+{
+    $sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'timeflow_timeentry';
+    $sql .= ' WHERE fk_project = '.(int) $projectId;
+    $sql .= ' AND date_delete IS NULL';
+    $resql = $db->query($sql);
+    if ($resql) {
+        $obj = $db->fetch_object($resql);
+        if ($obj && (int) $obj->nb > 0) {
+            return 'Ce projet a '.((int) $obj->nb).' entrée(s) de temps associée(s) et ne peut pas être supprimé.';
+        }
+    }
+
+    if (timeflowProjectUserTableExists($db)) {
+        $db->query('DELETE FROM '.$db->prefix().'timeflow_project_user WHERE fk_project = '.(int) $projectId);
+    }
+
+    $sql = 'DELETE FROM '.$db->prefix().'timeflow_project';
+    $sql .= ' WHERE rowid = '.(int) $projectId;
+    $sql .= ' AND entity IN ('.getEntity('timeflow_project').')';
+
+    return $db->query($sql) ? true : 'Erreur SQL lors de la suppression : '.$db->lasterror();
 }

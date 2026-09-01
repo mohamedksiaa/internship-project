@@ -29,7 +29,7 @@ describe('DashboardPage KPI cards padding', () => {
     await i18n.changeLanguage('fr');
   });
 
-  it('renders seven KPI cards each using tw-p-6 (via Card or direct)', async () => {
+  it('renders the KPI cards each using tw-p-6 (via Card or direct)', async () => {
     await i18n.changeLanguage('fr');
 
     const { container } = render(
@@ -38,14 +38,18 @@ describe('DashboardPage KPI cards padding', () => {
       </MemoryRouter>
     );
 
+    // Period-driven cards: "Total" (renamed from "Total semaine"/"Total du
+    // mois" now that the period is a free date range, not a fixed week or
+    // month), "Soumises", "Validées" (all three via DashboardLayout), plus
+    // "Rapports en attente" (independent of the period picker). "Variation
+    // vs mois précédent" and "Période" were removed — no well-defined
+    // "previous period" once the range is free-form, and "Période" is
+    // redundant with the date-range picker itself.
     const labels = [
-      'Total semaine',
+      'Total',
       'Soumises',
       'Validées',
-      'Total du mois',
-      'Variation vs mois précédent',
       'Rapports en attente',
-      'Période',
     ];
 
     for (const label of labels) {
