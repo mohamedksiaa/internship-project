@@ -48,14 +48,14 @@ export function useTimer() {
     };
   }, [isRunning]);
 
-  const start = useCallback(async (projectLabel, fkTask, note) => {
+  const start = useCallback(async (fkProject, fkTask, note) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await startTimer(projectLabel, fkTask, note);
+      const result = await startTimer(fkProject, fkTask, note);
       const activeEntryPayload = {
         ...result,
-        project_label: result.project_label || projectLabel,
+        fk_project: result.fk_project ?? fkProject,
         fk_task: result.fk_task ?? fkTask,
         note: result.note ?? note,
       };

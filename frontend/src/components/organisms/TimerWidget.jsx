@@ -2,16 +2,16 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Card from '../atoms/Card';
 import TimeDisplay from '../atoms/TimeDisplay';
+import ProjectSelector from '../molecules/ProjectSelector';
 
-export default function TimerWidget({ timer, projects: _projects = [], projectsError = '', onProjectChange = () => {}, onEntryCreated = () => {} }) {
+export default function TimerWidget({ timer, projects = [], projectsError = '', onProjectChange = () => {}, onEntryCreated = () => {} }) {
   const { t } = useTranslation();
   const { isRunning, seconds, loading, error, start, stop } = timer;
-  const [projectLabel, setProjectLabel] = useState('');
+  const [fkProject, setFkProject] = useState('');
   const [note, setNote] = useState('');
 
-  const projectTrimmed = projectLabel.trim();
   const noteTrimmed = note.trim();
-  const isProjectValid = projectTrimmed !== '';
+  const isProjectValid = fkProject !== '' && Number(fkProject) > 0;
   const isNoteValid = noteTrimmed.length >= 3;
   const isDisabled = loading || (!isRunning && (!isProjectValid || !isNoteValid));
 
@@ -23,7 +23,7 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
 
   const handleStart = async () => {
     if (isDisabled) return;
-    const entry = await start(projectTrimmed, 0, noteTrimmed);
+    const entry = await start(Number(fkProject), 0, noteTrimmed);
     pushEntry(entry);
   };
 
@@ -31,15 +31,15 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
     const entry = await stop();
     if (entry) {
       setNote('');
-      setProjectLabel('');
+      setFkProject('');
       onProjectChange('');
       pushEntry(entry);
     }
   };
 
-  const handleProjectChange = (nextProjectLabel) => {
-    setProjectLabel(nextProjectLabel);
-    onProjectChange(nextProjectLabel.trim());
+  const handleProjectChange = (nextFkProject) => {
+    setFkProject(nextFkProject);
+    onProjectChange(nextFkProject);
   };
 
   return (
@@ -55,14 +55,13 @@ export default function TimerWidget({ timer, projects: _projects = [], projectsE
             placeholder={t('timer_widget.description_placeholder')}
             className="tw-flex-1 tw-rounded-xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800 tw-px-4 tw-py-3 tw-text-sm tw-text-slate-700 dark:tw-text-slate-200 tw-outline-none tw-transition placeholder:tw-text-slate-400 dark:placeholder:tw-text-slate-500 focus:tw-border-[#5B8FA8] focus:tw-bg-white dark:focus:tw-bg-slate-900 focus:tw-ring-2 focus:tw-ring-[#5B8FA8]/10"
           />
-          <input
+          <ProjectSelector
             id="timeflow-project"
-            name="project"
-            value={projectLabel}
-            onChange={(e) => handleProjectChange(e.target.value)}
-            aria-label={t('timer_widget.project_label')}
-            placeholder={t('timer_widget.project_placeholder')}
-            className="tw-w-full tw-rounded-xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800 tw-px-4 tw-py-3 tw-text-sm tw-text-slate-700 dark:tw-text-slate-200 tw-outline-none tw-transition placeholder:tw-text-slate-400 dark:placeholder:tw-text-slate-500 focus:tw-border-[#5B8FA8] focus:tw-bg-white dark:focus:tw-bg-slate-900 focus:tw-ring-2 focus:tw-ring-[#5B8FA8]/10 md:tw-w-48"
+            projects={projects}
+            value={fkProject}
+            onChange={handleProjectChange}
+            ariaLabel={t('timer_widget.project_label')}
+            className="tw-w-full tw-rounded-xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800 tw-px-4 tw-py-3 tw-text-sm tw-text-slate-700 dark:tw-text-slate-200 tw-outline-none tw-transition focus:tw-border-[#5B8FA8] focus:tw-bg-white dark:focus:tw-bg-slate-900 focus:tw-ring-2 focus:tw-ring-[#5B8FA8]/10 md:tw-w-48"
           />
           <div className="tw-flex tw-items-center tw-justify-center md:tw-w-32">
             <TimeDisplay seconds={seconds} />

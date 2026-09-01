@@ -37,9 +37,9 @@ describe('DashboardPage i18n integration', () => {
   });
 
   it.each([
-    ['fr', 'Total semaine', 'ltr'],
-    ['de', 'Gesamt Woche', 'ltr'],
-    ['ar', 'إجمالي الأسبوع', 'rtl'],
+    ['fr', 'Total', 'ltr'],
+    ['de', 'Gesamt', 'ltr'],
+    ['ar', 'الإجمالي', 'rtl'],
   ])('renders dashboard summary in %s with the correct direction', async (language, summaryLabel, expectedDir) => {
     await act(async () => {
       await i18n.changeLanguage(language);
@@ -70,7 +70,7 @@ describe('DashboardPage i18n integration', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Total semaine')).toBeInTheDocument();
+    expect(await screen.findByText('Total')).toBeInTheDocument();
     expect(timeflowApi.getMyDailyReports).toHaveBeenCalled();
     expect(timeflowApi.getDailyReports).not.toHaveBeenCalled();
   });

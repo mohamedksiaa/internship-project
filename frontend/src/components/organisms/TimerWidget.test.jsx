@@ -6,6 +6,11 @@ import TimerWidget from './TimerWidget';
 
 const t = (key) => i18n.t(key);
 
+const projects = [
+  { id: 1, title: 'Projet Alpha', client: 'Client A' },
+  { id: 2, title: 'Projet Beta', client: 'Client B' },
+];
+
 function renderTimerWidget(overrides = {}) {
   const timer = {
     isRunning: false,
@@ -16,19 +21,19 @@ function renderTimerWidget(overrides = {}) {
     stop: vi.fn().mockResolvedValue({ id: 1 }),
     ...overrides,
   };
-  return render(<TimerWidget timer={timer} onEntryCreated={vi.fn()} />);
+  return render(<TimerWidget timer={timer} projects={projects} onEntryCreated={vi.fn()} />);
 }
 
 describe('TimerWidget', () => {
   it('clears controlled description and project only after a successful stop', async () => {
     const user = userEvent.setup();
-    const stopped = { id: 7, note: 'Analyse', project_label: 'Projet A', duration: 2 };
+    const stopped = { id: 7, note: 'Analyse', fk_project: 1, duration: 2 };
     const stop = vi.fn().mockResolvedValue(stopped);
     const onEntryCreated = vi.fn();
-    const { rerender } = render(<TimerWidget timer={{ isRunning: false, seconds: 0, loading: false, start: vi.fn(), stop }} onEntryCreated={onEntryCreated} />);
+    const { rerender } = render(<TimerWidget timer={{ isRunning: false, seconds: 0, loading: false, start: vi.fn(), stop }} projects={projects} onEntryCreated={onEntryCreated} />);
     await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'Analyse');
-    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet A');
-    rerender(<TimerWidget timer={{ isRunning: true, seconds: 2, loading: false, start: vi.fn(), stop }} onEntryCreated={onEntryCreated} />);
+    await user.selectOptions(screen.getByLabelText(t('timer_widget.project_label')), '1');
+    rerender(<TimerWidget timer={{ isRunning: true, seconds: 2, loading: false, start: vi.fn(), stop }} projects={projects} onEntryCreated={onEntryCreated} />);
     await user.click(screen.getByRole('button', { name: t('timer_widget.stop') }));
     expect(screen.getByLabelText(t('timer_widget.description_label'))).toHaveValue('');
     expect(screen.getByLabelText(t('timer_widget.project_label'))).toHaveValue('');
@@ -43,14 +48,14 @@ describe('TimerWidget', () => {
   it('disables START when project is filled but description is empty', async () => {
     const user = userEvent.setup();
     renderTimerWidget();
-    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet Alpha');
+    await user.selectOptions(screen.getByLabelText(t('timer_widget.project_label')), '1');
     expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
   });
 
   it('disables START when description is shorter than 3 characters', async () => {
     const user = userEvent.setup();
     renderTimerWidget();
-    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet Alpha');
+    await user.selectOptions(screen.getByLabelText(t('timer_widget.project_label')), '1');
     await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'ab');
     expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
   });
@@ -65,7 +70,7 @@ describe('TimerWidget', () => {
   it('enables START when project is filled and description has at least 3 characters', async () => {
     const user = userEvent.setup();
     renderTimerWidget();
-    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet Alpha');
+    await user.selectOptions(screen.getByLabelText(t('timer_widget.project_label')), '1');
     await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'abc');
     expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeEnabled();
   });
@@ -73,9 +78,15 @@ describe('TimerWidget', () => {
   it('trims whitespace before validating the description length', async () => {
     const user = userEvent.setup();
     renderTimerWidget();
-    await user.type(screen.getByLabelText(t('timer_widget.project_label')), 'Projet Alpha');
+    await user.selectOptions(screen.getByLabelText(t('timer_widget.project_label')), '1');
     await user.type(screen.getByLabelText(t('timer_widget.description_label')), '  a  ');
     expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
+  });
+
+  it('only lists projects passed via the projects prop', () => {
+    renderTimerWidget();
+    expect(screen.getByRole('option', { name: 'Projet Alpha' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Projet Beta' })).toBeInTheDocument();
   });
 
   it('shows a visible validation hint when fields are missing', () => {
