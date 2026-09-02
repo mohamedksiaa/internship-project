@@ -2,22 +2,17 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import Card from '../components/atoms/Card';
 import {
-  deleteDailyReport,
   exportProcessedHistory,
   getDailyReports,
   getMyDailyReports,
   getProcessedHistory,
   getProjects,
-  hardDeleteTimeEntry,
-  hardDeleteTimeEntries,
-  hardDeleteDailyReport,
-  hardDeleteDailyReports,
   previewClockifyImport,
 } from '../api/timeflowApi';
 import StatusBadge from '../components/atoms/StatusBadge';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import ImportPreviewModal from '../components/molecules/ImportPreviewModal.jsx';
-import { ModifiedManuallyBadge, isManuallyModifiedRecord } from '../components/organisms/TimeEntryList.jsx';
+import { ModifiedManuallyBadge, isManuallyModifiedRecord, taskClusterKey } from '../components/organisms/TimeEntryList.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
 
 const initialFilters = {
@@ -41,16 +36,12 @@ export default function ProcessedHistoryPage() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [deleteRequest, setDeleteRequest] = useState(null);
   const [reportHistory, setReportHistory] = useState([]);
   const [reportHistoryLoading, setReportHistoryLoading] = useState(true);
   const [reportHistoryError, setReportHistoryError] = useState('');
   const [reportEmployees, setReportEmployees] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
-  const [importState, setImportState] = useState({ open: false, loading: false, error: '', data: null });
-  const globalCheckboxRef = useRef(null);
+  const [importState, setImportState] = useState({ open: false, loading: false, error: '', data: null, file: null });
   const importFileInputRef = useRef(null);
 
   useEffect(() => {
@@ -117,35 +108,6 @@ export default function ProcessedHistoryPage() {
     }, {});
   }, [visibleReportHistory]);
 
-  const selectReportGroup = (rows, checked) => {
-    const ids = rows.map((r) => Number(r.id));
-    setSelectedIds((current) => {
-      if (checked) return Array.from(new Set([...current, ...ids]));
-      return current.filter((id) => !ids.includes(Number(id)));
-    });
-  };
-
-  const handleHardDeleteReport = async (id) => {
-    if (!canReadAll) return;
-    try {
-      await hardDeleteDailyReport(id);
-      setReportHistory((items) => items.filter((item) => Number(item.id) !== Number(id)));
-    } catch (err) {
-      setReportHistoryError(err.message);
-    }
-  };
-
-  const handleHardDeleteMultiple = async (ids) => {
-    if (!canReadAll || !Array.isArray(ids) || ids.length === 0) return;
-    try {
-      await hardDeleteDailyReports(ids);
-      setReportHistory((items) => items.filter((item) => !ids.includes(Number(item.id))));
-      setSelectedIds((current) => current.filter((id) => !ids.includes(Number(id))));
-    } catch (err) {
-      setReportHistoryError(err.message);
-    }
-  };
-
   const refreshHistory = async () => {
     const next = await getProcessedHistory({ ...filters, page, per_page: 20 });
     setData(next);
@@ -156,7 +118,6 @@ export default function ProcessedHistoryPage() {
     let active = true;
     setLoading(true);
     setError('');
-    setSuccess('');
     getProcessedHistory({ ...filters, page, per_page: 20 })
       .then((next) => {
         if (active) setData(next);
@@ -173,10 +134,6 @@ export default function ProcessedHistoryPage() {
     };
   }, [filters, page]);
 
-  useEffect(() => {
-    setSelectedIds([]);
-  }, [data.rows]);
-
   const update = (key, value) => {
     setPage(1);
     setFilters((current) => ({ ...current, [key]: value }));
@@ -189,54 +146,6 @@ export default function ProcessedHistoryPage() {
       return all;
     }, {});
   }, [data.rows]);
-
-  const toggleSelected = (id) => {
-    setSelectedIds((current) => {
-      const numericId = Number(id);
-      return current.includes(numericId)
-        ? current.filter((currentId) => Number(currentId) !== numericId)
-        : [...current, numericId];
-    });
-  };
-
-  const selectAllForPage = (checked) => {
-    const rowIds = data.rows.map((row) => Number(row.id));
-    setSelectedIds((current) => {
-      if (checked) {
-        return Array.from(new Set([...current, ...rowIds]));
-      }
-      return current.filter((id) => !rowIds.includes(Number(id)));
-    });
-  };
-
-  const selectAllReportsForPage = (checked) => {
-    const rowIds = reportHistory.map((row) => Number(row.id));
-    setSelectedIds((current) => {
-      if (checked) return Array.from(new Set([...current, ...rowIds]));
-      return current.filter((id) => !rowIds.includes(Number(id)));
-    });
-  };
-
-  const selectAllForGroup = (rows, checked) => {
-    const rowIds = rows.map((row) => Number(row.id));
-    setSelectedIds((current) => {
-      if (checked) {
-        return Array.from(new Set([...current, ...rowIds]));
-      }
-      return current.filter((id) => !rowIds.includes(Number(id)));
-    });
-  };
-
-  const handleDeleteReport = async (id) => {
-    if (!canReadAll) return;
-
-    try {
-      await deleteDailyReport(id);
-      setReportHistory((items) => items.filter((item) => Number(item.id) !== Number(id)));
-    } catch (err) {
-      setReportHistoryError(err.message);
-    }
-  };
 
   const csv = async () => {
     if (activeTab === 'reports') {
@@ -311,54 +220,27 @@ export default function ProcessedHistoryPage() {
     if (!file) return;
 
     if (!/\.csv$/i.test(file.name)) {
-      setImportState({ open: true, loading: false, error: t('processed_history.import.invalid_file_type'), data: null });
+      setImportState({ open: true, loading: false, error: t('processed_history.import.invalid_file_type'), data: null, file: null });
       return;
     }
 
-    setImportState({ open: true, loading: true, error: '', data: null });
+    // The File object is kept in state (not just passed once) so the modal
+    // can resubmit the exact same CSV to executeClockifyImport() once the
+    // user has resolved every mapping — see the backend design note on
+    // TimeImportClockify::executeImportFromCsvPath() for why re-upload is
+    // necessary (row-level data is never persisted by the preview step).
+    setImportState({ open: true, loading: true, error: '', data: null, file });
     try {
       const preview = await previewClockifyImport(file);
-      setImportState({ open: true, loading: false, error: '', data: preview });
+      setImportState({ open: true, loading: false, error: '', data: preview, file });
     } catch (err) {
-      setImportState({ open: true, loading: false, error: err.message || t('processed_history.import.generic_error'), data: null });
+      setImportState({ open: true, loading: false, error: err.message || t('processed_history.import.generic_error'), data: null, file });
     }
   };
 
   const closeImportModal = () => {
-    setImportState({ open: false, loading: false, error: '', data: null });
-  };
-
-  const submitHardDelete = async () => {
-    if (!deleteRequest) return;
-
-    const { type, ids } = deleteRequest;
-
-    try {
-      if (activeTab === 'reports') {
-        if (type === 'single') {
-          await hardDeleteDailyReport(ids[0]);
-        } else {
-          await hardDeleteDailyReports(ids);
-        }
-        setDeleteRequest(null);
-        // Remove from local state instead of refreshing full processed history
-        setReportHistory((items) => items.filter((item) => !ids.includes(Number(item.id))));
-        setSelectedIds((current) => current.filter((id) => !ids.includes(Number(id))));
-      } else {
-        if (type === 'single') {
-          await hardDeleteTimeEntry(ids[0]);
-        } else {
-          await hardDeleteTimeEntries(ids);
-        }
-        setDeleteRequest(null);
-        await refreshHistory();
-      }
-      setSuccess(t('processed_history.delete.success', { count: ids.length }));
-      setTimeout(() => setSuccess(''), 5000);
-    } catch (err) {
-      setError(err.message);
-      setDeleteRequest(null);
-    }
+    setImportState({ open: false, loading: false, error: '', data: null, file: null });
+    refreshHistory();
   };
 
   return (
@@ -403,31 +285,6 @@ export default function ProcessedHistoryPage() {
                 <div>
                   <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-[.24em] tw-text-slate-500 dark:tw-text-slate-400">{t('app.section_manage')}</p>
                   <h1 className="tw-text-2xl tw-font-semibold dark:tw-text-slate-100">{t('processed_history.title')}</h1>
-                </div>
-                <div className="tw-flex tw-items-center tw-gap-3">
-                  {canReadAll && (
-                    <>
-                      <label className="tw-flex tw-items-center tw-gap-2">
-                        <input
-                          ref={globalCheckboxRef}
-                          aria-label={t('processed_history.select_page_aria')}
-                          type="checkbox"
-                          checked={data.rows.length > 0 && data.rows.every((row) => selectedIds.includes(Number(row.id)))}
-                          onChange={(event) => selectAllForPage(event.target.checked)}
-                        />
-                        <span className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">{t('processed_history.select_page')}</span>
-                      </label>
-                      {selectedIds.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })}
-                          className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#b23f3f]"
-                        >
-                          {t('processed_history.delete.selection', { count: selectedIds.length })}
-                        </button>
-                      )}
-                    </>
-                  )}
                 </div>
               </div>
 
@@ -485,10 +342,24 @@ export default function ProcessedHistoryPage() {
             </section>
 
             {error && <p className="tw-text-red-600 dark:tw-text-red-400">{error}</p>}
-            {success && <p className="tw-text-green-600 dark:tw-text-green-400">{success}</p>}
             {loading && <p className="dark:tw-text-slate-300">{t('loading')}</p>}
 
-            {!loading && Object.entries(grouped).map(([day, rows]) => (
+            {!loading && Object.entries(grouped).map(([day, rows]) => {
+              // Several rows can belong to the same task (a resume now always
+              // creates a new entry instead of reopening the old one) — cluster
+              // them by project+task+note so the last row of each cluster can
+              // carry a "×N segments · total" summary badge.
+              const taskClusters = new Map();
+              rows.forEach((row) => {
+                const clusterKey = taskClusterKey(row);
+                const cluster = taskClusters.get(clusterKey) || { count: 0, total: 0, lastId: null };
+                cluster.count += 1;
+                cluster.total += Number(row.duration || 0);
+                cluster.lastId = row.id;
+                taskClusters.set(clusterKey, cluster);
+              });
+
+              return (
               <section key={day} className="tw-overflow-x-auto tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-rounded">
                 <div className="tw-flex tw-justify-between tw-bg-slate-100 dark:tw-bg-slate-800 tw-p-3 dark:tw-text-slate-200">
                   <strong>{day}</strong>
@@ -498,23 +369,6 @@ export default function ProcessedHistoryPage() {
                 <table className="tw-w-full tw-text-left tw-text-sm tw-border-collapse dark:tw-text-slate-200">
                   <thead>
                     <tr>
-                      {canReadAll && (
-                        <th className="tw-w-10 tw-px-2 tw-py-2 tw-text-center tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">
-                          <input
-                            aria-label={t('processed_history.select_group_aria', { day })}
-                            type="checkbox"
-                            checked={rows.every((row) => selectedIds.includes(Number(row.id)))}
-                            ref={(el) => {
-                              if (el) {
-                                const groupAll = rows.every((row) => selectedIds.includes(Number(row.id)));
-                                const groupSome = rows.some((row) => selectedIds.includes(Number(row.id))) && !groupAll;
-                                el.indeterminate = groupSome;
-                              }
-                            }}
-                            onChange={(event) => selectAllForGroup(rows, event.target.checked)}
-                          />
-                        </th>
-                      )}
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.task')}</th>
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.project')}</th>
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.who')}</th>
@@ -524,54 +378,46 @@ export default function ProcessedHistoryPage() {
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.duration')}</th>
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.modification')}</th>
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.processed_by_at')}</th>
-                      {canReadAll && <th className="tw-px-2 tw-py-2 tw-text-right">{t('processed_history.columns.actions')}</th>}
                     </tr>
                   </thead>
 
                   <tbody>
                     {rows.map((entry) => (
                       <tr key={entry.id} className="tw-border-t dark:tw-border-slate-700">
-                          {canReadAll && (
-                            <td className="tw-px-2 tw-py-2 tw-text-center tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">
-                            <input
-                              aria-label={t('processed_history.select_entry_aria')}
-                              type="checkbox"
-                              checked={selectedIds.includes(Number(entry.id))}
-                              onChange={() => toggleSelected(entry.id)}
-                            />
-                          </td>
-                        )}
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.note || t('timeentry.no_description')}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.project_label}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.user_label}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{dateTime(entry.date_start)}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{dateTime(entry.date_end)}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0"><StatusBadge status={Number(entry.status)} /></td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{formatDuration(entry.duration)}</td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">
+                          {formatDuration(entry.duration)}
+                          {(() => {
+                            const cluster = taskClusters.get(taskClusterKey(entry));
+                            if (!cluster || cluster.count <= 1 || cluster.lastId !== entry.id) return null;
+                            return (
+                              <span
+                                title={t('timeentry.title_task_segments')}
+                                className="tw-ml-2 tw-rounded-full tw-bg-[#eaf6fd] dark:tw-bg-[#5B8FA8]/20 tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9]"
+                              >
+                                ×{cluster.count} · {formatDuration(cluster.total)}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.manual_modified ? t('processed_history.modified_manually') : '—'}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">
                           {entry.processed_by_label || '—'}
                           <br />
                           {dateTime(entry.processed_at)}
                         </td>
-                        {canReadAll && (
-                          <td className="tw-px-2 tw-py-2 tw-text-right">
-                            <button
-                              type="button"
-                              aria-label={t('processed_history.delete.entry_aria')}
-                              onClick={() => setDeleteRequest({ type: 'single', ids: [Number(entry.id)] })}
-                              className="tw-rounded tw-bg-[#d64c4c] tw-px-2 tw-py-1 tw-text-xs tw-font-medium tw-text-white"
-                            >
-                              {t('processed_history.delete.action')}
-                            </button>
-                          </td>
-                        )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </section>
-            ))}
+              );
+            })}
 
             {/* Pagination controls for tasks history */}
             {!loading && data.rows.length > 0 && (
@@ -613,34 +459,6 @@ export default function ProcessedHistoryPage() {
               <div>
                 <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-[.24em] tw-text-slate-500 dark:tw-text-slate-400">{t('app.section_manage')}</p>
                 <h1 className="tw-text-2xl tw-font-semibold dark:tw-text-slate-100">{t('history.report_history')}</h1>
-              </div>
-              <div className="tw-flex tw-items-center tw-gap-3">
-                {canReadAll && (
-                  <>
-                    <label className="tw-flex tw-items-center tw-gap-2">
-                      <input
-                        ref={(el) => {
-                          if (el) {
-                            const all = reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)));
-                            const some = reportHistory.some((r) => selectedIds.includes(Number(r.id))) && !all;
-                            el.indeterminate = some;
-                          }
-                        }}
-                        aria-label={t('processed_history.select_page_aria')}
-                        type="checkbox"
-                        checked={reportHistory.length > 0 && reportHistory.every((r) => selectedIds.includes(Number(r.id)))}
-                        onChange={(event) => selectAllReportsForPage(event.target.checked)}
-                      />
-                      <span className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">{t('processed_history.select_page')}</span>
-                    </label>
-
-                    {selectedIds.length > 0 && (
-                      <button type="button" onClick={() => setDeleteRequest({ type: 'multiple', ids: Array.from(selectedIds) })} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#b23f3f]">
-                        {t('processed_history.delete.selection', { count: selectedIds.length })}
-                      </button>
-                    )}
-                  </>
-                )}
               </div>
             </div>
 
@@ -704,12 +522,6 @@ export default function ProcessedHistoryPage() {
                         <p className="tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{day}</p>
                         <p className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('processed_history.total')}: {rows.length}</p>
                       </div>
-                      {canReadAll && (
-                        <label className="tw-flex tw-items-center tw-gap-2 dark:tw-text-slate-300">
-                          <input type="checkbox" checked={rows.every((r) => selectedIds.includes(Number(r.id)))} onChange={(e) => selectReportGroup(rows, e.target.checked)} />
-                          <span className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">{t('processed_history.select_group_aria', { day })}</span>
-                        </label>
-                      )}
                     </div>
                     <div className="tw-mt-3">
                       {rows.map((report) => (
@@ -723,14 +535,6 @@ export default function ProcessedHistoryPage() {
                               <StatusBadge status={Number(report.status)} />
                               {isManuallyModifiedRecord(report.date_creation, report.date_last_content_edit) && (
                                 <ModifiedManuallyBadge title={t('timeentry.corrected_traced')} />
-                              )}
-                              {canReadAll && (
-                                <>
-                                  <input aria-label={t('processed_history.select_entry_aria')} type="checkbox" checked={selectedIds.includes(Number(report.id))} onChange={() => toggleSelected(report.id)} />
-                                  <button type="button" onClick={() => setDeleteRequest({ type: 'single', ids: [Number(report.id)] })} className="tw-rounded-lg tw-border tw-border-rose-200 dark:tw-border-rose-800 tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-rose-700 dark:tw-text-rose-300 hover:tw-bg-rose-100 dark:hover:tw-bg-rose-900/50">
-                                    {t('daily_report.delete')}
-                                  </button>
-                                </>
                               )}
                             </div>
                           </div>
@@ -754,28 +558,13 @@ export default function ProcessedHistoryPage() {
         )}
       </Card>
 
-      {deleteRequest && (
-        <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-slate-900/40 tw-px-4">
-          <div className="tw-w-full tw-max-w-md tw-rounded-2xl tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-6 tw-shadow-xl">
-            <h3 className="tw-text-lg tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{t('processed_history.delete.confirm_title')}</h3>
-            <p className="tw-mt-2 tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('processed_history.delete.confirm_text', { count: deleteRequest.ids.length })}</p>
-            <div className="tw-mt-5 tw-flex tw-justify-end tw-gap-3">
-              <button type="button" onClick={() => setDeleteRequest(null)} className="tw-rounded tw-border tw-border-slate-200 dark:tw-border-slate-600 tw-px-4 tw-py-2 tw-text-sm tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-50 dark:hover:tw-bg-slate-800">
-                {t('common.cancel')}
-              </button>
-              <button type="button" onClick={submitHardDelete} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-sm tw-text-white hover:tw-bg-[#b23f3f]">
-                {t('timeentry.confirm')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {selectedReport && <ReadDailyReportModal report={selectedReport} onClose={() => setSelectedReport(null)} />}
       <ImportPreviewModal
         open={importState.open}
         loading={importState.loading}
         error={importState.error}
         data={importState.data}
+        file={importState.file}
         onClose={closeImportModal}
       />
     </div>

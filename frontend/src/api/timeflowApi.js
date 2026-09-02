@@ -9,7 +9,7 @@ const API_MODE = import.meta.env.VITE_API_MODE || 'real';
 let mockActiveTimer = null;
 let mockDailyReports = [];
 let mockTimeFlowProjects = [
-  { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', source: 'manual', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0 },
+  { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', source: 'manual', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0, date_creation: '2026-07-01T09:00:00Z' },
 ];
 const mockEntries = [
   {
@@ -130,11 +130,24 @@ function handleMockRequest(action, body) {
     case 'getTimeEntries':
       return Promise.resolve({ status: 'success', data: mockEntries });
     case 'restartTimer': {
-      const entry = mockEntries.find((item) => item.id === Number(body?.id));
-      if (!entry) return Promise.reject(new Error('Entrée introuvable.'));
-      entry.date_start = new Date().toISOString();
-      entry.date_end = null;
-      entry.status = 0;
+      // A resume never rewrites the previous entry — it creates a brand new
+      // one with the same project/task/note, exactly like startTimer().
+      const previous = mockEntries.find((item) => item.id === Number(body?.id));
+      if (!previous) return Promise.reject(new Error('Entrée introuvable.'));
+      const entry = {
+        id: Date.now(),
+        fk_project: previous.fk_project ?? 0,
+        fk_task: previous.fk_task ?? 0,
+        note: previous.note ?? '',
+        duration: 0,
+        status: 0,
+        billable: Number(previous.billable || 0),
+        tags: previous.tags ?? '',
+        date_start: new Date().toISOString(),
+        date_end: null,
+      };
+      mockActiveTimer = entry;
+      mockEntries.unshift(entry);
       return Promise.resolve({ status: 'success', data: entry });
     }
     case 'deleteTimeEntry': {
@@ -147,22 +160,6 @@ function handleMockRequest(action, body) {
       mockEntries.splice(index, 1);
       if (mockActiveTimer?.id === id) mockActiveTimer = null;
       return Promise.resolve({ status: 'success', data: { id } });
-    }
-    case 'hardDeleteTimeEntry': {
-      const id = Number(body?.id);
-      if (!Number.isFinite(id) || id <= 0) return Promise.reject(new Error('Entrée introuvable.'));
-      const index = mockEntries.findIndex((item) => item.id === id);
-      if (index >= 0) mockEntries.splice(index, 1);
-      return Promise.resolve({ status: 'success', data: { id, deleted: true } });
-    }
-    case 'hardDeleteTimeEntries': {
-      const ids = Array.isArray(body?.ids) ? body.ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0) : [];
-      if (!ids.length) return Promise.reject(new Error('Aucune entrée sélectionnée.'));
-      for (const id of ids) {
-        const index = mockEntries.findIndex((entry) => entry.id === id);
-        if (index >= 0) mockEntries.splice(index, 1);
-      }
-      return Promise.resolve({ status: 'success', data: { deleted: ids.length, ids } });
     }
     case 'getValidationEntries':
       return Promise.resolve({ status: 'success', data: mockEntries.filter((entry) => Number(entry.status) === 1) });
@@ -315,8 +312,21 @@ function handleMockRequest(action, body) {
           { id: 2, rowid: 2, title: 'idara', label: 'idara' },
         ],
       });
-    case 'getTimeFlowProjects':
-      return Promise.resolve({ status: 'success', data: mockTimeFlowProjects });
+    case 'getTimeFlowProjects': {
+      const clientId = Number(body?.client_id || 0);
+      const dateFrom = body?.date_from || '';
+      const dateTo = body?.date_to || '';
+      const search = String(body?.search || '').trim().toLowerCase();
+      const filtered = mockTimeFlowProjects.filter((project) => {
+        if (clientId > 0 && Number(project.fk_soc) !== clientId) return false;
+        const createdDate = String(project.date_creation || '').slice(0, 10);
+        if (dateFrom && createdDate < dateFrom) return false;
+        if (dateTo && createdDate > dateTo) return false;
+        if (search && !project.title.toLowerCase().includes(search) && !String(project.ref || '').toLowerCase().includes(search)) return false;
+        return true;
+      });
+      return Promise.resolve({ status: 'success', data: filtered });
+    }
     case 'createTimeFlowProject': {
       const assignedUserIds = Array.isArray(body?.assigned_user_ids) ? body.assigned_user_ids.map(Number) : [];
       const project = {
@@ -332,6 +342,7 @@ function handleMockRequest(action, body) {
         entry_count: 0,
         assigned_user_ids: assignedUserIds,
         assigned_count: assignedUserIds.length,
+        date_creation: new Date().toISOString(),
       };
       mockTimeFlowProjects = [project, ...mockTimeFlowProjects];
       return Promise.resolve({ status: 'success', data: { id: project.id, title: project.title } });
@@ -348,6 +359,11 @@ function handleMockRequest(action, body) {
       const id = Number(body?.id);
       mockTimeFlowProjects = mockTimeFlowProjects.filter((project) => project.id !== id);
       return Promise.resolve({ status: 'success', data: { id } });
+    }
+    case 'deleteTimeFlowProjects': {
+      const ids = Array.isArray(body?.ids) ? body.ids.map(Number) : [];
+      mockTimeFlowProjects = mockTimeFlowProjects.filter((project) => !ids.includes(Number(project.id)));
+      return Promise.resolve({ status: 'success', data: { deleted: ids, failed: [] } });
     }
     case 'listActiveThirdParties':
       return Promise.resolve({
@@ -419,26 +435,6 @@ export async function deleteTimeEntry(id) {
   return data?.data ?? data;
 }
 
-export async function hardDeleteTimeEntry(id) {
-  const data = await moduleTimerRequest('hardDeleteTimeEntry', { id });
-  return data?.data ?? data;
-}
-
-export async function hardDeleteTimeEntries(ids = []) {
-  const data = await moduleTimerRequest('hardDeleteTimeEntries', { ids: Array.from(ids) });
-  return data?.data ?? data;
-}
-
-export async function hardDeleteDailyReport(id) {
-  const data = await moduleTimerRequest('hardDeleteDailyReport', { id });
-  return data?.data ?? data;
-}
-
-export async function hardDeleteDailyReports(ids = []) {
-  const data = await moduleTimerRequest('hardDeleteDailyReports', { ids: Array.from(ids) });
-  return data?.data ?? data;
-}
-
 export async function getTimeEntries(limit = 100) {
   const data = await moduleTimerRequest('getTimeEntries', { limit });
   return normalizeEntries(data?.data ?? data);
@@ -496,8 +492,13 @@ export async function getTasks(projectId = 0, limit = 100) {
   return normalizeTasks(data?.data ?? data);
 }
 
-export async function getTimeFlowProjects() {
-  const data = await moduleTimerRequest('getTimeFlowProjects');
+export async function getTimeFlowProjects(filters = {}) {
+  const data = await moduleTimerRequest('getTimeFlowProjects', {
+    client_id: filters.clientId || 0,
+    date_from: filters.dateFrom || '',
+    date_to: filters.dateTo || '',
+    search: filters.search || '',
+  });
   return Array.isArray(data?.data) ? data.data : [];
 }
 
@@ -513,6 +514,11 @@ export async function updateTimeFlowProject(id, title, fkSoc = 0, description = 
 
 export async function deleteTimeFlowProject(id) {
   const data = await moduleTimerRequest('deleteTimeFlowProject', { id });
+  return data?.data ?? data;
+}
+
+export async function deleteTimeFlowProjects(ids = []) {
+  const data = await moduleTimerRequest('deleteTimeFlowProjects', { ids: Array.from(ids) });
   return data?.data ?? data;
 }
 
@@ -666,6 +672,56 @@ export async function previewClockifyImport(file) {
 
   if (!response.ok || data?.status === 'error') {
     throw new Error(data?.message || data?.error || `Erreur d’import (${response.status})`);
+  }
+
+  return data?.data ?? data;
+}
+
+/**
+ * Re-submits the same CSV file (the browser keeps the File object in memory
+ * as long as the preview modal stays open — see the backend design note on
+ * TimeImportClockify::executeImportFromCsvPath()) once every mapping is
+ * resolved, to actually create the confirmed projects/groups, link group
+ * memberships, and import the eligible time entries.
+ */
+export async function executeClockifyImport(file) {
+  if (API_MODE === 'mock') {
+    return Promise.resolve({
+      projects_created: [],
+      groups_created: [{ source_value: 'HRM', id: 999, title: 'HRM' }],
+      group_memberships_created: 3,
+      group_memberships_skipped: 0,
+      time_entries_created: 5,
+      time_entries_skipped_empty: 0,
+      time_entries_skipped_unresolved: 1,
+      time_entries_skipped_already_imported: 0,
+      time_entries_skipped_invalid: 0,
+      unresolved_rows: [{ row: 4, reason: 'user_not_found', value: 'unknown@example.com' }],
+      errors: [],
+    });
+  }
+
+  const formData = new FormData();
+  formData.append('csv_file', file);
+
+  const url = `${buildApiUrl('executeClockifyImport')}&token=${encodeURIComponent(TIMEFLOW_TOKEN)}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+    credentials: 'include',
+    body: formData,
+  });
+
+  const responseText = await response.text();
+  let data = null;
+  try {
+    data = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    throw new Error(responseText || 'Réponse invalide du serveur.');
+  }
+
+  if (!response.ok || data?.status === 'error') {
+    throw new Error(data?.message || data?.error || `Erreur d’exécution de l’import (${response.status})`);
   }
 
   return data?.data ?? data;

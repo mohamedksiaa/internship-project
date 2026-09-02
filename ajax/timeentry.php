@@ -186,6 +186,20 @@ function timeflowCanReadAllTimeEntries($user)
 }
 
 /**
+ * Whether a native project is in Dolibarr's "Closed" status — TimeFlow's
+ * equivalent of "deleted" for a project (see timeflowDeleteProject()).
+ * A closed project must never accept a new time entry, exactly like a
+ * genuinely deleted project no longer could.
+ */
+function timeflowProjectIsClosed($db, $fkProject)
+{
+    $sql = 'SELECT fk_statut FROM '.$db->prefix().'projet WHERE rowid = '.((int) $fkProject);
+    $resql = $db->query($sql);
+    $obj = $resql ? $db->fetch_object($resql) : null;
+    return $obj ? ((int) $obj->fk_statut === Project::STATUS_CLOSED) : false;
+}
+
+/**
  * The validation screen is a manager view. A user who can validate must see
  * the team entries in that view and in the manager's time-tracking view, even
  * when the separate "read all" permission was not assigned.
@@ -444,8 +458,11 @@ function timeflowResolveProjectLabel($projectId)
     }
 
     $label = 'Projet #'.$projectId;
+    // Projects live in the native llx_projet table (TimeFlow -> native
+    // project migration) — llx_timeflow_project is kept read-only as a
+    // pre-migration backup, no longer written to.
     $sql = 'SELECT rowid, ref, title';
-    $sql .= ' FROM '.$db->prefix().'timeflow_project';
+    $sql .= ' FROM '.$db->prefix().'projet';
     $sql .= ' WHERE rowid = '.$projectId;
     $resql = $db->query($sql);
     if ($resql) {
@@ -643,23 +660,25 @@ function timeflowProjectUserTableExists($db)
 }
 
 /**
- * Whether $user may use $fkProject on a time entry. A project with no rows
- * in llx_timeflow_project_user is open to everyone (default, preserves
- * current behavior for every project that predates this feature); once at
- * least one user is assigned, only admins, users with the readall right,
- * and assigned users may use it.
+ * Whether $user may use $fkProject on a time entry. A project with no
+ * internal PROJECTCONTRIBUTOR contact is open to everyone (default,
+ * preserves current behavior for every project that predates this
+ * feature); once at least one user is assigned via the native project
+ * contact mechanism (llx_element_contact/llx_c_type_contact), only admins,
+ * users with the readall right, and assigned users may use it.
  */
 function timeflowCanAccessProject($db, $user, $fkProject)
 {
     if (!empty($user->admin) || timeflowCanReadAllTimeEntries($user)) {
         return true;
     }
-    if (!timeflowProjectUserTableExists($db)) {
-        return true;
-    }
 
-    $sql = 'SELECT fk_user FROM '.$db->prefix().'timeflow_project_user';
-    $sql .= ' WHERE fk_project = '.(int) $fkProject;
+    $sql = 'SELECT ec.fk_socpeople AS fk_user';
+    $sql .= ' FROM '.$db->prefix().'element_contact AS ec';
+    $sql .= ' INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
+    $sql .= " WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
+    $sql .= ' AND ec.statut = 4';
+    $sql .= ' AND ec.element_id = '.(int) $fkProject;
     $resql = $db->query($sql);
     if (!$resql || $db->num_rows($resql) === 0) {
         // No assignment row at all (or a query error we don't want to turn
@@ -678,19 +697,38 @@ function timeflowFetchProjects($db, $user = null)
 {
     $projects = array();
 
+    // Restriction is now expressed against the native project contact
+    // mechanism (llx_element_contact/llx_c_type_contact), same rule as
+    // timeflowCanAccessProject(): no PROJECTCONTRIBUTOR contact at all =>
+    // open to everyone; otherwise only assigned users (or admins/readall,
+    // handled by $mustRestrict below) may see the project.
     $restrictionClause = '';
-    $mustRestrict = $user && empty($user->admin) && !timeflowCanReadAllTimeEntries($user) && timeflowProjectUserTableExists($db);
+    $mustRestrict = $user && empty($user->admin) && !timeflowCanReadAllTimeEntries($user);
     if ($mustRestrict) {
         $restrictionClause = ' AND (';
-        $restrictionClause .= '  NOT EXISTS (SELECT 1 FROM '.$db->prefix().'timeflow_project_user AS pu WHERE pu.fk_project = p.rowid)';
-        $restrictionClause .= '  OR EXISTS (SELECT 1 FROM '.$db->prefix().'timeflow_project_user AS pu2 WHERE pu2.fk_project = p.rowid AND pu2.fk_user = '.(int) $user->id.')';
+        $restrictionClause .= '  NOT EXISTS (';
+        $restrictionClause .= '    SELECT 1 FROM '.$db->prefix().'element_contact AS ec';
+        $restrictionClause .= '    INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
+        $restrictionClause .= "    WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
+        $restrictionClause .= '    AND ec.statut = 4 AND ec.element_id = p.rowid';
+        $restrictionClause .= '  )';
+        $restrictionClause .= '  OR EXISTS (';
+        $restrictionClause .= '    SELECT 1 FROM '.$db->prefix().'element_contact AS ec2';
+        $restrictionClause .= '    INNER JOIN '.$db->prefix().'c_type_contact AS tc2 ON tc2.rowid = ec2.fk_c_type_contact';
+        $restrictionClause .= "    WHERE tc2.element = 'project' AND tc2.source = 'internal' AND tc2.code = 'PROJECTCONTRIBUTOR'";
+        $restrictionClause .= '    AND ec2.statut = 4 AND ec2.element_id = p.rowid AND ec2.fk_socpeople = '.(int) $user->id;
+        $restrictionClause .= '  )';
         $restrictionClause .= ' )';
     }
 
     $sql = 'SELECT p.rowid, p.ref, p.title, p.fk_soc, s.nom as soc_name';
-    $sql .= ' FROM '.$db->prefix().'timeflow_project AS p';
+    $sql .= ' FROM '.$db->prefix().'projet AS p';
     $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
-    $sql .= ' WHERE p.entity IN ('.getEntity('timeflow_project').')';
+    $sql .= ' WHERE p.entity IN ('.getEntity('project').')';
+    // A closed project is TimeFlow's "deleted" project (see
+    // timeflowDeleteProject() — setClose() instead of a physical delete):
+    // it must disappear from every picker, exactly like a real delete would.
+    $sql .= ' AND p.fk_statut <> '.Project::STATUS_CLOSED;
     $sql .= $restrictionClause;
     $sql .= ' ORDER BY p.title ASC, p.ref ASC, p.rowid DESC';
 
@@ -714,20 +752,13 @@ function timeflowFetchProjects($db, $user = null)
 function timeflowFetchTasks($db, $projectId = 0, $limit = 100)
 {
     $tasks = array();
-    $dolibarrProjectId = 0;
-
-    if ((int) $projectId > 0) {
-        $sql = 'SELECT fk_dolibarr_project FROM '.$db->prefix().'timeflow_project';
-        $sql .= ' WHERE rowid = '.((int) $projectId);
-        $sql .= ' AND entity IN ('.getEntity('timeflow_project').')';
-        $resql = $db->query($sql);
-        if ($resql) {
-            $obj = $db->fetch_object($resql);
-            if ($obj) {
-                $dolibarrProjectId = (int) $obj->fk_dolibarr_project;
-            }
-        }
-    }
+    // $projectId now IS the native llx_projet id directly (TimeFlow ->
+    // native project migration), so tasks scope to it with no indirection.
+    // Previously this went through llx_timeflow_project.fk_dolibarr_project,
+    // which was never populated — every call with a project actually set
+    // silently returned tasks from ALL projects instead of just this one;
+    // that latent bug is naturally resolved now.
+    $dolibarrProjectId = (int) $projectId;
 
     $sql = 'SELECT rowid, fk_projet, ref, label';
     $sql .= ' FROM '.$db->prefix().'projet_task';
@@ -816,7 +847,7 @@ function timeflowBuildSummary($entries, $db)
         }
     }
     if (!empty($projectIds)) {
-        $sql = 'SELECT rowid, fk_soc FROM '.$db->prefix().'timeflow_project';
+        $sql = 'SELECT rowid, fk_soc FROM '.$db->prefix().'projet';
         $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', array_keys($projectIds))).')';
         $resql = $db->query($sql);
         if ($resql) {
@@ -826,9 +857,7 @@ function timeflowBuildSummary($entries, $db)
         }
     }
 
-    // fk_soc -> nom, one query for every client actually referenced (almost
-    // always none today: llx_timeflow_project.fk_soc is not populated by any
-    // current project form, so this map is expected to stay empty).
+    // fk_soc -> nom, one query for every client actually referenced.
     $clientLabelMap = array();
     $clientIds = array_values(array_unique(array_filter($projectClientMap)));
     if (!empty($clientIds)) {
@@ -1169,12 +1198,15 @@ switch ($action) {
         }
 
         if ($fk_project > 0) {
-            $sql = 'SELECT rowid FROM '.$db->prefix().'timeflow_project';
+            $sql = 'SELECT rowid FROM '.$db->prefix().'projet';
             $sql .= ' WHERE rowid = '.((int) $fk_project);
-            $sql .= ' AND entity IN ('.getEntity('timeflow_project').')';
+            $sql .= ' AND entity IN ('.getEntity('project').')';
             $resql = $db->query($sql);
             if (!$resql || $db->num_rows($resql) <= 0) {
                 timeflowStartTimerRejected('Projet introuvable', array('stage' => 'project_not_found', 'fk_project' => $fk_project, 'db_error' => !$resql ? $db->lasterror() : ''));
+            }
+            if (timeflowProjectIsClosed($db, $fk_project)) {
+                timeflowStartTimerRejected('Ce projet est fermé et n’accepte plus de nouvelles entrées de temps.', array('stage' => 'project_closed', 'fk_project' => $fk_project));
             }
             if (!timeflowCanAccessProject($db, $user, $fk_project)) {
                 timeflowStartTimerRejected('Ce projet est restreint à certains utilisateurs', array('stage' => 'project_access_denied', 'fk_project' => $fk_project));
@@ -1186,16 +1218,10 @@ switch ($action) {
             if ($task->fetch($fk_task) <= 0) {
                 timeflowStartTimerRejected('Tâche introuvable', array('stage' => 'task_not_found', 'fk_task' => $fk_task));
             }
-            if ($fk_project > 0) {
-                $sql = 'SELECT fk_dolibarr_project FROM '.$db->prefix().'timeflow_project';
-                $sql .= ' WHERE rowid = '.((int) $fk_project);
-                $sql .= ' AND entity IN ('.getEntity('timeflow_project').')';
-                $resql = $db->query($sql);
-                if ($resql && $cp = $db->fetch_object($resql)) {
-                    if ((int) $task->fk_project !== (int) $cp->fk_dolibarr_project) {
-                        timeflowStartTimerRejected('Tâche introuvable ou rattachée à un autre projet', array('stage' => 'task_project_mismatch', 'fk_task' => $fk_task, 'fk_project' => $fk_project));
-                    }
-                }
+            // fk_project IS the native llx_projet id directly now — no more
+            // indirection through the never-populated fk_dolibarr_project.
+            if ($fk_project > 0 && (int) $task->fk_project !== (int) $fk_project) {
+                timeflowStartTimerRejected('Tâche introuvable ou rattachée à un autre projet', array('stage' => 'task_project_mismatch', 'fk_task' => $fk_task, 'fk_project' => $fk_project));
             }
         }
 
@@ -1240,6 +1266,9 @@ switch ($action) {
         if ($fk_project > 0 && !timeflowCanAccessProject($db, $user, $fk_project)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Ce projet est restreint à certains utilisateurs'), 403);
         }
+        if ($fk_project > 0 && timeflowProjectIsClosed($db, $fk_project)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Ce projet est fermé et n’accepte plus de nouvelles entrées de temps.'), 400);
+        }
 
         $startTimestamp = timeflowParseIncomingDate($date_start);
         $endTimestamp = timeflowParseIncomingDate($date_end);
@@ -1283,12 +1312,51 @@ switch ($action) {
         break;
 
     case 'restartTimer':
+        // "Resume" never reopens/rewrites the previous entry — it creates a
+        // brand new one (same project/task/note/tags/billable), exactly like
+        // startTimer(), so date_start/date_end/duration stay coherent on
+        // every row, always. The old entry is only read here, never written.
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        $res = $timeentry->restartTimer($id, $user);
-        if ($res > 0) {
-            timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
+        if ($id <= 0) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant d’entrée invalide'), 400);
         }
-        timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à la reprise'), 400);
+        if ($timeentry->fetch($id) <= 0) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Entrée introuvable'), 404);
+        }
+        if ((int) $timeentry->fk_user !== (int) $user->id) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+
+        $fk_project = (int) $timeentry->fk_project;
+        $fk_task = (int) $timeentry->fk_task;
+        $note = (string) $timeentry->note;
+        $tags = (string) $timeentry->tags;
+        $billable = (int) $timeentry->billable;
+
+        // Same checks as startTimer(): the project may since have been
+        // deleted or had its access restricted since the previous entry
+        // was created.
+        if ($fk_project > 0) {
+            $sql = 'SELECT rowid FROM '.$db->prefix().'projet';
+            $sql .= ' WHERE rowid = '.$fk_project;
+            $sql .= ' AND entity IN ('.getEntity('project').')';
+            $resql = $db->query($sql);
+            if (!$resql || $db->num_rows($resql) <= 0) {
+                timeflowJsonResponse(array('status' => 'error', 'message' => 'Projet introuvable'), 400);
+            }
+            if (!timeflowCanAccessProject($db, $user, $fk_project)) {
+                timeflowJsonResponse(array('status' => 'error', 'message' => 'Ce projet est restreint à certains utilisateurs'), 403);
+            }
+        }
+
+        $freshEntry = new TimeEntry($db);
+        $newId = $freshEntry->startTimer($user->id, $fk_project, $fk_task, $note, $user, $tags, $billable);
+        if ($newId > 0) {
+            timeflowStoreTaskText($db, $user, $newId, $note, $note);
+            $freshEntry->fetch($newId);
+            timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($freshEntry)));
+        }
+        timeflowJsonResponse(array('status' => 'error', 'message' => $freshEntry->error ?: 'Erreur à la reprise'), 400);
         break;
 
     case 'deleteTimeEntry':
@@ -1321,7 +1389,13 @@ switch ($action) {
         break;
 
     case 'getTimeFlowProjects':
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTimeFlowProjects($db, $user)));
+        $projectFilters = array(
+            'client_id' => !empty($postData['client_id']) ? (int) $postData['client_id'] : (int) GETPOST('client_id', 'int'),
+            'date_from' => $postData['date_from'] ?? GETPOST('date_from', 'alphanohtml'),
+            'date_to' => $postData['date_to'] ?? GETPOST('date_to', 'alphanohtml'),
+            'search' => trim((string) ($postData['search'] ?? GETPOST('search', 'alphanohtml'))),
+        );
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTimeFlowProjects($db, $user, $projectFilters)));
         break;
 
     case 'createTimeFlowProject':
@@ -1358,7 +1432,7 @@ switch ($action) {
         $fkSoc = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
         $description = trim((string) ($postData['description'] ?? GETPOST('description', 'restricthtml')));
         $assignedUserIds = $postData['assigned_user_ids'] ?? GETPOST('assigned_user_ids', 'array:int');
-        if (timeflowUpdateProject($db, $projectId, $title, $fkSoc, $description)) {
+        if (timeflowUpdateProject($db, $user, $projectId, $title, $fkSoc, $description)) {
             timeflowSyncProjectAssignments($db, $user, $projectId, is_array($assignedUserIds) ? $assignedUserIds : array());
             timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $projectId)));
         }
@@ -1373,11 +1447,41 @@ switch ($action) {
         if ($projectId <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant de projet invalide'), 400);
         }
-        $deleteResult = timeflowDeleteProject($db, $projectId);
+        $deleteResult = timeflowDeleteProject($db, $user, $projectId);
         if ($deleteResult === true) {
             timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $projectId)));
         }
         timeflowJsonResponse(array('status' => 'error', 'message' => is_string($deleteResult) ? $deleteResult : 'Erreur lors de la suppression du projet'), 400);
+        break;
+
+    case 'deleteTimeFlowProjects':
+        // Bulk delete, same permission gate as the single-project action
+        // above — never a looser check just because it's a batch call.
+        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $projectIds = $postData['ids'] ?? GETPOST('ids', 'array:int');
+        $projectIds = is_array($projectIds) ? array_unique(array_map('intval', $projectIds)) : array();
+        $projectIds = array_values(array_filter($projectIds, function ($candidateId) {
+            return $candidateId > 0;
+        }));
+        if (empty($projectIds)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucun projet sélectionné'), 400);
+        }
+        // Each project is deleted independently — one still holding time
+        // entries (timeflowDeleteProject's own business rule) must not block
+        // the others, so failures are collected rather than aborting the batch.
+        $deletedIds = array();
+        $failed = array();
+        foreach ($projectIds as $bulkProjectId) {
+            $bulkResult = timeflowDeleteProject($db, $user, $bulkProjectId);
+            if ($bulkResult === true) {
+                $deletedIds[] = $bulkProjectId;
+            } else {
+                $failed[] = array('id' => $bulkProjectId, 'message' => is_string($bulkResult) ? $bulkResult : 'Erreur lors de la suppression du projet');
+            }
+        }
+        timeflowJsonResponse(array('status' => 'success', 'data' => array('deleted' => $deletedIds, 'failed' => $failed)));
         break;
 
     case 'listActiveThirdParties':
@@ -1471,6 +1575,30 @@ switch ($action) {
         }
         break;
 
+    case 'executeClockifyImport':
+        // Same right as the rest of the import flow — this is the step
+        // that actually writes data, so no looser check than preview/resolve.
+        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+
+        if (empty($_FILES['csv_file']['tmp_name'])) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Fichier CSV manquant.'), 400);
+        }
+
+        try {
+            $clockifyImport = new TimeImportClockify($db);
+            $report = $clockifyImport->executeImportFromUploadedFile($_FILES['csv_file'], $user);
+            timeflowJsonResponse(array('status' => 'success', 'data' => $report));
+        } catch (InvalidArgumentException $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
+        } catch (RuntimeException $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
+        } catch (Exception $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur lors de l’exécution de l’import.'), 500);
+        }
+        break;
+
     case 'listActiveUsers':
         if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
@@ -1505,114 +1633,6 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
         } catch (Exception $e) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur lors de la résolution du mapping.'), 500);
-        }
-        break;
-
-    case 'hardDeleteTimeEntry':
-        if (!timeflowCanReadAllTimeEntries($user)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        if ($id <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant d’entrée invalide'), 400);
-        }
-        $entry = new TimeEntry($db);
-        if ($entry->fetch($id) <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Entrée introuvable'), 404);
-        }
-        $db->begin();
-        $result = $entry->hardDeletePermanently($user);
-        if ($result > 0) {
-            $db->commit();
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'deleted' => true)));
-        }
-        $db->rollback();
-        timeflowJsonResponse(array('status' => 'error', 'message' => $entry->error ?: 'Erreur lors de la suppression définitive'), 500);
-        break;
-
-        case 'hardDeleteDailyReport':
-            if (!timeflowCanReadAllTimeEntries($user)) {
-                timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-            }
-            $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-            if ($id <= 0) {
-                timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant du rapport invalide'), 400);
-            }
-            $sql = 'SELECT rowid FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
-            $res = $db->query($sql);
-            if (!$res || $db->num_rows($res) <= 0) {
-                timeflowJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
-            }
-            $db->begin();
-            $delSql = 'DELETE FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id);
-            if ($db->query($delSql)) {
-                $db->commit();
-                timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'deleted' => true)));
-            }
-            $db->rollback();
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur lors de la suppression définitive'), 500);
-            break;
-
-        case 'hardDeleteDailyReports':
-            if (!timeflowCanReadAllTimeEntries($user)) {
-                timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-            }
-            $ids = array();
-            if (!empty($postData['ids']) && is_array($postData['ids'])) {
-                $ids = array_values(array_filter(array_map('intval', $postData['ids']), static fn($value) => $value > 0));
-            } elseif (!empty($_REQUEST['ids'])) {
-                $ids = array_values(array_filter(array_map('intval', explode(',', (string) $_REQUEST['ids'])), static fn($value) => $value > 0));
-            }
-            if (empty($ids)) {
-                timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucune entrée sélectionnée'), 400);
-            }
-            $db->begin();
-            try {
-                foreach ($ids as $id) {
-                    $delSql = 'DELETE FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id);
-                    $res = $db->query($delSql);
-                    if (!$res || $db->affected_rows($res) === 0) {
-                        throw new RuntimeException('Erreur lors de la suppression du rapport '.$id);
-                    }
-                }
-                $db->commit();
-                timeflowJsonResponse(array('status' => 'success', 'data' => array('deleted' => count($ids), 'ids' => $ids)));
-            } catch (Throwable $exception) {
-                $db->rollback();
-                timeflowJsonResponse(array('status' => 'error', 'message' => $exception->getMessage()), 500);
-            }
-            break;
-
-    case 'hardDeleteTimeEntries':
-        if (!timeflowCanReadAllTimeEntries($user)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $ids = array();
-        if (!empty($postData['ids']) && is_array($postData['ids'])) {
-            $ids = array_values(array_filter(array_map('intval', $postData['ids']), static fn($value) => $value > 0));
-        } elseif (!empty($_REQUEST['ids'])) {
-            $ids = array_values(array_filter(array_map('intval', explode(',', (string) $_REQUEST['ids'])), static fn($value) => $value > 0));
-        }
-        if (empty($ids)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucune entrée sélectionnée'), 400);
-        }
-
-        $db->begin();
-        try {
-            foreach ($ids as $id) {
-                $entry = new TimeEntry($db);
-                if ($entry->fetch($id) <= 0) {
-                    throw new RuntimeException('Entrée introuvable : '.$id);
-                }
-                if ($entry->hardDeletePermanently($user) <= 0) {
-                    throw new RuntimeException($entry->error ?: 'Erreur lors de la suppression définitive de l’entrée '.$id);
-                }
-            }
-            $db->commit();
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('deleted' => count($ids), 'ids' => $ids)));
-        } catch (Throwable $exception) {
-            $db->rollback();
-            timeflowJsonResponse(array('status' => 'error', 'message' => $exception->getMessage()), 500);
         }
         break;
 
@@ -1850,7 +1870,7 @@ switch ($action) {
                     continue;
                 }
                 if ($clientId > 0) {
-                    $sql = 'SELECT fk_soc FROM '.$db->prefix().'timeflow_project';
+                    $sql = 'SELECT fk_soc FROM '.$db->prefix().'projet';
                     $sql .= ' WHERE rowid = '.(int) $obj->fk_project;
                     $resql = $db->query($sql);
                     if ($resql && $proj = $db->fetch_object($resql)) {
@@ -2183,30 +2203,72 @@ switch ($action) {
         break;
 }
 
-function timeflowFetchTimeFlowProjects($db, $user)
+/**
+ * @param array $filters Optional: client_id (fk_soc), date_from/date_to
+ *   (on p.date_creation, 'YYYY-MM-DD'), search (LIKE on title/ref). All
+ *   applied server-side in the single project query below — the per-project
+ *   assigned-users lookup further down stays a single batched query
+ *   regardless of these filters, so filtering never turns this into N+1.
+ */
+/**
+ * Lists native Dolibarr projects for TimeFlow's "Gérer > Projets" page.
+ *
+ * This intentionally lists EVERY project in llx_projet, not just ones
+ * created through TimeFlow — that is the whole point of the TimeFlow ->
+ * native project migration (see the audit "Unification des projets
+ * TimeFlow / Dolibarr natif"): one project list, visible and consistent
+ * on both sides, regardless of which UI created it.
+ */
+function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
 {
     $projects = array();
-    $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.source, p.fk_dolibarr_project, p.fk_soc, s.nom as soc_name,';
+    $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.fk_soc, s.nom as soc_name,';
+    $sql .= ' ef.timeflow_source, ef.timeflow_import_key,';
     $sql .= ' (SELECT COUNT(*) FROM '.$db->prefix().'timeflow_timeentry AS t';
     $sql .= '  WHERE t.fk_project = p.rowid AND t.date_delete IS NULL) AS entry_count';
-    $sql .= ' FROM '.$db->prefix().'timeflow_project AS p';
+    $sql .= ' FROM '.$db->prefix().'projet AS p';
     $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
-    $sql .= ' WHERE p.entity IN ('.getEntity('timeflow_project').')';
+    $sql .= ' LEFT JOIN '.$db->prefix().'projet_extrafields AS ef ON ef.fk_object = p.rowid';
+    $sql .= ' WHERE p.entity IN ('.getEntity('project').')';
+    // See timeflowFetchProjects(): a closed project is TimeFlow's "deleted"
+    // project and must not appear in this listing either.
+    $sql .= ' AND p.fk_statut <> '.Project::STATUS_CLOSED;
+
+    $clientId = (int) ($filters['client_id'] ?? 0);
+    if ($clientId > 0) {
+        $sql .= ' AND p.fk_soc = '.$clientId;
+    }
+    $dateFrom = timeflowParseIncomingDate($filters['date_from'] ?? '');
+    if ($dateFrom !== false) {
+        $sql .= " AND p.datec >= '".$db->idate($dateFrom)."'";
+    }
+    $dateTo = timeflowParseIncomingDate($filters['date_to'] ?? '');
+    if ($dateTo !== false) {
+        $sql .= " AND p.datec <= '".$db->idate($dateTo + 86399)."'";
+    }
+    $search = trim((string) ($filters['search'] ?? ''));
+    if ($search !== '') {
+        $searchLike = "'%".$db->escape($search)."%'";
+        $sql .= ' AND (p.title LIKE '.$searchLike.' OR p.ref LIKE '.$searchLike.')';
+    }
+
     $sql .= ' ORDER BY p.title ASC, p.rowid DESC';
 
-    // Assigned users per project, keyed by fk_project — a separate query
+    // Assigned users per project, keyed by project id — a separate query
     // (rather than GROUP_CONCAT) to avoid MySQL's group_concat length limit
-    // and keep string parsing out of it. Empty/missing table => every
-    // project just gets an empty assignment list (unrestricted), consistent
-    // with timeflowCanAccessProject()'s fail-open behavior.
+    // and keep string parsing out of it. No PROJECTCONTRIBUTOR contact at
+    // all => every project just gets an empty assignment list
+    // (unrestricted), consistent with timeflowCanAccessProject().
     $assignmentsByProject = array();
-    if (timeflowProjectUserTableExists($db)) {
-        $assignSql = 'SELECT fk_project, fk_user FROM '.$db->prefix().'timeflow_project_user';
-        $assignResql = $db->query($assignSql);
-        if ($assignResql) {
-            while ($assignObj = $db->fetch_object($assignResql)) {
-                $assignmentsByProject[(int) $assignObj->fk_project][] = (int) $assignObj->fk_user;
-            }
+    $assignSql = 'SELECT ec.element_id AS fk_project, ec.fk_socpeople AS fk_user';
+    $assignSql .= ' FROM '.$db->prefix().'element_contact AS ec';
+    $assignSql .= ' INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
+    $assignSql .= " WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
+    $assignSql .= ' AND ec.statut = 4';
+    $assignResql = $db->query($assignSql);
+    if ($assignResql) {
+        while ($assignObj = $db->fetch_object($assignResql)) {
+            $assignmentsByProject[(int) $assignObj->fk_project][] = (int) $assignObj->fk_user;
         }
     }
 
@@ -2221,8 +2283,7 @@ function timeflowFetchTimeFlowProjects($db, $user)
                 'title' => $obj->title,
                 'ref' => !empty($obj->ref) ? $obj->ref : '',
                 'description' => !empty($obj->description) ? $obj->description : '',
-                'source' => $obj->source,
-                'fk_dolibarr_project' => (int) $obj->fk_dolibarr_project,
+                'source' => !empty($obj->timeflow_source) ? $obj->timeflow_source : 'native',
                 'fk_soc' => (int) $obj->fk_soc,
                 'client' => !empty($obj->soc_name) ? $obj->soc_name : '',
                 'entry_count' => (int) $obj->entry_count,
@@ -2267,8 +2328,8 @@ function timeflowResolveOrCreateProjectByLabel($db, $user, $projectLabel, $fkSoc
     }
 
     $sql = 'SELECT rowid';
-    $sql .= ' FROM '.$db->prefix().'timeflow_project';
-    $sql .= ' WHERE entity IN ('.getEntity('timeflow_project').')';
+    $sql .= ' FROM '.$db->prefix().'projet';
+    $sql .= ' WHERE entity IN ('.getEntity('project').')';
     $sql .= " AND title = '".$db->escape($label)."'";
     $sql .= ' ORDER BY rowid DESC';
     $sql .= $db->plimit(1);
@@ -2336,91 +2397,109 @@ function timeflowStoreProjectText($db, $user, $fkTimeentry, $projectLabel, $desc
     return $resql ? true : false;
 }
 
+/**
+ * Creates a project directly in the native llx_projet table via Dolibarr's
+ * own Project class (TimeFlow -> native project migration) — status
+ * "Validated" (Ouvert), usage_task enabled since TimeFlow relies on native
+ * tasks (llx_projet_task, see timeflowFetchTasks()), and the TimeFlow-
+ * specific "source" marker stored as an extrafield rather than a column
+ * that only existed in the now-retired llx_timeflow_project.
+ *
+ * @return int New project id, or -1 on failure.
+ */
 function timeflowCreateProject($db, $user, $title, $fkSoc = 0, $description = '')
 {
-    global $conf;
+    $project = new Project($db);
+    $project->ref = 'CPJ-'.date('YmdHis');
+    $project->title = $title;
+    $project->description = trim((string) $description);
+    $project->socid = (int) $fkSoc;
+    $project->status = Project::STATUS_VALIDATED;
+    $project->usage_task = 1;
+    $project->array_options['options_timeflow_source'] = 'manual';
 
-    $now = dol_now();
-    $ref = 'CPJ-'.date('YmdHis');
-
-    $sql = 'INSERT INTO '.$db->prefix().'timeflow_project';
-    $sql .= ' (entity, ref, title, description, source, fk_dolibarr_project, fk_soc, fk_user_creat, date_creation)';
-    $sql .= ' VALUES ('.getEntity('timeflow_project').',';
-    $sql .= " '".$db->escape($ref)."',";
-    $sql .= " '".$db->escape($title)."',";
-    $sql .= " '".$db->escape(trim((string) $description))."',";
-    $sql .= " 'manual',";
-    $sql .= ' NULL,';
-    $sql .= ' '.((int) $fkSoc).',';
-    $sql .= ' '.((int) $user->id).',';
-    $sql .= " '".$db->idate($now)."'";
-    $sql .= ')';
-
-    $resql = $db->query($sql);
-    if ($resql) {
-        return (int) $db->last_insert_id($db->prefix().'timeflow_project');
+    $result = $project->create($user);
+    if ($result > 0) {
+        return (int) $result;
     }
 
     return -1;
 }
 
 /**
- * Updates a TimeFlow project's editable fields (title, description, client).
- * ref/source/fk_dolibarr_project are never touched here.
+ * Updates a native project's editable fields (title, description, client)
+ * via Dolibarr's Project class. ref/status/usage_task/extrafields are
+ * never touched here — only what the TimeFlow project form actually edits.
  *
  * @return bool true on success
  */
-function timeflowUpdateProject($db, $projectId, $title, $fkSoc, $description)
+function timeflowUpdateProject($db, $user, $projectId, $title, $fkSoc, $description)
 {
-    $sql = 'UPDATE '.$db->prefix().'timeflow_project SET';
-    $sql .= ' title = \''.$db->escape($title).'\',';
-    $sql .= ' description = \''.$db->escape(trim((string) $description)).'\',';
-    $sql .= ' fk_soc = '.($fkSoc > 0 ? (int) $fkSoc : 'NULL');
-    $sql .= ' WHERE rowid = '.(int) $projectId;
-    $sql .= ' AND entity IN ('.getEntity('timeflow_project').')';
+    $project = new Project($db);
+    if ($project->fetch((int) $projectId) <= 0) {
+        return false;
+    }
+    $project->title = $title;
+    $project->description = trim((string) $description);
+    $project->socid = (int) $fkSoc;
 
-    return (bool) $db->query($sql);
+    return $project->update($user) > 0;
 }
 
 /**
- * Replaces the full set of users a project is restricted to. An empty
- * $userIds array clears all rows, putting the project back to "open to
- * everyone" — matches timeflowCanAccessProject()'s "no rows = unrestricted"
- * rule exactly. No-ops silently if the migration hasn't been applied yet
- * (llx_timeflow_project_user missing) rather than erroring the whole
- * create/update out.
+ * Replaces the full set of users a project is restricted to, via native
+ * project contacts (llx_element_contact, role PROJECTCONTRIBUTOR/internal
+ * — see the audit's role mapping). An empty $userIds array removes every
+ * such contact, putting the project back to "open to everyone" — matches
+ * timeflowCanAccessProject()'s "no assignment = unrestricted" rule exactly.
+ * Diffs against the current set rather than blindly delete-then-recreate,
+ * so unrelated contact rowids/history aren't churned on every save.
  */
 function timeflowSyncProjectAssignments($db, $user, $projectId, array $userIds)
 {
-    if (!timeflowProjectUserTableExists($db)) {
-        dol_syslog('timeflow.syncProjectAssignments skipped: llx_timeflow_project_user does not exist yet (migration not applied)', LOG_WARNING);
+    $project = new Project($db);
+    if ($project->fetch((int) $projectId) <= 0) {
+        dol_syslog('timeflow.syncProjectAssignments: could not fetch native project id='.(int) $projectId, LOG_WARNING);
         return;
     }
 
-    $sql = 'DELETE FROM '.$db->prefix().'timeflow_project_user WHERE fk_project = '.(int) $projectId;
-    $db->query($sql);
+    $desiredUserIds = array_unique(array_filter(array_map('intval', $userIds), function ($id) {
+        return $id > 0;
+    }));
 
-    $now = dol_now();
-    foreach (array_unique(array_map('intval', $userIds)) as $assignedUserId) {
-        if ($assignedUserId <= 0) {
-            continue;
+    $currentLinks = $project->liste_contact(4, 'internal', 0, 'PROJECTCONTRIBUTOR');
+    $currentLinks = is_array($currentLinks) ? $currentLinks : array();
+    $currentByUserId = array();
+    foreach ($currentLinks as $link) {
+        $currentByUserId[(int) $link['id']] = (int) $link['rowid'];
+    }
+
+    foreach ($currentByUserId as $existingUserId => $linkRowid) {
+        if (!in_array($existingUserId, $desiredUserIds, true)) {
+            $project->delete_contact($linkRowid);
         }
-        $sql = 'INSERT INTO '.$db->prefix().'timeflow_project_user';
-        $sql .= ' (entity, fk_project, fk_user, date_creation, fk_user_creat)';
-        $sql .= ' VALUES ('.getEntity('timeflow_project').', '.(int) $projectId.', '.$assignedUserId.', \''.$db->idate($now).'\', '.(int) $user->id.')';
-        $db->query($sql);
+    }
+    foreach ($desiredUserIds as $wantedUserId) {
+        if (!array_key_exists($wantedUserId, $currentByUserId)) {
+            $project->add_contact($wantedUserId, 'PROJECTCONTRIBUTOR', 'internal');
+        }
     }
 }
 
 /**
- * Hard-deletes a TimeFlow project. Refuses if any (non-deleted) time entry
- * still references it — deleting the project would silently orphan those
- * entries' fk_project, which is worse than making the user reassign them
- * first.
+ * Hard-deletes a native project. Refuses if any (non-deleted) TimeFlow time
+ * entry still references it — deleting the project would silently orphan
+ * those entries' fk_project, which is worse than making the user reassign
+ * them first. This check is TimeFlow-specific (llx_timeflow_timeentry is
+ * not something Project::delete() itself knows about) and stays the
+ * primary guard; the actual removal then goes through Project::delete(),
+ * which also cleans up native project contacts/tasks/categories — more
+ * thorough than the old raw DELETE, and the expected behavior for deleting
+ * a project that is now a first-class native one.
  *
  * @return true|string true on success, an error message string otherwise
  */
-function timeflowDeleteProject($db, $projectId)
+function timeflowDeleteProject($db, $user, $projectId)
 {
     $sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'timeflow_timeentry';
     $sql .= ' WHERE fk_project = '.(int) $projectId;
@@ -2433,13 +2512,37 @@ function timeflowDeleteProject($db, $projectId)
         }
     }
 
-    if (timeflowProjectUserTableExists($db)) {
-        $db->query('DELETE FROM '.$db->prefix().'timeflow_project_user WHERE fk_project = '.(int) $projectId);
+    $project = new Project($db);
+    if ($project->fetch((int) $projectId) <= 0) {
+        return 'Projet introuvable.';
     }
 
-    $sql = 'DELETE FROM '.$db->prefix().'timeflow_project';
-    $sql .= ' WHERE rowid = '.(int) $projectId;
-    $sql .= ' AND entity IN ('.getEntity('timeflow_project').')';
+    // Per product rule, no UI-triggered action may ever issue a physical
+    // DELETE FROM on llx_projet. Dolibarr's native project model has no
+    // date_delete column; the closest native non-destructive state is
+    // "Closed" (fk_statut), which we reuse here — the row, its contacts,
+    // its tasks and its history all stay exactly as they are.
+    if ((int) $project->status === Project::STATUS_CLOSED) {
+        // Already in the target state — idempotent, not an error.
+        return true;
+    }
 
-    return $db->query($sql) ? true : 'Erreur SQL lors de la suppression : '.$db->lasterror();
+    if ((int) $project->status === Project::STATUS_DRAFT) {
+        // setClose() only acts on a VALIDATED project. Every TimeFlow-created
+        // project already is one, but a project reaching this function
+        // through some other path could still be a draft — validate it
+        // first so "supprimer" always succeeds regardless of how the
+        // project got here.
+        $validateResult = $project->setValid($user);
+        if ($validateResult < 0) {
+            return 'Erreur lors de la suppression : '.($project->error ?: implode(', ', $project->errors));
+        }
+    }
+
+    $result = $project->setClose($user);
+    if ($result >= 0) {
+        // >0: closed now. 0: native "already closed" race — also fine.
+        return true;
+    }
+    return 'Erreur lors de la suppression : '.($project->error ?: implode(', ', $project->errors));
 }

@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 SuperAdmin - TimeFlow Module */
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
+require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 
 /**
  * Class for TimeEntry
@@ -169,7 +170,6 @@ class TimeEntry extends CommonObject
     const MOD_ACTION_MANUAL_MANAGER = 'manual_manager';
     const MOD_ACTION_MANUAL_CREATE = 'manual_create';
     const MOD_ACTION_DELETE = 'delete';
-    const MOD_ACTION_DELETE_PERMANENT = 'delete_permanent';
 
 
 	// If this object has a subtable with lines
@@ -704,50 +704,6 @@ class TimeEntry extends CommonObject
         $this->logModifications($user, $oldValues, $reason, $action);
     }
 
-	/** Permanently delete one entry from the database, bypassing the soft-delete workflow. */
-	public function hardDeletePermanently(User $user, $notrigger = 0)
-	{
-		$entryId = (int) $this->id;
-		if ($entryId <= 0) {
-			$this->error = 'Entrée introuvable';
-			$this->errors[] = $this->error;
-			return -1;
-		}
-
-		if (!timeflowCanReadAllTimeEntries($user)) {
-			$this->error = 'Accès refusé';
-			$this->errors[] = $this->error;
-			dol_syslog(__METHOD__.' permanent delete denied for user='.$user->id.' rowid='.$entryId, LOG_WARNING);
-			return -1;
-		}
-
-		$existing = new self($this->db);
-		if ($existing->fetch($entryId) <= 0) {
-			$this->error = 'Entrée introuvable';
-			$this->errors[] = $this->error;
-			return -1;
-		}
-
-		$deleteResult = $this->deleteCommon($user, $notrigger);
-		if ($deleteResult <= 0) {
-			return $deleteResult;
-		}
-
-		$deletedAt = $this->db->idate(dol_now());
-		$auditSql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
-		$auditSql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
-		$auditSql .= ((int) $this->entity).','.$entryId.','.((int) $user->id).',';
-		$auditSql .= "'".$this->db->escape(self::MOD_ACTION_DELETE_PERMANENT)."',";
-		$auditSql .= " '_entry','".$this->db->escape((string) $entryId)."','',";
-		$auditSql .= " 'Suppression définitive de l’entrée de temps par un manager',";
-		$auditSql .= "'".$this->db->escape($deletedAt)."',".((int) $user->id).')';
-		if (!$this->db->query($auditSql)) {
-			dol_syslog(__METHOD__.' audit log failed for rowid='.$entryId.': '.$this->db->lasterror(), LOG_ERR);
-		}
-
-		return 1;
-	}
-
 	/** Return true when the requested time range overlaps another user entry. */
 	public function hasTimeOverlap($fkUser, $dateStart, $dateEnd, $excludeId = 0)
 	{
@@ -770,7 +726,10 @@ class TimeEntry extends CommonObject
 
 		$sql = 'SELECT t.rowid, t.date_start, t.date_end, t.note, p.title AS project_label';
 		$sql .= ' FROM '.$this->db->prefix().$this->table_element.' AS t';
-		$sql .= ' LEFT JOIN '.$this->db->prefix().'timeflow_project AS p ON p.rowid = t.fk_project';
+		// Projects live in the native llx_projet table (TimeFlow -> native
+		// project migration) — llx_timeflow_project is kept read-only as a
+		// pre-migration backup, no longer written to.
+		$sql .= ' LEFT JOIN '.$this->db->prefix().'projet AS p ON p.rowid = t.fk_project';
 		$sql .= ' WHERE t.entity IN ('.getEntity($this->element).')';
 		$sql .= ' AND t.fk_user = '.((int) $fkUser);
 		// Overlap logic: new.start < existing.end AND (existing.start < new.end)
@@ -841,6 +800,62 @@ class TimeEntry extends CommonObject
 	}
 
 	/**
+	 * Marks `date_delete` (and `fk_user_delete` if present) — never removes
+	 * the row. Used by delete(), the only deletion entry point on this
+	 * class: per product rule, nothing triggered from the UI may ever issue
+	 * a physical DELETE FROM on this table. Takes an explicit audit action
+	 * code/message so a future caller with a different deletion policy can
+	 * reuse it without duplicating the soft-delete SQL.
+	 */
+	protected function softDeleteRow(User $user, string $auditAction, string $auditMessage, $notrigger = 0)
+	{
+		$entryId = (int) $this->id;
+		if (!$this->hasDatabaseColumn($this->table_element, 'date_delete')) {
+			$this->error = 'Soft-delete not available: database column missing';
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' soft-delete failed rowid='.$entryId.' missing column', LOG_ERR);
+			return -1;
+		}
+		$setParts = array();
+		$setParts[] = "date_delete = '".$this->db->idate(dol_now())."'";
+		if ($this->hasDatabaseColumn($this->table_element, 'fk_user_delete')) {
+			$setParts[] = 'fk_user_delete = '.((int) $user->id);
+		}
+		$sql = 'UPDATE '.$this->db->prefix().$this->table_element
+			 .' SET '.implode(', ', $setParts)
+			 .' WHERE rowid = '.$entryId
+			 ." AND (date_delete IS NULL OR date_delete = '')";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = 'Impossible de marquer l\'entrée comme supprimée: '.$this->db->lasterror();
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' soft-delete failed rowid='.$entryId.' '.$this->db->lasterror(), LOG_ERR);
+			return -1;
+		}
+		if (!$notrigger) {
+			// Preserve triggers/hooks that modules may expect on deletion.
+			$this->call_trigger('TIMEFLOW_TIMEENTRY_DELETE', $user);
+		}
+
+		// Keep a durable audit row after the entry itself has disappeared
+		// from every normal view. llx_timeflow_time_edit_log is intentionally
+		// not used here: its schema represents a start/end correction and
+		// has no action column.
+		$deletedAt = $this->db->idate(dol_now());
+		$sql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
+		$sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
+		$sql .= ((int) $this->entity).','.$entryId.','.((int) $user->id).',';
+		$sql .= " '".$this->db->escape($auditAction)."',";
+		$sql .= " '_entry','".$this->db->escape((string) $entryId)."','',";
+		$sql .= " '".$this->db->escape($auditMessage)."','".$this->db->escape($deletedAt)."',".((int) $user->id).')';
+		if (!$this->db->query($sql)) {
+			dol_syslog(__METHOD__.' audit log failed for rowid='.$entryId.': '.$this->db->lasterror(), LOG_ERR);
+		}
+
+		return 1;
+	}
+
+	/**
 	 * Delete object in database
 	 *
 	 * @param	User		$user		User that deletes
@@ -884,7 +899,7 @@ class TimeEntry extends CommonObject
 			return -1;
 		}
 
-		// Reload every field used by deleteCommon() and by the ownership policy.
+		// Reload every field used by the ownership policy and by softDeleteRow().
 		if ($this->fetch($entryId) <= 0) {
 			$this->error = 'Entrée introuvable';
 			$this->errors[] = $this->error;
@@ -897,52 +912,7 @@ class TimeEntry extends CommonObject
 			return -1;
 		}
 
-		$deletedId = (int) $this->id;
-		$deletedAt = $this->db->idate(dol_now());
-		// All statuses (including draft) now use soft-delete:
-		// mark `date_delete` (and optionally `fk_user_delete`) instead of removing the row.
-		if (!$this->hasDatabaseColumn($this->table_element, 'date_delete')) {
-			$this->error = 'Soft-delete not available: database column missing';
-			$this->errors[] = $this->error;
-			dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' missing column', LOG_ERR);
-			return -1;
-		}
-		$setParts = array();
-		$setParts[] = "date_delete = '".$this->db->idate(dol_now())."'";
-		if ($this->hasDatabaseColumn($this->table_element, 'fk_user_delete')) {
-			$setParts[] = 'fk_user_delete = '.((int) $user->id);
-		}
-		$sql = 'UPDATE '.$this->db->prefix().$this->table_element
-			 .' SET '.implode(', ', $setParts)
-			 .' WHERE rowid = '.($deletedId)
-			 ." AND (date_delete IS NULL OR date_delete = '')";
-		$resql = $this->db->query($sql);
-		if (!$resql) {
-			$this->error = 'Impossible de marquer l\'entrée comme supprimée: '.$this->db->lasterror();
-			$this->errors[] = $this->error;
-			dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' '.$this->db->lasterror(), LOG_ERR);
-			return -1;
-		}
-		if (!$notrigger) {
-			// Preserve triggers/hooks that modules may expect on deletion.
-			$this->call_trigger('TIMEFLOW_TIMEENTRY_DELETE', $user);
-		}
-		$result = 1;
-
-		// Keep a durable audit row after the entry itself has disappeared.
-		// llx_timeflow_time_edit_log is intentionally not used here: its schema
-		// represents a start/end correction and has no action column.
-		$sql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
-		$sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
-		$sql .= ((int) $this->entity).','.$deletedId.','.((int) $user->id).',';
-		$sql .= " '".$this->db->escape(self::MOD_ACTION_DELETE)."',";
-		$sql .= " '_entry','".$this->db->escape((string) $deletedId)."','',";
-		$sql .= " 'Suppression de l’entrée de temps','".$this->db->escape($deletedAt)."',".((int) $user->id).')';
-		if (!$this->db->query($sql)) {
-			dol_syslog(__METHOD__.' audit log failed for rowid='.$deletedId.': '.$this->db->lasterror(), LOG_ERR);
-		}
-
-		return $result;
+		return $this->softDeleteRow($user, self::MOD_ACTION_DELETE, 'Suppression de l’entrée de temps', $notrigger);
 	}
 
 	/** Whether the user has the explicit authority to delete a non-draft entry. */
@@ -1712,6 +1682,26 @@ class TimeEntry extends CommonObject
 	}
 
 	/**
+	 * Whether a native project is in Dolibarr's "Closed" status — TimeFlow's
+	 * equivalent of "deleted" for a project (see the ajax layer's
+	 * timeflowDeleteProject(), which calls Project::setClose() instead of a
+	 * physical delete). A closed project must never accept a new time
+	 * entry, exactly like a genuinely deleted project no longer could.
+	 * A project id of 0 (no project) is never "closed".
+	 */
+	protected function isProjectClosed($fkProject)
+	{
+		$fkProject = (int) $fkProject;
+		if ($fkProject <= 0) {
+			return false;
+		}
+		$sql = 'SELECT fk_statut FROM '.$this->db->prefix().'projet WHERE rowid = '.$fkProject;
+		$resql = $this->db->query($sql);
+		$obj = $resql ? $this->db->fetch_object($resql) : null;
+		return $obj ? ((int) $obj->fk_statut === Project::STATUS_CLOSED) : false;
+	}
+
+	/**
 	 * Start a timer. Project and task are optional TimeFlow metadata.
 	 *
 	 * @param int    $fk_user User id
@@ -1736,6 +1726,11 @@ class TimeEntry extends CommonObject
 
 		if ($this->hasActiveTimer($fk_user) > 0) {
 			$this->error = 'Un chrono est déjà actif pour cet utilisateur';
+			return -1;
+		}
+
+		if ($this->isProjectClosed((int) $fk_project)) {
+			$this->error = 'Ce projet est fermé et n’accepte plus de nouvelles entrées de temps.';
 			return -1;
 		}
 
@@ -1768,6 +1763,11 @@ class TimeEntry extends CommonObject
 		$dateEnd = !empty($dateEnd) ? (is_numeric($dateEnd) ? (int) $dateEnd : strtotime($dateEnd)) : 0;
 		if ($dateStart <= 0 || $dateEnd <= 0 || $dateEnd <= $dateStart) {
 			$this->error = 'Les dates de début et de fin sont invalides';
+			return -1;
+		}
+
+		if ($this->isProjectClosed((int) $fk_project)) {
+			$this->error = 'Ce projet est fermé et n’accepte plus de nouvelles entrées de temps.';
 			return -1;
 		}
 
@@ -1818,49 +1818,6 @@ class TimeEntry extends CommonObject
 		$this->date_end = dol_now();
 		$this->duration = max(0, (int) $this->duration) + max(0, (int) $this->date_end - (int) $this->date_start);
 		return $this->update($user);
-	}
-
-	/** Resume an existing stopped entry without creating a second row. */
-	public function restartTimer($id, User $user)
-	{
-		if ($this->fetch((int) $id) <= 0) {
-			$this->error = 'Entrée introuvable';
-			return -1;
-		}
-			if ((int) $this->fk_user !== (int) $user->id) {
-			$this->error = 'Accès refusé';
-			return -1;
-		}
-		if ($this->hasActiveTimer($user->id) > 0) {
-			$this->error = 'Un chrono est déjà actif pour cet utilisateur';
-			return -1;
-		}
-
-		// Keep the accumulated duration and start a new active segment on this same row.
-		// The primary key passed by the client is the only record selector: a resume never creates a row.
-		$now = dol_now();
-		$sql = 'UPDATE '.$this->db->prefix().$this->table_element;
-		$sql .= " SET date_start = '".$this->db->idate($now)."'";
-		$sql .= ', date_end = NULL';
-		$sql .= ', status = '.self::STATUS_DRAFT;
-		$sql .= ", date_reprise = '".$this->db->idate($now)."'";
-		$sql .= ', occurrence_count = GREATEST(1, COALESCE(occurrence_count, 1)) + 1';
-		$sql .= ', fk_user_modif = '.((int) $user->id);
-		$sql .= ' WHERE rowid = '.((int) $id);
-		$sql .= ' AND fk_user = '.((int) $this->fk_user);
-		$sql .= ' AND date_end IS NOT NULL';
-
-		$resql = $this->db->query($sql);
-		if (!$resql) {
-			$this->error = $this->db->lasterror();
-			return -1;
-		}
-		if ($this->db->affected_rows($resql) < 1) {
-			$this->error = 'Ce chrono ne peut pas être repris';
-			return -1;
-		}
-
-		return $this->fetch((int) $id) > 0 ? 1 : -1;
 	}
 
 	/** Mark an entry as submitted for approval. */

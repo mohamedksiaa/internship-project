@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useUrlState } from '../../hooks/useUrlState.js';
 import {
   Bar,
   BarChart,
@@ -32,8 +33,11 @@ const CHART_TYPES = ['bar', 'pie', 'line'];
 export default function CustomChartWidget({ summary }) {
   const { t } = useTranslation();
   const isDark = useDarkMode();
-  const [dimension, setDimension] = useState('project');
-  const [chartType, setChartType] = useState('bar');
+  // Kept in the URL (?dimension=&chartType=) rather than local state — this
+  // widget lives on the dashboard, itself a descendant of the app's
+  // HashRouter, so useUrlState works here with no prop drilling needed.
+  const [dimension, setDimension] = useUrlState('dimension', 'project');
+  const [chartType, setChartType] = useUrlState('chartType', 'bar');
 
   const chartData = useMemo(() => {
     if (!summary) return [];

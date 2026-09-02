@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '../i18n';
 import ReportsPage from './ReportsPage';
@@ -13,6 +14,12 @@ import {
 } from '../api/timeflowApi';
 
 const t = (key, params) => i18n.t(key, params);
+
+// ReportsPage reads/writes its tab and filters via useSearchParams (see
+// src/hooks/useUrlState.js), which requires a Router ancestor even in tests.
+function renderReportsPage() {
+  return render(<ReportsPage />, { wrapper: MemoryRouter });
+}
 
 vi.mock('../api/timeflowApi', () => ({
   generateInvoiceLines: vi.fn(),
@@ -43,7 +50,7 @@ describe('ReportsPage', () => {
       .mockResolvedValueOnce({ total_seconds: 3600, by_project: { 1: 3600 } })
       .mockResolvedValueOnce({ total_seconds: 7200, by_project: { 2: 7200 } });
 
-    render(<ReportsPage />);
+    renderReportsPage();
 
     expect(await screen.findByText(t('dashboard.project_fallback', { projectId: 1 }))).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(t('reports.from')), { target: { value: '2026-06-01' } });
@@ -57,7 +64,7 @@ describe('ReportsPage', () => {
     getSummaryReports.mockResolvedValue({ total_seconds: 3600, by_project: { 1: 3600 }, project_labels: { 1: 'Project One' } });
     getDailyReports.mockResolvedValue({ reports: [{ id: 42, user_label: 'Alice', date_report: '2026-08-20', content: 'Rapport à valider', status: 1, is_read: false, read_at: null }], employees: [{ id: 1, label: 'Alice' }] });
 
-    render(<ReportsPage />);
+    renderReportsPage();
 
     expect(await screen.findByRole('button', { name: t('reports.activity_title') })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: t('reports.daily_reports_title') })).toBeInTheDocument();
@@ -83,7 +90,7 @@ describe('ReportsPage', () => {
     getDailyReports.mockResolvedValue({ reports: [report], employees: [{ id: 1, label: 'Alice' }] });
     validateDailyReport.mockResolvedValue({});
 
-    render(<ReportsPage />);
+    renderReportsPage();
 
     fireEvent.click(screen.getByRole('button', { name: t('reports.daily_reports_title') }));
 
@@ -110,7 +117,7 @@ describe('ReportsPage', () => {
     getDailyReports.mockResolvedValue({ reports: [report], employees: [{ id: 1, label: 'Alice' }] });
     rejectDailyReport.mockResolvedValue({});
 
-    render(<ReportsPage />);
+    renderReportsPage();
 
     fireEvent.click(screen.getByRole('button', { name: t('reports.daily_reports_title') }));
 

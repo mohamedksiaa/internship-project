@@ -5,6 +5,7 @@ import { getDailyReports, getSummaryReports, rejectDailyReport, validateDailyRep
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import { ModifiedManuallyBadge, isManuallyModifiedRecord } from '../components/organisms/TimeEntryList.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
+import { useUrlDateRange, useUrlState } from '../hooks/useUrlState.js';
 
 const PROJECTS_PER_PAGE = 15;
 const OTHER_PROJECTS_THRESHOLD_SECONDS = 5 * 60;
@@ -27,14 +28,17 @@ function currentMonthRange() {
 
 export default function ReportsPage() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('activity');
-  const [dateRange, setDateRange] = useState(currentMonthRange);
+  // Tab, date range and employee filter all live in the URL (?tab=&dateFrom=&dateTo=&employee=)
+  // instead of plain useState, so a refresh (or a shared link) restores the
+  // exact same view. See src/hooks/useUrlState.js for how this works.
+  const [activeTab, setActiveTab] = useUrlState('tab', 'activity');
+  const [dateRange, setDateFrom, setDateTo] = useUrlDateRange(currentMonthRange());
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dailyReports, setDailyReports] = useState([]);
   const [dailyEmployees, setDailyEmployees] = useState([]);
-  const [dailyEmployeeId, setDailyEmployeeId] = useState('');
+  const [dailyEmployeeId, setDailyEmployeeId] = useUrlState('employee', '');
   const [dailyError, setDailyError] = useState('');
   const [selectedReport, setSelectedReport] = useState(null);
   const [projectSearch, setProjectSearch] = useState('');
@@ -183,7 +187,7 @@ export default function ReportsPage() {
                   id="reports-date-from"
                   type="date"
                   value={dateRange.from}
-                  onChange={(event) => setDateRange((range) => ({ ...range, from: event.target.value }))}
+                  onChange={(event) => setDateFrom(event.target.value)}
                   className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 tw-text-slate-900 dark:tw-bg-slate-800 dark:tw-text-slate-100"
                 />
               </label>
@@ -193,7 +197,7 @@ export default function ReportsPage() {
                   id="reports-date-to"
                   type="date"
                   value={dateRange.to}
-                  onChange={(event) => setDateRange((range) => ({ ...range, to: event.target.value }))}
+                  onChange={(event) => setDateTo(event.target.value)}
                   className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 tw-text-slate-900 dark:tw-bg-slate-800 dark:tw-text-slate-100"
                 />
               </label>

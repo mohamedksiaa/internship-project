@@ -287,6 +287,77 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 	}
 
 	/**
+	 * Resuming a stopped task must create a brand new entry (same project,
+	 * task and note copied from the previous one) rather than reopening/
+	 * rewriting the old row. This mirrors what ajax/timeentry.php's
+	 * 'restartTimer' case now does: fetch the old entry to read its
+	 * project/task/note/tags/billable, then call startTimer() on a fresh
+	 * object. The assertions here protect the two guarantees the whole
+	 * redesign depends on: the new row is fully independent (own id, own
+	 * date_start/date_end/duration always coherent with each other) and the
+	 * old row is never touched — no more retroactive rewrite of a previous
+	 * segment's date_start/date_end/duration on resume.
+	 *
+	 * @return void
+	 * @phan-suppress PhanUndeclaredMethod
+	 */
+	public function testResumeCreatesNewEntryAndLeavesPreviousOneUntouched()
+	{
+		global $conf, $user, $langs, $db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
+
+		$projectSql = 'SELECT rowid FROM '.$db->prefix().'projet WHERE entity IN ('.getEntity('project').') ORDER BY rowid ASC'.$db->plimit(1);
+		$projectRes = $db->query($projectSql);
+		$project = $projectRes ? $db->fetch_object($projectRes) : null;
+		if (!$project) {
+			$this->markTestSkipped('Aucun projet natif disponible pour tester la reprise du chrono.');
+		}
+		$fkProject = (int) $project->rowid;
+
+		// Simulates the original task: started, then stopped a while later.
+		$previous = new TimeEntry($db);
+		$startResult = $previous->startTimer($user->id, $fkProject, 0, 'Tâche à reprendre — test', $user);
+		$this->assertGreaterThan(0, $startResult, $previous->error ?: implode(', ', $previous->errors));
+		$stopResult = $previous->stopTimer($startResult, $user);
+		$this->assertGreaterThan(0, $stopResult, $previous->error);
+
+		$previousBefore = new TimeEntry($db);
+		$previousBefore->fetch($startResult);
+		$snapshotStart = $previousBefore->date_start;
+		$snapshotEnd = $previousBefore->date_end;
+		$snapshotDuration = (int) $previousBefore->duration;
+		$snapshotStatus = (int) $previousBefore->status;
+		$this->assertSame($snapshotEnd ? (int) $snapshotEnd - (int) $snapshotStart : 0, $snapshotDuration, 'La durée arrêtée doit déjà être cohérente avec date_end - date_start.');
+
+		// Simulates the ajax 'restartTimer' case: read the previous entry's
+		// project/task/note, then create a fresh entry with them — never
+		// touching $previous itself.
+		$resumed = new TimeEntry($db);
+		$resumeResult = $resumed->startTimer($user->id, (int) $previousBefore->fk_project, (int) $previousBefore->fk_task, (string) $previousBefore->note, $user, (string) $previousBefore->tags, (int) $previousBefore->billable);
+		$this->assertGreaterThan(0, $resumeResult, $resumed->error ?: implode(', ', $resumed->errors));
+		$this->assertNotEquals($startResult, $resumeResult, 'La reprise doit créer une ligne distincte, jamais réutiliser l’ancien id.');
+
+		// The new entry starts its own, independent, always-coherent segment.
+		$this->assertSame(0, (int) $resumed->duration);
+		$this->assertNull($resumed->date_end);
+		$this->assertSame((string) $previousBefore->note, (string) $resumed->note);
+		$this->assertSame((int) $previousBefore->fk_project, (int) $resumed->fk_project);
+
+		// The previous entry must be byte-for-byte unchanged after the resume.
+		$previousAfter = new TimeEntry($db);
+		$previousAfter->fetch($startResult);
+		$this->assertSame((string) $snapshotStart, (string) $previousAfter->date_start);
+		$this->assertSame((string) $snapshotEnd, (string) $previousAfter->date_end);
+		$this->assertSame($snapshotDuration, (int) $previousAfter->duration);
+		$this->assertSame($snapshotStatus, (int) $previousAfter->status);
+
+		$resumed->stopTimer($resumeResult, $user);
+	}
+
+	/**
 	 * A normal user must never delete an entry once it has been validated.
 	 * The assertion reloads the row after the failed deletion attempt so this
 	 * protects against a false error returned after a DELETE was executed.
