@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getProjects, listActiveUsers, listUserGroups, resolveClockifyMapping } from '../../api/timeflowApi';
+import { executeClockifyImport, getProjects, listActiveThirdParties, listActiveUsers, listUserGroups, resolveClockifyMapping } from '../../api/timeflowApi';
 
 const STATUS_STYLES = {
   matched: 'tw-bg-emerald-50 tw-text-emerald-700 dark:tw-bg-emerald-900/40 dark:tw-text-emerald-300',
@@ -113,28 +113,42 @@ function buildCreatableDecisions(mappingType, rows, choices) {
   return decisions;
 }
 
-export default function ImportPreviewModal({ open, loading, error, data, onClose }) {
+export default function ImportPreviewModal({ open, loading, error, data, file, onClose }) {
   const { t } = useTranslation();
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [clients, setClients] = useState([]);
   const [activeUsers, setActiveUsers] = useState([]);
   const [availableProjects, setAvailableProjects] = useState([]);
   const [availableGroups, setAvailableGroups] = useState([]);
+  const [availableClients, setAvailableClients] = useState([]);
   const [userChoices, setUserChoices] = useState({});
   const [projectChoices, setProjectChoices] = useState({});
   const [groupChoices, setGroupChoices] = useState({});
+  const [clientChoices, setClientChoices] = useState({});
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState('');
+  // 'idle' -> 'confirming' (recap shown) -> 'executing' -> 'done'. Separate
+  // from `resolving`: resolving only updates mapping statuses, this phase
+  // is the second, explicit, irreversible step that actually writes data.
+  const [executePhase, setExecutePhase] = useState('idle');
+  const [executeError, setExecuteError] = useState('');
+  const [executeReport, setExecuteReport] = useState(null);
 
   useEffect(() => {
     setUsers(Array.isArray(data?.users) ? data.users : []);
     setProjects(Array.isArray(data?.projects) ? data.projects : []);
     setGroups(Array.isArray(data?.groups) ? data.groups : []);
+    setClients(Array.isArray(data?.clients) ? data.clients : []);
     setUserChoices({});
     setProjectChoices({});
     setGroupChoices({});
+    setClientChoices({});
     setResolveError('');
+    setExecutePhase('idle');
+    setExecuteError('');
+    setExecuteReport(null);
   }, [data]);
 
   useEffect(() => {
@@ -143,6 +157,7 @@ export default function ImportPreviewModal({ open, loading, error, data, onClose
     listActiveUsers().then((rows) => { if (active) setActiveUsers(rows); }).catch(() => {});
     getProjects().then((rows) => { if (active) setAvailableProjects(rows); }).catch(() => {});
     listUserGroups().then((rows) => { if (active) setAvailableGroups(rows); }).catch(() => {});
+    listActiveThirdParties().then((rows) => { if (active) setAvailableClients(rows); }).catch(() => {});
     return () => { active = false; };
   }, [open, loading, error]);
 
@@ -151,8 +166,18 @@ export default function ImportPreviewModal({ open, loading, error, data, onClose
   const pendingUsers = users.filter((row) => row.target_action === 'create_pending');
   const pendingProjects = projects.filter((row) => row.target_action === 'create_pending');
   const pendingGroups = groups.filter((row) => row.target_action === 'create_pending');
-  const pendingCount = pendingUsers.length + pendingProjects.length + pendingGroups.length;
+  const pendingClients = clients.filter((row) => row.target_action === 'create_pending');
+  const pendingCount = pendingUsers.length + pendingProjects.length + pendingGroups.length + pendingClients.length;
   const hasResolvableData = !loading && !error && data;
+  // Every mapping is resolved (matched or confirmed-for-creation) — the
+  // second, explicit "Confirmer et importer" step becomes available.
+  const readyToExecute = hasResolvableData && pendingCount === 0;
+  const projectsToCreate = projects.filter((row) => row.target_action === 'create_confirmed');
+  const groupsToCreate = groups.filter((row) => row.target_action === 'create_confirmed');
+  const clientsToCreate = clients.filter((row) => row.target_action === 'create_confirmed');
+  const estimatedRowsToImport = hasResolvableData
+    ? Math.max(0, Number(data.total_rows || 0) - Number(data.blocked_rows || 0) - Number(data.skipped_rows || 0))
+    : 0;
 
   function makeChoiceUpdater(setChoices) {
     return (sourceValue, patch) => {
@@ -175,6 +200,7 @@ export default function ImportPreviewModal({ open, loading, error, data, onClose
 
     decisions.push(...buildCreatableDecisions('project', pendingProjects, projectChoices));
     decisions.push(...buildCreatableDecisions('group', pendingGroups, groupChoices));
+    decisions.push(...buildCreatableDecisions('client', pendingClients, clientChoices));
 
     return decisions;
   }
@@ -195,13 +221,34 @@ export default function ImportPreviewModal({ open, loading, error, data, onClose
       setUsers((current) => current.map((row) => updatedByKey.get(rowKey(row)) ?? row));
       setProjects((current) => current.map((row) => updatedByKey.get(rowKey(row)) ?? row));
       setGroups((current) => current.map((row) => updatedByKey.get(rowKey(row)) ?? row));
+      setClients((current) => current.map((row) => updatedByKey.get(rowKey(row)) ?? row));
       setUserChoices({});
       setProjectChoices({});
       setGroupChoices({});
+      setClientChoices({});
     } catch (err) {
       setResolveError(err.message || t('processed_history.import.resolve_generic_error'));
     } finally {
       setResolving(false);
+    }
+  }
+
+  async function handleExecuteImport() {
+    if (!file) {
+      setExecuteError(t('processed_history.import.execute_missing_file'));
+      setExecutePhase('done');
+      return;
+    }
+
+    setExecutePhase('executing');
+    setExecuteError('');
+    try {
+      const report = await executeClockifyImport(file);
+      setExecuteReport(report);
+      setExecutePhase('done');
+    } catch (err) {
+      setExecuteError(err.message || t('processed_history.import.execute_generic_error'));
+      setExecutePhase('done');
     }
   }
 
@@ -223,16 +270,114 @@ export default function ImportPreviewModal({ open, loading, error, data, onClose
           </button>
         </div>
 
-        <div className="tw-max-h-[70vh] tw-space-y-5 tw-overflow-y-auto tw-pr-1">
+        {/*
+          Fixed status/message zone — deliberately OUTSIDE the scrollable
+          body below, so a message that appears while the user has scrolled
+          down (or that appears only after an action, like the final import
+          result) is never missed. Anything the user must see or act on —
+          fetch errors, the mapping-resolution error, the pre-execution
+          recap+confirm step, the in-progress spinner, and the final
+          success/error summary — lives here, never inside tw-overflow-y-auto.
+        */}
+        {(
+          (!loading && error)
+          || resolveError
+          || (readyToExecute && executePhase === 'confirming')
+          || executePhase === 'executing'
+          || executePhase === 'done'
+        ) && (
+          <div className="tw-shrink-0 tw-space-y-3">
+            {!loading && error && (
+              <div className="tw-rounded-lg tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-p-3 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">{error}</div>
+            )}
+
+            {resolveError && (
+              <div className="tw-rounded-lg tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-p-3 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">{resolveError}</div>
+            )}
+
+            {readyToExecute && executePhase === 'confirming' && (
+              <div className="tw-rounded-xl tw-border tw-border-[#5B8FA8] tw-bg-[#5B8FA8]/5 dark:tw-bg-[#5B8FA8]/10 tw-p-4 tw-space-y-2">
+                <p className="tw-text-sm tw-font-semibold tw-text-slate-800 dark:tw-text-slate-100">{t('processed_history.import.confirm_recap_title')}</p>
+                <ul className="tw-list-disc tw-list-inside tw-text-sm tw-text-slate-700 dark:tw-text-slate-300 tw-space-y-1">
+                  <li>{t('processed_history.import.confirm_recap_clients', { count: clientsToCreate.length })}</li>
+                  <li>{t('processed_history.import.confirm_recap_projects', { count: projectsToCreate.length })}</li>
+                  <li>{t('processed_history.import.confirm_recap_groups', { count: groupsToCreate.length })}</li>
+                  <li>{t('processed_history.import.confirm_recap_entries', { count: estimatedRowsToImport })}</li>
+                </ul>
+                <p className="tw-text-xs tw-text-slate-500 dark:tw-text-slate-400">{t('processed_history.import.confirm_recap_irreversible')}</p>
+                <div className="tw-flex tw-justify-end tw-gap-2 tw-pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setExecutePhase('idle')}
+                    className="tw-rounded-lg tw-bg-slate-100 dark:tw-bg-slate-800 tw-px-3 tw-py-1.5 tw-text-sm tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-700"
+                  >
+                    {t('cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecuteImport}
+                    className="tw-rounded-lg tw-bg-[#5B8FA8] tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba]"
+                  >
+                    {t('processed_history.import.confirm_execute_button')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {executePhase === 'executing' && (
+              <div className="tw-flex tw-items-center tw-justify-center tw-gap-3 tw-py-6">
+                <div className="tw-h-6 tw-w-6 tw-animate-spin tw-rounded-full tw-border-2 tw-border-[#5B8FA8] tw-border-t-transparent"></div>
+                <span className="tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('processed_history.import.executing')}</span>
+              </div>
+            )}
+
+            {executePhase === 'done' && (
+              executeError ? (
+                <div className="tw-rounded-lg tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-p-3 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">{executeError}</div>
+              ) : (
+                <div className="tw-rounded-xl tw-border tw-border-emerald-200 dark:tw-border-emerald-800 tw-bg-emerald-50 dark:tw-bg-emerald-900/20 tw-p-4 tw-space-y-2">
+                  <p className="tw-text-sm tw-font-semibold tw-text-emerald-800 dark:tw-text-emerald-300">{t('processed_history.import.execute_done_title')}</p>
+                  <ul className="tw-list-disc tw-list-inside tw-text-sm tw-text-slate-700 dark:tw-text-slate-300 tw-space-y-1">
+                    <li>{t('processed_history.import.execute_result_clients', { count: executeReport?.clients_created?.length || 0 })}</li>
+                    <li>{t('processed_history.import.execute_result_projects', { count: executeReport?.projects_created?.length || 0 })}</li>
+                    <li>{t('processed_history.import.execute_result_groups', { count: executeReport?.groups_created?.length || 0 })}</li>
+                    <li>{t('processed_history.import.execute_result_memberships', { count: executeReport?.group_memberships_created || 0 })}</li>
+                    <li>{t('processed_history.import.execute_result_project_contacts', { count: executeReport?.project_contacts_created || 0 })}</li>
+                    <li>{t('processed_history.import.execute_result_emails_filled', { count: executeReport?.user_emails_filled || 0 })}</li>
+                    <li>{t('processed_history.import.execute_result_names_filled', { count: executeReport?.user_names_filled || 0 })}</li>
+                    <li>{t('processed_history.import.execute_result_entries', { count: executeReport?.time_entries_created || 0 })}</li>
+                  </ul>
+                  {(executeReport?.time_entries_skipped_unresolved > 0
+                    || executeReport?.time_entries_skipped_invalid > 0
+                    || executeReport?.time_entries_skipped_already_imported > 0
+                    || (executeReport?.errors?.length || 0) > 0) && (
+                    <div className="tw-mt-2 tw-rounded-lg tw-bg-orange-50 dark:tw-bg-orange-900/30 tw-p-3 tw-text-sm tw-text-orange-700 dark:tw-text-orange-300 tw-space-y-1">
+                      {executeReport?.time_entries_skipped_unresolved > 0 && (
+                        <p>{t('processed_history.import.execute_result_skipped_unresolved', { count: executeReport.time_entries_skipped_unresolved })}</p>
+                      )}
+                      {executeReport?.time_entries_skipped_invalid > 0 && (
+                        <p>{t('processed_history.import.execute_result_skipped_invalid', { count: executeReport.time_entries_skipped_invalid })}</p>
+                      )}
+                      {executeReport?.time_entries_skipped_already_imported > 0 && (
+                        <p>{t('processed_history.import.execute_result_skipped_duplicate', { count: executeReport.time_entries_skipped_already_imported })}</p>
+                      )}
+                      {(executeReport?.errors?.length || 0) > 0 && (
+                        <p>{t('processed_history.import.execute_result_errors', { count: executeReport.errors.length })}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+        )}
+
+        <div className="tw-max-h-[55vh] tw-space-y-5 tw-overflow-y-auto tw-pr-1">
           {loading && (
             <div className="tw-flex tw-items-center tw-justify-center tw-gap-3 tw-py-10">
               <div className="tw-h-6 tw-w-6 tw-animate-spin tw-rounded-full tw-border-2 tw-border-[#5B8FA8] tw-border-t-transparent"></div>
               <span className="tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('processed_history.import.loading')}</span>
             </div>
-          )}
-
-          {!loading && error && (
-            <div className="tw-rounded-lg tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-p-3 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">{error}</div>
           )}
 
           {hasResolvableData && (
@@ -319,9 +464,18 @@ export default function ImportPreviewModal({ open, loading, error, data, onClose
                 titleAriaLabel={t('processed_history.import.new_group_title_aria')}
               />
 
-              {resolveError && (
-                <div className="tw-rounded-lg tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-p-3 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">{resolveError}</div>
-              )}
+              <CreatableMappingList
+                title={t('processed_history.import.clients_title')}
+                emptyLabel={t('processed_history.import.no_clients')}
+                rows={clients}
+                choices={clientChoices}
+                onChoiceChange={makeChoiceUpdater(setClientChoices)}
+                options={availableClients}
+                selectPlaceholder={t('processed_history.import.select_client_placeholder')}
+                checkboxLabel={t('processed_history.import.create_new_client_checkbox')}
+                titleAriaLabel={t('processed_history.import.new_client_title_aria')}
+              />
+
             </>
           )}
         </div>
@@ -342,6 +496,15 @@ export default function ImportPreviewModal({ open, loading, error, data, onClose
               className="tw-rounded-lg tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba] disabled:tw-opacity-50"
             >
               {resolving ? t('processed_history.import.resolving') : t('processed_history.import.resolve_button')}
+            </button>
+          )}
+          {readyToExecute && executePhase === 'idle' && (
+            <button
+              type="button"
+              onClick={() => setExecutePhase('confirming')}
+              className="tw-rounded-lg tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba]"
+            >
+              {t('processed_history.import.execute_button')}
             </button>
           )}
         </div>

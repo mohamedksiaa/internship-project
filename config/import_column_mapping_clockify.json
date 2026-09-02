@@ -8,6 +8,7 @@
     "groups": "Groupe",
     "description": "Description",
     "user_email": "Email",
+    "user_display": "Utilisateur",
     "billable": "Facturable",
     "date_start": "Date de début",
     "time_start": "Heure de début",

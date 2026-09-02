@@ -6,6 +6,7 @@ import { getDailyReports, getMyDailyReports, getSummaryReports, getTimeEntries }
 import { formatDuration } from '../utils/FormatDuration.js';
 import Card from '../components/atoms/Card';
 import useDarkMode from '../hooks/useDarkMode';
+import { useUrlDateRange } from '../hooks/useUrlState.js';
 import {
   Bar,
   BarChart,
@@ -68,7 +69,9 @@ export default function DashboardPage() {
   const { t, i18n } = useTranslation();
   const isDark = useDarkMode();
   const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
-  const [dateRange, setDateRange] = useState(currentMonthRange);
+  // Same dateFrom/dateTo URL params as ReportsPage — kept in the URL so the
+  // period survives a refresh (see src/hooks/useUrlState.js).
+  const [dateRange, setDateFrom, setDateTo] = useUrlDateRange(currentMonthRange());
   const [summary, setSummary] = useState(null);
   const [allEntries, setAllEntries] = useState([]);
   const [pendingReports, setPendingReports] = useState([]);
@@ -218,7 +221,7 @@ export default function DashboardPage() {
             id="dashboard-date-from"
             type="date"
             value={dateRange.from}
-            onChange={(event) => setDateRange((range) => ({ ...range, from: event.target.value }))}
+            onChange={(event) => setDateFrom(event.target.value)}
             className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 tw-text-slate-900 dark:tw-bg-slate-800 dark:tw-text-slate-100"
           />
         </label>
@@ -228,7 +231,7 @@ export default function DashboardPage() {
             id="dashboard-date-to"
             type="date"
             value={dateRange.to}
-            onChange={(event) => setDateRange((range) => ({ ...range, to: event.target.value }))}
+            onChange={(event) => setDateTo(event.target.value)}
             className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 tw-text-slate-900 dark:tw-bg-slate-800 dark:tw-text-slate-100"
           />
         </label>
@@ -245,37 +248,6 @@ export default function DashboardPage() {
         {error && <p className="tw-text-sm tw-text-[#d64c4c] dark:tw-text-[#f0908f]">{error}</p>}
         {!loading && !error && (
           <>
-            <div className="tw-grid tw-gap-6 xl:tw-grid-cols-2">
-              <Card size="section" title={t('dashboard.top_projects_title')}>
-                <div className="tw-h-[280px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={topProjects} layout="vertical" margin={{ top: 10, right: 20, left: 12, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#232d42' : '#e7edf1'} />
-                      <XAxis type="number" tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: isDark ? '#334155' : '#dce5ea' }} tick={{ fill: isDark ? '#94a3b8' : '#334155' }} />
-                      <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={{ stroke: isDark ? '#334155' : '#dce5ea' }} tick={{ fill: isDark ? '#94a3b8' : '#334155' }} />
-                      <Tooltip formatter={(value) => formatDuration(value)} contentStyle={isDark ? { background: '#141b2d', border: '1px solid #334155', color: '#e2e8f0' } : undefined} />
-                      <Bar dataKey="value" radius={[0, 8, 8, 0]} fill="#4d5fca">
-                        {topProjects.map((entry, index) => <Cell key={entry.id || entry.name} fill={TEAM_CHART_COLORS[index % TEAM_CHART_COLORS.length]} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-
-              <Card size="section" title={t('dashboard.weekly_trend')}>
-                <div className="tw-h-[280px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={weeklyTrendData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#232d42' : '#e7edf1'} />
-                      <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: isDark ? '#334155' : '#dce5ea' }} tick={{ fill: isDark ? '#94a3b8' : '#334155' }} />
-                      <YAxis tickFormatter={(value) => `${Math.round(value / 3600)}h`} tickLine={false} axisLine={{ stroke: isDark ? '#334155' : '#dce5ea' }} tick={{ fill: isDark ? '#94a3b8' : '#334155' }} />
-                      <Tooltip formatter={(value) => formatDuration(value)} contentStyle={isDark ? { background: '#141b2d', border: '1px solid #334155', color: '#e2e8f0' } : undefined} />
-                      <Line type="monotone" dataKey="total" stroke="#5B8FA8" strokeWidth={3} dot={{ r: 3 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-            </div>
 
             <CustomChartWidget summary={summary} />
           </>

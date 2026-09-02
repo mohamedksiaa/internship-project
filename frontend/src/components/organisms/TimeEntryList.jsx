@@ -36,6 +36,13 @@ function endTimeLabel(entry, t) {
   return entry.status === 0 ? t('timeentry.in_progress') : '—';
 }
 
+// Groups entries that belong to the same "resumed" task: same project, same
+// task, same description. A fresh resume always copies these three fields
+// verbatim onto the new entry, so exact equality is enough — no fuzzy match.
+export function taskClusterKey(entry) {
+  return `${entry.fk_project ?? ''}|${entry.fk_task ?? ''}|${(entry.note || '').trim()}`;
+}
+
 export function isManuallyModifiedRecord(dateCreation, dateLastContentEdit) {
   if (!dateCreation || !dateLastContentEdit) return false;
   return String(dateLastContentEdit) !== String(dateCreation);
@@ -225,14 +232,15 @@ export default function TimeEntryList({
       if (!onRestartEntry) throw new Error('Relance du chrono indisponible.');
       const resumed = await onRestartEntry(entry);
       if (!resumed?.id) throw new Error('Le serveur n’a pas renvoyé le chrono repris.');
-      const resumedEntry = {
+      const newEntry = {
         ...entry,
         ...resumed,
         id: resumed.id,
         rowid: resumed.rowid ?? resumed.id,
       };
-      // The server resumes this same row. Move it to the top without a duplicate.
-      const next = [resumedEntry, ...entries.filter((item) => item.id !== entry.id)];
+      // The server always creates a brand new entry on resume — the previous
+      // row is never rewritten, so it stays exactly where it already is.
+      const next = [newEntry, ...entries];
       setEntries(next);
       setParentEntries?.(next);
     } catch (err) {
@@ -370,6 +378,20 @@ export default function TimeEntryList({
       )}
       {currentGroups.map(([key, group]) => {
         const total = group.reduce((sum, entry) => sum + displayedDuration(entry), 0);
+        // Several entries can share the same task (project + task + note) —
+        // typically a "resumed" task, which now always creates a brand new
+        // entry rather than reopening the old one. Cluster them by that key
+        // so the last row of each cluster can carry a "×N segments · total"
+        // summary badge instead of one badge per row.
+        const taskClusters = new Map();
+        group.forEach((entry) => {
+          const clusterKey = taskClusterKey(entry);
+          const cluster = taskClusters.get(clusterKey) || { count: 0, total: 0, lastId: null };
+          cluster.count += 1;
+          cluster.total += displayedDuration(entry);
+          cluster.lastId = entry.id;
+          taskClusters.set(clusterKey, cluster);
+        });
         return (
           <div key={key} className="tw-border-b-4 tw-border-[#e3ebef] dark:tw-border-slate-800 tw-bg-white dark:tw-bg-slate-900 tw-overflow-x-auto">
             <div className="tw-flex tw-items-center tw-justify-between tw-bg-[#e5edf1] dark:tw-bg-slate-800 tw-px-5 tw-py-2 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">
@@ -519,12 +541,18 @@ export default function TimeEntryList({
                             {busyId === entry.id ? '…' : '🗑'}
                           </button>
                         )}
-                        <span
-                          title={t('timeentry.title_occurrences')}
-                          className="tw-rounded-full tw-bg-[#eaf6fd] dark:tw-bg-[#5B8FA8]/20 tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9]"
-                        >
-                          ×{Math.max(1, Number(entry.occurrence_count || 1))}
-                        </span>
+                        {(() => {
+                          const cluster = taskClusters.get(taskClusterKey(entry));
+                          if (!cluster || cluster.count <= 1 || cluster.lastId !== entry.id) return null;
+                          return (
+                            <span
+                              title={t('timeentry.title_task_segments')}
+                              className="tw-rounded-full tw-bg-[#eaf6fd] dark:tw-bg-[#5B8FA8]/20 tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9]"
+                            >
+                              ×{cluster.count} · {formatDuration(cluster.total)}
+                            </span>
+                          );
+                        })()}
                                               </div>
                     </td>
                   </tr>

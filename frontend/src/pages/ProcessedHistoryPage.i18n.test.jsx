@@ -8,8 +8,6 @@ vi.mock('../api/timeflowApi', () => ({
   getProjects: vi.fn().mockResolvedValue([]),
   getProcessedHistory: vi.fn().mockResolvedValue({ rows: [], pagination: { page: 1, pages: 1 }, stats: {} }),
   exportProcessedHistory: vi.fn().mockResolvedValue([]),
-  hardDeleteTimeEntry: vi.fn(),
-  hardDeleteTimeEntries: vi.fn(),
 }));
 
 describe('ProcessedHistoryPage i18n integration', () => {
