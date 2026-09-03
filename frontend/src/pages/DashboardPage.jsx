@@ -205,6 +205,14 @@ export default function DashboardPage() {
     return Array.from(weeklyMap.values()).sort((left, right) => left.weekStart.localeCompare(right.weekStart));
   }, [allEntries, dateRange, locale]);
 
+  // getSummaryReports caps its fetch at `limit` rows (see ajax/timeentry.php)
+  // for performance — entries_total_in_period is the real, unlimited count
+  // for the same filter, so a mismatch means every card/chart fed by
+  // `summary` below is silently built from a partial sample of the period.
+  const isSummaryTruncated = Boolean(
+    summary && Number(summary.entries_total_in_period) > Number(summary.entries_returned)
+  );
+
   const summaryStats = useMemo(() => ({
     totalSeconds: Number(summary?.total_seconds || 0),
     billableSeconds: Number(summary?.billable_seconds || 0),
@@ -238,6 +246,11 @@ export default function DashboardPage() {
         {summaryLoading && <span className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('loading')}</span>}
       </div>
       {summaryError && <p className="tw-mt-2 tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{summaryError}</p>}
+      {isSummaryTruncated && (
+        <p className="tw-mt-2 tw-rounded-lg tw-bg-amber-50 dark:tw-bg-amber-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-amber-700 dark:tw-text-amber-300">
+          ⚠ {t('dashboard.entries_truncated_warning', { limit: summary.entries_returned })}
+        </p>
+      )}
     </div>
   );
 

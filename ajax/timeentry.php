@@ -26,6 +26,7 @@ dol_include_once('/timeflow/lib/timeflow.lib.php');
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/cleadstatus.class.php';
 
 top_httphead('application/json');
 
@@ -70,6 +71,18 @@ function timeflowJsonResponse($payload, $status = 200)
     http_response_code($status);
     echo json_encode($payload);
     exit;
+}
+
+/**
+ * TEMPORARY diagnostic: writes directly to /tmp/timeflow_handler.log,
+ * independent of Dolibarr's own syslog configuration (which may not be
+ * writing to the file we expect). To be removed once the getTimeFlowProjects
+ * field investigation is closed.
+ */
+function timeflowDebugLog($message)
+{
+    $line = '['.date('Y-m-d H:i:s').'] uid='.@posix_getuid().' pid='.getmypid().' '.$message."\n";
+    @file_put_contents('/tmp/timeflow_handler.log', $line, FILE_APPEND | LOCK_EX);
 }
 
 /**
@@ -740,6 +753,8 @@ function timeflowFetchProjects($db, $user = null)
     $resql = $db->query($sql);
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
+            // Normal flow: build lightweight project metadata for listing
+
             $projects[] = array(
                 'id' => (int) $obj->rowid,
                 'rowid' => (int) $obj->rowid,
@@ -840,6 +855,19 @@ function timeflowBuildSummary($entries, $db)
         'group_labels' => array(),
         'by_tag' => array(),
         'by_status' => array(),
+        // Composite (2-dimension) breakdowns for the customizable chart's
+        // "cross with" stacking. Keyed "<dim1Value>|<dim2Value>" using a fixed
+        // canonical pair order (project, employee, client, billable) so each
+        // pair is stored once and the frontend pivots either dimension to the
+        // X axis. "group" is deliberately excluded: a duration can land in
+        // several groups at once (see by_group below), so stacking it would
+        // make a bar's segments sum to more than its real total.
+        'by_project_employee' => array(),
+        'by_project_client' => array(),
+        'by_project_billable' => array(),
+        'by_employee_client' => array(),
+        'by_employee_billable' => array(),
+        'by_client_billable' => array(),
     );
 
     // fk_project -> fk_soc, one query for every project actually referenced.
@@ -932,6 +960,21 @@ function timeflowBuildSummary($entries, $db)
             $summary['user_labels'][$userKey] = $entry['user_label'] ?? ('Utilisateur #'.$userKey);
         }
 
+        $billableKey = !empty($entry['billable']) ? '1' : '0';
+
+        $pairKey = $projectKey.'|'.$userKey;
+        $summary['by_project_employee'][$pairKey] = ($summary['by_project_employee'][$pairKey] ?? 0) + $duration;
+        $pairKey = $projectKey.'|'.$clientKey;
+        $summary['by_project_client'][$pairKey] = ($summary['by_project_client'][$pairKey] ?? 0) + $duration;
+        $pairKey = $projectKey.'|'.$billableKey;
+        $summary['by_project_billable'][$pairKey] = ($summary['by_project_billable'][$pairKey] ?? 0) + $duration;
+        $pairKey = $userKey.'|'.$clientKey;
+        $summary['by_employee_client'][$pairKey] = ($summary['by_employee_client'][$pairKey] ?? 0) + $duration;
+        $pairKey = $userKey.'|'.$billableKey;
+        $summary['by_employee_billable'][$pairKey] = ($summary['by_employee_billable'][$pairKey] ?? 0) + $duration;
+        $pairKey = $clientKey.'|'.$billableKey;
+        $summary['by_client_billable'][$pairKey] = ($summary['by_client_billable'][$pairKey] ?? 0) + $duration;
+
         // Group(s): an employee can belong to several groups at once, so a
         // single entry's duration can be counted into more than one bucket
         // — this is a deliberate departure from the other dimensions, which
@@ -971,6 +1014,34 @@ function timeflowBuildSummary($entries, $db)
     }
 
     return $summary;
+}
+
+/**
+ * Counts how many timeflow_timeentry rows match the same Universal Search
+ * filter string passed to TimeEntry::fetchAll(), ignoring its limit — used
+ * only to detect whether getSummaryReports' capped fetch silently truncated
+ * the period so the frontend can warn instead of showing an incomplete chart.
+ *
+ * @param DoliDB $db
+ * @param string $filter Universal Search string, same format as fetchAll()'s $filter
+ * @return int<-1,max> Row count, or -1 on query error
+ */
+function timeflowCountEntriesMatchingFilter($db, $filter)
+{
+    $sql = 'SELECT COUNT(*) as nb FROM '.$db->prefix().'timeflow_timeentry as t';
+    $sql .= ' WHERE 1 = 1 AND t.date_delete IS NULL';
+    $errormessage = '';
+    $sql .= forgeSQLFromUniversalSearchCriteria($filter, $errormessage);
+    if ($errormessage) {
+        dol_syslog('timeflowCountEntriesMatchingFilter: '.$errormessage, LOG_ERR);
+        return -1;
+    }
+    $resql = $db->query($sql);
+    if (!$resql) {
+        return -1;
+    }
+    $obj = $db->fetch_object($resql);
+    return $obj ? (int) $obj->nb : -1;
 }
 
 /** Build the shared, server-side WHERE clause for the manager read-only history. */
@@ -1408,7 +1479,24 @@ switch ($action) {
             'date_to' => $postData['date_to'] ?? GETPOST('date_to', 'alphanohtml'),
             'search' => trim((string) ($postData['search'] ?? GETPOST('search', 'alphanohtml'))),
         );
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTimeFlowProjects($db, $user, $projectFilters)));
+        // Diagnostic: log which file and version is executing this action so
+        // we can detect if the webserver is running a different copy.
+        if (function_exists('dol_syslog')) {
+            dol_syslog('timeflow.handler getTimeFlowProjects file='.__FILE__.' mtime='.(int) @filemtime(__FILE__), LOG_DEBUG);
+        }
+        // Also expose a lightweight header so the browser Network tab shows the
+        // handler filename/timestamp for quick verification (temporary).
+        header('X-Timeflow-Handler: '.basename(__FILE__).':'.((int) @filemtime(__FILE__)));
+        timeflowDebugLog('getTimeFlowProjects ENTER user_id='.(int) $user->id.' login='.$user->login.' admin='.(int) $user->admin
+            .' entity='.(int) $conf->entity.' getEntity_project='.getEntity('project')
+            .' right_timeentry_write='.(int) $user->hasRight('timeflow', 'timeentry', 'write')
+            .' class_exists_CLeadStatus='.(int) class_exists('CLeadStatus')
+            .' class_exists_Project='.(int) class_exists('Project')
+            .' filters='.json_encode($projectFilters));
+        $timeflowDebugProjects = timeflowFetchTimeFlowProjects($db, $user, $projectFilters);
+        timeflowDebugLog('getTimeFlowProjects EXIT count='.count($timeflowDebugProjects)
+            .' first_row_keys='.(isset($timeflowDebugProjects[0]) ? implode(',', array_keys($timeflowDebugProjects[0])) : 'NONE'));
+        timeflowJsonResponse(array('status' => 'success', 'data' => $timeflowDebugProjects));
         break;
 
     case 'createTimeFlowProject':
@@ -1869,7 +1957,12 @@ switch ($action) {
                 $rows[] = timeflowExportTimeEntry($obj);
             }
         }
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowBuildSummary($rows, $db)));
+        $summaryData = timeflowBuildSummary($rows, $db);
+        // Lets the frontend warn when the period holds more rows than $limit
+        // fetched above, instead of silently charting an incomplete sample.
+        $summaryData['entries_returned'] = count($rows);
+        $summaryData['entries_total_in_period'] = timeflowCountEntriesMatchingFilter($db, $filter);
+        timeflowJsonResponse(array('status' => 'success', 'data' => $summaryData));
         break;
 
     case 'generateInvoiceLines':
@@ -2260,17 +2353,21 @@ switch ($action) {
 function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
 {
     $projects = array();
-    $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.fk_soc, s.nom as soc_name,';
+    $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.fk_soc, s.nom as soc_name, p.fk_statut, p.fk_opp_status, cls.code as opp_status_code,';
     $sql .= ' ef.timeflow_source, ef.timeflow_import_key,';
     $sql .= ' (SELECT COUNT(*) FROM '.$db->prefix().'timeflow_timeentry AS t';
     $sql .= '  WHERE t.fk_project = p.rowid AND t.date_delete IS NULL) AS entry_count';
     $sql .= ' FROM '.$db->prefix().'projet AS p';
     $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
     $sql .= ' LEFT JOIN '.$db->prefix().'projet_extrafields AS ef ON ef.fk_object = p.rowid';
+    $sql .= ' LEFT JOIN '.$db->prefix().'c_lead_status AS cls ON cls.rowid = p.fk_opp_status';
     $sql .= ' WHERE p.entity IN ('.getEntity('project').')';
-    // See timeflowFetchProjects(): a closed project is TimeFlow's "deleted"
-    // project and must not appear in this listing either.
-    $sql .= ' AND p.fk_statut <> '.Project::STATUS_CLOSED;
+    // Unlike timeflowFetchProjects() (the ACTIVE picker used to start a timer
+    // or assign a project — closed projects must disappear from there, see
+    // that function's comment), this is a read-only consultation view
+    // ("Rapports > Projets"). A closed project must stay visible here with
+    // its real status badge, exactly like it stays visible everywhere else
+    // in native Dolibarr after Project::setClose() — no status filter here.
 
     $clientId = (int) ($filters['client_id'] ?? 0);
     if ($clientId > 0) {
@@ -2315,6 +2412,39 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
         while ($obj = $db->fetch_object($resql)) {
             $projectId = (int) $obj->rowid;
             $assignedUserIds = $assignmentsByProject[$projectId] ?? array();
+
+            // Native project status (fk_statut) and opportunity status
+            // (fk_opp_status). Deliberately NOT rendered as native Dolibarr
+            // badge HTML here (LibStatut()/dolGetStatus() colors come from the
+            // active theme's configurable status colors, which cannot express
+            // "Closed = red" — that is not a native Dolibarr color choice and
+            // was explicitly requested regardless). Instead we send the plain
+            // status code + a translated label, and the frontend
+            // (ProjectStatusBadge / OpportunityStatusBadge) owns the exact
+            // color palette, consistent with every other status badge already
+            // rendered client-side in this app (and with dark mode, which
+            // native theme HTML would not respect).
+            $fk_statut = isset($obj->fk_statut) ? (int) $obj->fk_statut : 0;
+            $etatLabels = array(
+                Project::STATUS_DRAFT => 'Brouillon',
+                Project::STATUS_VALIDATED => 'Ouvert',
+                Project::STATUS_CLOSED => 'Clôturé',
+            );
+            $etat_label = $etatLabels[$fk_statut] ?? (string) $fk_statut;
+
+            $fk_opp_status = isset($obj->fk_opp_status) ? (int) $obj->fk_opp_status : 0;
+            $opp_status_code = !empty($obj->opp_status_code) ? (string) $obj->opp_status_code : '';
+            $oppLabels = array(
+                'PROSP' => 'Prospection',
+                'QUAL'  => 'Qualification',
+                'PROPO' => 'Proposition',
+                'NEGO'  => 'Négociation',
+                'LOST'  => 'Perdu',
+                'WON'   => 'Gagné',
+                'PENDING' => 'En attente',
+            );
+            $opp_label = $opp_status_code !== '' ? ($oppLabels[$opp_status_code] ?? $opp_status_code) : '';
+
             $projects[] = array(
                 'id' => $projectId,
                 'rowid' => $projectId,
@@ -2327,6 +2457,11 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
                 'entry_count' => (int) $obj->entry_count,
                 'assigned_user_ids' => $assignedUserIds,
                 'assigned_count' => count($assignedUserIds),
+                'fk_statut' => $fk_statut,
+                'etat_label' => $etat_label,
+                'fk_opp_status' => $fk_opp_status,
+                'opp_status_code' => $opp_status_code,
+                'opp_status_label' => $opp_label,
             );
         }
     }

@@ -4,6 +4,7 @@ export default function ProjectSelector({
   projects = [],
   value,
   onChange = () => {},
+  onFocus = () => {},
   id = 'timeflow-project',
   ariaLabel = '',
   disabled = false,
@@ -22,6 +23,8 @@ export default function ProjectSelector({
       name="project"
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value)}
+      onFocus={onFocus}
+      onMouseDown={onFocus}
       aria-label={ariaLabel || undefined}
       disabled={disabled}
       className={className}

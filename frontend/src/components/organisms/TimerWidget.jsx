@@ -10,7 +10,7 @@ import ProjectSelector from '../molecules/ProjectSelector';
 // at all. Someone legitimately working a long exceptional task is never blocked.
 const LONG_RUNNING_TIMER_WARNING_SECONDS = 12 * 3600;
 
-export default function TimerWidget({ timer, projects = [], projectsError = '', onProjectChange = () => {}, onEntryCreated = () => {} }) {
+export default function TimerWidget({ timer, projects = [], projectsError = '', onProjectChange = () => {}, onProjectSelectorOpen = () => {}, onEntryCreated = () => {} }) {
   const { t } = useTranslation();
   const { isRunning, seconds, loading, error, start, stop } = timer;
   const [fkProject, setFkProject] = useState('');
@@ -70,6 +70,7 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
             projects={projects}
             value={fkProject}
             onChange={handleProjectChange}
+            onFocus={onProjectSelectorOpen}
             ariaLabel={t('timer_widget.project_label')}
             className="tw-w-full tw-rounded-xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800 tw-px-4 tw-py-3 tw-text-sm tw-text-slate-700 dark:tw-text-slate-200 tw-outline-none tw-transition focus:tw-border-[#5B8FA8] focus:tw-bg-white dark:focus:tw-bg-slate-900 focus:tw-ring-2 focus:tw-ring-[#5B8FA8]/10 md:tw-w-48"
           />
