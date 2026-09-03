@@ -327,44 +327,6 @@ function handleMockRequest(action, body) {
       });
       return Promise.resolve({ status: 'success', data: filtered });
     }
-    case 'createTimeFlowProject': {
-      const assignedUserIds = Array.isArray(body?.assigned_user_ids) ? body.assigned_user_ids.map(Number) : [];
-      const project = {
-        id: Date.now(),
-        rowid: Date.now(),
-        title: body?.title ?? '',
-        ref: 'CPJ-MOCK'+Date.now(),
-        description: body?.description ?? '',
-        source: 'manual',
-        fk_dolibarr_project: 0,
-        fk_soc: Number(body?.fk_soc || 0),
-        client: '',
-        entry_count: 0,
-        assigned_user_ids: assignedUserIds,
-        assigned_count: assignedUserIds.length,
-        date_creation: new Date().toISOString(),
-      };
-      mockTimeFlowProjects = [project, ...mockTimeFlowProjects];
-      return Promise.resolve({ status: 'success', data: { id: project.id, title: project.title } });
-    }
-    case 'updateTimeFlowProject': {
-      const id = Number(body?.id);
-      const assignedUserIds = Array.isArray(body?.assigned_user_ids) ? body.assigned_user_ids.map(Number) : [];
-      mockTimeFlowProjects = mockTimeFlowProjects.map((project) => project.id === id
-        ? { ...project, title: body?.title ?? project.title, description: body?.description ?? project.description, fk_soc: Number(body?.fk_soc || 0), assigned_user_ids: assignedUserIds, assigned_count: assignedUserIds.length }
-        : project);
-      return Promise.resolve({ status: 'success', data: { id } });
-    }
-    case 'deleteTimeFlowProject': {
-      const id = Number(body?.id);
-      mockTimeFlowProjects = mockTimeFlowProjects.filter((project) => project.id !== id);
-      return Promise.resolve({ status: 'success', data: { id } });
-    }
-    case 'deleteTimeFlowProjects': {
-      const ids = Array.isArray(body?.ids) ? body.ids.map(Number) : [];
-      mockTimeFlowProjects = mockTimeFlowProjects.filter((project) => !ids.includes(Number(project.id)));
-      return Promise.resolve({ status: 'success', data: { deleted: ids, failed: [] } });
-    }
     case 'listActiveThirdParties':
       return Promise.resolve({
         status: 'success',
@@ -509,26 +471,6 @@ export async function getTimeFlowProjects(filters = {}) {
     search: filters.search || '',
   });
   return Array.isArray(data?.data) ? data.data : [];
-}
-
-export async function createTimeFlowProject(title, fkSoc = 0, description = '', assignedUserIds = []) {
-  const data = await moduleTimerRequest('createTimeFlowProject', { title, fk_soc: fkSoc, description, assigned_user_ids: assignedUserIds });
-  return data?.data ?? data;
-}
-
-export async function updateTimeFlowProject(id, title, fkSoc = 0, description = '', assignedUserIds = []) {
-  const data = await moduleTimerRequest('updateTimeFlowProject', { id, title, fk_soc: fkSoc, description, assigned_user_ids: assignedUserIds });
-  return data?.data ?? data;
-}
-
-export async function deleteTimeFlowProject(id) {
-  const data = await moduleTimerRequest('deleteTimeFlowProject', { id });
-  return data?.data ?? data;
-}
-
-export async function deleteTimeFlowProjects(ids = []) {
-  const data = await moduleTimerRequest('deleteTimeFlowProjects', { ids: Array.from(ids) });
-  return data?.data ?? data;
 }
 
 export async function listActiveThirdParties() {
