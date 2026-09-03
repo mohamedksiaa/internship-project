@@ -121,6 +121,22 @@ export default function TimeEntryList({
     [entries]
   );
 
+  // A timer left running past the max-duration cap is split at midnight into
+  // several entries server-side (see TimeEntry::stopTimer()), chained via
+  // fk_split_previous. This is a single continuous session interrupted only
+  // for calendar-day bookkeeping — never a voluntary resume — so it must
+  // never be confused with the "×N segments" cluster badge above, which
+  // groups same-day same-task rows. Looked up across the whole entries list
+  // (not just the current day group), since the linked half always lives in
+  // a different day's group.
+  const splitSuccessorIds = useMemo(() => {
+    const ids = new Set();
+    entries.forEach((entry) => {
+      if (entry.fk_split_previous != null) ids.add(Number(entry.fk_split_previous));
+    });
+    return ids;
+  }, [entries]);
+
   // Pagination for groups: split into pages where each page contains at most
   // `maxEntriesPerPage` entries (sum of group lengths). A single group that
   // exceeds the limit occupies its own page.
@@ -455,10 +471,28 @@ export default function TimeEntryList({
                       </td>
                     )}
                     <td className="tw-px-3 tw-py-3 tw-text-[#4d606b] dark:tw-text-slate-400 tw-whitespace-nowrap">
+                      {entry.fk_split_previous != null && (
+                        <span
+                          title={t('timeentry.split_previous_day')}
+                          aria-label={t('timeentry.split_previous_day')}
+                          className="tw-mr-1 tw-text-[#9aa9b1] dark:tw-text-slate-500"
+                        >
+                          ⤴
+                        </span>
+                      )}
                       {timeLabel(entry.date_start, t)}
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-text-[#4d606b] dark:tw-text-slate-400 tw-whitespace-nowrap">
                       {endTimeLabel(entry, t)}
+                      {entry.id != null && splitSuccessorIds.has(Number(entry.id)) && (
+                        <span
+                          title={t('timeentry.split_next_day')}
+                          aria-label={t('timeentry.split_next_day')}
+                          className="tw-ml-1 tw-text-[#9aa9b1] dark:tw-text-slate-500"
+                        >
+                          ⤵
+                        </span>
+                      )}
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-whitespace-nowrap">
                       <StatusBadge status={Number(entry.status)} />
@@ -476,7 +510,7 @@ export default function TimeEntryList({
                     </td>
                     <td className="tw-px-5 tw-py-3 tw-text-right tw-whitespace-nowrap">
                       <div className="tw-flex tw-justify-end tw-items-center tw-gap-2 tw-text-[#78909c] dark:tw-text-slate-400">
-                        {entry.id != null && entry.status === 0 && (
+                        {entry.id != null && entry.status === 0 && entry.date_end && (
                           <button
                             title={t('timeentry.title_submit')}
                             onClick={() => submitDraft(entry)}

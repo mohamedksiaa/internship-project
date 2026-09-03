@@ -288,20 +288,23 @@ class modTimeFlow extends DolibarrModules
 		// unit_frequency must be 60 for minute, 3600 for hour, 86400 for day, 604800 for week
 		/* BEGIN MODULEBUILDER CRON */
 		$this->cronjobs = array(
-			//  0 => array(
-			//      'label' => 'MyJob label',
-			//      'jobtype' => 'method',
-			//      'class' => '/timeflow/class/timeentry.class.php',
-			//      'objectname' => 'TimeEntry',
-			//      'method' => 'doScheduledJob',
-			//      'parameters' => '',
-			//      'comment' => 'Comment',
-			//      'frequency' => 2,
-			//      'unitfrequency' => 3600,
-			//      'status' => 0,
-			//      'test' => 'isModEnabled("timeflow")',
-			//      'priority' => 50,
-			//  ),
+			0 => array(
+				'label' => 'TimeFlow: close timers left active past midnight',
+				'jobtype' => 'method',
+				'class' => '/timeflow/class/timeentry.class.php',
+				'objectname' => 'TimeEntry',
+				'method' => 'closeStaleActiveTimersAtMidnight',
+				'parameters' => '',
+				'comment' => 'Closes any timer still active from a previous calendar day at that day’s midnight and continues it in a brand-new entry starting today — same midnight-split mechanism as stopTimer(), independent of the max-duration cap.',
+				// Every 5 minutes rather than exactly at midnight, so a late or
+				// skipped cron tick near 00:00 does not leave a timer straddling
+				// two calendar days for the rest of the day.
+				'frequency' => 5,
+				'unitfrequency' => 60,
+				'status' => 1,
+				'test' => 'isModEnabled("timeflow")',
+				'priority' => 50,
+			),
 		);
 		/* END MODULEBUILDER CRON */
 		// Example: $this->cronjobs=array(

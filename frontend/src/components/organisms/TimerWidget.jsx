@@ -4,6 +4,12 @@ import Card from '../atoms/Card';
 import TimeDisplay from '../atoms/TimeDisplay';
 import ProjectSelector from '../molecules/ProjectSelector';
 
+// Soft, non-blocking heads-up only — the backend cap (TIMEFLOW_MAX_ENTRY_DURATION_HOURS,
+// default 18h) is what actually prevents an absurd entry; this is just an
+// earlier nudge so a forgotten timer gets noticed before it needs correcting
+// at all. Someone legitimately working a long exceptional task is never blocked.
+const LONG_RUNNING_TIMER_WARNING_SECONDS = 12 * 3600;
+
 export default function TimerWidget({ timer, projects = [], projectsError = '', onProjectChange = () => {}, onEntryCreated = () => {} }) {
   const { t } = useTranslation();
   const { isRunning, seconds, loading, error, start, stop } = timer;
@@ -33,6 +39,10 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
       setNote('');
       setFkProject('');
       onProjectChange('');
+      // A timer left running past the max-duration cap comes back split into
+      // several entries (see TimeEntry::stopTimer()); push every one of them
+      // so they all show up immediately instead of only after a reload.
+      (entry.split_segments || []).forEach(pushEntry);
       pushEntry(entry);
     }
   };
@@ -77,6 +87,11 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
         </div>
       </Card>
       {error && <p className="tw-mt-3 tw-text-sm tw-text-[#d64c4c] dark:tw-text-[#f0908f]">{error}</p>}
+      {isRunning && seconds > LONG_RUNNING_TIMER_WARNING_SECONDS && (
+        <p className="tw-mt-2 tw-text-sm tw-text-amber-600 dark:tw-text-amber-400">
+          ⚠ {t('timer_widget.long_running_warning')}
+        </p>
+      )}
       {!isRunning && !isDisabled && !error && (
         <p className="tw-mt-2 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('timer_widget.ready_to_start')}</p>
       )}

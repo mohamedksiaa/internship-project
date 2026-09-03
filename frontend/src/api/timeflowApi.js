@@ -422,7 +422,16 @@ export async function submitEntry(id) {
 
 export async function stopTimer(id) {
   const data = await moduleTimerRequest('stopTimer', { id });
-  return normalizeEntry(data?.data ?? data);
+  const payload = data?.data ?? data;
+  const entry = normalizeEntry(payload);
+  // A timer left running past the max-duration cap is split at midnight into
+  // extra entries server-side (see TimeEntry::stopTimer()); surface them so
+  // the caller can add them to the list immediately instead of waiting for a
+  // full reload to notice the extra rows.
+  if (entry && Array.isArray(payload?.split_segments)) {
+    entry.split_segments = payload.split_segments.map(normalizeEntry);
+  }
+  return entry;
 }
 
 export async function restartTimer(id) {

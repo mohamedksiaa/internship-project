@@ -202,7 +202,8 @@
     "start": "ابدأ",
     "stop": "إيقاف",
     "ready_to_start": "جاهز للبدء.",
-    "start_without_project": "يمكنك الاستمرار في بدء المؤقت بدون مشروع."
+    "start_without_project": "يمكنك الاستمرار في بدء المؤقت بدون مشروع.",
+    "long_running_warning": "هذا المؤقت يعمل منذ أكثر من 12 ساعة. تأكد من أنك لم تنسه."
   },
   "nav": {
     "track_time": "تتبع الوقت",
@@ -306,6 +307,8 @@
     "corrected_with_reason": "تم التصحيح",
     "corrected_traced": "تم التصحيح وتتبعه",
     "modified_manually": "تم التعديل يدوياً",
+    "split_previous_day": "امتداد من الأمس: بقي المؤقت يعمل بعد منتصف الليل، تم تقسيمه تلقائيًا",
+    "split_next_day": "يمتد إلى الغد: بقي المؤقت يعمل بعد منتصف الليل، تم تقسيمه تلقائيًا",
     "title_submit": "إرسال",
     "title_validate": "تحقق",
     "title_reject": "رفض",
