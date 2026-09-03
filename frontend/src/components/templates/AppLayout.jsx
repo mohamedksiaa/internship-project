@@ -20,14 +20,10 @@ export default function AppLayout() {
     { path: '/dashboard', label: t('nav.dashboard'), icon: '⊞', section: t('app.section_analyze') },
     { path: '/reports', label: t('nav.reports'), icon: '▥', section: t('app.section_analyze') },
     { path: '/validation', label: t('nav.validations'), icon: '✓', section: t('app.section_manage') },
-    { path: '/processed-history', label: t('nav.history'), icon: '◫', section: t('app.section_manage') },
-    { path: '/projects', label: t('nav.projects'), icon: '⬒', section: t('app.section_manage') },
   ];
   const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
-  const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
   const visibleNavigation = navigation.filter((item) => {
     if (item.path === '/validation') return canValidate;
-    if (item.path === '/reports') return canValidate;
     return true;
   });
   let displayedSection = '';

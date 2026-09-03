@@ -5,12 +5,9 @@ import TimerPage from './pages/TimerPage';
 import HistoryPage from './pages/HistoryPage';
 import ReportsPage from './pages/ReportsPage';
 import ValidationPage from './pages/ValidationPage';
-import ProcessedHistoryPage from './pages/ProcessedHistoryPage';
 import DailyReportPage from './pages/DailyReportPage';
-import ProjectsPage from './pages/ProjectsPage';
 
 const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
-const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
 
 export default function App() {
   return (
@@ -22,10 +19,13 @@ export default function App() {
           <Route path="timer" element={<TimerPage />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="daily-report" element={<DailyReportPage />} />
-          <Route path="reports" element={canValidate ? <ReportsPage /> : <Navigate to="/dashboard" replace />} />
+          {/* Rapports now hosts task/report history and the read-only project
+              list (previously open to everyone at /processed-history and
+              /projects) alongside the manager-only project breakdown that used
+              to live here — none of its content requires canValidate anymore,
+              so unlike /validation this route is not gated. */}
+          <Route path="reports" element={<ReportsPage />} />
           <Route path="validation" element={canValidate ? <ValidationPage /> : <Navigate to="/dashboard" replace />} />
-          <Route path="processed-history" element={<ProcessedHistoryPage />} />
-          <Route path="projects" element={<ProjectsPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
