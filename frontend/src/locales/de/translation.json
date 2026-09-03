@@ -77,6 +77,9 @@
     "custom_chart_empty": "Keine Daten für diesen Zeitraum.",
     "dimension_label": "Dimension",
     "chart_type_label": "Diagrammtyp",
+    "cross_with_label": "Kreuzen mit",
+    "cross_with_none": "Keine",
+    "entries_truncated_warning": "Die angezeigten Daten sind auf die ersten {{limit}} Einträge dieses Zeitraums beschränkt — grenzen Sie Ihren Datumsfilter für eine vollständige Ansicht ein.",
     "billable_label": "Abrechenbar",
     "non_billable_label": "Nicht abrechenbar",
     "other_bucket": "Sonstige",
@@ -203,6 +206,22 @@
     "col_client": "Kunde",
     "col_assigned_users": "Zugewiesene Benutzer",
     "col_entries": "Einträge",
+    "col_statut": "Status",
+    "col_etat": "Zustand",
+    "status": {
+      "draft": "Entwurf",
+      "opened": "Offen",
+      "closed": "Geschlossen"
+    },
+    "opp_status": {
+      "prosp": "Akquise",
+      "qual": "Qualifizierung",
+      "propo": "Angebot",
+      "nego": "Verhandlung",
+      "won": "Gewonnen",
+      "lost": "Verloren",
+      "pending": "Ausstehend"
+    },
     "everyone": "Alle",
     "assigned_users_more_one": "+{{count}} weiterer",
     "assigned_users_more_other": "+{{count}} weitere",

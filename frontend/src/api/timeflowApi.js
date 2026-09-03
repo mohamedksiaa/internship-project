@@ -238,8 +238,10 @@ function handleMockRequest(action, body) {
     }
     case 'getWeeklyTimesheet':
       return Promise.resolve({ status: 'success', data: { weekStart: '2026-07-28', weekEnd: '2026-08-04', rows: mockEntries.map(normalizeEntry) } });
-    case 'getSummaryReports':
-      return Promise.resolve({ status: 'success', data: { total_seconds: mockEntries.reduce((sum, entry) => sum + Number(entry.duration || 0), 0), billable_seconds: 0, non_billable_seconds: 0, by_project: {}, project_labels: {}, by_client: {}, client_labels: {}, by_user: {}, user_labels: {}, by_group: {}, group_labels: {}, by_tag: {}, by_status: {} } });
+    case 'getSummaryReports': {
+      const mockTotal = mockEntries.reduce((sum, entry) => sum + Number(entry.duration || 0), 0);
+      return Promise.resolve({ status: 'success', data: { total_seconds: mockTotal, billable_seconds: 0, non_billable_seconds: 0, by_project: {}, project_labels: {}, by_client: {}, client_labels: {}, by_user: {}, user_labels: {}, by_group: {}, group_labels: {}, by_tag: {}, by_status: {}, by_project_employee: {}, by_project_client: {}, by_project_billable: {}, by_employee_client: {}, by_employee_billable: {}, by_client_billable: {}, entries_returned: mockEntries.length, entries_total_in_period: mockEntries.length } });
+    }
     case 'generateInvoiceLines':
       return Promise.resolve({ status: 'success', data: [] });
 

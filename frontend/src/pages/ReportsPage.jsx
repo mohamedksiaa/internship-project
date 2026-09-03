@@ -13,6 +13,8 @@ import {
   previewClockifyImport,
 } from '../api/timeflowApi';
 import StatusBadge from '../components/atoms/StatusBadge';
+import ProjectStatusBadge from '../components/atoms/ProjectStatusBadge';
+import OpportunityStatusBadge from '../components/atoms/OpportunityStatusBadge';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import ImportPreviewModal from '../components/molecules/ImportPreviewModal.jsx';
 import { ModifiedManuallyBadge, isManuallyModifiedRecord, taskClusterKey } from '../components/organisms/TimeEntryList.jsx';
@@ -184,14 +186,17 @@ function ProjectsReportTab() {
                   <th className="tw-px-3 tw-py-2">{t('projects.col_title')}</th>
                   <th className="tw-px-3 tw-py-2">{t('projects.col_client')}</th>
                   <th className="tw-px-3 tw-py-2">{t('projects.col_assigned_users')}</th>
-                  <th className="tw-px-3 tw-py-2 tw-text-right">{t('projects.col_entries')}</th>
+                  <th className="tw-px-3 tw-py-2">{t('projects.col_statut')}</th>
+                  <th className="tw-px-3 tw-py-2 tw-text-right">{t('projects.col_etat')}</th>
                 </tr>
               </thead>
               <tbody>
                 {projectRows.map((project) => (
                   <tr key={project.id} className="tw-border-b tw-border-slate-100 dark:tw-border-slate-800">
                     <td className="tw-px-3 tw-py-3 tw-whitespace-nowrap tw-text-slate-500 dark:tw-text-slate-400">{project.ref}</td>
-                    <td className="tw-px-3 tw-py-3 tw-font-medium tw-text-slate-900 dark:tw-text-slate-100">{project.title}</td>
+                    <td className="tw-px-3 tw-py-3 tw-font-medium tw-text-slate-900 dark:tw-text-slate-100">
+                      {project.title}
+                    </td>
                     <td className="tw-px-3 tw-py-3 tw-text-slate-600 dark:tw-text-slate-300">{project.client || t('dashboard.no_client')}</td>
                     <td className="tw-px-3 tw-py-3 tw-max-w-[240px]">
                       {(() => {
@@ -203,7 +208,12 @@ function ProjectsReportTab() {
                         );
                       })()}
                     </td>
-                    <td className="tw-px-3 tw-py-3 tw-text-right tw-tabular-nums">{project.entry_count}</td>
+                    <td className="tw-px-3 tw-py-3">
+                      <OpportunityStatusBadge code={project.opp_status_code} />
+                    </td>
+                    <td className="tw-px-3 tw-py-3 tw-text-right tw-tabular-nums">
+                      <ProjectStatusBadge status={Number(project.fk_statut ?? 0)} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -76,6 +76,9 @@
     "custom_chart_empty": "No data for this period.",
     "dimension_label": "Dimension",
     "chart_type_label": "Chart type",
+    "cross_with_label": "Cross with",
+    "cross_with_none": "None",
+    "entries_truncated_warning": "The data shown is limited to the first {{limit}} entries in this period — narrow your date filter for a complete view.",
     "billable_label": "Billable",
     "non_billable_label": "Non-billable",
     "other_bucket": "Other",
@@ -204,6 +207,22 @@
     "col_client": "Client",
     "col_assigned_users": "Assigned users",
     "col_entries": "Entries",
+    "col_statut": "Status",
+    "col_etat": "State",
+    "status": {
+      "draft": "Draft",
+      "opened": "Open",
+      "closed": "Closed"
+    },
+    "opp_status": {
+      "prosp": "Prospecting",
+      "qual": "Qualification",
+      "propo": "Proposal",
+      "nego": "Negotiation",
+      "won": "Won",
+      "lost": "Lost",
+      "pending": "Pending"
+    },
     "everyone": "Everyone",
     "assigned_users_more_one": "+{{count}} more",
     "assigned_users_more_other": "+{{count}} more",

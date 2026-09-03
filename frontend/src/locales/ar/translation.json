@@ -93,6 +93,9 @@
     "custom_chart_empty": "لا توجد بيانات لهذه الفترة.",
     "dimension_label": "البُعد",
     "chart_type_label": "نوع الرسم البياني",
+    "cross_with_label": "تقاطع مع",
+    "cross_with_none": "بدون",
+    "entries_truncated_warning": "البيانات المعروضة محدودة بأول {{limit}} سجل في هذه الفترة — ضيّق نطاق التاريخ للحصول على عرض كامل.",
     "billable_label": "قابل للفوترة",
     "non_billable_label": "غير قابل للفوترة",
     "other_bucket": "أخرى",
@@ -207,6 +210,22 @@
     "col_client": "العميل",
     "col_assigned_users": "المستخدمون المعينون",
     "col_entries": "السجلات",
+    "col_statut": "الحالة",
+    "col_etat": "الوضع",
+    "status": {
+      "draft": "مسودة",
+      "opened": "مفتوح",
+      "closed": "مغلق"
+    },
+    "opp_status": {
+      "prosp": "استكشاف",
+      "qual": "التأهيل",
+      "propo": "اقتراح",
+      "nego": "تفاوض",
+      "won": "فوز",
+      "lost": "خسارة",
+      "pending": "قيد الانتظار"
+    },
     "everyone": "الجميع",
     "assigned_users_more_zero": "",
     "assigned_users_more_one": "+واحد آخر",
