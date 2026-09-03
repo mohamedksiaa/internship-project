@@ -119,6 +119,19 @@ $item->fieldAttr['step'] = 1;
 $item->cssClass = 'minwidth100';
 $item->helpText = $langs->transnoentities('TIMEFLOW_WEEKLY_WORK_HOURS_TOOLTIP');
 
+// Maximum plausible duration for a single time entry, in hours. Beyond this,
+// creation/correction is refused (see TimeEntry::exceedsMaxDuration()); a
+// timer stopped normally after running longer is split at midnight instead
+// of being refused (see TimeEntry::stopTimer()).
+$item = $formSetup->newItem('TIMEFLOW_MAX_ENTRY_DURATION_HOURS');
+$item->defaultFieldValue = 18;
+$item->fieldAttr['type'] = 'number';
+$item->fieldAttr['min'] = 1;
+$item->fieldAttr['max'] = 24;
+$item->fieldAttr['step'] = 1;
+$item->cssClass = 'minwidth100';
+$item->helpText = $langs->transnoentities('TIMEFLOW_MAX_ENTRY_DURATION_HOURS_TOOLTIP');
+
 // Ask for a task before starting the timer
 $item = $formSetup->newItem('TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER');
 $item->setAsYesNo();

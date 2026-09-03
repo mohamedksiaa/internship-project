@@ -36,6 +36,33 @@ export function useTimer() {
     setSeconds(Number(entry.duration || 0));
   }, []);
 
+  // The nightly cron (TimeEntry::closeStaleActiveTimersAtMidnight()) can
+  // close the entry this tab is tracking at midnight and move the still-
+  // running session to a brand-new row server-side — invisible in the UI
+  // (`seconds` keeps counting up locally, unaffected either way) until the
+  // user tries to stop or otherwise act on the timer with the now-stale id.
+  // Silently re-point `activeEntry` to whatever the server currently
+  // considers active, on the same ~5min cadence as that cron job, WITHOUT
+  // ever touching `seconds` — the displayed counter must never jump or
+  // reset just because the underlying row changed identity.
+  useEffect(() => {
+    if (!isRunning || activeEntry?.id == null) return undefined;
+    const RESYNC_INTERVAL_MS = 5 * 60 * 1000;
+    const resync = async () => {
+      try {
+        const data = await getActiveTimer();
+        if (data && data.id != null && Number(data.id) !== Number(activeEntry.id)) {
+          setActiveEntry((current) => (current ? { ...current, ...data } : data));
+        }
+      } catch {
+        // Best-effort only: a failed background resync must never disturb the
+        // running timer or surface an error to the user.
+      }
+    };
+    const intervalId = setInterval(resync, RESYNC_INTERVAL_MS);
+    return () => clearInterval(intervalId);
+  }, [isRunning, activeEntry?.id]);
+
   // Fait défiler le compteur affiché chaque seconde, seulement si un chrono tourne
   useEffect(() => {
     if (isRunning) {

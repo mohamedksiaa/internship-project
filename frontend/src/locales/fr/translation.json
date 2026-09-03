@@ -200,7 +200,8 @@
     "start": "DÉMARRER",
     "stop": "ARRÊTER",
     "ready_to_start": "Prêt à démarrer.",
-    "start_without_project": "Vous pouvez tout de même démarrer un chrono sans projet."
+    "start_without_project": "Vous pouvez tout de même démarrer un chrono sans projet.",
+    "long_running_warning": "Ce chrono tourne depuis plus de 12h. Vérifiez que vous ne l'avez pas oublié."
   },
   "nav": {
     "track_time": "SUIVI DU TEMPS",
@@ -285,6 +286,8 @@
     "corrected_with_reason": "Temps corrigé",
     "corrected_traced": "Temps corrigé et tracé",
     "modified_manually": "Modifié manuellement",
+    "split_previous_day": "Suite d’hier : chrono resté actif après minuit, scindé automatiquement",
+    "split_next_day": "Suite demain : chrono resté actif après minuit, scindé automatiquement",
     "title_submit": "Soumettre",
     "title_validate": "Valider",
     "title_reject": "Refuser",

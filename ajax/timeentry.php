@@ -220,6 +220,10 @@ function timeflowEmployeeManualEditPolicy($entry)
         return array('allowed' => false, 'message' => 'Cette entrée a été soumise ou traitée : contactez votre manager.', 'end_only' => false, 'reason_required' => true);
     }
 
+    if (empty($entry->date_end)) {
+        return array('allowed' => false, 'message' => 'Arrêtez d’abord le chronomètre avant de modifier cette entrée.', 'end_only' => false, 'reason_required' => true);
+    }
+
     $start = is_numeric($entry->date_start) ? (int) $entry->date_start : strtotime((string) $entry->date_start);
     $today = strtotime(gmdate('Y-m-d 00:00:00', dol_now()).' UTC');
     if ($start >= $today) {
@@ -375,6 +379,7 @@ function timeflowExportTimeEntry($object)
         'tags',
         'billable',
         'status',
+        'fk_split_previous',
         'date_submit',
         'fk_user_submit',
         'fk_user_valid',
@@ -1304,7 +1309,15 @@ switch ($action) {
         $id = !empty($postData['id']) ? (int)$postData['id'] : (int)GETPOST('id', 'int');
         $res = $timeentry->stopTimer($id, $user);
         if ($res > 0) {
-            timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
+            $data = timeflowExportTimeEntry($timeentry);
+            // A timer left running past the max-duration cap is split into one
+            // entry per calendar day crossed (see TimeEntry::stopTimer()); the
+            // frontend needs every extra segment to show them immediately
+            // instead of waiting for the next full reload.
+            if (!empty($timeentry->splitSegments)) {
+                $data['split_segments'] = array_map('timeflowExportTimeEntry', $timeentry->splitSegments);
+            }
+            timeflowJsonResponse(array('status' => 'success', 'data' => $data));
         } else {
             http_response_code(400);
             timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à l\'arrêt'), 400);
@@ -2034,10 +2047,20 @@ switch ($action) {
         $ids = is_array($ids) ? $ids : array();
         $updated = array();
         foreach ($ids as $id) {
-            if ($timeentry->fetch((int) $id) > 0) {
+            // An entry whose timer is still running (date_end NULL) has nothing
+            // finished to validate yet: skip it rather than approving a time that
+            // does not exist. The caller sees it missing from $updated, same as
+            // any other entry that failed to fetch.
+            if ($timeentry->fetch((int) $id) > 0 && !empty($timeentry->date_end)) {
                 $timeentry->status = TimeEntry::STATUS_VALIDATED;
                 $timeentry->date_submit = dol_now();
                 $timeentry->fk_user_submit = $user->id;
+                // fk_user_valid must be set here just like in validateEntry(): it is
+                // the permanent marker TimeEntry::delete() relies on to know a manager
+                // has decided on this entry. Leaving it null would let a future
+                // status regression wrongly make an already-approved entry eligible
+                // for physical deletion again.
+                $timeentry->fk_user_valid = $user->id;
                 if ($timeentry->update($user) > 0) {
                     $updated[] = timeflowExportTimeEntry($timeentry);
                 }
@@ -2103,6 +2126,21 @@ switch ($action) {
         if ($newStart <= 0 || ($newEnd > 0 && $newEnd <= $newStart)) {
             timeflowCorrectionTrace('response_invalid_dates', array('rowid' => (int) $timeentry->id, 'http_status' => 400));
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Les heures de début et de fin sont invalides.'), 400);
+        }
+        // See TimeEntry::checkBackwardOnlyCorrection() for the full rationale:
+        // a correction may only move date_start/date_end earlier, never later.
+        $backwardOnlyError = TimeEntry::checkBackwardOnlyCorrection($oldStart, $oldEnd, $newStart, $newEnd);
+        if ($backwardOnlyError !== '') {
+            timeflowCorrectionTrace('response_date_moved_forward', array('rowid' => (int) $timeentry->id, 'http_status' => 400));
+            timeflowJsonResponse(array('status' => 'error', 'message' => $backwardOnlyError), 400);
+        }
+        // A correction crossing into a different calendar day is allowed (e.g.
+        // start yesterday evening, end corrected to that same evening) as long
+        // as it stays under the same cap enforced everywhere else dates are
+        // set (createManualEntry(), stopTimer()) — see TimeEntry::exceedsMaxDuration().
+        if ($newEnd > 0 && TimeEntry::exceedsMaxDuration($newStart, $newEnd)) {
+            timeflowCorrectionTrace('response_max_duration_exceeded', array('rowid' => (int) $timeentry->id, 'http_status' => 400));
+            timeflowJsonResponse(array('status' => 'error', 'message' => TimeEntry::getMaxDurationErrorMessage()), 400);
         }
         if ($policy['end_only'] && $newStart !== $oldStart) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Seule l’heure de fin d’une entrée d’hier peut être corrigée.'), 403);

@@ -199,7 +199,8 @@
     "start": "START",
     "stop": "STOP",
     "ready_to_start": "Ready to start.",
-    "start_without_project": "You can still start a timer without a project."
+    "start_without_project": "You can still start a timer without a project.",
+    "long_running_warning": "This timer has been running for over 12h. Make sure you haven't forgotten it."
   },
   "nav": {
     "track_time": "TIME TRACKING",
@@ -284,6 +285,8 @@
     "corrected_with_reason": "Corrected",
     "corrected_traced": "Corrected and traced",
     "modified_manually": "Modified manually",
+    "split_previous_day": "Continued from yesterday: timer left running past midnight, split automatically",
+    "split_next_day": "Continues tomorrow: timer left running past midnight, split automatically",
     "title_submit": "Submit",
     "title_validate": "Validate",
     "title_reject": "Reject",

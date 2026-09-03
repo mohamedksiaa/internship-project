@@ -94,4 +94,30 @@ describe('TimerWidget', () => {
     expect(screen.queryByText(/Veuillez renseigner un projet/)).not.toBeInTheDocument();
     expect(screen.queryByText(/3 caractères/)).not.toBeInTheDocument();
   });
+
+  it('shows a discreet warning once a running timer passes 12h, without stopping it', () => {
+    renderTimerWidget({ isRunning: true, seconds: 12 * 3600 + 1 });
+    expect(screen.getByText((_, element) => element?.textContent === `⚠ ${t('timer_widget.long_running_warning')}`)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t('timer_widget.stop') })).toBeEnabled();
+  });
+
+  it('does not warn for a running timer under 12h', () => {
+    renderTimerWidget({ isRunning: true, seconds: 3600 });
+    expect(screen.queryByText((_, element) => element?.textContent === `⚠ ${t('timer_widget.long_running_warning')}`)).not.toBeInTheDocument();
+  });
+
+  it('pushes every midnight-split segment plus the final entry after stopping a too-long timer', async () => {
+    const user = userEvent.setup();
+    const finalSegment = { id: 9, note: 'Oubli', fk_project: 1, duration: 4 * 3600, fk_split_previous: 8 };
+    const firstSegment = { id: 8, note: 'Oubli', fk_project: 1, duration: 15 * 3600 };
+    const stop = vi.fn().mockResolvedValue({ ...finalSegment, split_segments: [firstSegment] });
+    const onEntryCreated = vi.fn();
+    render(<TimerWidget timer={{ isRunning: true, seconds: 19 * 3600, loading: false, start: vi.fn(), stop }} projects={projects} onEntryCreated={onEntryCreated} />);
+
+    await user.click(screen.getByRole('button', { name: t('timer_widget.stop') }));
+
+    expect(onEntryCreated).toHaveBeenCalledTimes(2);
+    expect(onEntryCreated).toHaveBeenCalledWith(firstSegment);
+    expect(onEntryCreated).toHaveBeenCalledWith(expect.objectContaining({ id: 9 }));
+  });
 });

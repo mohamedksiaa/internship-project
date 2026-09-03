@@ -198,7 +198,8 @@
     "start": "STARTEN",
     "stop": "STOPPEN",
     "ready_to_start": "Bereit zum Starten.",
-    "start_without_project": "Sie können trotzdem einen Timer ohne Projekt starten."
+    "start_without_project": "Sie können trotzdem einen Timer ohne Projekt starten.",
+    "long_running_warning": "Dieser Timer läuft seit über 12 Stunden. Stellen Sie sicher, dass Sie ihn nicht vergessen haben."
   },
   "nav": {
     "track_time": "ZEITERFASSUNG",
@@ -283,6 +284,8 @@
     "corrected_with_reason": "Korrigiert",
     "corrected_traced": "Korrigiert und protokolliert",
     "modified_manually": "Manuell geändert",
+    "split_previous_day": "Fortsetzung von gestern: Timer lief über Mitternacht hinaus, automatisch aufgeteilt",
+    "split_next_day": "Setzt sich morgen fort: Timer lief über Mitternacht hinaus, automatisch aufgeteilt",
     "title_submit": "Einreichen",
     "title_validate": "Validieren",
     "title_reject": "Ablehnen",
