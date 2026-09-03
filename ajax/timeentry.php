@@ -1937,6 +1937,16 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Plage de dates invalide'), 400);
         }
 
+        // Opt-in, not the default: a draft can still change or be deleted, and
+        // a refused entry means a manager explicitly did not recognize that
+        // time as legitimate — neither is reliable enough for stats. Kept
+        // opt-in (rather than baked into every getSummaryReports caller) so
+        // this stays specific to the Dashboard's "confirmed work only" need;
+        // see case 'getProcessedHistory'/timeflowProcessedHistoryWhere for
+        // the separate "validated OR refused" (fk_user_valid IS NOT NULL)
+        // notion used there, which is intentionally broader than this one.
+        $onlyValidated = !empty($postData['only_validated']) || GETPOST('only_validated', 'int');
+
         $filters = array();
         if (!timeflowCanReadAllTimeEntries($user)) {
             $filters[] = '(t.fk_user:=:'.((int) $user->id).')';
@@ -1946,6 +1956,9 @@ switch ($action) {
         }
         if ($dateTo !== '') {
             $filters[] = "(t.date_start:<=:'".$dateTo." 23:59:59')";
+        }
+        if ($onlyValidated) {
+            $filters[] = '(t.status:=:'.TimeEntry::STATUS_VALIDATED.')';
         }
         $filter = implode(' AND ', $filters);
         // Diagnostic log: record whether summary is being computed for team or single user

@@ -137,7 +137,12 @@ export default function DashboardPage() {
       setSummaryLoading(true);
       setSummaryError('');
       try {
-        const summaryData = await getSummaryReports(1000, dateRange.from, dateRange.to);
+        // Dashboard-only: a draft can still change or be deleted, and a
+        // refused entry means a manager explicitly did not recognize that
+        // time — neither is reliable enough to show as a confirmed stat.
+        // "Suivi du temps" (TimerPage) deliberately keeps showing drafts, so
+        // this flag stays scoped to this one call, not a global default.
+        const summaryData = await getSummaryReports(1000, dateRange.from, dateRange.to, true);
         if (isMounted) {
           setSummary(summaryData || null);
         }

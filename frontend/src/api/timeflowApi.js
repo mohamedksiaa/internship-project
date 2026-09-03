@@ -485,8 +485,8 @@ export async function getWeeklyTimesheet(weekStart = '') {
   return data?.data ?? data;
 }
 
-export async function getSummaryReports(limit = 1000, dateFrom = '', dateTo = '') {
-  const data = await moduleTimerRequest('getSummaryReports', { limit, date_from: dateFrom, date_to: dateTo });
+export async function getSummaryReports(limit = 1000, dateFrom = '', dateTo = '', onlyValidated = false) {
+  const data = await moduleTimerRequest('getSummaryReports', { limit, date_from: dateFrom, date_to: dateTo, only_validated: onlyValidated ? 1 : 0 });
   return data?.data ?? data;
 }
 
