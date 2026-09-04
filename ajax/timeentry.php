@@ -74,18 +74,6 @@ function timeflowJsonResponse($payload, $status = 200)
 }
 
 /**
- * TEMPORARY diagnostic: writes directly to /tmp/timeflow_handler.log,
- * independent of Dolibarr's own syslog configuration (which may not be
- * writing to the file we expect). To be removed once the getTimeFlowProjects
- * field investigation is closed.
- */
-function timeflowDebugLog($message)
-{
-    $line = '['.date('Y-m-d H:i:s').'] uid='.@posix_getuid().' pid='.getmypid().' '.$message."\n";
-    @file_put_contents('/tmp/timeflow_handler.log', $line, FILE_APPEND | LOCK_EX);
-}
-
-/**
  * Temporary diagnostic trace for startTimer rejections.  It deliberately
  * records only the fields needed to reproduce the validation, never the CSRF
  * token or the whole request body.
@@ -1479,23 +1467,7 @@ switch ($action) {
             'date_to' => $postData['date_to'] ?? GETPOST('date_to', 'alphanohtml'),
             'search' => trim((string) ($postData['search'] ?? GETPOST('search', 'alphanohtml'))),
         );
-        // Diagnostic: log which file and version is executing this action so
-        // we can detect if the webserver is running a different copy.
-        if (function_exists('dol_syslog')) {
-            dol_syslog('timeflow.handler getTimeFlowProjects file='.__FILE__.' mtime='.(int) @filemtime(__FILE__), LOG_DEBUG);
-        }
-        // Also expose a lightweight header so the browser Network tab shows the
-        // handler filename/timestamp for quick verification (temporary).
-        header('X-Timeflow-Handler: '.basename(__FILE__).':'.((int) @filemtime(__FILE__)));
-        timeflowDebugLog('getTimeFlowProjects ENTER user_id='.(int) $user->id.' login='.$user->login.' admin='.(int) $user->admin
-            .' entity='.(int) $conf->entity.' getEntity_project='.getEntity('project')
-            .' right_timeentry_write='.(int) $user->hasRight('timeflow', 'timeentry', 'write')
-            .' class_exists_CLeadStatus='.(int) class_exists('CLeadStatus')
-            .' class_exists_Project='.(int) class_exists('Project')
-            .' filters='.json_encode($projectFilters));
         $timeflowDebugProjects = timeflowFetchTimeFlowProjects($db, $user, $projectFilters);
-        timeflowDebugLog('getTimeFlowProjects EXIT count='.count($timeflowDebugProjects)
-            .' first_row_keys='.(isset($timeflowDebugProjects[0]) ? implode(',', array_keys($timeflowDebugProjects[0])) : 'NONE'));
         timeflowJsonResponse(array('status' => 'success', 'data' => $timeflowDebugProjects));
         break;
 
