@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import TimerWidget from '../components/organisms/TimerWidget';
 import TimeEntryList from '../components/organisms/TimeEntryList';
@@ -15,6 +15,21 @@ export default function TimerPage() {
   const [entries, setEntries] = useState([]);
   const [projectsError, setProjectsError] = useState('');
 
+  // Re-run on every mount AND every time the project selector is opened, so a
+  // project closed elsewhere (fk_statut -> CLOSED) disappears from the picker
+  // without requiring a full page reload — getProjects() already excludes
+  // closed projects server-side, this just keeps the client list from going stale.
+  const refreshProjects = useCallback(async () => {
+    try {
+      const mapped = await getProjects();
+      setProjects(mapped || []);
+      setProjectsError(mapped && mapped.length ? '' : t('timer_page.no_projects'));
+    } catch (err) {
+      setProjectsError(err?.message || t('timer_page.load_projects_error'));
+      setProjects([]);
+    }
+  }, [t]);
+
   useEffect(() => {
     let isMounted = true;
     let marker = null;
@@ -22,26 +37,12 @@ export default function TimerPage() {
 
     async function loadInitialData() {
       // Load projects and time entries in parallel
-      const [projectsResult, entriesResult] = await Promise.allSettled([
-        getProjects(),
+      const [, entriesResult] = await Promise.allSettled([
+        refreshProjects(),
         getTimeEntries(),
       ]);
 
       if (!isMounted) return;
-
-      // Process Projects Result
-      if (projectsResult.status === 'fulfilled') {
-        const mapped = projectsResult.value || [];
-        if (!mapped.length) {
-          setProjectsError(t('timer_page.no_projects'));
-        } else {
-          setProjects(mapped);
-          setProjectsError('');
-        }
-      } else {
-        setProjectsError(projectsResult.reason?.message || t('timer_page.load_projects_error'));
-        setProjects([]);
-      }
 
       // Process Entries Result & Fetch their Tasks
       if (entriesResult.status === 'fulfilled') {
@@ -148,12 +149,13 @@ export default function TimerPage() {
 
   return (
     <div className="tw-mx-auto tw-w-full tw-max-w-[1680px] tw-px-5 tw-py-7">
-      <TimerWidget 
+      <TimerWidget
         timer={timer}
-        projects={projects} 
-        projectsError={projectsError} 
-        onProjectChange={handleProjectChange} 
-        onEntryCreated={handleEntryCreated} 
+        projects={projects}
+        projectsError={projectsError}
+        onProjectChange={handleProjectChange}
+        onProjectSelectorOpen={refreshProjects}
+        onEntryCreated={handleEntryCreated}
       />
 
       <div className="tw-mt-10">

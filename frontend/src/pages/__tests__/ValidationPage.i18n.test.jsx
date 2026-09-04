@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { act } from 'react-dom/test-utils';
+import { MemoryRouter } from 'react-router-dom';
 import i18n from '../../i18n';
 import ValidationPage from '../ValidationPage';
 
@@ -26,7 +27,7 @@ describe('ValidationPage i18n integration', () => {
     // Start in French
     await act(async () => {
       await i18n.changeLanguage('fr');
-      render(<ValidationPage />);
+      render(<ValidationPage />, { wrapper: MemoryRouter });
     });
 
     // French heading

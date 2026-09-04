@@ -42,6 +42,8 @@ MyWidgetDescription = Description de mon widget
 
 TIMEFLOW_WEEKLY_WORK_HOURS = Heures de travail hebdomadaires
 TIMEFLOW_WEEKLY_WORK_HOURS_TOOLTIP = Nombre d'heures de travail attendu par défaut chaque semaine.
+TIMEFLOW_MAX_ENTRY_DURATION_HOURS = Durée maximale d'une entrée (heures)
+TIMEFLOW_MAX_ENTRY_DURATION_HOURS_TOOLTIP = Durée maximale plausible pour une seule entrée de temps. Au-delà, la création ou la correction est refusée ; un chronomètre resté actif plus longtemps est automatiquement scindé à minuit lors de son arrêt.
 TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER = Tâche obligatoire avant le chronomètre
 TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP = Demander une tâche avant d'autoriser le démarrage du chronomètre.
 TIMEFLOW_PROJECT_MODE = Mode de gestion des projets

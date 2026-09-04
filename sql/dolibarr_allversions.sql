@@ -30,6 +30,13 @@ ALTER TABLE llx_timeflow_timeentry ADD COLUMN IF NOT EXISTS occurrence_count int
 ALTER TABLE llx_timeflow_timeentry ADD COLUMN IF NOT EXISTS date_reprise datetime DEFAULT NULL AFTER occurrence_count;
 UPDATE llx_timeflow_timeentry SET occurrence_count = 1 WHERE occurrence_count IS NULL OR occurrence_count < 1;
 
+-- A timer left running past the max-entry-duration cap (TIMEFLOW_MAX_ENTRY_DURATION_HOURS)
+-- is split at each midnight crossed into one row per calendar day (see
+-- TimeEntry::stopTimer()). fk_split_previous links a segment back to the one
+-- immediately before it, purely for display ("suite d'hier/demain" in the
+-- UI) — it is never used for permission or duration logic.
+ALTER TABLE llx_timeflow_timeentry ADD COLUMN IF NOT EXISTS fk_split_previous integer DEFAULT NULL AFTER status;
+
 -- The manual-edit marker belongs to the time entry, never to the editor.
 -- Backfill it from both audit formats so managers immediately see corrections
 -- made before this release too.

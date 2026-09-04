@@ -1,0 +1,21 @@
+{
+  "source": "clockify",
+  "delimiter": ",",
+  "encoding": "UTF-8",
+  "columns": {
+    "project": "Projet",
+    "client": "Client",
+    "groups": "Groupe",
+    "description": "Description",
+    "user_email": "Email",
+    "user_display": "Utilisateur",
+    "billable": "Facturable",
+    "date_start": "Date de début",
+    "time_start": "Heure de début",
+    "date_end": "Date de fin",
+    "time_end": "Heure de fin",
+    "duration_decimal": "Durée (décimal)"
+  },
+  "billable_true_values": ["Oui"],
+  "date_format": "m/d/Y"
+}

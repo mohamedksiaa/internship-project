@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 SuperAdmin - TimeFlow Module */
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
+require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 
 /**
  * Class for TimeEntry
@@ -123,6 +124,7 @@ class TimeEntry extends CommonObject
 		"fk_facture" => array("type" => "integer:Facture:compta/facture/class/facture.class.php", "label" => "Invoice", "enabled" => "1", 'position' => 48, 'notnull' => 0, "visible" => "1",),
 		"date_invoice" => array("type" => "datetime", "label" => "DateInvoiced", "enabled" => "1", 'position' => 49, 'notnull' => 0, "visible" => "1",),
 		"status" => array("type" => "integer", "label" => "Status", "enabled" => "1", 'position' => 50, 'notnull' => 1, "visible" => "1", "arrayofkeyval" => array("0" => "Brouillon", "1" => "Soumis", "2" => "Valid&eacute;", "9" => "Refus&eacute;"),),
+		"fk_split_previous" => array("type" => "integer:TimeEntry:custom/timeflow/class/timeentry.class.php", "label" => "SplitPrevious", "enabled" => "1", 'position' => 51, 'notnull' => 0, "visible" => "-2",),
 		"date_submit" => array("type" => "datetime", "label" => "DateSubmit", "enabled" => "1", 'position' => 52, 'notnull' => 0, "visible" => "1",),
 		"fk_user_submit" => array("type" => "integer:User:user/class/user.class.php", "label" => "SubmittedBy", "enabled" => "1", 'position' => 54, 'notnull' => 0, "visible" => "1",),
 		"fk_user_valid" => array("type" => "integer:User:user/class/user.class.php", "label" => "ValidatedBy", "enabled" => "1", 'position' => 55, 'notnull' => 0, "visible" => "1",),
@@ -150,6 +152,7 @@ class TimeEntry extends CommonObject
 	public $fk_facture;
 	public $date_invoice;
 	public $status;
+	public $fk_split_previous;
 	public $date_submit;
 	public $fk_user_submit;
 	public $fk_user_valid;
@@ -160,6 +163,16 @@ class TimeEntry extends CommonObject
 	public $import_key;
 	// END MODULEBUILDER PROPERTIES
 
+	/**
+	 * @var self[] Transient, not persisted directly: populated by stopTimer()
+	 * only when a too-long timer had to be split at midnight. Holds every
+	 * segment in the chain EXCEPT the one $this ends up representing (the
+	 * final segment, ending at the real stop time), oldest first. Read by the
+	 * ajax layer to return every other row to the frontend in one response
+	 * instead of requiring a follow-up reload.
+	 */
+	public $splitSegments = array();
+
     const MOD_ACTION_EDIT = 'edit';
     const MOD_ACTION_SUBMIT = 'submit';
     const MOD_ACTION_VALIDATE = 'validate';
@@ -169,7 +182,8 @@ class TimeEntry extends CommonObject
     const MOD_ACTION_MANUAL_MANAGER = 'manual_manager';
     const MOD_ACTION_MANUAL_CREATE = 'manual_create';
     const MOD_ACTION_DELETE = 'delete';
-    const MOD_ACTION_DELETE_PERMANENT = 'delete_permanent';
+    const MOD_ACTION_DELETE_DRAFT_HARD = 'delete_draft_hard';
+    const MOD_ACTION_DELETE_SUBMITTED_HARD = 'delete_submit_hard';
 
 
 	// If this object has a subtable with lines
@@ -240,7 +254,7 @@ class TimeEntry extends CommonObject
 			}
 		}
 
-		$optionalDbFields = array('tags', 'date_submit', 'fk_user_submit', 'occurrence_count', 'date_reprise');
+		$optionalDbFields = array('tags', 'date_submit', 'fk_user_submit', 'occurrence_count', 'date_reprise', 'fk_split_previous');
 		foreach ($optionalDbFields as $fieldName) {
 			if (!$this->hasDatabaseColumn($this->table_element, $fieldName)) {
 				unset($this->fields[$fieldName]);
@@ -704,50 +718,6 @@ class TimeEntry extends CommonObject
         $this->logModifications($user, $oldValues, $reason, $action);
     }
 
-	/** Permanently delete one entry from the database, bypassing the soft-delete workflow. */
-	public function hardDeletePermanently(User $user, $notrigger = 0)
-	{
-		$entryId = (int) $this->id;
-		if ($entryId <= 0) {
-			$this->error = 'Entrée introuvable';
-			$this->errors[] = $this->error;
-			return -1;
-		}
-
-		if (!timeflowCanReadAllTimeEntries($user)) {
-			$this->error = 'Accès refusé';
-			$this->errors[] = $this->error;
-			dol_syslog(__METHOD__.' permanent delete denied for user='.$user->id.' rowid='.$entryId, LOG_WARNING);
-			return -1;
-		}
-
-		$existing = new self($this->db);
-		if ($existing->fetch($entryId) <= 0) {
-			$this->error = 'Entrée introuvable';
-			$this->errors[] = $this->error;
-			return -1;
-		}
-
-		$deleteResult = $this->deleteCommon($user, $notrigger);
-		if ($deleteResult <= 0) {
-			return $deleteResult;
-		}
-
-		$deletedAt = $this->db->idate(dol_now());
-		$auditSql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
-		$auditSql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
-		$auditSql .= ((int) $this->entity).','.$entryId.','.((int) $user->id).',';
-		$auditSql .= "'".$this->db->escape(self::MOD_ACTION_DELETE_PERMANENT)."',";
-		$auditSql .= " '_entry','".$this->db->escape((string) $entryId)."','',";
-		$auditSql .= " 'Suppression définitive de l’entrée de temps par un manager',";
-		$auditSql .= "'".$this->db->escape($deletedAt)."',".((int) $user->id).')';
-		if (!$this->db->query($auditSql)) {
-			dol_syslog(__METHOD__.' audit log failed for rowid='.$entryId.': '.$this->db->lasterror(), LOG_ERR);
-		}
-
-		return 1;
-	}
-
 	/** Return true when the requested time range overlaps another user entry. */
 	public function hasTimeOverlap($fkUser, $dateStart, $dateEnd, $excludeId = 0)
 	{
@@ -770,7 +740,10 @@ class TimeEntry extends CommonObject
 
 		$sql = 'SELECT t.rowid, t.date_start, t.date_end, t.note, p.title AS project_label';
 		$sql .= ' FROM '.$this->db->prefix().$this->table_element.' AS t';
-		$sql .= ' LEFT JOIN '.$this->db->prefix().'timeflow_project AS p ON p.rowid = t.fk_project';
+		// Projects live in the native llx_projet table (TimeFlow -> native
+		// project migration) — llx_timeflow_project is kept read-only as a
+		// pre-migration backup, no longer written to.
+		$sql .= ' LEFT JOIN '.$this->db->prefix().'projet AS p ON p.rowid = t.fk_project';
 		$sql .= ' WHERE t.entity IN ('.getEntity($this->element).')';
 		$sql .= ' AND t.fk_user = '.((int) $fkUser);
 		// Overlap logic: new.start < existing.end AND (existing.start < new.end)
@@ -841,6 +814,135 @@ class TimeEntry extends CommonObject
 	}
 
 	/**
+	 * Marks `date_delete` (and `fk_user_delete` if present) — never removes
+	 * the row. Used by delete(), the only deletion entry point on this
+	 * class: per product rule, nothing triggered from the UI may ever issue
+	 * a physical DELETE FROM on this table. Takes an explicit audit action
+	 * code/message so a future caller with a different deletion policy can
+	 * reuse it without duplicating the soft-delete SQL.
+	 */
+	protected function softDeleteRow(User $user, string $auditAction, string $auditMessage, $notrigger = 0)
+	{
+		$entryId = (int) $this->id;
+		if (!$this->hasDatabaseColumn($this->table_element, 'date_delete')) {
+			$this->error = 'Soft-delete not available: database column missing';
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' soft-delete failed rowid='.$entryId.' missing column', LOG_ERR);
+			return -1;
+		}
+		$setParts = array();
+		$setParts[] = "date_delete = '".$this->db->idate(dol_now())."'";
+		if ($this->hasDatabaseColumn($this->table_element, 'fk_user_delete')) {
+			$setParts[] = 'fk_user_delete = '.((int) $user->id);
+		}
+		$sql = 'UPDATE '.$this->db->prefix().$this->table_element
+			 .' SET '.implode(', ', $setParts)
+			 .' WHERE rowid = '.$entryId
+			 ." AND (date_delete IS NULL OR date_delete = '')";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = 'Impossible de marquer l\'entrée comme supprimée: '.$this->db->lasterror();
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' soft-delete failed rowid='.$entryId.' '.$this->db->lasterror(), LOG_ERR);
+			return -1;
+		}
+		if (!$notrigger) {
+			// Preserve triggers/hooks that modules may expect on deletion.
+			$this->call_trigger('TIMEFLOW_TIMEENTRY_DELETE', $user);
+		}
+
+		// Keep a durable audit row after the entry itself has disappeared
+		// from every normal view. llx_timeflow_time_edit_log is intentionally
+		// not used here: its schema represents a start/end correction and
+		// has no action column.
+		$deletedAt = $this->db->idate(dol_now());
+		$sql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
+		$sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
+		$sql .= ((int) $this->entity).','.$entryId.','.((int) $user->id).',';
+		$sql .= " '".$this->db->escape($auditAction)."',";
+		$sql .= " '_entry','".$this->db->escape((string) $entryId)."','',";
+		$sql .= " '".$this->db->escape($auditMessage)."','".$this->db->escape($deletedAt)."',".((int) $user->id).')';
+		if (!$this->db->query($sql)) {
+			dol_syslog(__METHOD__.' audit log failed for rowid='.$entryId.': '.$this->db->lasterror(), LOG_ERR);
+		}
+
+		return 1;
+	}
+
+	/**
+	 * Physically removes the row (real DELETE FROM) instead of soft-deleting it.
+	 * Reserved exclusively for entries that have never received an official
+	 * value: a draft never submitted, or an entry submitted but not yet acted
+	 * on by any manager. Neither of those appears in the Historique (scoped to
+	 * VALIDATED/REJECTED only) and nobody but the author/a manager-to-be has
+	 * ever relied on them, so the CEO policy that forbids physical deletion of
+	 * anything in the Historique does not apply. The moment a manager decides
+	 * (validate or reject), the entry becomes permanently soft-delete-only —
+	 * this method repeats that guard in the SQL WHERE clause itself (not just
+	 * in the caller) so a race between the check and this call, or a caller
+	 * bug, can never physically remove an entry a manager has ever decided on.
+	 */
+	protected function hardDeleteRow(User $user, string $auditAction, string $auditMessage, $notrigger = 0)
+	{
+		$entryId = (int) $this->id;
+
+		$hasSubmitColumns = $this->hasDatabaseColumn($this->table_element, 'date_submit')
+			&& $this->hasDatabaseColumn($this->table_element, 'fk_user_submit');
+		$hasValidColumn = $this->hasDatabaseColumn($this->table_element, 'fk_user_valid');
+
+		// A draft only qualifies if it was truly never submitted (belt-and-suspenders
+		// with date_submit/fk_user_submit, see delete()); a submitted entry always
+		// qualifies on status alone since "submitted" by definition means no manager
+		// decision has been recorded for it yet — that is enforced separately below.
+		$draftCondition = 'status = '.self::STATUS_DRAFT;
+		if ($hasSubmitColumns) {
+			$draftCondition .= ' AND date_submit IS NULL AND fk_user_submit IS NULL';
+		}
+		$submittedCondition = 'status = '.self::STATUS_SUBMITTED;
+
+		$sql = 'DELETE FROM '.$this->db->prefix().$this->table_element;
+		$sql .= ' WHERE rowid = '.$entryId;
+		$sql .= ' AND (('.$draftCondition.') OR ('.$submittedCondition.'))';
+		if ($hasValidColumn) {
+			// fk_user_valid is set once and only once a manager validates or
+			// rejects (see validateEntry()) and is never cleared afterward: it is
+			// the permanent, irreversible marker that a decision has been made,
+			// independently of whatever status looks like now.
+			$sql .= ' AND fk_user_valid IS NULL';
+		}
+		$resql = $this->db->query($sql);
+		if (!$resql || $this->db->affected_rows($resql) < 1) {
+			$this->error = 'Impossible de supprimer définitivement cette entrée : elle a déjà été traitée par un manager ou n’est plus éligible au hard delete';
+			$this->errors[] = $this->error;
+			dol_syslog(__METHOD__.' hard-delete refused/failed rowid='.$entryId, LOG_ERR);
+			return -1;
+		}
+
+		if (!$notrigger) {
+			$this->call_trigger('TIMEFLOW_TIMEENTRY_DELETE', $user);
+		}
+
+		// Lightweight audit trace only: the entry never had official value, so
+		// there is nothing worth preserving field-by-field, but a manager
+		// auditing "why did this entry disappear" should still be able to see
+		// it was a real physical delete, by whom, when, and which case applied
+		// — $auditAction is distinct per case (and from MOD_ACTION_DELETE used
+		// by soft-delete) so the audit trail never conflates them.
+		$deletedAt = $this->db->idate(dol_now());
+		$sql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
+		$sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
+		$sql .= ((int) $this->entity).','.$entryId.','.((int) $user->id).',';
+		$sql .= " '".$this->db->escape($auditAction)."',";
+		$sql .= " '_entry','".$this->db->escape((string) $entryId)."','',";
+		$sql .= " '".$this->db->escape($auditMessage)."','".$this->db->escape($deletedAt)."',".((int) $user->id).')';
+		if (!$this->db->query($sql)) {
+			dol_syslog(__METHOD__.' audit log failed for rowid='.$entryId.': '.$this->db->lasterror(), LOG_ERR);
+		}
+
+		return 1;
+	}
+
+	/**
 	 * Delete object in database
 	 *
 	 * @param	User		$user		User that deletes
@@ -859,7 +961,14 @@ class TimeEntry extends CommonObject
 		// Do not rely on the object currently held by the caller: its status can
 		// be stale (or even be set by request data). Read the persisted value
 		// before evaluating the deletion policy.
-		$sql = 'SELECT status FROM '.$this->db->prefix().$this->table_element;
+		$hasSubmitColumns = $this->hasDatabaseColumn($this->table_element, 'date_submit')
+			&& $this->hasDatabaseColumn($this->table_element, 'fk_user_submit');
+		$hasValidColumn = $this->hasDatabaseColumn($this->table_element, 'fk_user_valid');
+
+		$sql = 'SELECT status'
+			.($hasSubmitColumns ? ', date_submit, fk_user_submit' : '')
+			.($hasValidColumn ? ', fk_user_valid' : '');
+		$sql .= ' FROM '.$this->db->prefix().$this->table_element;
 		$sql .= ' WHERE rowid = '.$entryId;
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -884,7 +993,34 @@ class TimeEntry extends CommonObject
 			return -1;
 		}
 
-		// Reload every field used by deleteCommon() and by the ownership policy.
+		// fk_user_valid is set exactly once a manager validates or rejects the
+		// entry (validateEntry()) and is never cleared afterward: it is the
+		// permanent, irreversible marker that a manager decision has been made.
+		// It — not status — is what we trust to know an entry has never been
+		// decided on, since status alone could in principle be reset later by
+		// some future feature. If the column is missing on this install
+		// (unexpected — it ships in the base schema), we cannot verify the
+		// invariant at all and conservatively fall back to soft-delete.
+		$neverDecidedByManager = $hasValidColumn && empty($entry->fk_user_valid);
+
+		// A draft is only eligible for a real physical delete if it has *never*
+		// been submitted either: date_submit/fk_user_submit are write-once (set
+		// exactly once in submitEntry()/manual creation, never cleared
+		// afterward), so they remain reliable even if a future status-reset
+		// feature reverts status back to STATUS_DRAFT after submission.
+		$neverSubmittedDraft = $hasSubmitColumns && $neverDecidedByManager
+			&& $this->status === self::STATUS_DRAFT
+			&& empty($entry->date_submit)
+			&& empty($entry->fk_user_submit);
+
+		// A submitted-but-undecided entry has no official value yet either: it
+		// does not appear in the Historique (scoped to VALIDATED/REJECTED only),
+		// and a submit click can be a plain human error. It stops being eligible
+		// the instant a manager decides, which is exactly what fk_user_valid tracks.
+		$pendingSubmittedNotDecided = $neverDecidedByManager
+			&& $this->status === self::STATUS_SUBMITTED;
+
+		// Reload every field used by the ownership policy and by softDeleteRow()/hardDeleteRow().
 		if ($this->fetch($entryId) <= 0) {
 			$this->error = 'Entrée introuvable';
 			$this->errors[] = $this->error;
@@ -897,52 +1033,15 @@ class TimeEntry extends CommonObject
 			return -1;
 		}
 
-		$deletedId = (int) $this->id;
-		$deletedAt = $this->db->idate(dol_now());
-		// All statuses (including draft) now use soft-delete:
-		// mark `date_delete` (and optionally `fk_user_delete`) instead of removing the row.
-		if (!$this->hasDatabaseColumn($this->table_element, 'date_delete')) {
-			$this->error = 'Soft-delete not available: database column missing';
-			$this->errors[] = $this->error;
-			dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' missing column', LOG_ERR);
-			return -1;
-		}
-		$setParts = array();
-		$setParts[] = "date_delete = '".$this->db->idate(dol_now())."'";
-		if ($this->hasDatabaseColumn($this->table_element, 'fk_user_delete')) {
-			$setParts[] = 'fk_user_delete = '.((int) $user->id);
-		}
-		$sql = 'UPDATE '.$this->db->prefix().$this->table_element
-			 .' SET '.implode(', ', $setParts)
-			 .' WHERE rowid = '.($deletedId)
-			 ." AND (date_delete IS NULL OR date_delete = '')";
-		$resql = $this->db->query($sql);
-		if (!$resql) {
-			$this->error = 'Impossible de marquer l\'entrée comme supprimée: '.$this->db->lasterror();
-			$this->errors[] = $this->error;
-			dol_syslog(__METHOD__.' soft-delete failed rowid='.$deletedId.' '.$this->db->lasterror(), LOG_ERR);
-			return -1;
-		}
-		if (!$notrigger) {
-			// Preserve triggers/hooks that modules may expect on deletion.
-			$this->call_trigger('TIMEFLOW_TIMEENTRY_DELETE', $user);
-		}
-		$result = 1;
-
-		// Keep a durable audit row after the entry itself has disappeared.
-		// llx_timeflow_time_edit_log is intentionally not used here: its schema
-		// represents a start/end correction and has no action column.
-		$sql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
-		$sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
-		$sql .= ((int) $this->entity).','.$deletedId.','.((int) $user->id).',';
-		$sql .= " '".$this->db->escape(self::MOD_ACTION_DELETE)."',";
-		$sql .= " '_entry','".$this->db->escape((string) $deletedId)."','',";
-		$sql .= " 'Suppression de l’entrée de temps','".$this->db->escape($deletedAt)."',".((int) $user->id).')';
-		if (!$this->db->query($sql)) {
-			dol_syslog(__METHOD__.' audit log failed for rowid='.$deletedId.': '.$this->db->lasterror(), LOG_ERR);
+		if ($neverSubmittedDraft) {
+			return $this->hardDeleteRow($user, self::MOD_ACTION_DELETE_DRAFT_HARD, 'Suppression définitive d’un brouillon jamais soumis', $notrigger);
 		}
 
-		return $result;
+		if ($pendingSubmittedNotDecided) {
+			return $this->hardDeleteRow($user, self::MOD_ACTION_DELETE_SUBMITTED_HARD, 'Suppression définitive d’une entrée soumise non encore traitée par un manager', $notrigger);
+		}
+
+		return $this->softDeleteRow($user, self::MOD_ACTION_DELETE, 'Suppression de l’entrée de temps', $notrigger);
 	}
 
 	/** Whether the user has the explicit authority to delete a non-draft entry. */
@@ -1712,6 +1811,26 @@ class TimeEntry extends CommonObject
 	}
 
 	/**
+	 * Whether a native project is in Dolibarr's "Closed" status — TimeFlow's
+	 * equivalent of "deleted" for a project (see the ajax layer's
+	 * timeflowDeleteProject(), which calls Project::setClose() instead of a
+	 * physical delete). A closed project must never accept a new time
+	 * entry, exactly like a genuinely deleted project no longer could.
+	 * A project id of 0 (no project) is never "closed".
+	 */
+	protected function isProjectClosed($fkProject)
+	{
+		$fkProject = (int) $fkProject;
+		if ($fkProject <= 0) {
+			return false;
+		}
+		$sql = 'SELECT fk_statut FROM '.$this->db->prefix().'projet WHERE rowid = '.$fkProject;
+		$resql = $this->db->query($sql);
+		$obj = $resql ? $this->db->fetch_object($resql) : null;
+		return $obj ? ((int) $obj->fk_statut === Project::STATUS_CLOSED) : false;
+	}
+
+	/**
 	 * Start a timer. Project and task are optional TimeFlow metadata.
 	 *
 	 * @param int    $fk_user User id
@@ -1739,6 +1858,11 @@ class TimeEntry extends CommonObject
 			return -1;
 		}
 
+		if ($this->isProjectClosed((int) $fk_project)) {
+			$this->error = 'Ce projet est fermé et n’accepte plus de nouvelles entrées de temps.';
+			return -1;
+		}
+
 		$this->fk_user = (int) $fk_user;
 		$this->fk_project = ((int) $fk_project > 0) ? (int) $fk_project : null;
 		$this->fk_task = ((int) $fk_task > 0) ? (int) $fk_task : null;
@@ -1761,6 +1885,69 @@ class TimeEntry extends CommonObject
 		return $this->create($user);
 	}
 
+	/**
+	 * Maximum plausible duration for a single entry, in seconds. Anything
+	 * beyond this is a sign of a bad correction (e.g. an end date left a full
+	 * day off) rather than a real continuous task — see the "28h27 sur une
+	 * entrée" bug this constant was introduced to prevent. Configurable via
+	 * the TIMEFLOW_MAX_ENTRY_DURATION_HOURS admin setting (default 18h).
+	 */
+	public static function getMaxEntryDurationHours()
+	{
+		return max(1, getDolGlobalInt('TIMEFLOW_MAX_ENTRY_DURATION_HOURS', 18));
+	}
+
+	public static function getMaxEntryDurationSeconds()
+	{
+		return self::getMaxEntryDurationHours() * 3600;
+	}
+
+	/** Whether a [start, end] range (unix timestamps) exceeds the max-duration cap. */
+	public static function exceedsMaxDuration($dateStart, $dateEnd)
+	{
+		$start = (int) $dateStart;
+		$end = (int) $dateEnd;
+		if ($start <= 0 || $end <= 0 || $end <= $start) {
+			return false; // an invalid range is rejected by other checks, not this one
+		}
+		return ($end - $start) > self::getMaxEntryDurationSeconds();
+	}
+
+	public static function getMaxDurationErrorMessage()
+	{
+		return 'La durée d’une entrée ne peut pas dépasser '.self::getMaxEntryDurationHours().'h. Vérifiez vos dates.';
+	}
+
+	/**
+	 * A manual correction may only move date_start/date_end earlier than their
+	 * already-recorded value, never later. There is no legitimate real-world
+	 * correction that pushes either further into the future: the only real
+	 * cases are "I forgot to start the timer on time" (start was too late, fix
+	 * it earlier) and "I forgot to stop the timer, the real end was earlier"
+	 * (end was too late, fix it earlier). This directly rules out the bug this
+	 * whole chain of fixes started from (a correction pushing date_end into
+	 * the next day) — but it does not by itself bound how far into the past a
+	 * date can be moved, which the max-duration cap still needs to catch.
+	 *
+	 * Only applies to correcting an EXISTING entry (see
+	 * ajax/timeentry.php's updateEntry/correctTimeEntry). Never applies to
+	 * stopTimer() (a fresh stop always sets a real end at "now", necessarily
+	 * later than start) or createManualEntry()/startTimer() (a brand new entry
+	 * has no prior value to compare against).
+	 *
+	 * @return string Empty string if allowed, otherwise the error message.
+	 */
+	public static function checkBackwardOnlyCorrection($oldStart, $oldEnd, $newStart, $newEnd)
+	{
+		if ((int) $newStart > (int) $oldStart) {
+			return 'Le début ne peut être corrigé que vers une heure plus tôt que celle déjà enregistrée.';
+		}
+		if ((int) $newEnd > 0 && (int) $newEnd > (int) $oldEnd) {
+			return 'La fin ne peut être corrigée que vers une heure plus tôt que celle déjà enregistrée.';
+		}
+		return '';
+	}
+
 	/** Create a manual time block with explicit start/end values. */
 	public function createManualEntry($fk_user, $fk_project = 0, $fk_task = 0, $dateStart = null, $dateEnd = null, $note = '', $tags = '', $billable = 0, ?User $user = null, $thm = null, $status = self::STATUS_VALIDATED)
 	{
@@ -1768,6 +1955,15 @@ class TimeEntry extends CommonObject
 		$dateEnd = !empty($dateEnd) ? (is_numeric($dateEnd) ? (int) $dateEnd : strtotime($dateEnd)) : 0;
 		if ($dateStart <= 0 || $dateEnd <= 0 || $dateEnd <= $dateStart) {
 			$this->error = 'Les dates de début et de fin sont invalides';
+			return -1;
+		}
+		if (self::exceedsMaxDuration($dateStart, $dateEnd)) {
+			$this->error = self::getMaxDurationErrorMessage();
+			return -1;
+		}
+
+		if ($this->isProjectClosed((int) $fk_project)) {
+			$this->error = 'Ce projet est fermé et n’accepte plus de nouvelles entrées de temps.';
 			return -1;
 		}
 
@@ -1800,8 +1996,26 @@ class TimeEntry extends CommonObject
 		return $this->create($user);
 	}
 
-	/** Stop an active timer and calculate its duration. */
-	public function stopTimer($id, User $user)
+	/**
+	 * Stop an active timer and calculate its duration.
+	 *
+	 * Always succeeds at actually stopping the timer — it never refuses the
+	 * action itself, since a refused stop would leave the user stuck (an
+	 * active entry with date_end still NULL cannot be manually corrected
+	 * either, see timeflowEmployeeManualEditPolicy() in ajax/timeentry.php).
+	 * If the elapsed time exceeds the max-duration cap (a timer forgotten
+	 * overnight or over a weekend), the session is instead split into one
+	 * entry per calendar day it crossed — the same "never rewrite, always
+	 * create a new row" approach already used by restartTimer(). Each
+	 * resulting segment keeps its own accurate date_start/date_end/duration,
+	 * so per-day totals stay correct with no extra aggregation logic (see
+	 * $splitSegments for how the ajax layer learns about the extra rows).
+	 *
+	 * @param int|null $stopAt Unix timestamp to stop at; defaults to dol_now().
+	 * Exposed only so tests can exercise the midnight-split logic with
+	 * deterministic timestamps instead of depending on wall-clock time.
+	 */
+	public function stopTimer($id, User $user, $stopAt = null)
 	{
 		if ($this->fetch((int) $id) <= 0) {
 			$this->error = 'Entrée introuvable';
@@ -1812,55 +2026,272 @@ class TimeEntry extends CommonObject
 			return -1;
 		}
 		if (!empty($this->date_end)) {
+			// The id can be stale: the nightly cron (closeStaleActiveTimersAtMidnight())
+			// or an earlier midnight split may have closed this exact row and
+			// moved the still-running session to a successor chained via
+			// fk_split_previous. A user who kept a browser tab open across
+			// midnight must still be able to stop "their" timer with the id
+			// they last knew about — resolve to the real active successor
+			// instead of failing outright.
+			$successorId = $this->findActiveSuccessorId((int) $id);
+			if ($successorId > 0 && $successorId !== (int) $id) {
+				return $this->stopTimer($successorId, $user, $stopAt);
+			}
 			$this->error = 'Ce chrono est déjà arrêté';
 			return -1;
 		}
-		$this->date_end = dol_now();
-		$this->duration = max(0, (int) $this->duration) + max(0, (int) $this->date_end - (int) $this->date_start);
-		return $this->update($user);
+
+		$this->splitSegments = array();
+
+		$start = (int) $this->date_start;
+		$stop = $stopAt !== null ? (int) $stopAt : dol_now();
+
+		if (!self::exceedsMaxDuration($start, $stop)) {
+			$this->date_end = $stop;
+			$this->duration = max(0, (int) $this->duration) + max(0, $stop - $start);
+			return $this->update($user);
+		}
+
+		$this->db->begin();
+
+		// $current tracks whichever object represents the segment currently
+		// being written: $this for the very first one (reused, never given a
+		// new identity, exactly like a normal stop), a freshly created row for
+		// every calendar day crossed after that — see closeSegmentAndOpenNext().
+		$current = $this;
+		$segmentStart = $start;
+		$error = 0;
+
+		while (!$error) {
+			// Midnight (UTC, matching the "today/yesterday" convention already
+			// used elsewhere in this module — see timeflowEmployeeManualEditPolicy())
+			// following the current segment's start.
+			$nextMidnight = strtotime(gmdate('Y-m-d 00:00:00', $segmentStart + 86400).' UTC');
+			$segmentEnd = min($nextMidnight, $stop);
+			$isFinalSegment = ($segmentEnd >= $stop);
+			$durationThisSegment = max(0, (int) $current->duration) + max(0, $segmentEnd - $segmentStart);
+
+			if ($isFinalSegment) {
+				// Last leg: close at the real stop time, no successor row.
+				$current->date_end = $segmentEnd;
+				$current->duration = $durationThisSegment;
+				if ($current->update($user) <= 0) {
+					$this->error = $current->error;
+					$this->errors = $current->errors;
+					$error++;
+				}
+				break;
+			}
+
+			$next = $current->closeSegmentAndOpenNext($user, $segmentEnd, $durationThisSegment);
+			if (!($next instanceof self)) {
+				$this->error = $current->error;
+				$this->errors = $current->errors;
+				$error++;
+				break;
+			}
+			if ($current === $this) {
+				// Snapshot into a separate object: $this itself is likely about
+				// to be refetched below into the final segment, which must not
+				// silently mutate whatever we already handed back here.
+				$snapshot = new self($this->db);
+				$snapshot->fetch($current->id);
+				$this->splitSegments[] = $snapshot;
+			} else {
+				$this->splitSegments[] = $current;
+			}
+			$current = $next;
+			$segmentStart = $segmentEnd;
+		}
+
+		if ($error) {
+			$this->db->rollback();
+			$this->error = $this->error ?: 'Erreur lors de la scission de l’entrée à minuit';
+			return -1;
+		}
+
+		$this->db->commit();
+
+		// Make $this represent the segment that actually ends at the real stop
+		// time — the one a caller intuitively means by "the entry I just stopped".
+		if ((int) $current->id !== (int) $this->id) {
+			$this->fetch($current->id);
+		}
+
+		return 1;
 	}
 
-	/** Resume an existing stopped entry without creating a second row. */
-	public function restartTimer($id, User $user)
+	/**
+	 * Closes $this at $segmentEnd (date_end/duration) and creates a brand-new
+	 * successor row starting at $segmentEnd, copying every user/project/task/
+	 * note/tags/billable/thm field and chaining it via fk_split_previous.
+	 * $this becomes the closed segment; the returned row is left active
+	 * (date_end NULL, duration 0) — the caller decides whether to close it
+	 * further (stopTimer()'s midnight split, when the real stop time falls on
+	 * that day) or leave it running (the nightly cron, see
+	 * closeStaleActiveTimersAtMidnight()).
+	 *
+	 * The single mechanic shared by both call sites: "cut a running session
+	 * at a calendar-day boundary without losing or double-counting a second".
+	 *
+	 * @return self|int The new segment on success, or a negative int on
+	 * failure ($this->error/$this->errors describe it).
+	 */
+	protected function closeSegmentAndOpenNext(User $user, $segmentEnd, $durationForThisSegment)
 	{
-		if ($this->fetch((int) $id) <= 0) {
-			$this->error = 'Entrée introuvable';
-			return -1;
-		}
-			if ((int) $this->fk_user !== (int) $user->id) {
-			$this->error = 'Accès refusé';
-			return -1;
-		}
-		if ($this->hasActiveTimer($user->id) > 0) {
-			$this->error = 'Un chrono est déjà actif pour cet utilisateur';
+		$this->date_end = $segmentEnd;
+		$this->duration = $durationForThisSegment;
+		if ($this->update($user) <= 0) {
 			return -1;
 		}
 
-		// Keep the accumulated duration and start a new active segment on this same row.
-		// The primary key passed by the client is the only record selector: a resume never creates a row.
-		$now = dol_now();
-		$sql = 'UPDATE '.$this->db->prefix().$this->table_element;
-		$sql .= " SET date_start = '".$this->db->idate($now)."'";
-		$sql .= ', date_end = NULL';
-		$sql .= ', status = '.self::STATUS_DRAFT;
-		$sql .= ", date_reprise = '".$this->db->idate($now)."'";
-		$sql .= ', occurrence_count = GREATEST(1, COALESCE(occurrence_count, 1)) + 1';
-		$sql .= ', fk_user_modif = '.((int) $user->id);
-		$sql .= ' WHERE rowid = '.((int) $id);
-		$sql .= ' AND fk_user = '.((int) $this->fk_user);
-		$sql .= ' AND date_end IS NOT NULL';
+		$next = new self($this->db);
+		$next->fk_user = $this->fk_user;
+		$next->fk_project = $this->fk_project;
+		$next->fk_task = $this->fk_task;
+		$next->note = $this->note;
+		$next->tags = $this->tags;
+		$next->billable = $this->billable;
+		$next->thm = $this->thm;
+		$next->status = self::STATUS_DRAFT;
+		$next->is_manually_edited = 0;
+		$next->occurrence_count = 1;
+		$next->date_reprise = null;
+		$next->date_start = $this->db->idate($segmentEnd);
+		$next->date_end = null;
+		$next->duration = 0;
+		if ($this->hasDatabaseColumn($this->table_element, 'fk_split_previous')) {
+			$next->fk_split_previous = $this->id;
+		}
+		if ($next->create($user) <= 0) {
+			$this->error = $next->error;
+			$this->errors = $next->errors;
+			return -1;
+		}
+		return $next;
+	}
 
+	/**
+	 * Walks the fk_split_previous chain forward from $id to find the entry
+	 * that is still actually running (date_end IS NULL) — used by stopTimer()
+	 * to resolve a stale id after a midnight split moved the live session to
+	 * a successor row. Returns 0 if $id has no successor at all, or if the
+	 * chain is unavailable on this install (column missing).
+	 */
+	protected function findActiveSuccessorId($id)
+	{
+		if (!$this->hasDatabaseColumn($this->table_element, 'fk_split_previous')) {
+			return 0;
+		}
+		$currentId = (int) $id;
+		// Bounded walk: a real split chain never grows long (one row per
+		// calendar day actually crossed); this cap only guards against an
+		// unexpected cycle rather than reflecting any realistic chain length.
+		for ($i = 0; $i < 100; $i++) {
+			$sql = 'SELECT rowid, date_end FROM '.$this->db->prefix().$this->table_element;
+			$sql .= ' WHERE fk_split_previous = '.$currentId;
+			$sql .= ' ORDER BY rowid ASC';
+			$sql .= $this->db->plimit(1);
+			$resql = $this->db->query($sql);
+			$obj = $resql ? $this->db->fetch_object($resql) : null;
+			if (!$obj) {
+				return 0;
+			}
+			if (empty($obj->date_end)) {
+				return (int) $obj->rowid;
+			}
+			$currentId = (int) $obj->rowid;
+		}
+		return 0;
+	}
+
+	/**
+	 * Nightly job (registered in modTimeFlow.class.php's cronjobs): any timer
+	 * still active (date_end IS NULL) from a previous calendar day is closed
+	 * at that day's midnight and continues in a brand-new row starting at
+	 * today's midnight — same fk_split_previous chain and per-day-accurate
+	 * duration as stopTimer()'s midnight split (see closeSegmentAndOpenNext()),
+	 * except the very last segment is left ACTIVE, since the timer is still
+	 * genuinely running, not being stopped.
+	 *
+	 * Triggers purely on having crossed into a new calendar day, independently
+	 * of the max-duration cap: that cap remains a separate, complementary
+	 * guard for manual corrections and for stopTimer()'s own overnight case
+	 * (a timer stopped normally the next morning, without ever going through
+	 * this job in between) — it is not replaced by this job.
+	 *
+	 * @param string $param Unused; kept for Dolibarr's cron 'method' jobtype call signature.
+	 * @param int|null $now Unix timestamp to treat as "now"; defaults to dol_now().
+	 * Exposed only so tests can exercise this job with a deterministic date
+	 * instead of depending on wall-clock time — the configured cron
+	 * 'parameters' is empty, so production calls always get the real time.
+	 * @return int 0 on success (even with individual row failures — see $this->errors), matching Dolibarr's cron convention.
+	 */
+	public function closeStaleActiveTimersAtMidnight($param = '', $now = null)
+	{
+		$now = $now !== null ? (int) $now : dol_now();
+		$todayMidnight = strtotime(gmdate('Y-m-d 00:00:00', $now).' UTC');
+
+		$sql = 'SELECT rowid FROM '.$this->db->prefix().$this->table_element;
+		$sql .= ' WHERE date_end IS NULL';
+		$sql .= " AND date_start < '".$this->db->idate($todayMidnight)."'";
 		$resql = $this->db->query($sql);
 		if (!$resql) {
 			$this->error = $this->db->lasterror();
+			$this->errors[] = $this->error;
 			return -1;
 		}
-		if ($this->db->affected_rows($resql) < 1) {
-			$this->error = 'Ce chrono ne peut pas être repris';
-			return -1;
+		$ids = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$ids[] = (int) $obj->rowid;
 		}
 
-		return $this->fetch((int) $id) > 0 ? 1 : -1;
+		$processed = 0;
+		$failed = 0;
+		foreach ($ids as $id) {
+			$entry = new self($this->db);
+			if ($entry->fetch($id) <= 0) {
+				continue;
+			}
+			if (!empty($entry->date_end)) {
+				// Closed by something else (a normal stop) since the SELECT above.
+				continue;
+			}
+			$owner = new User($this->db);
+			if ($owner->fetch((int) $entry->fk_user) <= 0) {
+				$failed++;
+				$this->errors[] = 'Utilisateur introuvable pour l’entrée '.$id;
+				continue;
+			}
+
+			$current = $entry;
+			$segmentStart = (int) $entry->date_start;
+			$rowFailed = false;
+			while (true) {
+				$nextMidnight = strtotime(gmdate('Y-m-d 00:00:00', $segmentStart + 86400).' UTC');
+				if ($nextMidnight > $todayMidnight) {
+					// Caught up: $current is today's still-open segment, done.
+					break;
+				}
+				$durationThisSegment = max(0, (int) $current->duration) + max(0, $nextMidnight - $segmentStart);
+				$next = $current->closeSegmentAndOpenNext($owner, $nextMidnight, $durationThisSegment);
+				if (!($next instanceof self)) {
+					$this->errors[] = 'Entrée '.$id.' : '.($current->error ?: 'erreur inconnue lors de la scission de minuit');
+					$rowFailed = true;
+					break;
+				}
+				$current = $next;
+				$segmentStart = $nextMidnight;
+			}
+			if ($rowFailed) {
+				$failed++;
+			} else {
+				$processed++;
+			}
+		}
+
+		$this->output = $processed.' chrono(s) actif(s) scindé(s) à minuit'.($failed ? ', '.$failed.' échec(s)' : '').'.';
+		return $failed > 0 ? -1 : 0;
 	}
 
 	/** Mark an entry as submitted for approval. */
@@ -1868,6 +2299,23 @@ class TimeEntry extends CommonObject
 	{
 		if ($this->fetch((int) $id) <= 0) {
 			$this->error = 'Entrée introuvable';
+			return -1;
+		}
+		if (empty($this->date_end)) {
+			$this->error = 'Arrêtez d’abord le chronomètre avant de soumettre cette entrée.';
+			return -1;
+		}
+		// Closes the loop on the max-duration cap for the rare residual case
+		// stopTimer()'s midnight split cannot fix on its own: a session that
+		// ran past the cap without ever crossing a midnight (e.g. started at
+		// 2am, stopped 22h later same calendar day), or a full untouched
+		// calendar-day segment left over from a multi-day-forgotten timer.
+		// Those still get created as drafts (stopTimer() never refuses to
+		// stop), but must never become "official" as-is — only a correction
+		// under the same cap (see correctTimeEntry in ajax/timeentry.php) can
+		// bring them below it before submission.
+		if (self::exceedsMaxDuration((int) $this->date_start, (int) $this->date_end)) {
+			$this->error = self::getMaxDurationErrorMessage();
 			return -1;
 		}
 		$this->status = self::STATUS_SUBMITTED;

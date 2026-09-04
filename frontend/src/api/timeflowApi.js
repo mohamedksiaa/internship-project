@@ -8,6 +8,9 @@ const API_MODE = import.meta.env.VITE_API_MODE || 'real';
 
 let mockActiveTimer = null;
 let mockDailyReports = [];
+let mockTimeFlowProjects = [
+  { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', source: 'manual', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0, date_creation: '2026-07-01T09:00:00Z' },
+];
 const mockEntries = [
   {
     id: 101,
@@ -127,11 +130,24 @@ function handleMockRequest(action, body) {
     case 'getTimeEntries':
       return Promise.resolve({ status: 'success', data: mockEntries });
     case 'restartTimer': {
-      const entry = mockEntries.find((item) => item.id === Number(body?.id));
-      if (!entry) return Promise.reject(new Error('Entrée introuvable.'));
-      entry.date_start = new Date().toISOString();
-      entry.date_end = null;
-      entry.status = 0;
+      // A resume never rewrites the previous entry — it creates a brand new
+      // one with the same project/task/note, exactly like startTimer().
+      const previous = mockEntries.find((item) => item.id === Number(body?.id));
+      if (!previous) return Promise.reject(new Error('Entrée introuvable.'));
+      const entry = {
+        id: Date.now(),
+        fk_project: previous.fk_project ?? 0,
+        fk_task: previous.fk_task ?? 0,
+        note: previous.note ?? '',
+        duration: 0,
+        status: 0,
+        billable: Number(previous.billable || 0),
+        tags: previous.tags ?? '',
+        date_start: new Date().toISOString(),
+        date_end: null,
+      };
+      mockActiveTimer = entry;
+      mockEntries.unshift(entry);
       return Promise.resolve({ status: 'success', data: entry });
     }
     case 'deleteTimeEntry': {
@@ -144,22 +160,6 @@ function handleMockRequest(action, body) {
       mockEntries.splice(index, 1);
       if (mockActiveTimer?.id === id) mockActiveTimer = null;
       return Promise.resolve({ status: 'success', data: { id } });
-    }
-    case 'hardDeleteTimeEntry': {
-      const id = Number(body?.id);
-      if (!Number.isFinite(id) || id <= 0) return Promise.reject(new Error('Entrée introuvable.'));
-      const index = mockEntries.findIndex((item) => item.id === id);
-      if (index >= 0) mockEntries.splice(index, 1);
-      return Promise.resolve({ status: 'success', data: { id, deleted: true } });
-    }
-    case 'hardDeleteTimeEntries': {
-      const ids = Array.isArray(body?.ids) ? body.ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0) : [];
-      if (!ids.length) return Promise.reject(new Error('Aucune entrée sélectionnée.'));
-      for (const id of ids) {
-        const index = mockEntries.findIndex((entry) => entry.id === id);
-        if (index >= 0) mockEntries.splice(index, 1);
-      }
-      return Promise.resolve({ status: 'success', data: { deleted: ids.length, ids } });
     }
     case 'getValidationEntries':
       return Promise.resolve({ status: 'success', data: mockEntries.filter((entry) => Number(entry.status) === 1) });
@@ -238,8 +238,10 @@ function handleMockRequest(action, body) {
     }
     case 'getWeeklyTimesheet':
       return Promise.resolve({ status: 'success', data: { weekStart: '2026-07-28', weekEnd: '2026-08-04', rows: mockEntries.map(normalizeEntry) } });
-    case 'getSummaryReports':
-      return Promise.resolve({ status: 'success', data: { total_seconds: mockEntries.reduce((sum, entry) => sum + Number(entry.duration || 0), 0), billable_seconds: 0, non_billable_seconds: 0, by_project: {}, by_tag: {}, by_status: {} } });
+    case 'getSummaryReports': {
+      const mockTotal = mockEntries.reduce((sum, entry) => sum + Number(entry.duration || 0), 0);
+      return Promise.resolve({ status: 'success', data: { total_seconds: mockTotal, billable_seconds: 0, non_billable_seconds: 0, by_project: {}, project_labels: {}, by_client: {}, client_labels: {}, by_user: {}, user_labels: {}, by_group: {}, group_labels: {}, by_tag: {}, by_status: {}, by_project_employee: {}, by_project_client: {}, by_project_billable: {}, by_employee_client: {}, by_employee_billable: {}, by_client_billable: {}, entries_returned: mockEntries.length, entries_total_in_period: mockEntries.length } });
+    }
     case 'generateInvoiceLines':
       return Promise.resolve({ status: 'success', data: [] });
 
@@ -296,6 +298,57 @@ function handleMockRequest(action, body) {
 
     case 'submitWeeklyApproval':
       return Promise.resolve({ status: 'success', data: [] });
+
+    case 'listActiveUsers':
+      return Promise.resolve({
+        status: 'success',
+        data: [
+          { id: 1, login: 'jdupont', firstname: 'Jean', lastname: 'Dupont', label: 'Jean Dupont' },
+          { id: 2, login: 'msmith', firstname: 'Mary', lastname: 'Smith', label: 'Mary Smith' },
+        ],
+      });
+    case 'listUserGroups':
+      return Promise.resolve({
+        status: 'success',
+        data: [
+          { id: 2, rowid: 2, title: 'idara', label: 'idara' },
+        ],
+      });
+    case 'getTimeFlowProjects': {
+      const clientId = Number(body?.client_id || 0);
+      const dateFrom = body?.date_from || '';
+      const dateTo = body?.date_to || '';
+      const search = String(body?.search || '').trim().toLowerCase();
+      const filtered = mockTimeFlowProjects.filter((project) => {
+        if (clientId > 0 && Number(project.fk_soc) !== clientId) return false;
+        const createdDate = String(project.date_creation || '').slice(0, 10);
+        if (dateFrom && createdDate < dateFrom) return false;
+        if (dateTo && createdDate > dateTo) return false;
+        if (search && !project.title.toLowerCase().includes(search) && !String(project.ref || '').toLowerCase().includes(search)) return false;
+        return true;
+      });
+      return Promise.resolve({ status: 'success', data: filtered });
+    }
+    case 'listActiveThirdParties':
+      return Promise.resolve({
+        status: 'success',
+        data: [{ id: 1, rowid: 1, title: 'Client Test', label: 'Client Test' }],
+      });
+
+    case 'resolveClockifyMapping': {
+      const decisions = Array.isArray(body?.decisions) ? body.decisions : [];
+      const updated = decisions.map((decision) => ({
+        mapping_type: decision.mapping_type,
+        source_system: 'clockify',
+        source_value: decision.source_value,
+        target_id: decision.resolution === 'matched' ? Number(decision.target_id) : null,
+        target_action: decision.resolution === 'matched' ? 'matched' : 'create_confirmed',
+        status: decision.resolution === 'matched' ? 'matched' : 'create_confirmed',
+        new_label: decision.resolution === 'create_new' ? (decision.new_title || decision.source_value) : null,
+      }));
+      return Promise.resolve({ status: 'success', data: updated });
+    }
+
     default:
       return Promise.resolve({ status: 'success', data: [] });
   }
@@ -306,14 +359,11 @@ export async function getActiveTimer() {
   return normalizeEntry(data?.data ?? null);
 }
 
-export async function startTimer(projectLabel = '', fkTask = 0, note = '') {
+export async function startTimer(fkProject = 0, fkTask = 0, note = '') {
   const data = await moduleTimerRequest('startTimer', {
-    fk_project: 0,
+    fk_project: fkProject,
     fk_task: fkTask,
     note,
-    project_label: projectLabel,
-    // Explicit flag: caller started without selecting a project
-    allow_no_project: projectLabel === '' ? true : false,
   });
   const payload = data?.data ?? data;
   const numericId = typeof payload === 'number' || (typeof payload === 'string' && /^\d+$/.test(payload.trim()));
@@ -336,7 +386,16 @@ export async function submitEntry(id) {
 
 export async function stopTimer(id) {
   const data = await moduleTimerRequest('stopTimer', { id });
-  return normalizeEntry(data?.data ?? data);
+  const payload = data?.data ?? data;
+  const entry = normalizeEntry(payload);
+  // A timer left running past the max-duration cap is split at midnight into
+  // extra entries server-side (see TimeEntry::stopTimer()); surface them so
+  // the caller can add them to the list immediately instead of waiting for a
+  // full reload to notice the extra rows.
+  if (entry && Array.isArray(payload?.split_segments)) {
+    entry.split_segments = payload.split_segments.map(normalizeEntry);
+  }
+  return entry;
 }
 
 export async function restartTimer(id) {
@@ -346,26 +405,6 @@ export async function restartTimer(id) {
 
 export async function deleteTimeEntry(id) {
   const data = await moduleTimerRequest('deleteTimeEntry', { id });
-  return data?.data ?? data;
-}
-
-export async function hardDeleteTimeEntry(id) {
-  const data = await moduleTimerRequest('hardDeleteTimeEntry', { id });
-  return data?.data ?? data;
-}
-
-export async function hardDeleteTimeEntries(ids = []) {
-  const data = await moduleTimerRequest('hardDeleteTimeEntries', { ids: Array.from(ids) });
-  return data?.data ?? data;
-}
-
-export async function hardDeleteDailyReport(id) {
-  const data = await moduleTimerRequest('hardDeleteDailyReport', { id });
-  return data?.data ?? data;
-}
-
-export async function hardDeleteDailyReports(ids = []) {
-  const data = await moduleTimerRequest('hardDeleteDailyReports', { ids: Array.from(ids) });
   return data?.data ?? data;
 }
 
@@ -426,13 +465,28 @@ export async function getTasks(projectId = 0, limit = 100) {
   return normalizeTasks(data?.data ?? data);
 }
 
+export async function getTimeFlowProjects(filters = {}) {
+  const data = await moduleTimerRequest('getTimeFlowProjects', {
+    client_id: filters.clientId || 0,
+    date_from: filters.dateFrom || '',
+    date_to: filters.dateTo || '',
+    search: filters.search || '',
+  });
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+export async function listActiveThirdParties() {
+  const data = await moduleTimerRequest('listActiveThirdParties');
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
 export async function getWeeklyTimesheet(weekStart = '') {
   const data = await moduleTimerRequest('getWeeklyTimesheet', { weekStart });
   return data?.data ?? data;
 }
 
-export async function getSummaryReports(limit = 1000, dateFrom = '', dateTo = '') {
-  const data = await moduleTimerRequest('getSummaryReports', { limit, date_from: dateFrom, date_to: dateTo });
+export async function getSummaryReports(limit = 1000, dateFrom = '', dateTo = '', onlyValidated = false) {
+  const data = await moduleTimerRequest('getSummaryReports', { limit, date_from: dateFrom, date_to: dateTo, only_validated: onlyValidated ? 1 : 0 });
   return data?.data ?? data;
 }
 
@@ -501,6 +555,128 @@ export async function getModificationHistory(entryId) {
 
 export async function submitWeeklyApproval(ids = []) {
   const data = await moduleTimerRequest('submitWeeklyApproval', { ids });
+  return data?.data ?? data;
+}
+
+export async function listActiveUsers() {
+  const data = await moduleTimerRequest('listActiveUsers');
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+export async function listUserGroups() {
+  const data = await moduleTimerRequest('listUserGroups');
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+/**
+ * Persists a batch of mapping resolution decisions (user -> existing
+ * Dolibarr user, project -> existing timeflow project or a confirmed new
+ * project title). Writes only to llx_timeflow_import_mapping — never
+ * creates a Dolibarr user account or a real llx_timeflow_project row.
+ */
+export async function resolveClockifyMapping(decisions = []) {
+  const data = await moduleTimerRequest('resolveClockifyMapping', { decisions });
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+/**
+ * Uploads a Clockify CSV export for a dry-run preview (mapping resolution
+ * only, no writes to llx_timeflow_timeentry). Unlike moduleTimerRequest,
+ * the body is multipart/form-data, so no Content-Type header is set here —
+ * the browser generates the boundary for FormData automatically.
+ */
+export async function previewClockifyImport(file) {
+  if (API_MODE === 'mock') {
+    return Promise.resolve({
+      source: 'clockify',
+      total_rows: 3,
+      blocked_rows: 1,
+      skipped_rows: 0,
+      users: [
+        { mapping_type: 'user', source_value: 'jane@example.com', target_action: 'matched' },
+        { mapping_type: 'user', source_value: 'new.hire@example.com', target_action: 'create_pending' },
+      ],
+      projects: [
+        { mapping_type: 'project', source_value: 'Projet Alpha', target_action: 'matched' },
+        { mapping_type: 'project', source_value: '', target_action: 'ignored' },
+      ],
+      stats: { matched_users: 1, pending_users: 1, ignored_users: 0, matched_projects: 1, pending_projects: 0, ignored_projects: 1 },
+    });
+  }
+
+  const formData = new FormData();
+  formData.append('csv_file', file);
+
+  const url = `${buildApiUrl('previewClockifyImport')}&token=${encodeURIComponent(TIMEFLOW_TOKEN)}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+    credentials: 'include',
+    body: formData,
+  });
+
+  const responseText = await response.text();
+  let data = null;
+  try {
+    data = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    throw new Error(responseText || 'Réponse invalide du serveur.');
+  }
+
+  if (!response.ok || data?.status === 'error') {
+    throw new Error(data?.message || data?.error || `Erreur d’import (${response.status})`);
+  }
+
+  return data?.data ?? data;
+}
+
+/**
+ * Re-submits the same CSV file (the browser keeps the File object in memory
+ * as long as the preview modal stays open — see the backend design note on
+ * TimeImportClockify::executeImportFromCsvPath()) once every mapping is
+ * resolved, to actually create the confirmed projects/groups, link group
+ * memberships, and import the eligible time entries.
+ */
+export async function executeClockifyImport(file) {
+  if (API_MODE === 'mock') {
+    return Promise.resolve({
+      projects_created: [],
+      groups_created: [{ source_value: 'HRM', id: 999, title: 'HRM' }],
+      group_memberships_created: 3,
+      group_memberships_skipped: 0,
+      time_entries_created: 5,
+      time_entries_skipped_empty: 0,
+      time_entries_skipped_unresolved: 1,
+      time_entries_skipped_already_imported: 0,
+      time_entries_skipped_invalid: 0,
+      unresolved_rows: [{ row: 4, reason: 'user_not_found', value: 'unknown@example.com' }],
+      errors: [],
+    });
+  }
+
+  const formData = new FormData();
+  formData.append('csv_file', file);
+
+  const url = `${buildApiUrl('executeClockifyImport')}&token=${encodeURIComponent(TIMEFLOW_TOKEN)}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+    credentials: 'include',
+    body: formData,
+  });
+
+  const responseText = await response.text();
+  let data = null;
+  try {
+    data = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    throw new Error(responseText || 'Réponse invalide du serveur.');
+  }
+
+  if (!response.ok || data?.status === 'error') {
+    throw new Error(data?.message || data?.error || `Erreur d’exécution de l’import (${response.status})`);
+  }
+
   return data?.data ?? data;
 }
 
