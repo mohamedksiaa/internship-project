@@ -43,6 +43,8 @@ MyWidgetDescription = My widget description
 
 TIMEFLOW_WEEKLY_WORK_HOURS = Weekly work hours
 TIMEFLOW_WEEKLY_WORK_HOURS_TOOLTIP = Default number of work hours expected per week.
+TIMEFLOW_MAX_ENTRY_DURATION_HOURS = Maximum entry duration (hours)
+TIMEFLOW_MAX_ENTRY_DURATION_HOURS_TOOLTIP = Maximum plausible duration for a single time entry. Beyond this, creation or correction is refused; a timer left running longer is automatically split at midnight when stopped.
 TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER = Task required before timer
 TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP = Ask for a task before allowing the timer to start.
 TIMEFLOW_PROJECT_MODE = Project management mode

@@ -36,6 +36,13 @@ function endTimeLabel(entry, t) {
   return entry.status === 0 ? t('timeentry.in_progress') : '—';
 }
 
+// Groups entries that belong to the same "resumed" task: same project, same
+// task, same description. A fresh resume always copies these three fields
+// verbatim onto the new entry, so exact equality is enough — no fuzzy match.
+export function taskClusterKey(entry) {
+  return `${entry.fk_project ?? ''}|${entry.fk_task ?? ''}|${(entry.note || '').trim()}`;
+}
+
 export function isManuallyModifiedRecord(dateCreation, dateLastContentEdit) {
   if (!dateCreation || !dateLastContentEdit) return false;
   return String(dateLastContentEdit) !== String(dateCreation);
@@ -49,7 +56,7 @@ export function ModifiedManuallyBadge({ onClick, title, className='' }) {
       type="button"
       onClick={onClick}
       title={title ?? t('timeentry.corrected_traced')}
-      className={`tw-rounded-full tw-bg-amber-50 tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-amber-700 ${className}`}
+      className={`tw-rounded-full tw-bg-amber-50 dark:tw-bg-amber-900/40 tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-amber-700 dark:tw-text-amber-300 ${className}`}
     >
       {t('timeentry.modified_manually')}
     </button>
@@ -113,6 +120,22 @@ export default function TimeEntryList({
       }, {}),
     [entries]
   );
+
+  // A timer left running past the max-duration cap is split at midnight into
+  // several entries server-side (see TimeEntry::stopTimer()), chained via
+  // fk_split_previous. This is a single continuous session interrupted only
+  // for calendar-day bookkeeping — never a voluntary resume — so it must
+  // never be confused with the "×N segments" cluster badge above, which
+  // groups same-day same-task rows. Looked up across the whole entries list
+  // (not just the current day group), since the linked half always lives in
+  // a different day's group.
+  const splitSuccessorIds = useMemo(() => {
+    const ids = new Set();
+    entries.forEach((entry) => {
+      if (entry.fk_split_previous != null) ids.add(Number(entry.fk_split_previous));
+    });
+    return ids;
+  }, [entries]);
 
   // Pagination for groups: split into pages where each page contains at most
   // `maxEntriesPerPage` entries (sum of group lengths). A single group that
@@ -225,14 +248,15 @@ export default function TimeEntryList({
       if (!onRestartEntry) throw new Error('Relance du chrono indisponible.');
       const resumed = await onRestartEntry(entry);
       if (!resumed?.id) throw new Error('Le serveur n’a pas renvoyé le chrono repris.');
-      const resumedEntry = {
+      const newEntry = {
         ...entry,
         ...resumed,
         id: resumed.id,
         rowid: resumed.rowid ?? resumed.id,
       };
-      // The server resumes this same row. Move it to the top without a duplicate.
-      const next = [resumedEntry, ...entries.filter((item) => item.id !== entry.id)];
+      // The server always creates a brand new entry on resume — the previous
+      // row is never rewritten, so it stays exactly where it already is.
+      const next = [newEntry, ...entries];
       setEntries(next);
       setParentEntries?.(next);
     } catch (err) {
@@ -347,7 +371,7 @@ export default function TimeEntryList({
 
   if (!entries.length) {
     return (
-      <div className="tw-border tw-border-[#dce5ea] tw-bg-white tw-px-5 tw-py-6 tw-text-sm tw-text-[#71838f]">
+      <div className="tw-border tw-border-[#dce5ea] dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-px-5 tw-py-6 tw-text-sm tw-text-[#71838f] dark:tw-text-slate-400">
         {t('timeentry.no_entries')}
       </div>
     );
@@ -355,14 +379,14 @@ export default function TimeEntryList({
 
   return (
     <section className="tw-space-y-6">
-      {error && <p className="tw-whitespace-pre-line tw-text-sm tw-text-[#d64c4c]">{error}</p>}
+      {error && <p className="tw-whitespace-pre-line tw-text-sm tw-text-[#d64c4c] dark:tw-text-[#f0908f]">{error}</p>}
       {selectedIds.size > 0 && (
         <div className="tw-flex tw-justify-end">
           <button
             type="button"
             onClick={confirmDeleteSelection}
             disabled={busyBatch}
-            className="tw-rounded tw-bg-[#d64c4c] tw-px-3 tw-py-1 tw-text-sm tw-font-medium tw-text-white tw-hover:bg-[#b93d3d] tw-disabled:opacity-50"
+            className="tw-rounded tw-bg-[#d64c4c] tw-px-3 tw-py-1 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-[#b93d3d] disabled:tw-opacity-50"
           >
             {t('processed_history.delete.selection', { count: selectedIds.size })}
           </button>
@@ -370,9 +394,23 @@ export default function TimeEntryList({
       )}
       {currentGroups.map(([key, group]) => {
         const total = group.reduce((sum, entry) => sum + displayedDuration(entry), 0);
+        // Several entries can share the same task (project + task + note) —
+        // typically a "resumed" task, which now always creates a brand new
+        // entry rather than reopening the old one. Cluster them by that key
+        // so the last row of each cluster can carry a "×N segments · total"
+        // summary badge instead of one badge per row.
+        const taskClusters = new Map();
+        group.forEach((entry) => {
+          const clusterKey = taskClusterKey(entry);
+          const cluster = taskClusters.get(clusterKey) || { count: 0, total: 0, lastId: null };
+          cluster.count += 1;
+          cluster.total += displayedDuration(entry);
+          cluster.lastId = entry.id;
+          taskClusters.set(clusterKey, cluster);
+        });
         return (
-          <div key={key} className="tw-border-b-4 tw-border-[#e3ebef] tw-bg-white tw-overflow-x-auto">
-            <div className="tw-flex tw-items-center tw-justify-between tw-bg-[#e5edf1] tw-px-5 tw-py-2 tw-text-sm tw-text-[#52656f]">
+          <div key={key} className="tw-border-b-4 tw-border-[#e3ebef] dark:tw-border-slate-800 tw-bg-white dark:tw-bg-slate-900 tw-overflow-x-auto">
+            <div className="tw-flex tw-items-center tw-justify-between tw-bg-[#e5edf1] dark:tw-bg-slate-800 tw-px-5 tw-py-2 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">
               <div className="tw-flex tw-items-center tw-gap-3">
                 {/** group selection checkbox */}
                 {(() => {
@@ -390,13 +428,13 @@ export default function TimeEntryList({
                 <span>{key === 'unknown-date' ? t('timeentry.date_unknown') : dateLabel(group[0].date_start, t)}</span>
               </div>
               <span>
-                {t('timeentry.total')}:&nbsp; <strong className="tw-text-sm tw-text-[#2a3c47]">{formatDuration(total)}</strong>
+                {t('timeentry.total')}:&nbsp; <strong className="tw-text-sm tw-text-[#2a3c47] dark:tw-text-slate-100">{formatDuration(total)}</strong>
               </span>
             </div>
 
             <table className="tw-w-full tw-text-left tw-border-collapse">
               <thead>
-                <tr className="tw-border-b tw-border-[#dce5ea] tw-bg-white tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wide tw-text-[#8a9aa4]">
+                <tr className="tw-border-b tw-border-[#dce5ea] dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wide tw-text-[#8a9aa4] dark:tw-text-slate-500">
                   <th className="tw-px-3 tw-py-2" />
                   <th className="tw-px-5 tw-py-2">{t('timeentry.col_task')}</th>
                   <th className="tw-px-3 tw-py-2">{t('timeentry.col_project')}</th>
@@ -411,7 +449,7 @@ export default function TimeEntryList({
               </thead>
               <tbody>
                 {group.map((entry) => (
-                  <tr key={entry.id} className="tw-border-b tw-border-[#dce5ea] tw-hover:bg-[#f9fbfd] tw-text-sm tw-text-[#2c3e49]">
+                  <tr key={entry.id} className="tw-border-b tw-border-[#dce5ea] dark:tw-border-slate-700 hover:tw-bg-[#f9fbfd] dark:hover:tw-bg-slate-800 tw-text-sm tw-text-[#2c3e49] dark:tw-text-slate-200">
                     <td className="tw-px-3 tw-py-3 tw-w-8">
                       <input
                         type="checkbox"
@@ -422,26 +460,44 @@ export default function TimeEntryList({
                       />
                     </td>
                     <td className="tw-px-5 tw-py-3 tw-min-w-[180px]">
-                      <p className="tw-font-medium tw-text-[#2c3e49] tw-truncate">{entry.note || t('timeentry.no_description')}</p>
+                      <p className="tw-font-medium tw-text-[#2c3e49] dark:tw-text-slate-200 tw-truncate">{entry.note || t('timeentry.no_description')}</p>
                     </td>
-                    <td className="tw-px-3 tw-py-3 tw-text-[#5B8FA8] tw-font-medium tw-truncate tw-min-w-[120px]">
+                    <td className="tw-px-3 tw-py-3 tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9] tw-font-medium tw-truncate tw-min-w-[120px]">
                       {projectName(entry)}
                     </td>
                     {showWorker && (
-                      <td className="tw-px-3 tw-py-3 tw-text-[#52656f] tw-truncate">
+                      <td className="tw-px-3 tw-py-3 tw-text-[#52656f] dark:tw-text-slate-400 tw-truncate">
                         {workerName(entry)}
                       </td>
                     )}
-                    <td className="tw-px-3 tw-py-3 tw-text-[#4d606b] tw-whitespace-nowrap">
+                    <td className="tw-px-3 tw-py-3 tw-text-[#4d606b] dark:tw-text-slate-400 tw-whitespace-nowrap">
+                      {entry.fk_split_previous != null && (
+                        <span
+                          title={t('timeentry.split_previous_day')}
+                          aria-label={t('timeentry.split_previous_day')}
+                          className="tw-mr-1 tw-text-[#9aa9b1] dark:tw-text-slate-500"
+                        >
+                          ⤴
+                        </span>
+                      )}
                       {timeLabel(entry.date_start, t)}
                     </td>
-                    <td className="tw-px-3 tw-py-3 tw-text-[#4d606b] tw-whitespace-nowrap">
+                    <td className="tw-px-3 tw-py-3 tw-text-[#4d606b] dark:tw-text-slate-400 tw-whitespace-nowrap">
                       {endTimeLabel(entry, t)}
+                      {entry.id != null && splitSuccessorIds.has(Number(entry.id)) && (
+                        <span
+                          title={t('timeentry.split_next_day')}
+                          aria-label={t('timeentry.split_next_day')}
+                          className="tw-ml-1 tw-text-[#9aa9b1] dark:tw-text-slate-500"
+                        >
+                          ⤵
+                        </span>
+                      )}
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-whitespace-nowrap">
                       <StatusBadge status={Number(entry.status)} />
                     </td>
-                    <td className="tw-px-3 tw-py-3 tw-text-right tw-font-bold tw-text-[#2b3d48] tw-whitespace-nowrap">
+                    <td className="tw-px-3 tw-py-3 tw-text-right tw-font-bold tw-text-[#2b3d48] dark:tw-text-slate-100 tw-whitespace-nowrap">
                       {formatDuration(displayedDuration(entry))}
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-text-center tw-whitespace-nowrap">
@@ -453,8 +509,8 @@ export default function TimeEntryList({
                       ) : '—'}
                     </td>
                     <td className="tw-px-5 tw-py-3 tw-text-right tw-whitespace-nowrap">
-                      <div className="tw-flex tw-justify-end tw-items-center tw-gap-2 tw-text-[#78909c]">
-                        {entry.id != null && entry.status === 0 && (
+                      <div className="tw-flex tw-justify-end tw-items-center tw-gap-2 tw-text-[#78909c] dark:tw-text-slate-400">
+                        {entry.id != null && entry.status === 0 && entry.date_end && (
                           <button
                             title={t('timeentry.title_submit')}
                             onClick={() => submitDraft(entry)}
@@ -514,17 +570,23 @@ export default function TimeEntryList({
                             aria-label={t('timeentry.title_delete')}
                             onClick={() => deleteEntry(entry)}
                             disabled={busyId !== null}
-                            className="tw-text-[#d64c4c] tw-disabled:opacity-50"
+                            className="tw-text-[#d64c4c] dark:tw-text-[#f0908f] disabled:tw-opacity-50"
                           >
                             {busyId === entry.id ? '…' : '🗑'}
                           </button>
                         )}
-                        <span
-                          title={t('timeentry.title_occurrences')}
-                          className="tw-rounded-full tw-bg-[#eaf6fd] tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-[#5B8FA8]"
-                        >
-                          ×{Math.max(1, Number(entry.occurrence_count || 1))}
-                        </span>
+                        {(() => {
+                          const cluster = taskClusters.get(taskClusterKey(entry));
+                          if (!cluster || cluster.count <= 1 || cluster.lastId !== entry.id) return null;
+                          return (
+                            <span
+                              title={t('timeentry.title_task_segments')}
+                              className="tw-rounded-full tw-bg-[#eaf6fd] dark:tw-bg-[#5B8FA8]/20 tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9]"
+                            >
+                              ×{cluster.count} · {formatDuration(cluster.total)}
+                            </span>
+                          );
+                        })()}
                                               </div>
                     </td>
                   </tr>
@@ -540,16 +602,16 @@ export default function TimeEntryList({
             type="button"
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
-            className="tw-rounded tw-bg-[#e5edf1] tw-px-3 tw-py-1 tw-text-sm tw-text-[#52656f] tw-disabled:opacity-50"
+            className="tw-rounded tw-bg-[#e5edf1] dark:tw-bg-slate-800 tw-px-3 tw-py-1 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300 disabled:tw-opacity-50"
           >
             ← {t('processed_history.pagination.previous')}
           </button>
-          <span className="tw-text-sm tw-text-slate-600">{t('processed_history.pagination.page', { current: currentPage, total: pages.length })}</span>
+          <span className="tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('processed_history.pagination.page', { current: currentPage, total: pages.length })}</span>
           <button
             type="button"
             onClick={() => setCurrentPage((p) => Math.min(pages.length, p + 1))}
             disabled={currentPage >= pages.length}
-            className="tw-rounded tw-bg-[#e5edf1] tw-px-3 tw-py-1 tw-text-sm tw-text-[#52656f] tw-disabled:opacity-50"
+            className="tw-rounded tw-bg-[#e5edf1] dark:tw-bg-slate-800 tw-px-3 tw-py-1 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300 disabled:tw-opacity-50"
           >
             {t('processed_history.pagination.next')} →
           </button>
@@ -557,31 +619,31 @@ export default function TimeEntryList({
       )}
       {entryToDelete && (
         <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-p-4" role="dialog" aria-modal="true" aria-labelledby="delete-title">
-          <div className="tw-w-full tw-max-w-md tw-space-y-4 tw-rounded-lg tw-bg-white tw-p-6 tw-shadow-xl">
+          <div className="tw-w-full tw-max-w-md tw-space-y-4 tw-rounded-lg tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-6 tw-shadow-xl">
             <div className="tw-flex tw-items-start tw-justify-between tw-gap-4">
               <div>
-                <h2 id="delete-title" className="tw-text-lg tw-font-semibold tw-text-[#263746]">{t('timeentry.delete_title')}</h2>
-                <p className="tw-mt-1 tw-text-sm tw-text-[#52656f]">{t('timeentry.delete_irreversible')}</p>
+                <h2 id="delete-title" className="tw-text-lg tw-font-semibold tw-text-[#263746] dark:tw-text-slate-100">{t('timeentry.delete_title')}</h2>
+                <p className="tw-mt-1 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">{t('timeentry.delete_irreversible')}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setEntryToDelete(null)}
                 aria-label={t('timeentry.close')}
-                className="tw-text-lg tw-leading-none tw-text-[#78909c] tw-hover:text-[#2c3e49]"
+                className="tw-text-lg tw-leading-none tw-text-[#78909c] dark:tw-text-slate-400 hover:tw-text-[#2c3e49] dark:hover:tw-text-slate-100"
               >
                 ×
               </button>
             </div>
 
-            <p className="tw-text-sm tw-text-[#52656f]">
+            <p className="tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">
                 {entryToDelete.delete_requires_strong_confirmation
                 ? t('timeentry.delete_requires_confirmation')
                 : t('timeentry.delete_confirm')}
             </p>
 
             <div className="tw-flex tw-justify-end tw-gap-3">
-              <button type="button" onClick={() => setEntryToDelete(null)} className="tw-text-sm tw-text-[#52656f]">{t('timeentry.cancel')}</button>
-              <button type="button" onClick={confirmDeleteEntry} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white tw-hover:bg-[#b93d3d]">
+              <button type="button" onClick={() => setEntryToDelete(null)} className="tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">{t('timeentry.cancel')}</button>
+              <button type="button" onClick={confirmDeleteEntry} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-[#b93d3d]">
                 {t('timeentry.confirm')}
               </button>
             </div>
@@ -590,49 +652,49 @@ export default function TimeEntryList({
       )}
       {entryToCorrect && (
         <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-p-4" role="dialog" aria-modal="true" aria-labelledby="correction-title">
-          <form onSubmit={saveCorrection} className="tw-w-full tw-max-w-md tw-space-y-4 tw-rounded-lg tw-bg-white tw-p-6 tw-shadow-xl">
+          <form onSubmit={saveCorrection} className="tw-w-full tw-max-w-md tw-space-y-4 tw-rounded-lg tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-6 tw-shadow-xl">
             <div>
-              <h2 id="correction-title" className="tw-text-lg tw-font-semibold tw-text-[#263746]">{t('timeentry.edit_title')}</h2>
-              <p className="tw-mt-1 tw-text-sm tw-text-[#52656f]">
+              <h2 id="correction-title" className="tw-text-lg tw-font-semibold tw-text-[#263746] dark:tw-text-slate-100">{t('timeentry.edit_title')}</h2>
+              <p className="tw-mt-1 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">
                 {entryToCorrect.manual_edit_message || t('timeentry.edit_manual_message')}
               </p>
             </div>
             {correctionError && (
-              <p className="tw-whitespace-pre-line tw-rounded-md tw-bg-rose-50 tw-px-3 tw-py-2 tw-text-sm tw-text-rose-600">{correctionError}</p>
+              <p className="tw-whitespace-pre-line tw-rounded-md tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">{correctionError}</p>
             )}
-            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49]">
+            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49] dark:tw-text-slate-200">
               {t('timeentry.col_start')}
               <input
                 type="datetime-local"
                 value={correction.date_start}
                 disabled={entryToCorrect.manual_edit_end_only}
                 onChange={(event) => setCorrection((current) => ({ ...current, date_start: event.target.value }))}
-                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] tw-px-3 tw-py-2 tw-disabled:bg-slate-100"
+                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100 disabled:tw-bg-slate-100 dark:disabled:tw-bg-slate-700"
                 required
               />
             </label>
-            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49]">
+            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49] dark:tw-text-slate-200">
               {t('timeentry.col_end')}
               <input
                 type="datetime-local"
                 value={correction.date_end}
                 onChange={(event) => setCorrection((current) => ({ ...current, date_end: event.target.value }))}
-                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] tw-px-3 tw-py-2"
+                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100"
                 required
               />
             </label>
-            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49]">
+            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49] dark:tw-text-slate-200">
               {t('timeentry.edit_reason')}
               <textarea
                 value={correction.reason}
                 onChange={(event) => setCorrection((current) => ({ ...current, reason: event.target.value }))}
-                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] tw-px-3 tw-py-2"
+                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100"
                 rows="3"
               />
             </label>
             <div className="tw-flex tw-justify-end tw-gap-3">
-              <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="tw-text-sm tw-text-[#52656f]">{t('cancel')}</button>
-              <button type="submit" disabled={busyId === entryToCorrect.id || correction.reason.trim().length < 5} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white">
+              <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">{t('cancel')}</button>
+              <button type="submit" disabled={busyId === entryToCorrect.id || correction.reason.trim().length < 5} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white disabled:tw-opacity-50">
                 {busyId === entryToCorrect.id ? t('timeentry.saving') : t('save')}
               </button>
             </div>

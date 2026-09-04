@@ -33,6 +33,7 @@ CREATE TABLE llx_timeflow_timeentry(
     fk_facture integer DEFAULT NULL,
     date_invoice datetime DEFAULT NULL,
     status integer DEFAULT 0 NOT NULL,
+    fk_split_previous integer DEFAULT NULL,
     date_submit datetime DEFAULT NULL,
     fk_user_submit integer DEFAULT NULL,
     fk_user_valid integer DEFAULT NULL,

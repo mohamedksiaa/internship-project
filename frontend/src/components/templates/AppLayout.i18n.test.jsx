@@ -31,7 +31,6 @@ describe('AppLayout i18n integration', () => {
             <Route path="dashboard" element={<div>Dashboard page</div>} />
             <Route path="reports" element={<div>Reports page</div>} />
             <Route path="validation" element={<div>Validation page</div>} />
-            <Route path="processed-history" element={<div>Processed history</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -92,38 +91,23 @@ describe('AppLayout i18n integration', () => {
     });
   });
 
-  it('shows calendar and history as separate navigation entries with the correct permission gating', async () => {
+  it('shows Reports to everyone and gates Validations behind canValidate', async () => {
     await act(async () => {
       await i18n.changeLanguage('de');
     });
+    // Reports now hosts task/report history and the read-only project list
+    // (previously open to everyone at /processed-history and /projects), so
+    // unlike Validations it must never be hidden behind canValidate.
     window.TIMEFLOW_CAN_VALIDATE = true;
-    window.TIMEFLOW_CAN_READALL = false;
     renderAtRoute('/validation');
     expect(screen.getByRole('link', { name: /VALIDIERUNGEN$/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /KALENDER$/ })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /VERLAUF$/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /BERICHTE$/ })).toBeInTheDocument();
 
     window.TIMEFLOW_CAN_VALIDATE = false;
-    window.TIMEFLOW_CAN_READALL = true;
     renderAtRoute('/history');
     expect(screen.queryByRole('link', { name: /VALIDIERUNGEN$/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /KALENDER$/ })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: /VERLAUF$/ })).toBeInTheDocument();
-  });
-
-  it('keeps calendar and processed history as two distinct entries in the navigation', async () => {
-    await act(async () => {
-      await i18n.changeLanguage('fr');
-    });
-
-    window.TIMEFLOW_CAN_VALIDATE = false;
-    window.TIMEFLOW_CAN_READALL = true;
-    renderAtRoute('/processed-history');
-
-    const calendarLinks = screen.getAllByRole('link', { name: /CALENDRIER/i });
-    const historyLinks = screen.getAllByRole('link', { name: /HISTORIQUE/i });
-    expect(calendarLinks.length).toBeGreaterThan(0);
-    expect(historyLinks.length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: /HISTORIQUE/i })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: /BERICHTE$/ })).toBeInTheDocument();
   });
 });

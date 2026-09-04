@@ -42,6 +42,8 @@ MyWidgetDescription = وصف الويدجت الخاص بي
 
 TIMEFLOW_WEEKLY_WORK_HOURS = ساعات العمل الأسبوعية
 TIMEFLOW_WEEKLY_WORK_HOURS_TOOLTIP = العدد الافتراضي لساعات العمل المتوقعة في الأسبوع.
+TIMEFLOW_MAX_ENTRY_DURATION_HOURS = المدة القصوى للإدخال (ساعات)
+TIMEFLOW_MAX_ENTRY_DURATION_HOURS_TOOLTIP = المدة القصوى المعقولة لإدخال وقت واحد. بعد هذا الحد، يُرفض الإنشاء أو التصحيح؛ يتم تلقائيًا تقسيم المؤقت الذي بقي يعمل لفترة أطول عند منتصف الليل عند إيقافه.
 TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER = يلزم تحديد مهمة قبل المؤقت
 TIMEFLOW_MANDATORY_TASK_BEFORE_TIMER_TOOLTIP = اطلب مهمة قبل السماح بتشغيل المؤقت.
 TIMEFLOW_PROJECT_MODE = وضع إدارة المشاريع
