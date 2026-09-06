@@ -177,6 +177,11 @@ class modTimeFlow extends DolibarrModules
 		// Prerequisites
 		$this->phpmin = array(7, 2); // Minimum version of PHP required by module
 		// $this->phpmax = array(8, 0); // Maximum version of PHP required by module
+		// Actually validated in real use: Dolibarr 22.0.4 (Windows/WAMP) and
+		// 23.0.3 (Linux). The 19+ floor below is inherited from the
+		// ModuleBuilder template and never independently confirmed on
+		// anything before 22.0.4 — treat versions outside 22.x-23.x as
+		// untested, not guaranteed, regardless of what this declares.
 		$this->need_dolibarr_version = array(19, -3); // Minimum version of Dolibarr required by module
 		// $this->max_dolibarr_version = array(19, -3); // Maximum version of Dolibarr required by module
 		$this->need_javascript_ajax = 0;

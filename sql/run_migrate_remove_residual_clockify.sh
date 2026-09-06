@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Linux/macOS only (bash script, /tmp paths, sudo -u www-data). Not portable
+# to Windows — run this directly on the server, not from a Windows dev box.
 set -euo pipefail
 
 SQL_FILE="$(dirname "$0")/migrate_remove_residual_clockify.sql"
