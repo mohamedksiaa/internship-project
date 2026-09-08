@@ -1000,23 +1000,79 @@ function timeflowFetchTasks($db, $projectId = 0, $limit = 100)
 
 function timeflowFetchWeeklyTimesheet($timeentry, $user, $weekStart = null)
 {
-    $weekStart = !empty($weekStart) ? strtotime($weekStart) : strtotime('monday this week');
-    $weekEnd = strtotime('+7 days', $weekStart);
-    $filter = timeflowCanReadAllTimeEntries($user) ? '' : '(t.fk_user:=:'.((int) $user->id).')';
+    // Optional debug instrumentation: set GET/POST debug=1 to include timings
+    // IMPORTANT: only admins can enable debug output.
+    $debugMode = !empty($user->admin) && GETPOST('debug', 'int');
+    $timeflow_diag = array();
+
+    $weekStartTs = !empty($weekStart) ? strtotime($weekStart) : strtotime('monday this week');
+    $weekEndTs = strtotime('+7 days', $weekStartTs);
+
+    $filterParts = array();
+
+    if (!timeflowCanReadAllTimeEntries($user)) {
+        $filterParts[] = '(t.fk_user:=:' . (int) $user->id . ')';
+    }
+
+    // Dolibarr universal filter syntax expects quoted date literals.
+    $filterParts[] = "(t.date_start:>=:'" . date('Y-m-d 00:00:00', $weekStartTs) . "')";
+    $filterParts[] = "(t.date_start:<:'" . date('Y-m-d 00:00:00', $weekEndTs) . "')";
+    $filter = implode(' AND ', $filterParts);
+
+    if ($debugMode) {
+        $t0 = microtime(true);
+    }
+
     $result = $timeentry->fetchAll('ASC', 't.date_start', 1000, 0, $filter);
+
+    if ($debugMode) {
+        $t1 = microtime(true);
+        $timeflow_diag['fetchAll_ms'] = round(($t1 - $t0) * 1000);
+        $timeflow_diag['fetchAll_rows'] = is_array($result) ? count($result) : 0;
+    }
+
     $rows = array();
+
     if (is_array($result)) {
+        $kept = 0;
+        $exportTotalMs = 0.0;
+
         foreach ($result as $obj) {
             $start = is_numeric($obj->date_start) ? (int) $obj->date_start : strtotime((string) $obj->date_start);
-            if (!$start || $start < $weekStart || $start >= $weekEnd) {
-                continue;
+
+            if ($debugMode) {
+                $te0 = microtime(true);
             }
+
             $row = timeflowExportTimeEntry($obj);
+
+            if ($debugMode) {
+                $te1 = microtime(true);
+                $exportTotalMs += ($te1 - $te0) * 1000.0;
+            }
+
             $row['day'] = date('Y-m-d', $start);
             $rows[] = $row;
+            $kept++;
+        }
+
+        if ($debugMode) {
+            $timeflow_diag['export_total_ms'] = round($exportTotalMs);
+            $timeflow_diag['rows_kept'] = (int) $kept;
         }
     }
-    return array('weekStart' => date('Y-m-d', $weekStart), 'weekEnd' => date('Y-m-d', $weekEnd), 'rows' => $rows);
+
+    $resultPayload = array(
+        'weekStart' => date('Y-m-d', $weekStartTs),
+        'weekEnd' => date('Y-m-d', $weekEndTs),
+        'rows' => $rows,
+    );
+
+    if ($debugMode) {
+        $resultPayload['diagnostics'] = $timeflow_diag;
+    }
+
+    return $resultPayload;
 }
 
 /**
