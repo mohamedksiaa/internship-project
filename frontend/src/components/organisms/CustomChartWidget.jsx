@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUrlState } from '../../hooks/useUrlState.js';
 import {
@@ -27,7 +27,7 @@ const MAX_SLICES = 9;
 // tighter than the single-dimension MAX_SLICES, or the chart turns into
 // unreadable confetti. 5 named segments + one "Autre" bucket stays legible.
 const MAX_STACK_SEGMENTS = 5;
-const DIMENSIONS = ['project', 'employee', 'client', 'group', 'billable'];
+const DIMENSIONS = ['project', 'employee', 'client', 'billable'];
 const CHART_TYPES = ['bar', 'pie', 'line'];
 
 // "group" is deliberately never part of this list: an employee can belong to
@@ -174,18 +174,30 @@ export default function CustomChartWidget({ summary }) {
   const [chartType, setChartType] = useUrlState('chartType', 'bar');
   const [crossWith, setCrossWith] = useUrlState('crossWith', 'none');
 
-  // "Croiser avec" only makes sense for a stacked BAR chart, and never for
-  // "group" (see CROSSABLE_DIMENSIONS) or crossed with itself — reset it the
-  // moment the primary selection makes it invalid, instead of silently
-  // ignoring a selector value the user can still see selected.
+  // Self-heals a stale ?dimension=group (or any other no-longer-valid value)
+  // left over from a bookmarked/shared URL or browser history from before
+  // "Groupe" was removed from the picker — without this, the <select> would
+  // show no option as selected while the chart silently kept rendering
+  // group data underneath it.
+  useEffect(() => {
+    if (!DIMENSIONS.includes(dimension)) {
+      setDimension('project');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dimension]);
+
+  // "Croiser avec" only makes sense for a stacked BAR chart, or crossed with
+  // itself — reset it the moment the primary selection makes it invalid,
+  // instead of silently ignoring a selector value the user can still see
+  // selected. ("group" used to need its own case here too, back when it was
+  // still a selectable dimension — CROSSABLE_DIMENSIONS never included it.)
   const handleDimensionChange = (nextDimension) => {
     setDimension(nextDimension);
-    if (nextDimension === 'group' || crossWith === nextDimension) {
+    if (crossWith === nextDimension) {
       setCrossWith('none');
     }
   };
-  const canCrossDimension = dimension !== 'group';
-  const isCrossing = canCrossDimension && chartType === 'bar' && crossWith !== 'none';
+  const isCrossing = chartType === 'bar' && crossWith !== 'none';
 
   const stackedChartData = useMemo(() => {
     if (!summary || !isCrossing) return null;
@@ -257,7 +269,7 @@ export default function CustomChartWidget({ summary }) {
             {CHART_TYPES.map((type) => <option key={type} value={type}>{t(`dashboard.chart_type.${type}`)}</option>)}
           </select>
         </label>
-        {canCrossDimension && chartType === 'bar' && (
+        {chartType === 'bar' && (
           <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700 dark:tw-text-slate-300">
             {t('dashboard.cross_with_label')}
             <select

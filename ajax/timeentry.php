@@ -646,6 +646,212 @@ function timeflowFetchActiveUsers($db)
 }
 
 /**
+ * Read-only "who has TimeFlow activity" listing for Rapports > Utilisateurs:
+ * every user matching AT LEAST ONE of:
+ *   1. Created at least one time entry (any status — draft/submitted/
+ *      validated/refused all count as activity).
+ *   2. Assigned as a contributor on at least one TimeFlow project (native
+ *      llx_element_contact/PROJECTCONTRIBUTOR mechanism — same join used to
+ *      resolve a project's assigned_user_ids in timeflowFetchTimeFlowProjects()).
+ *   3. Member of at least one Dolibarr group (llx_usergroup_user) — same
+ *      table already used for the dashboard's "by_group" breakdown.
+ * A person can be assigned to a project or added to a group without ever
+ * having logged time themselves (e.g. "azer", "med ahemd" — assigned
+ * contributors who never created an entry), so criterion 1 alone under-counts.
+ * Deliberately NOT the same set as timeflowFetchActiveUsers() above
+ * (active-only, used to populate assignment pickers) — a user deactivated
+ * after logging time, or removed from all groups/projects since, should
+ * still show up here.
+ *
+ * @param DoliDB $db
+ * @return array
+ */
+function timeflowFetchTimeFlowUsers($db)
+{
+    $users = array();
+
+    $entryDateDeleteClause = timeflowHasDateDeleteColumn($db) ? ' AND t.date_delete IS NULL' : '';
+
+    $sql = 'SELECT u.rowid, u.firstname, u.lastname, u.email, u.office_phone, u.user_mobile';
+    $sql .= ' FROM '.$db->prefix().'user AS u';
+    $sql .= ' WHERE u.rowid IN (';
+    $sql .= '   SELECT t.fk_user FROM '.$db->prefix().'timeflow_timeentry AS t';
+    $sql .= '   WHERE t.entity IN ('.getEntity('timeentry').')'.$entryDateDeleteClause;
+    $sql .= '   UNION';
+    $sql .= '   SELECT ec.fk_socpeople FROM '.$db->prefix().'element_contact AS ec';
+    $sql .= '   INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
+    $sql .= "   WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR' AND ec.statut = 4";
+    $sql .= '   UNION';
+    $sql .= '   SELECT ug.fk_user FROM '.$db->prefix().'usergroup_user AS ug';
+    $sql .= ' )';
+    $sql .= ' ORDER BY u.lastname ASC, u.firstname ASC';
+
+    $userIds = array();
+    $resql = $db->query($sql);
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+            $userId = (int) $obj->rowid;
+            $users[$userId] = array(
+                'id' => $userId,
+                'firstname' => (string) $obj->firstname,
+                'lastname' => (string) $obj->lastname,
+                'label' => $fullName !== '' ? $fullName : ('#'.$userId),
+                'email' => (string) $obj->email,
+                'office_phone' => (string) $obj->office_phone,
+                'user_mobile' => (string) $obj->user_mobile,
+                'groups' => array(),
+            );
+            $userIds[] = $userId;
+        }
+        $db->free($resql);
+    }
+
+    // Groups: same llx_usergroup_user/llx_usergroup join already used to
+    // build the "by_group" dashboard breakdown (timeflowBuildSummary) — a
+    // user can belong to more than one TimeFlow group at once.
+    if (!empty($userIds)) {
+        $sql = 'SELECT ug.fk_user, g.nom FROM '.$db->prefix().'usergroup_user AS ug';
+        $sql .= ' INNER JOIN '.$db->prefix().'usergroup AS g ON g.rowid = ug.fk_usergroup';
+        $sql .= ' WHERE ug.fk_user IN ('.implode(',', $userIds).')';
+        $resql = $db->query($sql);
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $userId = (int) $obj->fk_user;
+                if (isset($users[$userId])) {
+                    $users[$userId]['groups'][] = (string) $obj->nom;
+                }
+            }
+            $db->free($resql);
+        }
+    }
+
+    return array_values($users);
+}
+
+/**
+ * Builds one row per real time entry (any status — this is meant as a full
+ * consolidated dump, and the Clockify CSV format has no status column to
+ * preserve it through a round-trip anyway) for Rapports' global "Export"
+ * button, in EXACTLY the column shape TimeImportClockify expects
+ * (config/import_column_mapping_clockify.json) so the file can be
+ * re-imported as-is via previewClockifyImport(). Joins project -> client and
+ * user -> group(s) so each row carries everything the import format wants,
+ * even though those live on separate Rapports sub-pages on screen.
+ *
+ * Excluded: entries with no date_end or a non-positive duration (an
+ * unfinished/active timer has no "end" to round-trip) and, for a caller
+ * without team-wide read rights, every entry that isn't their own — same
+ * scoping rule as getTimeEntries/getSummaryReports elsewhere in this file.
+ *
+ * @param DoliDB $db
+ * @param User $user
+ * @return array<int, array<int, string>> Rows only — the fixed French header
+ *         (must match the import's expected column labels verbatim,
+ *         independent of UI language) is added by the frontend.
+ */
+function timeflowBuildGlobalCsvRows($db, $user)
+{
+    $rows = array();
+
+    $sql = 'SELECT t.fk_project, t.fk_user, t.date_start, t.date_end, t.duration, t.note, t.billable,';
+    $sql .= ' u.email, u.firstname, u.lastname, u.login,';
+    $sql .= ' p.title AS project_title, p.ref AS project_ref, p.fk_soc';
+    $sql .= ' FROM '.$db->prefix().'timeflow_timeentry AS t';
+    $sql .= ' INNER JOIN '.$db->prefix().'user AS u ON u.rowid = t.fk_user';
+    $sql .= ' LEFT JOIN '.$db->prefix().'projet AS p ON p.rowid = t.fk_project';
+    $sql .= ' WHERE t.entity IN ('.getEntity('timeentry').')';
+    if (timeflowHasDateDeleteColumn($db)) {
+        $sql .= ' AND t.date_delete IS NULL';
+    }
+    if (!timeflowCanReadAllTimeEntries($user)) {
+        $sql .= ' AND t.fk_user = '.((int) $user->id);
+    }
+    $sql .= ' AND t.date_end IS NOT NULL AND t.duration > 0';
+    $sql .= ' ORDER BY t.date_start ASC';
+    // Safety net, not a real-world pagination cap — bounds against a
+    // pathological unbounded query rather than an expected data size.
+    $sql .= ' LIMIT 50000';
+
+    $resql = $db->query($sql);
+    if (!$resql) {
+        return $rows;
+    }
+
+    $entries = array();
+    $clientIds = array();
+    $userIds = array();
+    while ($obj = $db->fetch_object($resql)) {
+        $entries[] = $obj;
+        if (!empty($obj->fk_soc)) {
+            $clientIds[(int) $obj->fk_soc] = true;
+        }
+        $userIds[(int) $obj->fk_user] = true;
+    }
+    $db->free($resql);
+
+    // Client labels — one query for every fk_soc actually referenced.
+    $clientLabelMap = array();
+    if (!empty($clientIds)) {
+        $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
+        $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', array_keys($clientIds))).')';
+        $resql = $db->query($sql);
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $clientLabelMap[(int) $obj->rowid] = (string) $obj->nom;
+            }
+            $db->free($resql);
+        }
+    }
+
+    // Groups per user — same llx_usergroup_user/llx_usergroup join used
+    // elsewhere (timeflowBuildSummary, timeflowFetchTimeFlowUsers).
+    $userGroupsMap = array();
+    if (!empty($userIds)) {
+        $sql = 'SELECT ug.fk_user, g.nom FROM '.$db->prefix().'usergroup_user AS ug';
+        $sql .= ' INNER JOIN '.$db->prefix().'usergroup AS g ON g.rowid = ug.fk_usergroup';
+        $sql .= ' WHERE ug.fk_user IN ('.implode(',', array_map('intval', array_keys($userIds))).')';
+        $resql = $db->query($sql);
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $userGroupsMap[(int) $obj->fk_user][] = (string) $obj->nom;
+            }
+            $db->free($resql);
+        }
+    }
+
+    foreach ($entries as $obj) {
+        $startTs = is_numeric($obj->date_start) ? (int) $obj->date_start : strtotime((string) $obj->date_start);
+        $endTs = is_numeric($obj->date_end) ? (int) $obj->date_end : strtotime((string) $obj->date_end);
+        if (!$startTs || !$endTs) {
+            continue;
+        }
+
+        $projectTitle = !empty($obj->project_title) ? (string) $obj->project_title : (string) ($obj->project_ref ?? '');
+        $clientName = !empty($obj->fk_soc) ? ($clientLabelMap[(int) $obj->fk_soc] ?? '') : '';
+        $groups = $userGroupsMap[(int) $obj->fk_user] ?? array();
+        $displayName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+
+        $rows[] = array(
+            $projectTitle,
+            $clientName,
+            implode(',', $groups),
+            (string) $obj->note,
+            (string) $obj->email,
+            $displayName !== '' ? $displayName : (string) $obj->login,
+            !empty($obj->billable) ? 'Oui' : 'Non',
+            date('m/d/Y', $startTs),
+            date('H:i:s', $startTs),
+            date('m/d/Y', $endTs),
+            date('H:i:s', $endTs),
+            number_format(((int) $obj->duration) / 3600, 2, '.', ''),
+        );
+    }
+
+    return $rows;
+}
+
+/**
  * Whether llx_timeflow_project_user exists yet. The migration that creates
  * it (sql/migrate_timeflow_project_user.sql) is provided but NOT applied
  * automatically — every function that reads this table must check this
@@ -1096,6 +1302,30 @@ function timeflowGetProcessedHistory($input, $user = null)
     return array('rows'=>$rows, 'employees'=>$employees, 'pagination'=>array('page'=>$page, 'per_page'=>$perPage, 'total'=>$total, 'pages'=>max(1, (int) ceil($total / $perPage))), 'stats'=>array('validated_count'=>(int) ($statsObj->validated_count ?? 0), 'refused_count'=>(int) ($statsObj->refused_count ?? 0), 'manual_count'=>(int) ($statsObj->manual_count ?? 0)));
 }
 
+/**
+ * Deletion policy for daily reports, mirroring TimeEntry::isDeletionAllowedFor()
+ * exactly: a draft belongs to its employee (still requires the base
+ * 'timeentry'/'write' right, not ownership alone); anything else (submitted,
+ * validated, or refused) requires the same processed-entry deletion
+ * authority as time entries. Deliberately reuses
+ * TimeEntry::canDeleteProcessedEntry() / timeflow.timeentry.deletevalidated
+ * rather than introducing a parallel dailyreport-scoped right — consistent
+ * with timeflowCanValidate() above already reusing timeflow.timeentry.validate
+ * for daily report validation/rejection instead of a report-specific right.
+ *
+ * @param User $user
+ * @param int $ownerId fk_user of the report
+ * @param int $status Report status (0=draft, 1=submitted, 2=validated, 9=refused)
+ * @return bool
+ */
+function timeflowCanDeleteDailyReport($user, $ownerId, $status)
+{
+    if ((int) $status !== 0) {
+        return TimeEntry::canDeleteProcessedEntry($user);
+    }
+    return !empty($user->admin) || ($user->hasRight('timeflow', 'timeentry', 'write') && (int) $ownerId === (int) $user->id);
+}
+
 /** Return daily free-text reports, scoped either to one user or to the whole team.
  *
  * Employee view: only active (non soft-deleted) reports are exposed.
@@ -1108,7 +1338,7 @@ function timeflowGetProcessedHistory($input, $user = null)
  */
 function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
 {
-    global $db, $conf;
+    global $db, $conf, $user;
     $where = array('r.entity = '.((int) $conf->entity));
     $historyMode = !empty($input['history']) || (!empty($input['mode']) && $input['mode'] === 'history');
 
@@ -1162,13 +1392,29 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
         $where[] = "r.date_last_content_edit IS NOT NULL AND r.date_last_content_edit <> r.date_creation";
     }
 
+    $whereSql = implode(' AND ', $where);
+
+    // Same page/per_page -> {rows/reports, pagination:{page,per_page,total,pages}}
+    // contract as timeflowGetProcessedHistory() (Rapports > Rapports des tâches),
+    // reused here rather than inventing a second shape. Count uses the exact
+    // same $whereSql as the page query, so total/pages always reflect the
+    // filtered result set (status/date/employee/manual_only), never the
+    // unfiltered table.
+    $page = max(1, (int) ($input['page'] ?? 1));
+    $perPage = min(100, max(1, (int) ($input['per_page'] ?? 20)));
+    $offset = ($page - 1) * $perPage;
+    $countSql = 'SELECT COUNT(*) AS total FROM '.$db->prefix().'timeflow_daily_report AS r WHERE '.$whereSql;
+    $countRes = $db->query($countSql);
+    $countObj = $countRes ? $db->fetch_object($countRes) : null;
+    $total = $countObj ? (int) $countObj->total : 0;
+
     $sql = 'SELECT r.rowid, r.fk_user, r.date_report, r.content, r.date_creation, r.tms, r.status, r.read_at, r.date_validated_at, r.fk_user_read, r.date_delete, r.date_last_content_edit, r.fk_user_last_content_edit,';
     $sql .= ' u.login, u.firstname, u.lastname, reader.login AS reader_login, reader.firstname AS reader_firstname, reader.lastname AS reader_lastname, editor.login AS editor_login, editor.firstname AS editor_firstname, editor.lastname AS editor_lastname';
     $sql .= ' FROM '.$db->prefix().'timeflow_daily_report AS r';
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS u ON u.rowid = r.fk_user';
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS reader ON reader.rowid = r.fk_user_read';
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS editor ON editor.rowid = r.fk_user_last_content_edit';
-    $sql .= ' WHERE '.implode(' AND ', $where).' ORDER BY r.date_report DESC, r.tms DESC, r.rowid DESC';
+    $sql .= ' WHERE '.$whereSql.' ORDER BY r.date_report DESC, r.tms DESC, r.rowid DESC'.$db->plimit($perPage, $offset);
     $resql = $db->query($sql);
     $reports = array();
     while ($resql && ($obj = $db->fetch_object($resql))) {
@@ -1193,9 +1439,14 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
             'date_validated_at' => $obj->date_validated_at,
             'read_by_label' => $readerLabel,
             'is_read' => !empty($obj->read_at),
+            'delete_allowed' => timeflowCanDeleteDailyReport($user, (int) $obj->fk_user, (int) $obj->status),
+            'delete_requires_strong_confirmation' => (int) $obj->status !== 0,
         );
     }
-    return $reports;
+    return array(
+        'reports' => $reports,
+        'pagination' => array('page' => $page, 'per_page' => $perPage, 'total' => $total, 'pages' => max(1, (int) ceil($total / $perPage))),
+    );
 }
 
 function timeflowDailyReportEmployees()
@@ -1466,9 +1717,23 @@ switch ($action) {
             'date_from' => $postData['date_from'] ?? GETPOST('date_from', 'alphanohtml'),
             'date_to' => $postData['date_to'] ?? GETPOST('date_to', 'alphanohtml'),
             'search' => trim((string) ($postData['search'] ?? GETPOST('search', 'alphanohtml'))),
+            'source' => trim((string) ($postData['source'] ?? GETPOST('source', 'alpha'))),
         );
         $timeflowDebugProjects = timeflowFetchTimeFlowProjects($db, $user, $projectFilters);
         timeflowJsonResponse(array('status' => 'success', 'data' => $timeflowDebugProjects));
+        break;
+
+    // Rapports > Utilisateurs: read-only, no filters, same open-to-any-
+    // authenticated-user access as getTimeFlowProjects above.
+    case 'getTimeFlowUsers':
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTimeFlowUsers($db)));
+        break;
+
+    // Rapports' global "Export" button (above the tab bar, not per sub-page):
+    // one row per time entry, in the same column shape TimeImportClockify
+    // expects, so the file round-trips through previewClockifyImport() as-is.
+    case 'exportGlobalCsv':
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowBuildGlobalCsvRows($db, $user)));
         break;
 
     case 'createTimeFlowProject':
@@ -1809,29 +2074,48 @@ switch ($action) {
         if ($id <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant du rapport invalide.'), 400);
         }
-        $sql = 'SELECT rowid, fk_user, status, date_delete FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
+        $sql = 'SELECT rowid, fk_user, status, date_delete, date_validated_at, date_report FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.$id.' LIMIT 1';
         $res = $db->query($sql);
         if (!$res || $db->num_rows($res) <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
         }
         $obj = $db->fetch_object($res);
-        if ((int) $obj->fk_user !== (int) $user->id) {
+        $reportStatus = (int) $obj->status;
+
+        if (!timeflowCanDeleteDailyReport($user, (int) $obj->fk_user, $reportStatus)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé.'), 403);
         }
-        if ((int) $obj->status !== 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Seuls les brouillons peuvent être supprimés par l’employé.'), 403);
-        }
+
         if (!empty($obj->date_delete)) {
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => (int) $id, 'is_deleted' => true)), 200);
+            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'is_deleted' => true)), 200);
         }
+
+        // date_validated_at is set once and only once by validateDailyReport()
+        // or rejectDailyReport(), never cleared afterward — the permanent
+        // marker that a manager decision (positive or negative) was recorded
+        // for this report. That decision has audit value even when the
+        // decision was a rejection, so anything a manager has ever touched
+        // is protected by soft-delete only, exactly like TimeEntry treats
+        // fk_user_valid. Everything else (a draft never decided, or a
+        // submitted report still awaiting a decision) never had official
+        // value, so it is a real physical delete.
+        if (empty($obj->date_validated_at)) {
+            dol_syslog('timeflow.deleteDailyReport HARD DELETE user_id='.(int) $user->id.' report_id='.$id.' date_report='.$obj->date_report.' status_at_deletion='.$reportStatus, LOG_INFO);
+            $sql = 'DELETE FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.$id;
+            if (!$db->query($sql)) {
+                timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer définitivement le rapport : '.$db->lasterror()), 500);
+            }
+            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'is_deleted' => true, 'hard_deleted' => true)));
+        }
+
         $now = dol_now();
         $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report';
         $sql .= ' SET date_delete = "'.$db->idate($now).'", fk_user_delete = '.((int) $user->id);
-        $sql .= ' WHERE rowid = '.((int) $id).' AND date_delete IS NULL';
+        $sql .= ' WHERE rowid = '.$id.' AND date_delete IS NULL';
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer le rapport : '.$db->lasterror()), 500);
         }
-        timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => (int) $id, 'is_deleted' => true)));
+        timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'is_deleted' => true)));
         break;
 
     case 'getMyDailyReports':
@@ -1842,14 +2126,15 @@ switch ($action) {
     case 'getDailyReports':
         $input = is_array($postData) ? $postData : $_REQUEST;
         $canReadAll = timeflowCanValidate($user) || timeflowCanReadAllTimeEntries($user);
-        $reports = timeflowFetchDailyReports($input, $canReadAll, $canReadAll ? 0 : (int) $user->id);
+        $result = timeflowFetchDailyReports($input, $canReadAll, $canReadAll ? 0 : (int) $user->id);
         $employees = $canReadAll ? timeflowDailyReportEmployees() : array(array(
             'id' => (int) $user->id,
             'label' => timeflowResolveUserLabel((int) $user->id),
         ));
         timeflowJsonResponse(array('status' => 'success', 'data' => array(
-            'reports' => $reports,
+            'reports' => $result['reports'],
             'employees' => $employees,
+            'pagination' => $result['pagination'],
         )));
         break;
 
@@ -2338,7 +2623,7 @@ switch ($action) {
 function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
 {
     $projects = array();
-    $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.fk_soc, s.nom as soc_name, p.fk_statut, p.fk_opp_status, cls.code as opp_status_code,';
+    $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.fk_soc, s.nom as soc_name, p.fk_statut, p.fk_opp_status, cls.code as opp_status_code, p.datec,';
     $sql .= ' ef.timeflow_source, ef.timeflow_import_key,';
     $sql .= ' (SELECT COUNT(*) FROM '.$db->prefix().'timeflow_timeentry AS t';
     $sql .= '  WHERE t.fk_project = p.rowid AND t.date_delete IS NULL) AS entry_count';
@@ -2371,8 +2656,19 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
         $searchLike = "'%".$db->escape($search)."%'";
         $sql .= ' AND (p.title LIKE '.$searchLike.' OR p.ref LIKE '.$searchLike.')';
     }
+    $source = trim((string) ($filters['source'] ?? ''));
+    if (in_array($source, array('manual', 'clockify', 'native'), true)) {
+        $sql .= " AND ef.timeflow_source = '".$db->escape($source)."'";
+    }
 
-    $sql .= ' ORDER BY p.title ASC, p.rowid DESC';
+    // Explicit CASE, not a bare "ORDER BY fk_statut": the numeric codes
+    // (0=Brouillon, 1=Ouvert, 2=Clôturé — see ProjectStatusBadge.jsx's
+    // PROJECT_STATUS map, the source of truth for what the ÉTAT column
+    // actually displays) do NOT sort into the wanted Ouvert/Brouillon/Clôturé
+    // order on their own. datec DESC breaks ties within a status group (most
+    // recent first); rowid DESC is the last-resort tiebreaker for a dead-heat
+    // same-status-same-datec pair.
+    $sql .= ' ORDER BY CASE p.fk_statut WHEN 1 THEN 0 WHEN 0 THEN 1 WHEN 2 THEN 2 ELSE 3 END ASC, p.datec DESC, p.rowid DESC';
 
     // Assigned users per project, keyed by project id — a separate query
     // (rather than GROUP_CONCAT) to avoid MySQL's group_concat length limit

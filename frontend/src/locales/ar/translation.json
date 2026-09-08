@@ -103,7 +103,6 @@
       "client": "العميل",
       "employee": "الموظف",
       "project": "المشروع",
-      "group": "المجموعة",
       "billable": "قابل للفوترة"
     },
     "chart_type": {
@@ -165,7 +164,12 @@
     "save": "إرسال",
     "saving": "جارٍ الحفظ…",
     "history_title": "تقاريري المرسلة",
+    "delete_title": "حذف التقرير",
+    "delete_irreversible": "هذا الإجراء لا رجعة فيه.",
     "delete_confirm": "تأكيد حذف هذا التقرير؟",
+    "delete_requires_confirmation": "تم تقديم هذا التقرير. تأكيد الحذف الدائم؟",
+    "cancel": "إلغاء",
+    "confirm": "تأكيد",
     "loading": "جارٍ التحميل…",
     "empty": "لا توجد تقارير مرسلة.",
     "edit": "تعديل",
@@ -212,6 +216,7 @@
     "col_entries": "السجلات",
     "col_statut": "الحالة",
     "col_etat": "الوضع",
+    "col_source": "المصدر",
     "status": {
       "draft": "مسودة",
       "opened": "مفتوح",
@@ -225,6 +230,11 @@
       "won": "فوز",
       "lost": "خسارة",
       "pending": "قيد الانتظار"
+    },
+    "source": {
+      "manual": "يدوي",
+      "clockify": "استيراد Clockify",
+      "native": "أصلي (Dolibarr)"
     },
     "everyone": "الجميع",
     "assigned_users_more_zero": "",
@@ -240,8 +250,19 @@
       "date_to": "أُنشئ إلى",
       "search_label": "بحث",
       "search_placeholder": "العنوان أو المرجع…",
+      "source_label": "المصدر",
+      "all_sources": "جميع المصادر",
       "reset": "إعادة تعيين الفلاتر"
     }
+  },
+  "users_report": {
+    "title": "المستخدمون",
+    "empty": "لا يوجد مستخدم لديه نشاط في TimeFlow.",
+    "col_name": "الاسم واللقب",
+    "col_email": "البريد الإلكتروني",
+    "col_phone": "الهاتف",
+    "col_groups": "المجموعة (المجموعات)",
+    "no_group": "بدون مجموعة"
   },
   "timeentry": {
     "date_unknown": "تاريخ غير محدد",
@@ -290,6 +311,8 @@
     "title": "السجل المعالَج",
     "export_csv": "تصدير CSV",
     "import_csv": "استيراد CSV",
+    "import_csv_global": "استيراد",
+    "export_csv_global": "تصدير",
     "select_group_aria": "تحديد مجموعة {{day}}",
     "select_entry_aria": "تحديد هذا الإدخال",
     "total": "الإجمالي",
@@ -325,8 +348,7 @@
     },
     "csv": {
       "processed_by": "عالجها",
-      "processed_at": "تاريخ المعالجة",
-      "filename": "timeflow-processed-history.csv"
+      "processed_at": "تاريخ المعالجة"
     },
     "pagination": {
       "previous": "السابق",

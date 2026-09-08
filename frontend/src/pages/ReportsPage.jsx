@@ -2,23 +2,28 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Card from '../components/atoms/Card';
 import {
+  exportGlobalCsv,
   exportProcessedHistory,
   getDailyReports,
   getMyDailyReports,
   getProcessedHistory,
   getProjects,
   getTimeFlowProjects,
+  getTimeFlowUsers,
   listActiveThirdParties,
   listActiveUsers,
   previewClockifyImport,
 } from '../api/timeflowApi';
 import StatusBadge from '../components/atoms/StatusBadge';
-import ProjectStatusBadge from '../components/atoms/ProjectStatusBadge';
-import OpportunityStatusBadge from '../components/atoms/OpportunityStatusBadge';
+import TruncatedText from '../components/atoms/TruncatedText';
+import ProjectStatusBadge, { projectStatusLabelKey } from '../components/atoms/ProjectStatusBadge';
+import OpportunityStatusBadge, { opportunityStatusLabelKey } from '../components/atoms/OpportunityStatusBadge';
+import ProjectSourceBadge from '../components/atoms/ProjectSourceBadge';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import ImportPreviewModal from '../components/molecules/ImportPreviewModal.jsx';
 import { ModifiedManuallyBadge, isManuallyModifiedRecord, taskClusterKey } from '../components/organisms/TimeEntryList.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
+import { downloadCsv } from '../utils/csvExport.js';
 import { useUrlDateRange, useUrlState } from '../hooks/useUrlState.js';
 
 const initialFilters = {
@@ -31,6 +36,15 @@ const initialFilters = {
 };
 
 const dateTime = (value) => (value ? String(value).replace('T', ' ').slice(0, 16) : '—');
+
+// Fixed, NEVER translated: previewClockifyImport() matches columns by these
+// exact French labels (config/import_column_mapping_clockify.json), so the
+// global "Export" file must carry them verbatim regardless of the active UI
+// language for the round-trip re-import to work.
+const GLOBAL_CSV_HEADER = [
+  'Projet', 'Client', 'Groupe', 'Description', 'Email', 'Utilisateur',
+  'Facturable', 'Date de début', 'Heure de début', 'Date de fin', 'Heure de fin', 'Durée (décimal)',
+];
 
 const ASSIGNED_USERS_INLINE_LIMIT = 2;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -86,6 +100,7 @@ function ProjectsReportTab() {
   const [dateRange, setDateFrom, setDateTo] = useUrlDateRange({ from: '', to: '' }, { from: 'projDateFrom', to: 'projDateTo' });
   const [searchFilter, setSearchFilter] = useUrlState('projSearch', '');
   const [searchInput, setSearchInput] = useState(searchFilter);
+  const [sourceFilter, setSourceFilter] = useUrlState('projSource', '');
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchFilter(searchInput.trim()), SEARCH_DEBOUNCE_MS);
@@ -98,9 +113,10 @@ function ProjectsReportTab() {
     dateFrom: dateRange.from,
     dateTo: dateRange.to,
     search: searchFilter,
-  }), [clientId, dateRange, searchFilter]);
+    source: sourceFilter,
+  }), [clientId, dateRange, searchFilter, sourceFilter]);
 
-  const hasActiveFilters = Boolean(clientId || dateRange.from || dateRange.to || searchFilter);
+  const hasActiveFilters = Boolean(clientId || dateRange.from || dateRange.to || searchFilter || sourceFilter);
 
   function resetFilters() {
     setClientId('');
@@ -108,6 +124,7 @@ function ProjectsReportTab() {
     setDateTo('');
     setSearchInput('');
     setSearchFilter('');
+    setSourceFilter('');
   }
 
   useEffect(() => {
@@ -126,9 +143,44 @@ function ProjectsReportTab() {
     listActiveUsers().then(setUsers).catch(() => setUsers([]));
   }, []);
 
+  // Exports exactly the rows currently loaded (already narrowed by the
+  // filters above) with the same 6 columns shown on screen — the assigned
+  // users cell uses the FULL untruncated list (formatAssignedUsers' `title`)
+  // rather than the on-screen "A, B +3 autres" shorthand, since a CSV has no
+  // hover tooltip to fall back on for the rest of the names.
+  const exportCsv = () => {
+    const header = [
+      t('projects.col_ref'), t('projects.col_title'), t('projects.col_client'),
+      t('projects.col_assigned_users'), t('projects.col_statut'), t('projects.col_etat'), t('projects.col_source'),
+    ];
+    downloadCsv('projets', header, projectRows.map((project) => {
+      const { text, title } = formatAssignedUsers(project, usersById, t);
+      const oppKey = opportunityStatusLabelKey(project.opp_status_code);
+      return [
+        project.ref,
+        project.title,
+        project.client || t('dashboard.no_client'),
+        title || text,
+        oppKey ? t(oppKey) : '—',
+        t(projectStatusLabelKey(Number(project.fk_statut ?? 0))),
+        t(`projects.source.${project.source}`, project.source || '—'),
+      ];
+    }));
+  };
+
   return (
     <section className="tw-rounded-3xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-p-5 tw-shadow-sm dark:tw-shadow-none">
-      <div className="tw-mb-4 tw-grid tw-gap-3 md:tw-grid-cols-2 xl:tw-grid-cols-5">
+      <div className="tw-mb-4 tw-flex tw-items-center tw-justify-end">
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={projectRows.length === 0}
+          className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba] disabled:tw-cursor-not-allowed disabled:tw-opacity-50"
+        >
+          {t('processed_history.export_csv')}
+        </button>
+      </div>
+      <div className="tw-mb-4 tw-grid tw-gap-3 md:tw-grid-cols-2 xl:tw-grid-cols-6">
         <select
           aria-label={t('projects.filters.client_label')}
           value={clientId}
@@ -160,6 +212,17 @@ function ProjectsReportTab() {
           placeholder={t('projects.filters.search_placeholder')}
           className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100"
         />
+        <select
+          aria-label={t('projects.filters.source_label')}
+          value={sourceFilter}
+          onChange={(event) => setSourceFilter(event.target.value)}
+          className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100"
+        >
+          <option value="">{t('projects.filters.all_sources')}</option>
+          <option value="manual">{t('projects.source.manual')}</option>
+          <option value="clockify">{t('projects.source.clockify')}</option>
+          <option value="native">{t('projects.source.native')}</option>
+        </select>
         {hasActiveFilters && (
           <button
             type="button"
@@ -187,7 +250,8 @@ function ProjectsReportTab() {
                   <th className="tw-px-3 tw-py-2">{t('projects.col_client')}</th>
                   <th className="tw-px-3 tw-py-2">{t('projects.col_assigned_users')}</th>
                   <th className="tw-px-3 tw-py-2">{t('projects.col_statut')}</th>
-                  <th className="tw-px-3 tw-py-2 tw-text-right">{t('projects.col_etat')}</th>
+                  <th className="tw-px-3 tw-py-2">{t('projects.col_etat')}</th>
+                  <th className="tw-px-3 tw-py-2 tw-text-right">{t('projects.col_source')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -211,11 +275,116 @@ function ProjectsReportTab() {
                     <td className="tw-px-3 tw-py-3">
                       <OpportunityStatusBadge code={project.opp_status_code} />
                     </td>
-                    <td className="tw-px-3 tw-py-3 tw-text-right tw-tabular-nums">
+                    <td className="tw-px-3 tw-py-3 tw-tabular-nums">
                       <ProjectStatusBadge status={Number(project.fk_statut ?? 0)} />
+                    </td>
+                    <td className="tw-px-3 tw-py-3 tw-text-right">
+                      <ProjectSourceBadge source={project.source} />
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+    </section>
+  );
+}
+
+/**
+ * Read-only listing of every user with at least one TimeFlow time entry
+ * (any status — draft/submitted/validated/refused all count), with contact
+ * info and TimeFlow group membership. No filters, unlike ProjectsReportTab
+ * above — the source list is already small (one row per person, not per
+ * entry) and there is no obvious axis to filter it by.
+ */
+function UsersReportTab() {
+  const { t } = useTranslation();
+  const [userRows, setUserRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    getTimeFlowUsers()
+      .then((rows) => { if (active) setUserRows(Array.isArray(rows) ? rows : []); })
+      .catch((err) => { if (active) setError(err.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  // Same 4 columns as the on-screen table, in the same order — groups joined
+  // with ", " in a single cell exactly like the table already renders them.
+  const exportCsv = () => {
+    const header = [
+      t('users_report.col_name'), t('users_report.col_email'),
+      t('users_report.col_phone'), t('users_report.col_groups'),
+    ];
+    downloadCsv('utilisateurs', header, userRows.map((row) => {
+      const phones = [row.office_phone, row.user_mobile].filter(Boolean);
+      const groups = Array.isArray(row.groups) ? row.groups.filter(Boolean) : [];
+      return [
+        row.label,
+        row.email || '',
+        phones.join(' · '),
+        groups.length > 0 ? groups.join(', ') : t('users_report.no_group'),
+      ];
+    }));
+  };
+
+  return (
+    <section className="tw-rounded-3xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-p-5 tw-shadow-sm dark:tw-shadow-none">
+      <div className="tw-mb-4 tw-flex tw-items-center tw-justify-end">
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={userRows.length === 0}
+          className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba] disabled:tw-cursor-not-allowed disabled:tw-opacity-50"
+        >
+          {t('processed_history.export_csv')}
+        </button>
+      </div>
+      {loading && <p className="tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('loading')}</p>}
+      {error && <p className="tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{error}</p>}
+
+      {!loading && (
+        userRows.length === 0 ? (
+          <p className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('users_report.empty')}</p>
+        ) : (
+          <div className="tw-overflow-x-auto">
+            <table className="tw-w-full tw-text-left tw-text-sm tw-border-collapse dark:tw-text-slate-200">
+              <thead>
+                <tr className="tw-border-b tw-border-slate-200 dark:tw-border-slate-700 tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-slate-500 dark:tw-text-slate-400">
+                  <th className="tw-px-3 tw-py-2">{t('users_report.col_name')}</th>
+                  <th className="tw-px-3 tw-py-2">{t('users_report.col_email')}</th>
+                  <th className="tw-px-3 tw-py-2">{t('users_report.col_phone')}</th>
+                  <th className="tw-px-3 tw-py-2">{t('users_report.col_groups')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {userRows.map((row) => {
+                  const phones = [row.office_phone, row.user_mobile].filter(Boolean);
+                  const groups = Array.isArray(row.groups) ? row.groups.filter(Boolean) : [];
+                  return (
+                    <tr key={row.id} className="tw-border-b tw-border-slate-100 dark:tw-border-slate-800">
+                      <td className="tw-px-3 tw-py-3 tw-max-w-[220px] tw-font-medium tw-text-slate-900 dark:tw-text-slate-100">
+                        <TruncatedText text={row.label} />
+                      </td>
+                      <td className="tw-px-3 tw-py-3 tw-max-w-[240px] tw-text-slate-600 dark:tw-text-slate-300">
+                        <TruncatedText text={row.email || '—'} />
+                      </td>
+                      <td className="tw-px-3 tw-py-3 tw-whitespace-nowrap tw-text-slate-600 dark:tw-text-slate-300">
+                        {phones.length > 0 ? phones.join(' · ') : '—'}
+                      </td>
+                      <td className="tw-px-3 tw-py-3 tw-max-w-[240px] tw-text-slate-600 dark:tw-text-slate-300">
+                        <TruncatedText text={groups.length > 0 ? groups.join(', ') : t('users_report.no_group')} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -352,29 +521,18 @@ export default function ReportsPage() {
     if (activeTab === 'reports') {
       const rows = Array.isArray(reportHistory) ? reportHistory : [];
       const header = [t('daily_report.date_label'), t('processed_history.columns.who'), t('daily_report.content_label')];
-      const lines = [
-        header,
-        ...rows.map((report) => [
-          report.date_report || report.date_creation || '',
-          report.user_label || '',
-          report.content || report.note || '',
-        ]),
-      ];
-
-      const csvContent = `﻿${lines
-        .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(';'))
-        .join('\n')}`;
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = t('processed_history.csv.filename');
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadCsv('historique_comptes_rendus', header, rows.map((report) => [
+        report.date_report || report.date_creation || '',
+        report.user_label || '',
+        report.content || report.note || '',
+      ]));
       return;
     }
 
+    // "tasks" tab: the on-screen table is paginated (page/per_page), so the
+    // export re-fetches the SAME filters with no page cap instead of just
+    // serializing the current page — every filtered row, not just the ones
+    // currently visible.
     const rows = await exportProcessedHistory(filters);
     const header = [
       t('processed_history.columns.task'), t('processed_history.columns.project'), t('processed_history.columns.who'),
@@ -382,33 +540,18 @@ export default function ReportsPage() {
       t('processed_history.columns.duration'), t('processed_history.columns.modification'),
       t('processed_history.csv.processed_by'), t('processed_history.csv.processed_at'),
     ];
-    const lines = [
-      header,
-      ...rows.map((entry) => [
-        entry.note,
-        entry.project_label,
-        entry.user_label,
-        dateTime(entry.date_start),
-        dateTime(entry.date_end),
-        Number(entry.status) === 2 ? t('status.validated') : t('status.rejected'),
-        formatDuration(entry.duration),
-        entry.manual_modified ? t('processed_history.modified_manually') : '',
-        entry.processed_by_label,
-        dateTime(entry.processed_at),
-      ]),
-    ];
-
-    const csvContent = `﻿${lines
-      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(';'))
-      .join('\n')}`;
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = t('processed_history.csv.filename');
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadCsv('rapports_taches', header, rows.map((entry) => [
+      entry.note,
+      entry.project_label,
+      entry.user_label,
+      dateTime(entry.date_start),
+      dateTime(entry.date_end),
+      Number(entry.status) === 2 ? t('status.validated') : t('status.rejected'),
+      formatDuration(entry.duration),
+      entry.manual_modified ? t('processed_history.modified_manually') : '',
+      entry.processed_by_label,
+      dateTime(entry.processed_at),
+    ]));
   };
 
   const openImportFilePicker = () => {
@@ -444,8 +587,33 @@ export default function ReportsPage() {
     refreshHistory();
   };
 
+  // One row per time entry, joining project/client/user/groups server-side —
+  // in the exact column shape previewClockifyImport() expects, so the file
+  // can be re-imported as-is. Delimiter is ',' (not the ';' the per-tab
+  // exports use) to match config/import_column_mapping_clockify.json.
+  const handleExportGlobalCsv = async () => {
+    const rows = await exportGlobalCsv();
+    downloadCsv('consolide', GLOBAL_CSV_HEADER, rows, ',');
+  };
+
   return (
     <div className="tw-mx-auto tw-w-full tw-max-w-[1680px] tw-space-y-6 tw-px-5 tw-py-7">
+      <div className="tw-flex tw-items-center tw-justify-end tw-gap-2">
+        <button type="button" onClick={openImportFilePicker} className="tw-rounded tw-border tw-border-[#5B8FA8] tw-px-4 tw-py-2 tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9] hover:tw-bg-[#5B8FA8]/10 dark:hover:tw-bg-[#5B8FA8]/20">
+          {t('processed_history.import_csv_global')}
+        </button>
+        <input
+          ref={importFileInputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleImportFileSelected}
+          className="tw-hidden"
+        />
+        <button type="button" onClick={handleExportGlobalCsv} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba]">
+          {t('processed_history.export_csv_global')}
+        </button>
+      </div>
+
       <Card size="section">
         <div className="tw-mb-4 tw-flex tw-flex-wrap tw-gap-2">
           <button
@@ -469,20 +637,17 @@ export default function ReportsPage() {
           >
             {t('history.report_history')}
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('users')}
+            className={`tw-rounded-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium ${activeTab === 'users' ? 'tw-bg-slate-900 tw-text-white dark:tw-bg-slate-100 dark:tw-text-slate-900' : 'tw-bg-slate-100 dark:tw-bg-slate-800 tw-text-slate-700 dark:tw-text-slate-300 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-700'}`}
+          >
+            {t('users_report.title')}
+          </button>
         </div>
 
-        {activeTab !== 'projects' && (
+        {activeTab !== 'projects' && activeTab !== 'users' && (
           <div className="tw-mb-4 tw-flex tw-items-center tw-justify-end tw-gap-2">
-            <button type="button" onClick={openImportFilePicker} className="tw-rounded tw-border tw-border-[#5B8FA8] tw-px-4 tw-py-2 tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9] hover:tw-bg-[#5B8FA8]/10 dark:hover:tw-bg-[#5B8FA8]/20">
-              {t('processed_history.import_csv')}
-            </button>
-            <input
-              ref={importFileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleImportFileSelected}
-              className="tw-hidden"
-            />
             <button type="button" onClick={csv} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba]">
               {t('processed_history.export_csv')}
             </button>
@@ -595,7 +760,9 @@ export default function ReportsPage() {
                   <tbody>
                     {rows.map((entry) => (
                       <tr key={entry.id} className="tw-border-t dark:tw-border-slate-700">
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.note || t('timeentry.no_description')}</td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0 tw-max-w-[280px]">
+                          <TruncatedText text={entry.note || t('timeentry.no_description')} />
+                        </td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.project_label}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.user_label}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{dateTime(entry.date_start)}</td>
@@ -661,6 +828,8 @@ export default function ReportsPage() {
         )}
 
         {activeTab === 'projects' && <ProjectsReportTab />}
+
+        {activeTab === 'users' && <UsersReportTab />}
 
         {activeTab === 'reports' && (
           <div className="tw-rounded-2xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800/60 tw-p-4">

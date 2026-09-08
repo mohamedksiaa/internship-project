@@ -129,36 +129,73 @@ describe('DailyReportComposer', () => {
     await waitFor(() => expect(updateDailyReport).toHaveBeenCalledWith(61, 'Brouillon à envoyer', 1));
   });
 
-  it('deletes a draft report and hides the delete action for non-draft reports', async () => {
+  // Whether the delete button shows is now driven by the backend's
+  // per-report `delete_allowed` flag (mirrors TimeEntry::isDeletionAllowedFor:
+  // a draft is the owner's to delete, anything else needs the processed-entry
+  // deletion right) — status alone is no longer sufficient, so every mock
+  // below sets delete_allowed explicitly instead of relying on status.
+  it('deletes a draft report through the confirmation modal (weak wording, not the "submitted" wording)', async () => {
+    // date_creation must be recent: isDraftExpired() (a pre-existing, unrelated
+    // 24h window) hides the delete button for a draft older than that.
+    const recentCreation = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     getMyDailyReports.mockResolvedValue([
-      { id: 42, date_report: '2026-08-12', content: 'Brouillon à supprimer', status: 0, date_creation: '2026-08-12T08:00:00Z', is_deleted: false, is_read: false, read_at: null },
-      { id: 43, date_report: '2026-08-13', content: 'Rapport déjà envoyé', status: 1, date_creation: '2026-08-13T08:00:00Z', is_deleted: false, is_read: false, read_at: null },
+      { id: 42, date_report: '2026-08-12', content: 'Brouillon à supprimer', status: 0, date_creation: recentCreation, is_deleted: false, is_read: false, read_at: null, delete_allowed: true, delete_requires_strong_confirmation: false },
     ]);
-    deleteDailyReport.mockResolvedValue({ status: 'success', data: { id: 42, is_deleted: true } });
+    deleteDailyReport.mockResolvedValue({ status: 'success', data: { id: 42, is_deleted: true, hard_deleted: true } });
 
     render(<DailyReportComposer />);
 
     const draftDeleteButton = await screen.findByRole('button', { name: /Supprimer/i });
-    expect(draftDeleteButton).toBeInTheDocument();
-    expect(screen.queryAllByRole('button', { name: /Supprimer/i })).toHaveLength(1);
-
     fireEvent.click(draftDeleteButton);
+
+    // A real modal, not window.confirm(): the weak wording for a draft,
+    // then an explicit Confirmer click before anything is actually deleted.
+    expect(await screen.findByText('Confirmer la suppression de ce rapport ?')).toBeInTheDocument();
+    expect(deleteDailyReport).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer/i }));
 
     await waitFor(() => expect(deleteDailyReport).toHaveBeenCalledWith(42));
     await waitFor(() => expect(screen.queryByText('Brouillon à supprimer')).not.toBeInTheDocument());
   });
 
-  it('rejects a delete attempt when the API denies a non-draft report', async () => {
+  it('shows delete for an eligible submitted report too, with the stronger warning wording', async () => {
     getMyDailyReports.mockResolvedValue([
-      { id: 44, date_report: '2026-08-14', content: 'Rapport soumis', status: 1, date_creation: '2026-08-14T08:00:00Z', is_deleted: false, is_read: false, read_at: null },
+      { id: 43, date_report: '2026-08-13', content: 'Rapport soumis supprimable', status: 1, date_creation: '2026-08-13T08:00:00Z', is_deleted: false, is_read: false, read_at: null, delete_allowed: true, delete_requires_strong_confirmation: true },
     ]);
 
     render(<DailyReportComposer />);
 
-    expect(screen.queryByRole('button', { name: /Supprimer/i })).not.toBeInTheDocument();
+    const deleteButton = await screen.findByRole('button', { name: /Supprimer/i });
+    fireEvent.click(deleteButton);
 
-    deleteDailyReport.mockRejectedValueOnce(new Error('Seuls les brouillons peuvent être supprimés par l’employé.'));
-    await expect(deleteDailyReport(44)).rejects.toThrow('Seuls les brouillons peuvent être supprimés par l’employé.');
-    expect(deleteDailyReport).toHaveBeenCalledWith(44);
+    expect(await screen.findByText('Ce rapport a été soumis. Confirmer sa suppression définitive ?')).toBeInTheDocument();
+  });
+
+  it('hides the delete action when the backend denies it (no deletevalidated right), regardless of status', async () => {
+    getMyDailyReports.mockResolvedValue([
+      { id: 44, date_report: '2026-08-14', content: 'Rapport soumis non supprimable', status: 1, date_creation: '2026-08-14T08:00:00Z', is_deleted: false, is_read: false, read_at: null, delete_allowed: false, delete_requires_strong_confirmation: true },
+    ]);
+
+    render(<DailyReportComposer />);
+
+    await screen.findByText('2026-08-14');
+    expect(screen.queryByRole('button', { name: /Supprimer/i })).not.toBeInTheDocument();
+  });
+
+  it('never shows delete for Validé or Refusé, even if the backend would allow it (this page only lists the employee\'s own reports)', async () => {
+    const recentTime = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    getMyDailyReports.mockResolvedValue([
+      { id: 45, date_report: '2026-08-15', content: 'Rapport validé', status: 2, date_creation: '2026-08-15T08:00:00Z', is_deleted: false, is_read: true, read_at: recentTime, delete_allowed: true },
+      { id: 46, date_report: '2026-08-16', content: 'Rapport refusé', status: 9, date_creation: '2026-08-16T08:00:00Z', is_deleted: false, is_read: true, read_at: recentTime, delete_allowed: true },
+    ]);
+
+    render(<DailyReportComposer />);
+
+    // The card only shows date_report + status badge, not `content` (that's
+    // inside the "Lire le rapport" modal) — assert on what's actually rendered.
+    await screen.findByText('2026-08-15');
+    await screen.findByText('2026-08-16');
+    expect(screen.queryByRole('button', { name: /Supprimer/i })).not.toBeInTheDocument();
   });
 });

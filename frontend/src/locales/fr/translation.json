@@ -87,7 +87,6 @@
       "client": "Client",
       "employee": "Employé",
       "project": "Projet",
-      "group": "Groupe",
       "billable": "Facturable"
     },
     "chart_type": {
@@ -161,7 +160,12 @@
     "save": "Envoyer",
     "saving": "Enregistrement…",
     "history_title": "Mes rapports envoyés",
+    "delete_title": "Supprimer le rapport",
+    "delete_irreversible": "Cette action est irréversible.",
     "delete_confirm": "Confirmer la suppression de ce rapport ?",
+    "delete_requires_confirmation": "Ce rapport a été soumis. Confirmer sa suppression définitive ?",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
     "loading": "Chargement…",
     "empty": "Aucun rapport envoyé.",
     "edit": "Modifier",
@@ -211,6 +215,7 @@
       "col_status": "Statut",
       "col_statut": "Statut",
       "col_etat": "État",
+      "col_source": "Source",
     "status": {
       "draft": "Brouillon",
       "opened": "Ouvert",
@@ -225,6 +230,11 @@
       "lost": "Perdu",
       "pending": "En attente"
     },
+    "source": {
+      "manual": "Manuel",
+      "clockify": "Clockify",
+      "native": "Natif"
+    },
     "everyone": "Tous",
     "assigned_users_more_one": "+{{count}} autre",
     "assigned_users_more_other": "+{{count}} autres",
@@ -235,8 +245,19 @@
       "date_to": "Créé au",
       "search_label": "Recherche",
       "search_placeholder": "Titre ou référence…",
+      "source_label": "Source",
+      "all_sources": "Toutes les sources",
       "reset": "Réinitialiser les filtres"
     }
+  },
+  "users_report": {
+    "title": "Utilisateurs",
+    "empty": "Aucun utilisateur avec une activité TimeFlow.",
+    "col_name": "Nom / Prénom",
+    "col_email": "Email",
+    "col_phone": "Téléphone",
+    "col_groups": "Groupe(s)",
+    "no_group": "Sans groupe"
   },
   "timeentry": {
     "date_unknown": "Date non renseignée",
@@ -285,6 +306,8 @@
     "title": "Historique traité",
     "export_csv": "Exporter en CSV",
     "import_csv": "Importer CSV",
+    "import_csv_global": "Import",
+    "export_csv_global": "Export",
     "select_group_aria": "Sélectionner le groupe {{day}}",
     "select_entry_aria": "Sélectionner cette entrée",
     "total": "Total",
@@ -320,8 +343,7 @@
     },
     "csv": {
       "processed_by": "Traité par",
-      "processed_at": "Traité le",
-      "filename": "timeflow-historique-traite.csv"
+      "processed_at": "Traité le"
     },
     "pagination": {
       "previous": "Précédent",
