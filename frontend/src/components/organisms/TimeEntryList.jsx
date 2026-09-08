@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { approveTimeEntry, correctTimeEntry, deleteTimeEntry, rejectTimeEntry, submitEntry } from '../../api/timeflowApi';
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
+import TruncatedText from '../atoms/TruncatedText.jsx';
 import EditHistoryModal from '../molecules/EditHistoryModal.jsx';
 
 function entryDate(value) {
@@ -459,8 +460,8 @@ export default function TimeEntryList({
                         className="tw-h-4 tw-w-4"
                       />
                     </td>
-                    <td className="tw-px-5 tw-py-3 tw-min-w-[180px]">
-                      <p className="tw-font-medium tw-text-[#2c3e49] dark:tw-text-slate-200 tw-truncate">{entry.note || t('timeentry.no_description')}</p>
+                    <td className="tw-px-5 tw-py-3 tw-min-w-[180px] tw-max-w-[320px]">
+                      <TruncatedText text={entry.note || t('timeentry.no_description')} className="tw-font-medium tw-text-[#2c3e49] dark:tw-text-slate-200" />
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9] tw-font-medium tw-truncate tw-min-w-[120px]">
                       {projectName(entry)}

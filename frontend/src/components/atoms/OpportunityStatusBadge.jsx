@@ -18,6 +18,15 @@ const OPPORTUNITY_STATUS = {
 };
 const DEFAULT_COLOR = 'tw-bg-gray-200 tw-text-gray-700 dark:tw-bg-slate-700 dark:tw-text-slate-300';
 
+// Exposed so non-badge consumers (the CSV export in ReportsPage) can resolve
+// the exact same label text as the on-screen badge, without duplicating
+// OPPORTUNITY_STATUS. Returns an i18n key (or null for an empty code, meaning
+// "no opportunity") — the caller supplies its own `t`.
+export function opportunityStatusLabelKey(code = '') {
+  if (!code) return null;
+  return OPPORTUNITY_STATUS[code]?.key ?? null;
+}
+
 export default function OpportunityStatusBadge({ code = '' }) {
   const { t } = useTranslation();
   if (!code) {

@@ -86,7 +86,6 @@
       "client": "Client",
       "employee": "Employee",
       "project": "Project",
-      "group": "Group",
       "billable": "Billable"
     },
     "chart_type": {
@@ -160,7 +159,12 @@
     "save": "Send",
     "saving": "Saving…",
     "history_title": "My sent reports",
+    "delete_title": "Delete report",
+    "delete_irreversible": "This action is irreversible.",
     "delete_confirm": "Confirm deletion of this report?",
+    "delete_requires_confirmation": "This report has been submitted. Confirm permanent deletion?",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
     "loading": "Loading…",
     "empty": "No report sent.",
     "edit": "Edit",
@@ -209,6 +213,7 @@
     "col_entries": "Entries",
     "col_statut": "Status",
     "col_etat": "State",
+    "col_source": "Source",
     "status": {
       "draft": "Draft",
       "opened": "Open",
@@ -223,6 +228,11 @@
       "lost": "Lost",
       "pending": "Pending"
     },
+    "source": {
+      "manual": "Manual",
+      "clockify": "Clockify",
+      "native": "Native"
+    },
     "everyone": "Everyone",
     "assigned_users_more_one": "+{{count}} more",
     "assigned_users_more_other": "+{{count}} more",
@@ -233,8 +243,19 @@
       "date_to": "Created to",
       "search_label": "Search",
       "search_placeholder": "Title or reference…",
+      "source_label": "Source",
+      "all_sources": "All sources",
       "reset": "Reset filters"
     }
+  },
+  "users_report": {
+    "title": "Users",
+    "empty": "No user with TimeFlow activity.",
+    "col_name": "Name",
+    "col_email": "Email",
+    "col_phone": "Phone",
+    "col_groups": "Group(s)",
+    "no_group": "No group"
   },
   "timeentry": {
     "date_unknown": "Date unknown",
@@ -283,6 +304,8 @@
     "title": "Processed history",
     "export_csv": "Export CSV",
     "import_csv": "Import CSV",
+    "import_csv_global": "Import",
+    "export_csv_global": "Export",
     "select_group_aria": "Select group {{day}}",
     "select_entry_aria": "Select this entry",
     "total": "Total",
@@ -318,8 +341,7 @@
     },
     "csv": {
       "processed_by": "Processed by",
-      "processed_at": "Processed at",
-      "filename": "timeflow-processed-history.csv"
+      "processed_at": "Processed at"
     },
     "pagination": {
       "previous": "Previous",

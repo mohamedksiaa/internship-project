@@ -10,6 +10,13 @@ const PROJECT_STATUS = {
   2: { key: 'projects.status.closed', color: 'tw-bg-rose-50 tw-text-rose-700 dark:tw-bg-rose-900/40 dark:tw-text-rose-300' },
 };
 
+// Exposed so non-badge consumers (the CSV export in ReportsPage) can resolve
+// the exact same label text as the on-screen badge, without duplicating
+// PROJECT_STATUS. Returns an i18n key — the caller supplies its own `t`.
+export function projectStatusLabelKey(status = 0) {
+  return (PROJECT_STATUS[status] ?? PROJECT_STATUS[0]).key;
+}
+
 export default function ProjectStatusBadge({ status = 0 }) {
   const { t } = useTranslation();
   const info = PROJECT_STATUS[status] ?? PROJECT_STATUS[0];

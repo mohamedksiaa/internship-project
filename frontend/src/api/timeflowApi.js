@@ -281,9 +281,9 @@ function handleMockRequest(action, body) {
       return Promise.resolve({ status: 'success' });
     }
     case 'getMyDailyReports':
-      return Promise.resolve({ status: 'success', data: mockDailyReports });
+      return Promise.resolve({ status: 'success', data: { reports: mockDailyReports, pagination: { page: 1, per_page: 20, total: mockDailyReports.length, pages: 1 } } });
     case 'getDailyReports':
-      return Promise.resolve({ status: 'success', data: { reports: mockDailyReports, employees: [] } });
+      return Promise.resolve({ status: 'success', data: { reports: mockDailyReports, employees: [], pagination: { page: 1, per_page: 20, total: mockDailyReports.length, pages: 1 } } });
     case 'markDailyReportRead':
       mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, is_read: true, read_at: new Date().toISOString() } : report);
       return Promise.resolve({ status: 'success' });
@@ -329,6 +329,22 @@ function handleMockRequest(action, body) {
       });
       return Promise.resolve({ status: 'success', data: filtered });
     }
+
+    case 'getTimeFlowUsers':
+      return Promise.resolve({
+        status: 'success',
+        data: [
+          { id: 1, firstname: 'Alice', lastname: 'Martin', label: 'Alice Martin', email: 'alice.martin@example.com', office_phone: '+33 1 23 45 67 89', user_mobile: '', groups: ['HRM'] },
+          { id: 2, firstname: 'Bob', lastname: 'Durand', label: 'Bob Durand', email: 'bob.durand@example.com', office_phone: '', user_mobile: '+33 6 12 34 56 78', groups: ['TBEE', 'TRAINING'] },
+        ],
+      });
+    case 'exportGlobalCsv':
+      return Promise.resolve({
+        status: 'success',
+        data: [
+          ['Projet Alpha', 'Client Test', 'HRM', 'Mock entry', 'alice.martin@example.com', 'Alice Martin', 'Oui', '07/01/2026', '09:00:00', '07/01/2026', '11:00:00', '2.00'],
+        ],
+      });
     case 'listActiveThirdParties':
       return Promise.resolve({
         status: 'success',
@@ -471,7 +487,18 @@ export async function getTimeFlowProjects(filters = {}) {
     date_from: filters.dateFrom || '',
     date_to: filters.dateTo || '',
     search: filters.search || '',
+    source: filters.source || '',
   });
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+export async function getTimeFlowUsers() {
+  const data = await moduleTimerRequest('getTimeFlowUsers');
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+export async function exportGlobalCsv() {
+  const data = await moduleTimerRequest('exportGlobalCsv');
   return Array.isArray(data?.data) ? data.data : [];
 }
 
@@ -514,12 +541,12 @@ export async function deleteDailyReport(id) {
 
 export async function getMyDailyReports(filters = {}) {
   const data = await moduleTimerRequest('getMyDailyReports', filters);
-  return data?.data ?? [];
+  return data?.data ?? { reports: [], pagination: {} };
 }
 
 export async function getDailyReports(filters = {}) {
   const data = await moduleTimerRequest('getDailyReports', filters);
-  return data?.data ?? { reports: [], employees: [] };
+  return data?.data ?? { reports: [], employees: [], pagination: {} };
 }
 
 export async function markDailyReportRead(id) {

@@ -22,7 +22,7 @@ export default function ReadDailyReportModal({ report, onClose }) {
         </div>
 
         <div className="tw-max-h-[70vh] tw-overflow-y-auto tw-pr-1">
-          <p className="tw-whitespace-pre-wrap tw-text-sm tw-text-[#52656f]">{report.content}</p>
+          <p className="tw-whitespace-pre-wrap tw-break-words tw-text-sm tw-text-[#52656f]">{report.content}</p>
         </div>
 
         <div className="tw-flex tw-justify-end">
