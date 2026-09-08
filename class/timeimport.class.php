@@ -1922,6 +1922,17 @@ class TimeImportClockify
      */
     public function executeImportFromCsvPath($csvPath, User $user)
     {
+        // A full run does several SQL round-trips per CSV row (mapping
+        // lookups, overlap check, create) across every pipeline step below;
+        // on a several-hundred-row export this reliably exceeds PHP's
+        // default 30s max_execution_time and dies mid-run with a fatal
+        // error. Each step is independently idempotent/resumable (see
+        // markMappingCreated(), timeEntryAlreadyImported()), so a timeout
+        // here was never data-unsafe — but it shouldn't happen on a single
+        // normal-sized import. Raise it for this request only, regardless
+        // of what the server's php.ini otherwise allows.
+        set_time_limit(300);
+
         if (!is_readable($csvPath)) {
             throw new RuntimeException('Le fichier CSV ne peut pas être lu.');
         }
