@@ -17,6 +17,8 @@ ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_rowid (rowid
 ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_fk_user (fk_user);
 ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_fk_project (fk_project);
 ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_date_delete (date_delete);
+ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_date_start (date_start);
+ALTER TABLE llx_timeflow_timeentry ADD INDEX idx_timeflow_timeentry_fk_user_date_start (fk_user, date_start);
 -- END MODULEBUILDER INDEXES
 --ALTER TABLE llx_timeflow_timeentry ADD UNIQUE INDEX uk_timeflow_timeentry_fieldxy(fieldx, fieldy);
 --ALTER TABLE llx_timeflow_timeentry ADD CONSTRAINT llx_timeflow_timeentry_fk_field FOREIGN KEY (fk_field) REFERENCES llx_timeflow_myotherobject(rowid);

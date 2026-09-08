@@ -47,6 +47,7 @@ export default function HistoryPage() {
   const { t, i18n } = useTranslation();
   const isDark = useDarkMode();
   const calendarRef = useRef(null);
+  const renderCount = useRef(0);
   const [requestedWeekStart, setRequestedWeekStart] = useState('');
   const [weekData, setWeekData] = useState({ weekStart: '', weekEnd: '', rows: [] });
   const [loading, setLoading] = useState(true);
@@ -84,8 +85,12 @@ export default function HistoryPage() {
 
   const loadEntries = async (dateStr) => {
     setLoading(true);
+    const start = Date.now();
     try {
+      if (typeof window !== 'undefined') console.debug('[HistoryPage] loadEntries start', { dateStr });
       const data = await getWeeklyTimesheet(dateStr);
+      const duration = Date.now() - start;
+      if (typeof window !== 'undefined') console.debug('[HistoryPage] loadEntries result', { dateStr, duration, rows: Array.isArray(data?.rows) ? data.rows.length : 0 });
       setWeekData(data || { weekStart: '', weekEnd: '', rows: [] });
       setError('');
     } catch (err) {
@@ -100,8 +105,23 @@ export default function HistoryPage() {
     loadEntries(requestedWeekStart);
   }, [requestedWeekStart]);
 
+  // Render counter for diagnostics
+  renderCount.current += 1;
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        console.debug('[HistoryPage] render', { count: renderCount.current, viewType, loading, rows: (weekData?.rows || []).length });
+      }
+    } catch (e) {
+      // ignore
+    }
+  });
+
   const events = useMemo(() => {
-    return (weekData.rows || []).map((entry) => {
+    // Instrumentation: measure events mapping cost
+    const rows = Array.isArray(weekData.rows) ? weekData.rows : [];
+    const mapStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const mapped = rows.map((entry) => {
       const start = new Date(entry.date_start);
       let end;
       if (entry.date_end) {
@@ -137,6 +157,13 @@ export default function HistoryPage() {
         textColor: colors.text,
       };
     });
+    const mapEnd = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    try {
+      if (typeof window !== 'undefined') {
+        console.debug('[HistoryPage] events memo', { rows: rows.length, durationMs: Math.round(mapEnd - mapStart) });
+      }
+    } catch (e) {}
+    return mapped;
   }, [weekData.rows, appLocale, t, isDark]);
 
   const handlePrev = () => {

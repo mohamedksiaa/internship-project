@@ -79,7 +79,9 @@ async function moduleTimerRequest(action, body = null) {
     return handleMockRequest(action, body);
   }
 
+  // Instrumentation: record timing and response size for diagnostics
   const url = `${buildApiUrl(action)}&token=${encodeURIComponent(TIMEFLOW_TOKEN)}`;
+  const start = Date.now();
   const response = await fetch(url, {
     method: 'POST',
     headers: getApiHeaders(body),
@@ -88,6 +90,19 @@ async function moduleTimerRequest(action, body = null) {
   });
 
   const responseText = await response.text();
+  const durationMs = Date.now() - start;
+  const respSize = responseText ? responseText.length : 0;
+
+  // Log only in development-ish environments to avoid noisy production logs.
+  try {
+    if (typeof window !== 'undefined' && (import.meta.env?.VITE_API_MODE === 'mock' || import.meta.env?.MODE === 'development' || !import.meta.env)) {
+      // Use console.debug so it can be filtered; include action and simple metrics.
+      console.debug('[timeflow-api]', { action, durationMs, respSize, ok: response.ok });
+    }
+  } catch (e) {
+    // ignore logging errors
+  }
+
   let data = null;
   try {
     data = responseText ? JSON.parse(responseText) : null;
