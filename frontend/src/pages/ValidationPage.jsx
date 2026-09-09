@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Card from '../components/atoms/Card';
 import TimeEntryList from '../components/organisms/TimeEntryList';
@@ -28,17 +28,33 @@ function TaskValidationTab() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({});
+  const pageRef = useRef(1);
+  const loadEntriesRef = useRef(() => {});
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
 
   useEffect(() => {
     let isMounted = true;
     let marker = null;
     let polling = false;
 
-    async function loadEntries() {
+    // Backend pagination (page/per_page=20, same contract as
+    // timeflowFetchDailyReports) replaces the old implicit limit=100 cap.
+    async function loadEntries(targetPage) {
       try {
-        const data = await getValidationEntries();
+        const data = await getValidationEntries(targetPage, 20);
+        const pages = data.pagination?.pages || 1;
+        if (targetPage > pages && pages >= 1 && targetPage !== pages) {
+          return loadEntries(pages);
+        }
         if (isMounted) {
-          setEntries(Array.isArray(data) ? data : []);
+          setEntries(Array.isArray(data.entries) ? data.entries : []);
+          setPagination(data.pagination || {});
+          setPage(targetPage);
         }
       } catch (err) {
         if (isMounted) {
@@ -50,13 +66,14 @@ function TaskValidationTab() {
           setLoading(false);
         }
       }
+      return undefined;
     }
 
     async function checkForUpdates() {
       if (polling || document.visibilityState !== 'visible') return;
       polling = true;
       try {
-        const update = await getTimeEntryUpdates('validation', marker || '');
+        const update = await getTimeEntryUpdates('validation', marker || '', pageRef.current, 20);
         if (!isMounted) return;
         if (marker === null) {
           marker = update.marker;
@@ -78,13 +95,14 @@ function TaskValidationTab() {
       // change happens or the user navigates away and back.
       let markerBefore = null;
       try {
-        markerBefore = (await getTimeEntryUpdates('validation')).marker;
+        markerBefore = (await getTimeEntryUpdates('validation', '', 1, 20)).marker;
       } catch {
         // The list remains usable even if the lightweight marker is temporary unavailable.
       }
-      await loadEntries();
+      await loadEntries(1);
+      if (!isMounted) return;
       try {
-        const update = await getTimeEntryUpdates('validation', markerBefore || '');
+        const update = await getTimeEntryUpdates('validation', markerBefore || '', pageRef.current, 20);
         marker = update.marker;
         if (markerBefore !== null && update.changed) {
           setEntries(update.entries);
@@ -93,6 +111,10 @@ function TaskValidationTab() {
         // The next interval will establish the marker and retry normally.
       }
     }
+
+    // Exposed on the ref below so pagination buttons and TimeEntryList's
+    // post-mutation refetch can reuse the exact same loader.
+    loadEntriesRef.current = loadEntries;
 
     initialize();
     const intervalId = window.setInterval(checkForUpdates, 15000);
@@ -104,13 +126,47 @@ function TaskValidationTab() {
       window.removeEventListener('focus', checkForUpdates);
       document.removeEventListener('visibilitychange', checkForUpdates);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <Card size="section" titleSize="xl" headerLabel={t('validation.section')} title={t('validation.heading')} headerRight={<span className="tw-inline-flex tw-rounded-full tw-bg-slate-100 tw-px-3 tw-py-1 tw-text-sm tw-text-slate-700">{t('entries', { count: entries.length })}</span>}>
       {loading && <p className="tw-text-sm tw-text-slate-600">{t('loading')}</p>}
       {error && <p className="tw-text-sm tw-text-rose-600">{error}</p>}
-      {!loading && !error && <TimeEntryList entries={entries} setEntries={setEntries} showWorker showValidationActions />}
+      {!loading && !error && (
+        <>
+          <TimeEntryList
+            entries={entries}
+            setEntries={setEntries}
+            reloadEntries={() => loadEntriesRef.current(page)}
+            showWorker
+            showValidationActions
+          />
+          {entries.length > 0 && (
+            <div className="tw-mt-4 tw-flex tw-items-center tw-justify-center tw-gap-4">
+              <button
+                type="button"
+                onClick={() => loadEntriesRef.current(Math.max(1, page - 1))}
+                disabled={page <= 1}
+                className={`tw-rounded tw-px-4 tw-py-2 ${page <= 1 ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+              >
+                {t('processed_history.pagination.previous')}
+              </button>
+              <div className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">
+                {t('processed_history.pagination.page', { current: pagination.page || page, total: pagination.pages || 1 })}
+              </div>
+              <button
+                type="button"
+                onClick={() => loadEntriesRef.current(Math.min(pagination.pages || page, page + 1))}
+                disabled={page >= (pagination.pages || 1)}
+                className={`tw-rounded tw-px-4 tw-py-2 ${page >= (pagination.pages || 1) ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+              >
+                {t('processed_history.pagination.next')}
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </Card>
   );
 }
@@ -126,22 +182,43 @@ function ReportValidationTab() {
   const [dailyEmployeeId, setDailyEmployeeId] = useUrlState('employee', '');
   const [dailyError, setDailyError] = useState('');
   const [selectedReport, setSelectedReport] = useState(null);
+  const [dailyPage, setDailyPage] = useState(1);
+  const [dailyPagination, setDailyPagination] = useState({});
 
+  // Backend pagination (page/per_page=20, same contract as
+  // timeflowGetProcessedHistory). No `status`/`history` param is sent here,
+  // so the backend's own default for the manager (allUsers) view already
+  // restricts to status=1 (Soumis) and excludes soft-deleted rows —
+  // duplicating that client-side (as before) would desync the displayed
+  // count from pagination.total the moment a page is longer than 1.
   useEffect(() => {
     let isMounted = true;
-    getDailyReports({ date_from: dateRange.from, date_to: dateRange.to, employee_id: dailyEmployeeId })
+    getDailyReports({ date_from: dateRange.from, date_to: dateRange.to, employee_id: dailyEmployeeId, page: dailyPage, per_page: 20 })
       .then((data) => {
         if (!isMounted) return;
-        const nextReports = Array.isArray(data?.reports)
-          ? data.reports.filter((report) => Number(report.status ?? 1) === 1 && !report.is_deleted)
-          : [];
-        setDailyReports(nextReports);
+        setDailyReports(Array.isArray(data?.reports) ? data.reports : []);
         setDailyEmployees(Array.isArray(data?.employees) ? data.employees : []);
+        setDailyPagination(data?.pagination || {});
         setDailyError('');
       })
       .catch((err) => isMounted && setDailyError(err.message));
     return () => { isMounted = false; };
-  }, [dateRange, dailyEmployeeId]);
+  }, [dateRange, dailyEmployeeId, dailyPage]);
+
+  // Any filter change invalidates the current page number (a narrower filter
+  // can easily have fewer pages than where the user was browsing).
+  function handleDateFromChange(value) {
+    setDateFrom(value);
+    setDailyPage(1);
+  }
+  function handleDateToChange(value) {
+    setDateTo(value);
+    setDailyPage(1);
+  }
+  function handleEmployeeChange(value) {
+    setDailyEmployeeId(value);
+    setDailyPage(1);
+  }
 
   async function handleDailyReportDecision(id, action) {
     try {
@@ -150,11 +227,22 @@ function ReportValidationTab() {
       } else {
         await rejectDailyReport(id);
       }
-      setDailyReports((items) => items.filter((report) => Number(report.id) !== Number(id)));
       if (selectedReport && Number(selectedReport.id) === Number(id)) {
         setSelectedReport(null);
       }
       setDailyError('');
+      // The decided report drops out of this submitted-only list — refetch
+      // the current page rather than splicing locally, so pagination.total
+      // stays accurate (loadReports-equivalent inline since this tab has no
+      // separate helper function).
+      const data = await getDailyReports({ date_from: dateRange.from, date_to: dateRange.to, employee_id: dailyEmployeeId, page: dailyPage, per_page: 20 });
+      const pages = data?.pagination?.pages || 1;
+      if (dailyPage > pages && pages >= 1) {
+        setDailyPage(pages);
+        return;
+      }
+      setDailyReports(Array.isArray(data?.reports) ? data.reports : []);
+      setDailyPagination(data?.pagination || {});
     } catch (err) {
       setDailyError(err.message);
     }
@@ -167,15 +255,15 @@ function ReportValidationTab() {
         <div className="tw-mb-4 tw-flex tw-flex-wrap tw-items-end tw-gap-4">
           <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700 dark:tw-text-slate-300">
             {t('reports.from')}
-            <input type="date" value={dateRange.from} onChange={(event) => setDateFrom(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
+            <input type="date" value={dateRange.from} onChange={(event) => handleDateFromChange(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
           </label>
           <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700 dark:tw-text-slate-300">
             {t('reports.to')}
-            <input type="date" value={dateRange.to} onChange={(event) => setDateTo(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
+            <input type="date" value={dateRange.to} onChange={(event) => handleDateToChange(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
           </label>
           <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700 dark:tw-text-slate-300">
             {t('reports.employee')}
-            <select aria-label={t('reports.filter_employee')} value={dailyEmployeeId} onChange={(event) => setDailyEmployeeId(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100">
+            <select aria-label={t('reports.filter_employee')} value={dailyEmployeeId} onChange={(event) => handleEmployeeChange(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100">
               <option value="">{t('reports.all_employees')}</option>
               {dailyEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}
             </select>
@@ -225,6 +313,29 @@ function ReportValidationTab() {
             {selectedReport && (
               <ReadDailyReportModal report={selectedReport} onClose={() => setSelectedReport(null)} />
             )}
+          </div>
+        )}
+        {dailyReports.length > 0 && (
+          <div className="tw-mt-4 tw-flex tw-items-center tw-justify-center tw-gap-4">
+            <button
+              type="button"
+              onClick={() => setDailyPage((p) => Math.max(1, p - 1))}
+              disabled={dailyPage <= 1}
+              className={`tw-rounded tw-px-4 tw-py-2 ${dailyPage <= 1 ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+            >
+              {t('processed_history.pagination.previous')}
+            </button>
+            <div className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">
+              {t('processed_history.pagination.page', { current: dailyPagination.page || dailyPage, total: dailyPagination.pages || 1 })}
+            </div>
+            <button
+              type="button"
+              onClick={() => setDailyPage((p) => Math.min(dailyPagination.pages || p, p + 1))}
+              disabled={dailyPage >= (dailyPagination.pages || 1)}
+              className={`tw-rounded tw-px-4 tw-py-2 ${dailyPage >= (dailyPagination.pages || 1) ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+            >
+              {t('processed_history.pagination.next')}
+            </button>
           </div>
         )}
       </div>

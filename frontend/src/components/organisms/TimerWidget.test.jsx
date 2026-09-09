@@ -83,6 +83,44 @@ describe('TimerWidget', () => {
     expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
   });
 
+  it('starts unchecked by default and passes billable=false to start() when left untouched', async () => {
+    const user = userEvent.setup();
+    const start = vi.fn().mockResolvedValue({ id: 1 });
+    render(<TimerWidget timer={{ isRunning: false, seconds: 0, loading: false, start, stop: vi.fn() }} projects={projects} onEntryCreated={vi.fn()} />);
+
+    expect(screen.getByRole('checkbox', { name: t('timer_widget.billable_label') })).not.toBeChecked();
+
+    await user.selectOptions(screen.getByLabelText(t('timer_widget.project_label')), '1');
+    await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'abc');
+    await user.click(screen.getByRole('button', { name: t('timer_widget.start') }));
+
+    expect(start).toHaveBeenCalledWith(1, 0, 'abc', false);
+  });
+
+  it('passes billable=true to start() once the checkbox is checked', async () => {
+    const user = userEvent.setup();
+    const start = vi.fn().mockResolvedValue({ id: 1 });
+    render(<TimerWidget timer={{ isRunning: false, seconds: 0, loading: false, start, stop: vi.fn() }} projects={projects} onEntryCreated={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText(t('timer_widget.project_label')), '1');
+    await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'abc');
+    await user.click(screen.getByRole('checkbox', { name: t('timer_widget.billable_label') }));
+    await user.click(screen.getByRole('button', { name: t('timer_widget.start') }));
+
+    expect(start).toHaveBeenCalledWith(1, 0, 'abc', true);
+  });
+
+  it('resets the billable checkbox after a successful stop', async () => {
+    const user = userEvent.setup();
+    const stopped = { id: 7, note: 'Analyse', fk_project: 1, duration: 2 };
+    const stop = vi.fn().mockResolvedValue(stopped);
+    const { rerender } = render(<TimerWidget timer={{ isRunning: false, seconds: 0, loading: false, start: vi.fn(), stop }} projects={projects} onEntryCreated={vi.fn()} />);
+    await user.click(screen.getByRole('checkbox', { name: t('timer_widget.billable_label') }));
+    rerender(<TimerWidget timer={{ isRunning: true, seconds: 2, loading: false, start: vi.fn(), stop }} projects={projects} onEntryCreated={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: t('timer_widget.stop') }));
+    expect(screen.getByRole('checkbox', { name: t('timer_widget.billable_label') })).not.toBeChecked();
+  });
+
   it('only lists projects passed via the projects prop', () => {
     renderTimerWidget();
     expect(screen.getByRole('option', { name: 'Projet Alpha' })).toBeInTheDocument();

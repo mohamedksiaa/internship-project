@@ -10,6 +10,14 @@ const { getMyDailyReports, saveDailyReport, updateDailyReport, deleteDailyReport
   deleteDailyReport: vi.fn(),
 }));
 
+// getMyDailyReports() now returns {reports, pagination} (backend pagination,
+// page/per_page=20 — same contract as timeflowGetProcessedHistory). This
+// wraps a plain array of reports the way the real endpoint does, so every
+// test below only has to write the array it cares about.
+function page(reports, overrides = {}) {
+  return { reports, pagination: { page: 1, per_page: 20, total: reports.length, pages: 1, ...overrides } };
+}
+
 vi.mock('../../api/timeflowApi', () => ({
   getMyDailyReports,
   saveDailyReport,
@@ -29,7 +37,7 @@ describe('DailyReportComposer', () => {
 
   it('shows the real status and manual-edit badge on recent validated cards', async () => {
     const recentTime = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    getMyDailyReports.mockResolvedValue([
+    getMyDailyReports.mockResolvedValue(page([
       {
         id: 15,
         date_report: '2026-08-26',
@@ -41,7 +49,7 @@ describe('DailyReportComposer', () => {
         is_read: true,
         read_at: recentTime,
       },
-    ]);
+    ]));
 
     render(<DailyReportComposer />);
 
@@ -54,7 +62,7 @@ describe('DailyReportComposer', () => {
   });
 
   it('can save a draft without sending it to validation', async () => {
-    getMyDailyReports.mockResolvedValue([]);
+    getMyDailyReports.mockResolvedValue(page([]));
     saveDailyReport.mockResolvedValue({
       id: 99,
       date_report: '2026-08-12',
@@ -79,19 +87,24 @@ describe('DailyReportComposer', () => {
     await waitFor(() => expect(saveDailyReport).toHaveBeenCalledWith('2026-08-12', 'Brouillon à garder', 0));
   });
 
-  it('hides validated reports older than 24h but keeps rejected records visible', async () => {
-    const now = Date.now();
-    getMyDailyReports.mockResolvedValue([
-      { id: 50, date_report: '2026-08-10', content: 'Ancien rapport validé tombé hors delai', status: 2, date_creation: '2026-08-10T08:00:00Z', date_modification: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(), read_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(), is_deleted: false, is_read: true },
-      { id: 51, date_report: '2026-08-09', content: 'Rapport rejeté ancien mais conservé', status: 9, date_creation: '2026-08-09T08:00:00Z', date_modification: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(), read_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(), is_deleted: false, is_read: true },
-      { id: 52, date_report: '2026-08-12', content: 'Rapport récent validé', status: 2, date_creation: '2026-08-12T08:00:00Z', date_modification: new Date(now - 2 * 60 * 60 * 1000).toISOString(), read_at: new Date(now - 2 * 60 * 60 * 1000).toISOString(), is_deleted: false, is_read: true },
-    ]);
+  // "Hide validated reports older than 24h, keep refused ones visible
+  // regardless of age" used to be re-checked client-side on top of an
+  // unbounded fetch-everything list. That rule now lives exclusively in
+  // timeflowFetchDailyReports()'s SQL WHERE clause (already verified
+  // directly against real data with real dates) — the component just
+  // renders whatever page the backend sends, so this only needs to prove
+  // the component itself does not ALSO drop or reorder anything on top of
+  // that, using a mock shaped like what a correctly-filtering backend would
+  // actually return (the old-and-validated row is simply never in the page).
+  it('renders exactly the page the backend returns, with no extra client-side filtering', async () => {
+    getMyDailyReports.mockResolvedValue(page([
+      { id: 51, date_report: '2026-08-09', content: 'Rapport rejeté ancien mais conservé', status: 9, date_creation: '2026-08-09T08:00:00Z', is_deleted: false, is_read: true },
+      { id: 52, date_report: '2026-08-12', content: 'Rapport récent validé', status: 2, date_creation: '2026-08-12T08:00:00Z', is_deleted: false, is_read: true },
+    ]));
 
     render(<DailyReportComposer />);
 
-    await waitFor(() => expect(screen.queryByText('Ancien rapport validé tombé hors delai')).not.toBeInTheDocument());
-
-    const readButtons = screen.getAllByRole('button', { name: /Lire le rapport/i });
+    const readButtons = await screen.findAllByRole('button', { name: /Lire le rapport/i });
     expect(readButtons).toHaveLength(2);
 
     fireEvent.click(readButtons[0]);
@@ -103,10 +116,16 @@ describe('DailyReportComposer', () => {
   });
 
   it('hides the edit action for validated reports and shows send for drafts', async () => {
-    getMyDailyReports.mockResolvedValue([
+    // date_creation for the draft must be recent: isDraftExpired() (a
+    // pre-existing, unrelated 24h window) hides "Envoyer le rapport" for a
+    // draft older than that — this test predates that rule and used a
+    // fixed date that has since rotted past the 24h window as real time
+    // passed in this long-running sandbox.
+    const recentCreation = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    getMyDailyReports.mockResolvedValue(page([
       { id: 60, date_report: '2026-08-26', content: 'Rapport validé non éditable', status: 2, date_creation: '2026-08-26T08:00:00Z', is_deleted: false, is_read: true, read_at: '2026-08-26T08:00:00Z' },
-      { id: 61, date_report: '2026-08-27', content: 'Brouillon à envoyer', status: 0, date_creation: '2026-08-27T08:00:00Z', is_deleted: false, is_read: false, read_at: null },
-    ]);
+      { id: 61, date_report: '2026-08-27', content: 'Brouillon à envoyer', status: 0, date_creation: recentCreation, is_deleted: false, is_read: false, read_at: null },
+    ]));
     updateDailyReport.mockResolvedValue({
       id: 61,
       date_report: '2026-08-27',
@@ -138,9 +157,14 @@ describe('DailyReportComposer', () => {
     // date_creation must be recent: isDraftExpired() (a pre-existing, unrelated
     // 24h window) hides the delete button for a draft older than that.
     const recentCreation = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    getMyDailyReports.mockResolvedValue([
-      { id: 42, date_report: '2026-08-12', content: 'Brouillon à supprimer', status: 0, date_creation: recentCreation, is_deleted: false, is_read: false, read_at: null, delete_allowed: true, delete_requires_strong_confirmation: false },
-    ]);
+    // First load has the draft; confirmDeleteReport() refetches the current
+    // page after deleteDailyReport() resolves — the second call must reflect
+    // the report actually being gone, a real backend would no longer return it.
+    getMyDailyReports
+      .mockResolvedValueOnce(page([
+        { id: 42, date_report: '2026-08-12', content: 'Brouillon à supprimer', status: 0, date_creation: recentCreation, is_deleted: false, is_read: false, read_at: null, delete_allowed: true, delete_requires_strong_confirmation: false },
+      ]))
+      .mockResolvedValue(page([]));
     deleteDailyReport.mockResolvedValue({ status: 'success', data: { id: 42, is_deleted: true, hard_deleted: true } });
 
     render(<DailyReportComposer />);
@@ -160,9 +184,9 @@ describe('DailyReportComposer', () => {
   });
 
   it('shows delete for an eligible submitted report too, with the stronger warning wording', async () => {
-    getMyDailyReports.mockResolvedValue([
+    getMyDailyReports.mockResolvedValue(page([
       { id: 43, date_report: '2026-08-13', content: 'Rapport soumis supprimable', status: 1, date_creation: '2026-08-13T08:00:00Z', is_deleted: false, is_read: false, read_at: null, delete_allowed: true, delete_requires_strong_confirmation: true },
-    ]);
+    ]));
 
     render(<DailyReportComposer />);
 
@@ -173,9 +197,9 @@ describe('DailyReportComposer', () => {
   });
 
   it('hides the delete action when the backend denies it (no deletevalidated right), regardless of status', async () => {
-    getMyDailyReports.mockResolvedValue([
+    getMyDailyReports.mockResolvedValue(page([
       { id: 44, date_report: '2026-08-14', content: 'Rapport soumis non supprimable', status: 1, date_creation: '2026-08-14T08:00:00Z', is_deleted: false, is_read: false, read_at: null, delete_allowed: false, delete_requires_strong_confirmation: true },
-    ]);
+    ]));
 
     render(<DailyReportComposer />);
 
@@ -185,10 +209,10 @@ describe('DailyReportComposer', () => {
 
   it('never shows delete for Validé or Refusé, even if the backend would allow it (this page only lists the employee\'s own reports)', async () => {
     const recentTime = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    getMyDailyReports.mockResolvedValue([
+    getMyDailyReports.mockResolvedValue(page([
       { id: 45, date_report: '2026-08-15', content: 'Rapport validé', status: 2, date_creation: '2026-08-15T08:00:00Z', is_deleted: false, is_read: true, read_at: recentTime, delete_allowed: true },
       { id: 46, date_report: '2026-08-16', content: 'Rapport refusé', status: 9, date_creation: '2026-08-16T08:00:00Z', is_deleted: false, is_read: true, read_at: recentTime, delete_allowed: true },
-    ]);
+    ]));
 
     render(<DailyReportComposer />);
 

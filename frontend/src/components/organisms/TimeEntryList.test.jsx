@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import TimeEntryList from './TimeEntryList';
 import i18n from '../../i18n';
-import { correctTimeEntry, deleteTimeEntry } from '../../api/timeflowApi';
+import { correctTimeEntry, deleteTimeEntry, submitEntry } from '../../api/timeflowApi';
 
 vi.mock('../../api/timeflowApi', () => ({
   approveTimeEntry: vi.fn(), correctTimeEntry: vi.fn(), deleteTimeEntry: vi.fn(), rejectTimeEntry: vi.fn(), submitEntry: vi.fn(), getModificationHistory: vi.fn().mockResolvedValue([]),
@@ -47,6 +47,34 @@ describe('TimeEntryList validation mode', () => {
   it('shows the submit button for a draft whose timer has been stopped', () => {
     render(<TimeEntryList entries={[{ ...entry, status: 0, date_end: '2026-08-12T14:04:00Z' }]} setEntries={vi.fn()} />);
     expect(screen.getByTitle('Soumettre')).toBeInTheDocument();
+  });
+
+  it('requires confirmation before submitting a draft: clicking ⇪ opens a modal, "Annuler" leaves it a draft, "Soumettre" actually submits', async () => {
+    submitEntry.mockReset().mockResolvedValue({ id: 42, status: 1 });
+    const setEntries = vi.fn();
+    const user = userEvent.setup();
+    const draft = { ...entry, status: 0, date_end: '2026-08-12T14:04:00Z' };
+    render(<TimeEntryList entries={[draft]} setEntries={setEntries} />);
+
+    // The click on the row's ⇪ button must only open the confirmation modal —
+    // never call submitEntry directly.
+    await user.click(screen.getByTitle('Soumettre'));
+    expect(submitEntry).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Soumettre cette entrée ?')).toBeInTheDocument();
+    expect(screen.getByText('1 entrée sera soumise.')).toBeInTheDocument();
+    expect(screen.getByText('Une fois soumise, cette entrée ne pourra plus être modifiée librement : seul un manager pourra la corriger.')).toBeInTheDocument();
+
+    // "Annuler" closes the modal without ever calling submitEntry.
+    await user.click(screen.getByRole('button', { name: 'Annuler' }));
+    expect(submitEntry).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // Re-open and confirm this time — only now must submitEntry actually fire.
+    await user.click(screen.getByTitle('Soumettre'));
+    await user.click(screen.getByRole('button', { name: 'Soumettre' }));
+    expect(submitEntry).toHaveBeenCalledWith(42);
+    expect(setEntries).toHaveBeenCalled();
   });
 
   it('marks a midnight-split pair with the continuation link, distinct from the resume/segments badge', () => {
@@ -124,5 +152,49 @@ describe('TimeEntryList validation mode', () => {
       date_start: '2026-08-12T07:33:00.000Z',
       reason: 'correction début',
     });
+  });
+
+  it('toggles billable on a single click, reusing correctTimeEntry with a fixed audit reason', async () => {
+    correctTimeEntry.mockResolvedValue({ ...entry, billable: 1 });
+    const setEntries = vi.fn();
+    const user = userEvent.setup();
+    render(<TimeEntryList entries={[{ ...entry, billable: 0 }]} setEntries={setEntries} />);
+
+    // Not billable yet: shown as a dash, but still the clickable toggle
+    // (manual_editable is true and this is not the validation view).
+    const toggle = screen.getByTitle(i18n.t('timeentry.title_toggle_billable'));
+    expect(toggle).toHaveTextContent('—');
+
+    await user.click(toggle);
+
+    expect(correctTimeEntry).toHaveBeenCalledWith(42, {
+      billable: 1,
+      reason: 'Statut facturable corrigé',
+    });
+    expect(setEntries).toHaveBeenCalled();
+  });
+
+  it('toggles billable back off from the badge', async () => {
+    correctTimeEntry.mockResolvedValue({ ...entry, billable: 0 });
+    const user = userEvent.setup();
+    render(<TimeEntryList entries={[{ ...entry, billable: 1 }]} setEntries={vi.fn()} />);
+
+    await user.click(screen.getByTitle(i18n.t('timeentry.title_toggle_billable')));
+
+    expect(correctTimeEntry).toHaveBeenCalledWith(42, {
+      billable: 0,
+      reason: 'Statut facturable corrigé',
+    });
+  });
+
+  it('shows the billable badge/dash as read-only (no toggle) in the validation view', () => {
+    render(<TimeEntryList entries={[{ ...entry, billable: 1 }]} showWorker showValidationActions setEntries={vi.fn()} />);
+    expect(screen.queryByTitle(i18n.t('timeentry.title_toggle_billable'))).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Modifié manuellement' }).closest('tr')).toHaveTextContent(i18n.t('timeentry.billable_badge'));
+  });
+
+  it('shows the billable badge/dash as read-only once an entry is no longer manually editable', () => {
+    render(<TimeEntryList entries={[{ ...entry, billable: 0, manual_editable: false }]} setEntries={vi.fn()} />);
+    expect(screen.queryByTitle(i18n.t('timeentry.title_toggle_billable'))).not.toBeInTheDocument();
   });
 });

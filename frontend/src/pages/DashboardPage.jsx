@@ -65,6 +65,27 @@ function toIsoDate(date) {
 // awaiting validation for too long), not a historical figure to browse.
 const PENDING_REPORTS_WINDOW = currentMonthRange();
 
+// getTimeEntries() is now backend-paginated (see ajax/timeentry.php's
+// timeflowFetchVisibleTimeEntries), capped at 100 rows/page — this used to
+// be a single getTimeEntries(1000) call relying on an uncapped $limit. Walk
+// pages at the backend's own max page size until exhausted or the same
+// 1000-row ceiling the old call had, to feed the trend chart an equivalent
+// volume without going back to an unbounded query.
+async function fetchAllTimeEntriesUpTo(maxEntries) {
+  const perPage = 100;
+  let page = 1;
+  let all = [];
+  for (;;) {
+    const data = await getTimeEntries(page, perPage);
+    const rows = Array.isArray(data?.entries) ? data.entries : [];
+    all = all.concat(rows);
+    const pages = data?.pagination?.pages || 1;
+    if (rows.length === 0 || page >= pages || all.length >= maxEntries) break;
+    page += 1;
+  }
+  return all.slice(0, maxEntries);
+}
+
 export default function DashboardPage() {
   const { t, i18n } = useTranslation();
   const isDark = useDarkMode();
@@ -94,14 +115,13 @@ export default function DashboardPage() {
         const reportRequest = canReadAll
           ? getDailyReports({ date_from: PENDING_REPORTS_WINDOW.from, date_to: PENDING_REPORTS_WINDOW.to })
           : getMyDailyReports({ date_from: PENDING_REPORTS_WINDOW.from, date_to: PENDING_REPORTS_WINDOW.to });
-        const [timeEntriesData, pendingReportsData] = await Promise.all([
-          getTimeEntries(1000),
+        const [entries, pendingReportsData] = await Promise.all([
+          fetchAllTimeEntriesUpTo(1000),
           reportRequest,
         ]);
 
         if (!isMounted) return;
 
-        const entries = Array.isArray(timeEntriesData) ? timeEntriesData : [];
         const filteredReports = Array.isArray(pendingReportsData?.reports)
           ? pendingReportsData.reports.filter((report) => Number(report.status ?? 1) === 1)
           : [];

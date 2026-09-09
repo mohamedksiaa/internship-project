@@ -21,7 +21,7 @@ import OpportunityStatusBadge, { opportunityStatusLabelKey } from '../components
 import ProjectSourceBadge from '../components/atoms/ProjectSourceBadge';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import ImportPreviewModal from '../components/molecules/ImportPreviewModal.jsx';
-import { ModifiedManuallyBadge, isManuallyModifiedRecord, taskClusterKey } from '../components/organisms/TimeEntryList.jsx';
+import { BillableBadge, ModifiedManuallyBadge, isManuallyModifiedRecord, taskClusterKey } from '../components/organisms/TimeEntryList.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
 import { useUrlDateRange, useUrlState } from '../hooks/useUrlState.js';
@@ -33,6 +33,7 @@ const initialFilters = {
   date_from: '',
   date_to: '',
   manual_only: false,
+  billable_only: false,
 };
 
 const dateTime = (value) => (value ? String(value).replace('T', ' ').slice(0, 16) : '—');
@@ -87,6 +88,7 @@ function formatAssignedUsers(project, usersById, t) {
 function ProjectsReportTab() {
   const { t } = useTranslation();
   const [projectRows, setProjectRows] = useState([]);
+  const [pagination, setPagination] = useState({});
   const [thirdParties, setThirdParties] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +103,7 @@ function ProjectsReportTab() {
   const [searchFilter, setSearchFilter] = useUrlState('projSearch', '');
   const [searchInput, setSearchInput] = useState(searchFilter);
   const [sourceFilter, setSourceFilter] = useUrlState('projSource', '');
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchFilter(searchInput.trim()), SEARCH_DEBOUNCE_MS);
@@ -118,6 +121,9 @@ function ProjectsReportTab() {
 
   const hasActiveFilters = Boolean(clientId || dateRange.from || dateRange.to || searchFilter || sourceFilter);
 
+  // Any filter change invalidates the current page number (a narrower filter
+  // can easily have fewer pages than where the user was browsing) — same
+  // rule as ValidationPage's ReportValidationTab.
   function resetFilters() {
     setClientId('');
     setDateFrom('');
@@ -125,35 +131,74 @@ function ProjectsReportTab() {
     setSearchInput('');
     setSearchFilter('');
     setSourceFilter('');
+    setPage(1);
+  }
+  function handleClientChange(value) {
+    setClientId(value);
+    setPage(1);
+  }
+  function handleDateFromChange(value) {
+    setDateFrom(value);
+    setPage(1);
+  }
+  function handleDateToChange(value) {
+    setDateTo(value);
+    setPage(1);
+  }
+  function handleSearchInputChange(value) {
+    setSearchInput(value);
+    setPage(1);
+  }
+  function handleSourceChange(value) {
+    setSourceFilter(value);
+    setPage(1);
   }
 
+  // Backend pagination (page/per_page=20, same {rows, pagination} contract
+  // as the rest of the module) — the volume here (dozens of projects) does
+  // not force this today, but consistency means every list-bearing page uses
+  // the same querying discipline rather than special-casing "small" ones.
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError('');
-    getTimeFlowProjects(filters)
-      .then((rows) => { if (active) setProjectRows(Array.isArray(rows) ? rows : []); })
+    getTimeFlowProjects(filters, page, 20)
+      .then((res) => {
+        if (!active) return;
+        setProjectRows(res.rows);
+        setPagination(res.pagination);
+      })
       .catch((err) => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [filters]);
+  }, [filters, page]);
 
   useEffect(() => {
     listActiveThirdParties().then(setThirdParties).catch(() => setThirdParties([]));
     listActiveUsers().then(setUsers).catch(() => setUsers([]));
   }, []);
 
-  // Exports exactly the rows currently loaded (already narrowed by the
-  // filters above) with the same 6 columns shown on screen — the assigned
-  // users cell uses the FULL untruncated list (formatAssignedUsers' `title`)
-  // rather than the on-screen "A, B +3 autres" shorthand, since a CSV has no
-  // hover tooltip to fall back on for the rest of the names.
-  const exportCsv = () => {
+  // The on-screen table is paginated (page/per_page), so the export
+  // re-fetches the SAME filters across every page (per_page=100, the
+  // backend's own max) instead of just serializing the current page — every
+  // filtered row, not just the ones currently visible. Same approach as the
+  // "tasks" tab's exportProcessedHistory() below.
+  const exportCsv = async () => {
+    let allRows = [];
+    let fetchPage = 1;
+    for (;;) {
+      const res = await getTimeFlowProjects(filters, fetchPage, 100);
+      allRows = allRows.concat(res.rows);
+      const pages = res.pagination?.pages || 1;
+      if (fetchPage >= pages || res.rows.length === 0) break;
+      fetchPage += 1;
+    }
+
     const header = [
       t('projects.col_ref'), t('projects.col_title'), t('projects.col_client'),
       t('projects.col_assigned_users'), t('projects.col_statut'), t('projects.col_etat'), t('projects.col_source'),
     ];
-    downloadCsv('projets', header, projectRows.map((project) => {
+    downloadCsv('projets', header, allRows.map((project) => {
       const { text, title } = formatAssignedUsers(project, usersById, t);
       const oppKey = opportunityStatusLabelKey(project.opp_status_code);
       return [
@@ -184,7 +229,7 @@ function ProjectsReportTab() {
         <select
           aria-label={t('projects.filters.client_label')}
           value={clientId}
-          onChange={(event) => setClientId(event.target.value)}
+          onChange={(event) => handleClientChange(event.target.value)}
           className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100"
         >
           <option value="">{t('projects.filters.all_clients')}</option>
@@ -194,28 +239,28 @@ function ProjectsReportTab() {
           aria-label={t('projects.filters.date_from')}
           type="date"
           value={dateRange.from}
-          onChange={(event) => setDateFrom(event.target.value)}
+          onChange={(event) => handleDateFromChange(event.target.value)}
           className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100"
         />
         <input
           aria-label={t('projects.filters.date_to')}
           type="date"
           value={dateRange.to}
-          onChange={(event) => setDateTo(event.target.value)}
+          onChange={(event) => handleDateToChange(event.target.value)}
           className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100"
         />
         <input
           aria-label={t('projects.filters.search_label')}
           type="search"
           value={searchInput}
-          onChange={(event) => setSearchInput(event.target.value)}
+          onChange={(event) => handleSearchInputChange(event.target.value)}
           placeholder={t('projects.filters.search_placeholder')}
           className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100"
         />
         <select
           aria-label={t('projects.filters.source_label')}
           value={sourceFilter}
-          onChange={(event) => setSourceFilter(event.target.value)}
+          onChange={(event) => handleSourceChange(event.target.value)}
           className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100"
         >
           <option value="">{t('projects.filters.all_sources')}</option>
@@ -288,6 +333,29 @@ function ProjectsReportTab() {
           </div>
         )
       )}
+      {!loading && projectRows.length > 0 && (
+        <div className="tw-mt-4 tw-flex tw-items-center tw-justify-center tw-gap-4">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className={`tw-rounded tw-px-4 tw-py-2 ${page <= 1 ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+          >
+            {t('processed_history.pagination.previous')}
+          </button>
+          <div className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">
+            {t('processed_history.pagination.page', { current: pagination.page || page, total: pagination.pages || 1 })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(pagination.pages || p, p + 1))}
+            disabled={page >= (pagination.pages || 1)}
+            className={`tw-rounded tw-px-4 tw-py-2 ${page >= (pagination.pages || 1) ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+          >
+            {t('processed_history.pagination.next')}
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -302,28 +370,52 @@ function ProjectsReportTab() {
 function UsersReportTab() {
   const { t } = useTranslation();
   const [userRows, setUserRows] = useState([]);
+  const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
 
+  // Backend pagination (page/per_page=20, same {rows, pagination} contract
+  // as the rest of the module) — same "consistency over necessity" rationale
+  // as ProjectsReportTab above: today's ~15-25 users don't force it, but
+  // every list-bearing page here uses the same querying discipline.
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError('');
-    getTimeFlowUsers()
-      .then((rows) => { if (active) setUserRows(Array.isArray(rows) ? rows : []); })
+    getTimeFlowUsers(page, 20)
+      .then((res) => {
+        if (!active) return;
+        setUserRows(res.rows);
+        setPagination(res.pagination);
+      })
       .catch((err) => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [page]);
 
-  // Same 4 columns as the on-screen table, in the same order — groups joined
-  // with ", " in a single cell exactly like the table already renders them.
-  const exportCsv = () => {
+  // The on-screen table is paginated (page/per_page), so the export
+  // re-fetches every page (per_page=100, the backend's own max) instead of
+  // just serializing the current page — same reasoning as ProjectsReportTab
+  // above. Same 4 columns as the on-screen table, in the same order —
+  // groups joined with ", " in a single cell exactly like the table already
+  // renders them.
+  const exportCsv = async () => {
+    let allRows = [];
+    let fetchPage = 1;
+    for (;;) {
+      const res = await getTimeFlowUsers(fetchPage, 100);
+      allRows = allRows.concat(res.rows);
+      const pages = res.pagination?.pages || 1;
+      if (fetchPage >= pages || res.rows.length === 0) break;
+      fetchPage += 1;
+    }
+
     const header = [
       t('users_report.col_name'), t('users_report.col_email'),
       t('users_report.col_phone'), t('users_report.col_groups'),
     ];
-    downloadCsv('utilisateurs', header, userRows.map((row) => {
+    downloadCsv('utilisateurs', header, allRows.map((row) => {
       const phones = [row.office_phone, row.user_mobile].filter(Boolean);
       const groups = Array.isArray(row.groups) ? row.groups.filter(Boolean) : [];
       return [
@@ -390,6 +482,29 @@ function UsersReportTab() {
           </div>
         )
       )}
+      {!loading && userRows.length > 0 && (
+        <div className="tw-mt-4 tw-flex tw-items-center tw-justify-center tw-gap-4">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className={`tw-rounded tw-px-4 tw-py-2 ${page <= 1 ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+          >
+            {t('processed_history.pagination.previous')}
+          </button>
+          <div className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">
+            {t('processed_history.pagination.page', { current: pagination.page || page, total: pagination.pages || 1 })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(pagination.pages || p, p + 1))}
+            disabled={page >= (pagination.pages || 1)}
+            className={`tw-rounded tw-px-4 tw-py-2 ${page >= (pagination.pages || 1) ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+          >
+            {t('processed_history.pagination.next')}
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -410,6 +525,9 @@ export default function ReportsPage() {
   const [reportHistory, setReportHistory] = useState([]);
   const [reportHistoryLoading, setReportHistoryLoading] = useState(true);
   const [reportHistoryError, setReportHistoryError] = useState('');
+  const [reportHistoryPage, setReportHistoryPage] = useState(1);
+  const [reportHistoryPagination, setReportHistoryPagination] = useState({});
+  const [reportHistoryStats, setReportHistoryStats] = useState({ validated_count: 0, refused_count: 0, manual_count: 0 });
   const [reportEmployees, setReportEmployees] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
   const [importState, setImportState] = useState({ open: false, loading: false, error: '', data: null, file: null });
@@ -432,6 +550,14 @@ export default function ReportsPage() {
     setReportHistoryLoading(true);
     setReportHistoryError('');
 
+    // history:true already makes the backend's own default restrict to
+    // status IN (2,9) — Validé/Refusé, never Soumis — and the "reports" tab's
+    // own status filter only ever offers all/validated/refused (no
+    // "submitted" option), so status=1 can never come back here. A
+    // client-side re-filter used to sit on top of this and has been removed
+    // (see visibleReportHistory below) — it was redundant, and with
+    // pagination it would have desynced the displayed rows from
+    // pagination.total the moment a page held more than one status mix.
     const payload = {
       history: true,
       employee_id: filters.employee_id,
@@ -439,6 +565,8 @@ export default function ReportsPage() {
       date_to: filters.date_to,
       manual_only: filters.manual_only,
       status: filters.status,
+      page: reportHistoryPage,
+      per_page: 20,
     };
     const request = canReadAll ? getDailyReports(payload) : getMyDailyReports(payload);
 
@@ -447,6 +575,8 @@ export default function ReportsPage() {
         if (!active) return;
         const nextReports = Array.isArray(res?.reports) ? res.reports : Array.isArray(res) ? res : [];
         setReportHistory(nextReports);
+        setReportHistoryPagination(res?.pagination || {});
+        setReportHistoryStats(res?.stats || { validated_count: 0, refused_count: 0, manual_count: 0 });
         if (Array.isArray(res?.employees)) setReportEmployees(res.employees);
       })
       .catch((err) => {
@@ -459,18 +589,19 @@ export default function ReportsPage() {
     return () => {
       active = false;
     };
-  }, [activeTab, canReadAll, filters.employee_id, filters.date_from, filters.date_to, filters.manual_only, filters.status]);
+  }, [activeTab, canReadAll, filters.employee_id, filters.date_from, filters.date_to, filters.manual_only, filters.status, reportHistoryPage]);
 
-  const isModifiedReport = (report) => {
-    if (!report || !report.date_last_content_edit || !report.date_creation) return false;
-    return String(report.date_last_content_edit) !== String(report.date_creation);
-  };
+  // Already exactly what the backend returns for this tab (status IN (2,9),
+  // current page only) — kept as its own name since the JSX below and the
+  // stats cards were written against "visibleReportHistory".
+  const visibleReportHistory = reportHistory;
 
-  const visibleReportHistory = useMemo(
-    () => reportHistory.filter((report) => Number(report.status) !== 1),
-    [reportHistory]
-  );
-
+  // Grouped AFTER pagination, not before: groupedReports only ever sees the
+  // current page's rows (reportHistory), exactly like the "tasks" tab's own
+  // `grouped` groups data.rows (also already paginated) by day. A single
+  // day's entries can end up split across two pages at the boundary — same
+  // trade-off the tasks tab already makes, kept consistent rather than
+  // inventing a different rule for this tab.
   const groupedReports = useMemo(() => {
     return visibleReportHistory.reduce((all, report) => {
       const key = String(report.date_report || '').slice(0, 10);
@@ -506,6 +637,7 @@ export default function ReportsPage() {
 
   const update = (key, value) => {
     setPage(1);
+    setReportHistoryPage(1);
     setFilters((current) => ({ ...current, [key]: value }));
   };
 
@@ -537,9 +669,12 @@ export default function ReportsPage() {
     const header = [
       t('processed_history.columns.task'), t('processed_history.columns.project'), t('processed_history.columns.who'),
       t('processed_history.columns.start'), t('processed_history.columns.end'), t('processed_history.columns.status'),
-      t('processed_history.columns.duration'), t('processed_history.columns.modification'),
+      t('processed_history.columns.duration'), t('processed_history.columns.billable'), t('processed_history.columns.modification'),
       t('processed_history.csv.processed_by'), t('processed_history.csv.processed_at'),
     ];
+    // 'Oui'/'Non', not translated — same fixed format as the global export's
+    // own Facturable column (timeflowBuildGlobalCsvRows), so this reads
+    // consistently no matter which of the two CSVs a "Oui"/"Non" cell came from.
     downloadCsv('rapports_taches', header, rows.map((entry) => [
       entry.note,
       entry.project_label,
@@ -548,6 +683,7 @@ export default function ReportsPage() {
       dateTime(entry.date_end),
       Number(entry.status) === 2 ? t('status.validated') : t('status.rejected'),
       formatDuration(entry.duration),
+      Number(entry.billable) === 1 ? 'Oui' : 'Non',
       entry.manual_modified ? t('processed_history.modified_manually') : '',
       entry.processed_by_label,
       dateTime(entry.processed_at),
@@ -637,13 +773,15 @@ export default function ReportsPage() {
           >
             {t('history.report_history')}
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('users')}
-            className={`tw-rounded-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium ${activeTab === 'users' ? 'tw-bg-slate-900 tw-text-white dark:tw-bg-slate-100 dark:tw-text-slate-900' : 'tw-bg-slate-100 dark:tw-bg-slate-800 tw-text-slate-700 dark:tw-text-slate-300 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-700'}`}
-          >
-            {t('users_report.title')}
-          </button>
+          {canReadAll && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('users')}
+              className={`tw-rounded-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium ${activeTab === 'users' ? 'tw-bg-slate-900 tw-text-white dark:tw-bg-slate-100 dark:tw-text-slate-900' : 'tw-bg-slate-100 dark:tw-bg-slate-800 tw-text-slate-700 dark:tw-text-slate-300 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-700'}`}
+            >
+              {t('users_report.title')}
+            </button>
+          )}
         </div>
 
         {activeTab !== 'projects' && activeTab !== 'users' && (
@@ -699,6 +837,10 @@ export default function ReportsPage() {
                   <input type="checkbox" checked={filters.manual_only} onChange={(event) => update('manual_only', event.target.checked)} />
                   {t('processed_history.filters.modified_only')}
                 </label>
+                <label className="tw-flex tw-items-center tw-gap-2 dark:tw-text-slate-300">
+                  <input type="checkbox" checked={filters.billable_only} onChange={(event) => update('billable_only', event.target.checked)} />
+                  {t('processed_history.filters.billable_only')}
+                </label>
               </div>
             </section>
 
@@ -752,6 +894,7 @@ export default function ReportsPage() {
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.end')}</th>
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.status')}</th>
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.duration')}</th>
+                      <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.billable')}</th>
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.modification')}</th>
                       <th className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{t('processed_history.columns.processed_by_at')}</th>
                     </tr>
@@ -783,6 +926,7 @@ export default function ReportsPage() {
                             );
                           })()}
                         </td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{Number(entry.billable) === 1 ? <BillableBadge /> : '—'}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.manual_modified ? t('processed_history.modified_manually') : '—'}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">
                           {entry.processed_by_label || '—'}
@@ -829,7 +973,11 @@ export default function ReportsPage() {
 
         {activeTab === 'projects' && <ProjectsReportTab />}
 
-        {activeTab === 'users' && <UsersReportTab />}
+        {/* Guarded on canReadAll too, not just the hidden tab button above —
+            a normal employee crafting ?tab=users directly must never reach
+            a component that would call getTimeFlowUsers() (backend refuses
+            it anyway, but there is no reason to even attempt the request). */}
+        {activeTab === 'users' && canReadAll && <UsersReportTab />}
 
         {activeTab === 'reports' && (
           <div className="tw-rounded-2xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800/60 tw-p-4">
@@ -877,16 +1025,16 @@ export default function ReportsPage() {
 
             <section className="tw-mt-4 tw-grid tw-gap-4 md:tw-grid-cols-4">
               <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
-                {t('processed_history.total')} <strong>{visibleReportHistory.length}</strong>
+                {t('processed_history.total')} <strong>{reportHistoryPagination.total ?? visibleReportHistory.length}</strong>
               </div>
               <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
-                {t('status.validated')} <strong>{visibleReportHistory.filter((r) => Number(r.status) === 2).length}</strong>
+                {t('status.validated')} <strong>{reportHistoryStats.validated_count}</strong>
               </div>
               <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
-                {t('status.rejected')} <strong>{visibleReportHistory.filter((r) => Number(r.status) === 9).length}</strong>
+                {t('status.rejected')} <strong>{reportHistoryStats.refused_count}</strong>
               </div>
               <div className="tw-rounded tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-4 dark:tw-text-slate-200">
-                {t('processed_history.stats.modified_entries')} <strong>{visibleReportHistory.filter((r) => isModifiedReport(r)).length}</strong>
+                {t('processed_history.stats.modified_entries')} <strong>{reportHistoryStats.manual_count}</strong>
               </div>
             </section>
 
@@ -933,6 +1081,29 @@ export default function ReportsPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            {!reportHistoryLoading && visibleReportHistory.length > 0 && (
+              <div className="tw-mt-4 tw-flex tw-items-center tw-justify-center tw-gap-4">
+                <button
+                  type="button"
+                  onClick={() => setReportHistoryPage((p) => Math.max(1, p - 1))}
+                  disabled={reportHistoryPage <= 1}
+                  className={`tw-rounded tw-px-4 tw-py-2 ${reportHistoryPage <= 1 ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+                >
+                  {t('processed_history.pagination.previous')}
+                </button>
+                <div className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">
+                  {t('processed_history.pagination.page', { current: reportHistoryPagination.page || reportHistoryPage, total: reportHistoryPagination.pages || 1 })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReportHistoryPage((p) => Math.min(reportHistoryPagination.pages || p, p + 1))}
+                  disabled={reportHistoryPage >= (reportHistoryPagination.pages || 1)}
+                  className={`tw-rounded tw-px-4 tw-py-2 ${reportHistoryPage >= (reportHistoryPagination.pages || 1) ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+                >
+                  {t('processed_history.pagination.next')}
+                </button>
               </div>
             )}
           </div>

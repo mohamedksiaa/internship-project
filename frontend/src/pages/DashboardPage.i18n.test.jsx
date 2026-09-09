@@ -22,9 +22,12 @@ vi.mock('../api/timeflowApi', () => ({
       { day: '2026-08-19', duration: 1800, billable: 0, fk_user: 2, user_label: 'Bob', status: 1 },
     ],
   }),
-  getTimeEntries: vi.fn().mockResolvedValue([
-    { id: 10, duration: 3600, status: 0, date_start: '2026-08-18T09:00:00Z', project_label: 'Alpha', note: 'Draft task' },
-  ]),
+  getTimeEntries: vi.fn().mockResolvedValue({
+    entries: [
+      { id: 10, duration: 3600, status: 0, date_start: '2026-08-18T09:00:00Z', project_label: 'Alpha', note: 'Draft task' },
+    ],
+    pagination: { page: 1, per_page: 100, total: 1, pages: 1 },
+  }),
   getDailyReports: vi.fn().mockResolvedValue({ reports: [{ id: 11, status: 1, date_report: '2026-08-18', user_label: 'Alice' }], employees: [] }),
   getMyDailyReports: vi.fn().mockResolvedValue([{ id: 11, status: 1, date_report: '2026-08-18', user_label: 'Alice' }]),
 }));
@@ -73,5 +76,24 @@ describe('DashboardPage i18n integration', () => {
     expect(await screen.findByText('Total')).toBeInTheDocument();
     expect(timeflowApi.getMyDailyReports).toHaveBeenCalled();
     expect(timeflowApi.getDailyReports).not.toHaveBeenCalled();
+  });
+
+  it('shows the "Dont facturable" KPI card next to Total, using the same duration formatting', async () => {
+    await act(async () => {
+      await i18n.changeLanguage('fr');
+    });
+
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+
+    // total_seconds: 7200 -> "02:00:00", billable_seconds: 3600 -> "01:00:00"
+    // (getSummaryReports mock above) — same formatDuration() used by Total.
+    expect(await screen.findByText('Total')).toBeInTheDocument();
+    expect(await screen.findByText('Dont facturable')).toBeInTheDocument();
+    expect(screen.getByText('02:00:00')).toBeInTheDocument();
+    expect(screen.getByText('01:00:00')).toBeInTheDocument();
   });
 });

@@ -15,6 +15,7 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
   const { isRunning, seconds, loading, error, start, stop } = timer;
   const [fkProject, setFkProject] = useState('');
   const [note, setNote] = useState('');
+  const [billable, setBillable] = useState(false);
 
   const noteTrimmed = note.trim();
   const isProjectValid = fkProject !== '' && Number(fkProject) > 0;
@@ -29,7 +30,7 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
 
   const handleStart = async () => {
     if (isDisabled) return;
-    const entry = await start(Number(fkProject), 0, noteTrimmed);
+    const entry = await start(Number(fkProject), 0, noteTrimmed, billable);
     pushEntry(entry);
   };
 
@@ -38,6 +39,7 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
     if (entry) {
       setNote('');
       setFkProject('');
+      setBillable(false);
       onProjectChange('');
       // A timer left running past the max-duration cap comes back split into
       // several entries (see TimeEntry::stopTimer()); push every one of them
@@ -74,6 +76,15 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
             ariaLabel={t('timer_widget.project_label')}
             className="tw-w-full tw-rounded-xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800 tw-px-4 tw-py-3 tw-text-sm tw-text-slate-700 dark:tw-text-slate-200 tw-outline-none tw-transition focus:tw-border-[#5B8FA8] focus:tw-bg-white dark:focus:tw-bg-slate-900 focus:tw-ring-2 focus:tw-ring-[#5B8FA8]/10 md:tw-w-48"
           />
+          <label className="tw-flex tw-shrink-0 tw-items-center tw-gap-2 tw-text-sm tw-text-slate-600 dark:tw-text-slate-300">
+            <input
+              type="checkbox"
+              checked={billable}
+              onChange={(e) => setBillable(e.target.checked)}
+              className="tw-h-4 tw-w-4"
+            />
+            {t('timer_widget.billable_label')}
+          </label>
           <div className="tw-flex tw-items-center tw-justify-center md:tw-w-32">
             <TimeDisplay seconds={seconds} />
           </div>

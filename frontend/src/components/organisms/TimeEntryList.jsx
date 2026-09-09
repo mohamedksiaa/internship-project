@@ -64,6 +64,21 @@ export function ModifiedManuallyBadge({ onClick, title, className='' }) {
   );
 }
 
+// Same badge shape as ModifiedManuallyBadge above, but non-interactive (a
+// plain span, not a button — there is no click action attached to it) and
+// in the app's existing "positive/validated" green rather than amber.
+export function BillableBadge({ className = '' }) {
+  const { t } = useTranslation();
+
+  return (
+    <span
+      className={`tw-rounded-full tw-bg-emerald-50 dark:tw-bg-emerald-900/40 tw-px-2 tw-py-0.5 tw-text-xs tw-font-medium tw-text-emerald-700 dark:tw-text-emerald-300 ${className}`}
+    >
+      {t('timeentry.billable_badge')}
+    </span>
+  );
+}
+
 function toDateTimeLocal(value) {
   const date = entryDate(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -74,6 +89,7 @@ function toDateTimeLocal(value) {
 export default function TimeEntryList({
   entries: initialEntries = [],
   setEntries: setParentEntries,
+  reloadEntries,
   projects = [],
   showWorker = false,
   showValidationActions = false,
@@ -91,6 +107,7 @@ export default function TimeEntryList({
   const [originalCorrection, setOriginalCorrection] = useState({ date_start: '', date_end: '' });
   const [historyEntry, setHistoryEntry] = useState(null);
   const [entryToDelete, setEntryToDelete] = useState(null);
+  const [entryToSubmit, setEntryToSubmit] = useState(null);
   const [correctionError, setCorrectionError] = useState('');
 
   useEffect(() => setEntries(initialEntries), [initialEntries]);
@@ -138,35 +155,15 @@ export default function TimeEntryList({
     return ids;
   }, [entries]);
 
-  // Pagination for groups: split into pages where each page contains at most
-  // `maxEntriesPerPage` entries (sum of group lengths). A single group that
-  // exceeds the limit occupies its own page.
-  const [currentPage, setCurrentPage] = useState(1);
-  const paginateGroups = (groupsObj, maxEntriesPerPage = 15) => {
-    const entriesArr = Object.entries(groupsObj || {});
-    const pagesArr = [];
-    let currentPageGroups = [];
-    let currentCount = 0;
-    for (const [key, group] of entriesArr) {
-      const groupSize = (group && group.length) || 0;
-      // If adding this group would exceed the max for the current page,
-      // start a new page (unless the current page is empty — then the
-      // large group still occupies that page alone).
-      if (currentCount > 0 && currentCount + groupSize > maxEntriesPerPage) {
-        pagesArr.push(currentPageGroups);
-        currentPageGroups = [];
-        currentCount = 0;
-      }
-      currentPageGroups.push([key, group]);
-      currentCount += groupSize;
-    }
-    if (currentPageGroups.length) pagesArr.push(currentPageGroups);
-    return pagesArr;
-  };
-  const pages = useMemo(() => paginateGroups(groups, 15), [groups]);
-  // Reset to first page whenever the underlying entries change.
-  useEffect(() => setCurrentPage(1), [entries]);
-  const currentGroups = pages.length ? pages[currentPage - 1] : Object.entries(groups);
+  // `entries` is now exactly one backend page already (see TimerPage /
+  // ValidationPage's TaskValidationTab, which own the page/per_page state
+  // and the prev/next controls) — this component used to re-slice an
+  // unbounded, server-capped-at-100 list into its own ~15-entries-per-day-
+  // group pages on top of that. Re-paginating an already-paginated page
+  // would just split one backend page into confusing sub-pages with no
+  // control over it from the caller, so it just renders every group it's
+  // given, in the order the backend returned them.
+  const currentGroups = Object.entries(groups);
 
   const getProjectId = (entry) => Number(entry.fk_project || entry.projectId || entry.project_id || entry.project?.id || 0);
 
@@ -224,10 +221,17 @@ export default function TimeEntryList({
         .map((r, idx) => (r.status === 'fulfilled' ? toDelete[idx] : null))
         .filter(Boolean);
       if (succeeded.length) {
-        const deletedSet = new Set(succeeded);
-        const next = entries.filter((entry) => !deletedSet.has(entry.id));
-        setEntries(next);
-        setParentEntries?.(next);
+        if (reloadEntries) {
+          // A backend-paginated caller owns pagination.total/pages — a local
+          // splice here would shrink the visible list without ever
+          // correcting that total, so ask the caller to refetch instead.
+          await reloadEntries();
+        } else {
+          const deletedSet = new Set(succeeded);
+          const next = entries.filter((entry) => !deletedSet.has(entry.id));
+          setEntries(next);
+          setParentEntries?.(next);
+        }
       }
       // If some deletions failed, surface an error
       const failed = results.filter((r) => r.status === 'rejected');
@@ -267,12 +271,48 @@ export default function TimeEntryList({
     }
   };
 
-  const submitDraft = async (entry) => {
+  // The actual submission only ever runs after the confirmation modal below
+  // — openSubmitConfirmation() (bound to the ⇪ button) just opens it.
+  const confirmSubmitEntry = async () => {
+    if (!entryToSubmit) return;
+    const entry = entryToSubmit;
+    setEntryToSubmit(null);
     setBusyId(entry.id);
     setError('');
     try {
       const updated = await submitEntry(entry.id);
       const next = entries.map((item) => (item.id === entry.id ? { ...item, ...updated, status: 1 } : item));
+      setEntries(next);
+      setParentEntries?.(next);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openSubmitConfirmation = (entry) => {
+    setEntryToSubmit(entry);
+  };
+
+  // Reuses correctTimeEntry() rather than a dedicated endpoint: same
+  // ownership check, same timeflowEmployeeManualEditPolicy() status/day gate
+  // (entry.manual_editable, already computed server-side and already gating
+  // the pencil "Modifier" button below) and same mandatory audit reason —
+  // billable is already one of TimeEntry::update()'s audited fields, so the
+  // change lands in the same modification history as a date correction. The
+  // reason is fixed rather than typed: a single click toggling a checkbox-like
+  // badge is the whole point of "togglable", and the backend only requires
+  // *some* reason of at least 5 characters, not one written by the user.
+  const toggleBillable = async (entry) => {
+    setBusyId(entry.id);
+    setError('');
+    try {
+      const updated = await correctTimeEntry(entry.id, {
+        billable: Number(entry.billable) === 1 ? 0 : 1,
+        reason: 'Statut facturable corrigé',
+      });
+      const next = entries.map((item) => (item.id === entry.id ? { ...item, ...updated } : item));
       setEntries(next);
       setParentEntries?.(next);
     } catch (err) {
@@ -290,9 +330,13 @@ export default function TimeEntryList({
     setError('');
     try {
       await deleteTimeEntry(entry.id);
-      const next = entries.filter((item) => Number(item.id) !== Number(entry.id));
-      setEntries(next);
-      setParentEntries?.(next);
+      if (reloadEntries) {
+        await reloadEntries();
+      } else {
+        const next = entries.filter((item) => Number(item.id) !== Number(entry.id));
+        setEntries(next);
+        setParentEntries?.(next);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -444,6 +488,7 @@ export default function TimeEntryList({
                   <th className="tw-px-3 tw-py-2">{t('timeentry.col_end')}</th>
                   <th className="tw-px-3 tw-py-2">{t('timeentry.col_status')}</th>
                   <th className="tw-px-3 tw-py-2 tw-text-right">{t('timeentry.col_duration')}</th>
+                  <th className="tw-px-3 tw-py-2 tw-text-center">{t('timeentry.col_billable')}</th>
                   <th className="tw-px-3 tw-py-2 tw-text-center">{t('timeentry.col_modified')}</th>
                   <th className="tw-px-5 tw-py-2 tw-text-right">{t('timeentry.col_actions')}</th>
                 </tr>
@@ -502,6 +547,21 @@ export default function TimeEntryList({
                       {formatDuration(displayedDuration(entry))}
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-text-center tw-whitespace-nowrap">
+                      {!showValidationActions && entry.id != null && entry.manual_editable ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleBillable(entry)}
+                          disabled={busyId === entry.id}
+                          title={t('timeentry.title_toggle_billable')}
+                          className="disabled:tw-cursor-not-allowed disabled:tw-opacity-50"
+                        >
+                          {Number(entry.billable) === 1 ? <BillableBadge /> : '—'}
+                        </button>
+                      ) : (
+                        Number(entry.billable) === 1 ? <BillableBadge /> : '—'
+                      )}
+                    </td>
+                    <td className="tw-px-3 tw-py-3 tw-text-center tw-whitespace-nowrap">
                       {entry.manual_modified ? (
                         <ModifiedManuallyBadge
                           onClick={() => setHistoryEntry(entry)}
@@ -514,7 +574,7 @@ export default function TimeEntryList({
                         {entry.id != null && entry.status === 0 && entry.date_end && (
                           <button
                             title={t('timeentry.title_submit')}
-                            onClick={() => submitDraft(entry)}
+                            onClick={() => openSubmitConfirmation(entry)}
                             disabled={busyId === entry.id}
                             className="tw-text-[#5B8FA8]"
                           >
@@ -597,27 +657,6 @@ export default function TimeEntryList({
           </div>
         );
       })}
-      {pages.length > 1 && (
-        <div className="tw-flex tw-items-center tw-justify-between">
-          <button
-            type="button"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-            className="tw-rounded tw-bg-[#e5edf1] dark:tw-bg-slate-800 tw-px-3 tw-py-1 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300 disabled:tw-opacity-50"
-          >
-            ← {t('processed_history.pagination.previous')}
-          </button>
-          <span className="tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('processed_history.pagination.page', { current: currentPage, total: pages.length })}</span>
-          <button
-            type="button"
-            onClick={() => setCurrentPage((p) => Math.min(pages.length, p + 1))}
-            disabled={currentPage >= pages.length}
-            className="tw-rounded tw-bg-[#e5edf1] dark:tw-bg-slate-800 tw-px-3 tw-py-1 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300 disabled:tw-opacity-50"
-          >
-            {t('processed_history.pagination.next')} →
-          </button>
-        </div>
-      )}
       {entryToDelete && (
         <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-p-4" role="dialog" aria-modal="true" aria-labelledby="delete-title">
           <div className="tw-w-full tw-max-w-md tw-space-y-4 tw-rounded-lg tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-6 tw-shadow-xl">
@@ -646,6 +685,37 @@ export default function TimeEntryList({
               <button type="button" onClick={() => setEntryToDelete(null)} className="tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">{t('timeentry.cancel')}</button>
               <button type="button" onClick={confirmDeleteEntry} className="tw-rounded tw-bg-[#d64c4c] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-[#b93d3d]">
                 {t('timeentry.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {entryToSubmit && (
+        <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-p-4" role="dialog" aria-modal="true" aria-labelledby="submit-title">
+          <div className="tw-w-full tw-max-w-md tw-space-y-4 tw-rounded-lg tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-6 tw-shadow-xl">
+            <div className="tw-flex tw-items-start tw-justify-between tw-gap-4">
+              <div>
+                <h2 id="submit-title" className="tw-text-lg tw-font-semibold tw-text-[#263746] dark:tw-text-slate-100">{t('timeentry.submit_title')}</h2>
+                <p className="tw-mt-1 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">{t('timeentry.submit_count', { count: 1 })}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEntryToSubmit(null)}
+                aria-label={t('timeentry.close')}
+                className="tw-text-lg tw-leading-none tw-text-[#78909c] dark:tw-text-slate-400 hover:tw-text-[#2c3e49] dark:hover:tw-text-slate-100"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">
+              {t('timeentry.submit_message')}
+            </p>
+
+            <div className="tw-flex tw-justify-end tw-gap-3">
+              <button type="button" onClick={() => setEntryToSubmit(null)} className="tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">{t('timeentry.cancel')}</button>
+              <button type="button" onClick={confirmSubmitEntry} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-[#4A7690]">
+                {t('timeentry.title_submit')}
               </button>
             </div>
           </div>

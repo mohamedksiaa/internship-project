@@ -19,7 +19,7 @@ vi.mock('../api/timeflowApi', () => ({
     weekEnd: '2026-08-24',
     rows: [],
   }),
-  getTimeEntries: vi.fn().mockResolvedValue([]),
+  getTimeEntries: vi.fn().mockResolvedValue({ entries: [], pagination: { page: 1, per_page: 100, total: 0, pages: 1 } }),
   getDailyReports: vi.fn().mockResolvedValue({ reports: [], employees: [] }),
   getMyDailyReports: vi.fn().mockResolvedValue({ reports: [], employees: [] }),
 }));

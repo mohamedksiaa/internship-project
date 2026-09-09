@@ -70,6 +70,7 @@
     "no_client": "Sans client",
     "no_group": "Sans groupe",
     "total": "Total",
+    "of_which_billable": "Dont facturable",
     "date_from": "Du",
     "date_to": "Au",
     "custom_chart_section": "Analyse",
@@ -109,6 +110,7 @@
   },
   "history": {
     "calendar": "Calendrier",
+    "billable_indicator": "Entrée facturable",
     "daily_planning": "Planning journalier",
     "weekly_planning": "Planning hebdomadaire",
     "today": "Aujourd'hui",
@@ -193,7 +195,8 @@
     "stop": "ARRÊTER",
     "ready_to_start": "Prêt à démarrer.",
     "start_without_project": "Vous pouvez tout de même démarrer un chrono sans projet.",
-    "long_running_warning": "Ce chrono tourne depuis plus de 12h. Vérifiez que vous ne l'avez pas oublié."
+    "long_running_warning": "Ce chrono tourne depuis plus de 12h. Vérifiez que vous ne l'avez pas oublié.",
+    "billable_label": "Facturable"
   },
   "nav": {
     "track_time": "SUIVI DU TEMPS",
@@ -273,19 +276,25 @@
     "col_end": "Fin",
     "col_status": "État",
     "col_duration": "Durée",
+    "col_billable": "Facturable",
     "col_modified": "Modification",
     "col_actions": "Actions",
     "no_description": "Sans description",
     "corrected_with_reason": "Temps corrigé",
     "corrected_traced": "Temps corrigé et tracé",
     "modified_manually": "Modifié manuellement",
+    "billable_badge": "Facturable",
     "split_previous_day": "Suite d’hier : chrono resté actif après minuit, scindé automatiquement",
     "split_next_day": "Suite demain : chrono resté actif après minuit, scindé automatiquement",
     "title_submit": "Soumettre",
+    "submit_title": "Soumettre cette entrée ?",
+    "submit_count": "{{count}} entrée sera soumise.",
+    "submit_message": "Une fois soumise, cette entrée ne pourra plus être modifiée librement : seul un manager pourra la corriger.",
     "title_validate": "Valider",
     "title_reject": "Refuser",
     "title_restart": "Démarrer à nouveau",
     "title_edit": "Modifier cette entrée",
+    "title_toggle_billable": "Cliquer pour changer le statut facturable",
     "title_delete": "Supprimer l’entrée",
     "title_task_segments": "Nombre de segments et durée totale pour cette tâche",
     "project_unknown": "Sans projet",
@@ -322,7 +331,8 @@
       "all_projects": "Tous les projets",
       "start_date": "Date début",
       "end_date": "Date fin",
-      "modified_only": "Modifiées uniquement"
+      "modified_only": "Modifiées uniquement",
+      "billable_only": "Facturable uniquement"
     },
     "stats": {
       "validated_hours": "Heures validées",
@@ -338,6 +348,7 @@
       "end": "Fin",
       "status": "État",
       "duration": "Durée",
+      "billable": "Facturable",
       "modification": "Modification",
       "processed_by_at": "Traité par / le"
     },
