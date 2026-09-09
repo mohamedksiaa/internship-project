@@ -688,7 +688,18 @@ class TimeEntry extends CommonObject
             if ($oldStr !== $newStr) {
                 $sql = 'INSERT INTO '.$this->db->prefix().'timeflow_timeentry_modification';
                 $sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat)';
-                $sql .= ' VALUES ('.$this->entity.',';
+                // Pre-existing bug fixed in passing: unlike every other value
+                // here, $this->entity was never cast to int. Multicompany is
+                // disabled in this install, which disables the 'entity' field
+                // in $this->fields (see the constructor) — fetchCommon() then
+                // never populates $this->entity, leaving it null/empty, which
+                // produced "VALUES (,922,...)" (a SQL syntax error) and made
+                // every single field-level audit insert here silently fail
+                // since this table's inception (confirmed: 0 of 203 existing
+                // rows came from this method — all 203 are '_entry' rows from
+                // the unrelated hard-delete audit insert further down this
+                // file, which already casts to int and was never affected).
+                $sql .= ' VALUES ('.((int) $this->entity).',';
                 $sql .= ' '.((int) $this->id).',';
                 $sql .= ' '.((int) $user->id).',';
                 $sql .= " '".$this->db->escape($action)."',";
@@ -754,10 +765,14 @@ class TimeEntry extends CommonObject
 			// Exclude the entry currently being edited to avoid self-conflict
 			$sql .= ' AND t.rowid <> '.((int) $excludeId);
 		}
-		// Exclude soft-deleted entries if the column exists.
-		if ($this->hasDatabaseColumn($this->table_element, 'date_delete')) {
-			$sql .= " AND t.date_delete IS NULL";
-		}
+		// Deliberately NOT excluding soft-deleted rows (date_delete IS NOT NULL):
+		// a soft delete only hides the entry from the UI, it does not free up
+		// the time slot it really occupied — the row (and, for a validated
+		// entry, the fact that time was actually worked and approved) still
+		// exists in the database. Only a genuine hard delete (the row
+		// physically gone) should stop counting toward an overlap. See the
+		// reported bug: soft-delete a validated entry via the UI, then a
+		// correction overlapping that same slot was silently accepted.
 		$sql .= ' ORDER BY t.date_start ASC, t.rowid ASC';
 
 		$resql = $this->db->query($sql);

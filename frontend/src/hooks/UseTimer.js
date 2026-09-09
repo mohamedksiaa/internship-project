@@ -75,16 +75,17 @@ export function useTimer() {
     };
   }, [isRunning]);
 
-  const start = useCallback(async (fkProject, fkTask, note) => {
+  const start = useCallback(async (fkProject, fkTask, note, billable = false) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await startTimer(fkProject, fkTask, note);
+      const result = await startTimer(fkProject, fkTask, note, billable);
       const activeEntryPayload = {
         ...result,
         fk_project: result.fk_project ?? fkProject,
         fk_task: result.fk_task ?? fkTask,
         note: result.note ?? note,
+        billable: result.billable ?? (billable ? 1 : 0),
       };
 
       setRunningEntry(activeEntryPayload);

@@ -70,6 +70,7 @@
     "no_client": "Kein Kunde",
     "no_group": "Keine Gruppe",
     "total": "Gesamt",
+    "of_which_billable": "Davon abrechenbar",
     "date_from": "Von",
     "date_to": "Bis",
     "custom_chart_section": "Analyse",
@@ -109,6 +110,7 @@
   },
   "history": {
     "calendar": "Kalender",
+    "billable_indicator": "Abrechenbarer Eintrag",
     "daily_planning": "Tagesplanung",
     "weekly_planning": "Wochenplanung",
     "today": "Heute",
@@ -191,7 +193,8 @@
     "stop": "STOPPEN",
     "ready_to_start": "Bereit zum Starten.",
     "start_without_project": "Sie können trotzdem einen Timer ohne Projekt starten.",
-    "long_running_warning": "Dieser Timer läuft seit über 12 Stunden. Stellen Sie sicher, dass Sie ihn nicht vergessen haben."
+    "long_running_warning": "Dieser Timer läuft seit über 12 Stunden. Stellen Sie sicher, dass Sie ihn nicht vergessen haben.",
+    "billable_label": "Abrechenbar"
   },
   "nav": {
     "track_time": "ZEITERFASSUNG",
@@ -270,19 +273,25 @@
     "col_end": "Ende",
     "col_status": "Status",
     "col_duration": "Dauer",
+    "col_billable": "Abrechenbar",
     "col_modified": "Geändert",
     "col_actions": "Aktionen",
     "no_description": "Keine Beschreibung",
     "corrected_with_reason": "Korrigiert",
     "corrected_traced": "Korrigiert und protokolliert",
     "modified_manually": "Manuell geändert",
+    "billable_badge": "Abrechenbar",
     "split_previous_day": "Fortsetzung von gestern: Timer lief über Mitternacht hinaus, automatisch aufgeteilt",
     "split_next_day": "Setzt sich morgen fort: Timer lief über Mitternacht hinaus, automatisch aufgeteilt",
     "title_submit": "Einreichen",
+    "submit_title": "Diesen Eintrag einreichen?",
+    "submit_count": "{{count}} Eintrag wird eingereicht.",
+    "submit_message": "Nach dem Einreichen kann dieser Eintrag nicht mehr frei geändert werden: nur ein Manager kann ihn noch korrigieren.",
     "title_validate": "Validieren",
     "title_reject": "Ablehnen",
     "title_restart": "Neustarten",
     "title_edit": "Diesen Eintrag bearbeiten",
+    "title_toggle_billable": "Klicken, um den abrechenbaren Status zu ändern",
     "title_delete": "Eintrag löschen",
     "title_task_segments": "Anzahl der Segmente und Gesamtdauer für diese Aufgabe",
     "project_unknown": "Kein Projekt",
@@ -319,7 +328,8 @@
       "all_projects": "Alle Projekte",
       "start_date": "Startdatum",
       "end_date": "Enddatum",
-      "modified_only": "Nur geänderte"
+      "modified_only": "Nur geänderte",
+      "billable_only": "Nur abrechenbar"
     },
     "stats": {
       "validated_hours": "Validierte Stunden",
@@ -335,6 +345,7 @@
       "end": "Ende",
       "status": "Status",
       "duration": "Dauer",
+      "billable": "Abrechenbar",
       "modification": "Änderung",
       "processed_by_at": "Verarbeitet von / am"
     },

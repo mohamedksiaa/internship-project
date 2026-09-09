@@ -6,7 +6,7 @@ import i18n from '../../i18n';
 import ValidationPage from '../ValidationPage';
 
 vi.mock('../../api/timeflowApi', () => ({
-  getValidationEntries: vi.fn().mockResolvedValue([]),
+  getValidationEntries: vi.fn().mockResolvedValue({ entries: [], pagination: { page: 1, per_page: 20, total: 0, pages: 1 } }),
   getTimeEntryUpdates: vi.fn().mockResolvedValue({ marker: '', changed: false, entries: [] }),
 }));
 

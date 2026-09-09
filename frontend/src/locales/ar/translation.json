@@ -86,6 +86,7 @@
     "no_client": "بدون عميل",
     "no_group": "بدون مجموعة",
     "total": "الإجمالي",
+    "of_which_billable": "منها القابل للفوترة",
     "date_from": "من",
     "date_to": "إلى",
     "custom_chart_section": "تحليل",
@@ -113,6 +114,7 @@
   },
   "history": {
     "calendar": "التقويم",
+    "billable_indicator": "إدخال قابل للفوترة",
     "daily_planning": "التخطيط اليومي",
     "weekly_planning": "التخطيط الأسبوعي",
     "today": "اليوم",
@@ -195,7 +197,8 @@
     "stop": "إيقاف",
     "ready_to_start": "جاهز للبدء.",
     "start_without_project": "يمكنك الاستمرار في بدء المؤقت بدون مشروع.",
-    "long_running_warning": "هذا المؤقت يعمل منذ أكثر من 12 ساعة. تأكد من أنك لم تنسه."
+    "long_running_warning": "هذا المؤقت يعمل منذ أكثر من 12 ساعة. تأكد من أنك لم تنسه.",
+    "billable_label": "قابل للفوترة"
   },
   "nav": {
     "track_time": "تتبع الوقت",
@@ -278,19 +281,25 @@
     "col_end": "النهاية",
     "col_status": "الحالة",
     "col_duration": "المدة",
+    "col_billable": "قابل للفوترة",
     "col_modified": "تم التعديل",
     "col_actions": "إجراءات",
     "no_description": "بدون وصف",
     "corrected_with_reason": "تم التصحيح",
     "corrected_traced": "تم التصحيح وتتبعه",
     "modified_manually": "تم التعديل يدوياً",
+    "billable_badge": "قابل للفوترة",
     "split_previous_day": "امتداد من الأمس: بقي المؤقت يعمل بعد منتصف الليل، تم تقسيمه تلقائيًا",
     "split_next_day": "يمتد إلى الغد: بقي المؤقت يعمل بعد منتصف الليل، تم تقسيمه تلقائيًا",
     "title_submit": "إرسال",
+    "submit_title": "إرسال هذا الإدخال؟",
+    "submit_count": "سيتم إرسال {{count}} إدخال.",
+    "submit_message": "بعد الإرسال، لا يمكن تعديل هذا الإدخال بحرية بعد الآن: فقط المدير يمكنه تصحيحه.",
     "title_validate": "تحقق",
     "title_reject": "رفض",
     "title_restart": "إعادة التشغيل",
     "title_edit": "تعديل هذا الإدخال",
+    "title_toggle_billable": "انقر لتغيير حالة القابلية للفوترة",
     "title_delete": "حذف الإدخال",
     "title_task_segments": "عدد الأجزاء والمدة الإجمالية لهذه المهمة",
     "project_unknown": "بدون مشروع",
@@ -327,7 +336,8 @@
       "all_projects": "كل المشاريع",
       "start_date": "تاريخ البدء",
       "end_date": "تاريخ الانتهاء",
-      "modified_only": "المعدلة فقط"
+      "modified_only": "المعدلة فقط",
+      "billable_only": "القابلة للفوترة فقط"
     },
     "stats": {
       "validated_hours": "الساعات المتحقق منها",
@@ -343,6 +353,7 @@
       "end": "النهاية",
       "status": "الحالة",
       "duration": "المدة",
+      "billable": "قابل للفوترة",
       "modification": "التعديل",
       "processed_by_at": "عالجها / في"
     },

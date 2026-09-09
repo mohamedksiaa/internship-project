@@ -339,14 +339,48 @@ function timeflowGetUpdateMarker($db, $user, $scope = 'entries')
 }
 
 /** Return the complete visible list so React can add, update, and remove rows. */
-function timeflowFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', $limit = 100)
+/**
+ * Real backend pagination (page/per_page, default 20 — same contract as
+ * timeflowFetchDailyReports()/timeflowGetProcessedHistory()) replacing the
+ * old implicit LIMIT 100 cap: beyond 100 rows in scope, entries used to be
+ * silently invisible rather than paginated. $filter (Universal Search
+ * string) is shared between the page query (via TimeEntry::fetchAll()) and
+ * the total count (timeflowCountEntriesMatchingFilter(), which replicates
+ * fetchAll()'s own WHERE construction for this table) so total/pages always
+ * reflect the same filtered set actually returned, never the whole table.
+ *
+ * @param TimeEntry $timeentry
+ * @param User $user
+ * @param string $scope 'entries' (the caller's own timer history) or
+ *        'validation' (every submitted entry, any owner — requires
+ *        timeflowCanValidate(), checked by the caller)
+ * @param int $page
+ * @param int $perPage
+ * @param bool $billableOnly Only used by the 'entries' scope (Suivi du temps)
+ *        — see case 'getTimeEntries' for why 'getValidationEntries' never
+ *        forwards this.
+ * @return array{entries: array, pagination: array}
+ */
+function timeflowFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', $page = 1, $perPage = 20, $billableOnly = false)
 {
+    global $db;
+
     $filter = $scope === 'validation' ? 't.status:=:'.TimeEntry::STATUS_SUBMITTED : '';
     if ($scope !== 'validation') {
         $filter .= ($filter !== '' ? ' AND ' : '').'(t.fk_user:=:'.((int) $user->id).')';
     }
+    if ($billableOnly) {
+        $filter .= ($filter !== '' ? ' AND ' : '').'(t.billable:=:1)';
+    }
 
-    $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
+    $page = max(1, (int) $page);
+    $perPage = min(100, max(1, (int) $perPage));
+    $offset = ($page - 1) * $perPage;
+
+    $total = timeflowCountEntriesMatchingFilter($db, $filter);
+    $total = $total >= 0 ? $total : 0;
+
+    $result = $timeentry->fetchAll('DESC', 't.date_start', $perPage, $offset, $filter);
     $rows = array();
     if (is_array($result)) {
         foreach ($result as $obj) {
@@ -354,7 +388,10 @@ function timeflowFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', 
         }
     }
 
-    return $rows;
+    return array(
+        'entries' => $rows,
+        'pagination' => array('page' => $page, 'per_page' => $perPage, 'total' => $total, 'pages' => max(1, (int) ceil($total / $perPage))),
+    );
 }
 
 function timeflowExportTimeEntry($object)
@@ -666,25 +703,45 @@ function timeflowFetchActiveUsers($db)
  * @param DoliDB $db
  * @return array
  */
-function timeflowFetchTimeFlowUsers($db)
+function timeflowFetchTimeFlowUsers($db, $page = 1, $perPage = 20)
 {
     $users = array();
 
     $entryDateDeleteClause = timeflowHasDateDeleteColumn($db) ? ' AND t.date_delete IS NULL' : '';
 
+    $membershipSubquery = '(';
+    $membershipSubquery .= '   SELECT t.fk_user FROM '.$db->prefix().'timeflow_timeentry AS t';
+    $membershipSubquery .= '   WHERE t.entity IN ('.getEntity('timeentry').')'.$entryDateDeleteClause;
+    $membershipSubquery .= '   UNION';
+    $membershipSubquery .= '   SELECT ec.fk_socpeople FROM '.$db->prefix().'element_contact AS ec';
+    $membershipSubquery .= '   INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
+    $membershipSubquery .= "   WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR' AND ec.statut = 4";
+    $membershipSubquery .= '   UNION';
+    $membershipSubquery .= '   SELECT ug.fk_user FROM '.$db->prefix().'usergroup_user AS ug';
+    $membershipSubquery .= ' )';
+
+    // Same page/per_page -> {rows, pagination:{page,per_page,total,pages}}
+    // contract as the rest of the module, even though this listing has no
+    // filters of its own — count uses the exact same membership subquery as
+    // the page query, so total/pages always match what paging through would
+    // actually return.
+    $page = max(1, (int) $page);
+    $perPage = min(100, max(1, (int) $perPage));
+    $offset = ($page - 1) * $perPage;
+    $countSql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'user AS u WHERE u.rowid IN '.$membershipSubquery;
+    $total = 0;
+    $countRes = $db->query($countSql);
+    if ($countRes) {
+        $countObj = $db->fetch_object($countRes);
+        $total = $countObj ? (int) $countObj->nb : 0;
+        $db->free($countRes);
+    }
+
     $sql = 'SELECT u.rowid, u.firstname, u.lastname, u.email, u.office_phone, u.user_mobile';
     $sql .= ' FROM '.$db->prefix().'user AS u';
-    $sql .= ' WHERE u.rowid IN (';
-    $sql .= '   SELECT t.fk_user FROM '.$db->prefix().'timeflow_timeentry AS t';
-    $sql .= '   WHERE t.entity IN ('.getEntity('timeentry').')'.$entryDateDeleteClause;
-    $sql .= '   UNION';
-    $sql .= '   SELECT ec.fk_socpeople FROM '.$db->prefix().'element_contact AS ec';
-    $sql .= '   INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
-    $sql .= "   WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR' AND ec.statut = 4";
-    $sql .= '   UNION';
-    $sql .= '   SELECT ug.fk_user FROM '.$db->prefix().'usergroup_user AS ug';
-    $sql .= ' )';
+    $sql .= ' WHERE u.rowid IN '.$membershipSubquery;
     $sql .= ' ORDER BY u.lastname ASC, u.firstname ASC';
+    $sql .= $db->plimit($perPage, $offset);
 
     $userIds = array();
     $resql = $db->query($sql);
@@ -726,7 +783,10 @@ function timeflowFetchTimeFlowUsers($db)
         }
     }
 
-    return array_values($users);
+    return array(
+        'rows' => array_values($users),
+        'pagination' => array('page' => $page, 'per_page' => $perPage, 'total' => $total, 'pages' => max(1, (int) ceil($total / $perPage))),
+    );
 }
 
 /**
@@ -905,33 +965,50 @@ function timeflowCanAccessProject($db, $user, $fkProject)
     return false;
 }
 
+/**
+ * SQL clause restricting a `projet` query to the projects a given user is
+ * allowed to see, via the native project contact mechanism
+ * (llx_element_contact/llx_c_type_contact) — same rule as
+ * timeflowCanAccessProject(): a project with no PROJECTCONTRIBUTOR contact
+ * at all is open to everyone; otherwise only assigned users (or
+ * admins/readall, via timeflowCanReadAllTimeEntries()) may see it.
+ *
+ * Returns an empty string (no restriction) for an admin, a readall user, or
+ * a null $user. Otherwise returns a ' AND (...)' fragment ready to append
+ * to the caller's own WHERE clause.
+ *
+ * @param DoliDB $db
+ * @param User|null $user
+ * @param string $projectAlias SQL alias of the `projet` table in the
+ *        caller's FROM clause (its rowid is referenced as "<alias>.rowid").
+ * @return string
+ */
+function timeflowProjectMembershipRestrictionSql($db, $user, $projectAlias = 'p')
+{
+    $mustRestrict = $user && empty($user->admin) && !timeflowCanReadAllTimeEntries($user);
+    if (!$mustRestrict) {
+        return '';
+    }
+    $clause = ' AND (';
+    $clause .= '  NOT EXISTS (';
+    $clause .= '    SELECT 1 FROM '.$db->prefix().'element_contact AS ec';
+    $clause .= '    INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
+    $clause .= "    WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
+    $clause .= '    AND ec.statut = 4 AND ec.element_id = '.$projectAlias.'.rowid';
+    $clause .= '  )';
+    $clause .= '  OR EXISTS (';
+    $clause .= '    SELECT 1 FROM '.$db->prefix().'element_contact AS ec2';
+    $clause .= '    INNER JOIN '.$db->prefix().'c_type_contact AS tc2 ON tc2.rowid = ec2.fk_c_type_contact';
+    $clause .= "    WHERE tc2.element = 'project' AND tc2.source = 'internal' AND tc2.code = 'PROJECTCONTRIBUTOR'";
+    $clause .= '    AND ec2.statut = 4 AND ec2.element_id = '.$projectAlias.'.rowid AND ec2.fk_socpeople = '.(int) $user->id;
+    $clause .= '  )';
+    $clause .= ' )';
+    return $clause;
+}
+
 function timeflowFetchProjects($db, $user = null)
 {
     $projects = array();
-
-    // Restriction is now expressed against the native project contact
-    // mechanism (llx_element_contact/llx_c_type_contact), same rule as
-    // timeflowCanAccessProject(): no PROJECTCONTRIBUTOR contact at all =>
-    // open to everyone; otherwise only assigned users (or admins/readall,
-    // handled by $mustRestrict below) may see the project.
-    $restrictionClause = '';
-    $mustRestrict = $user && empty($user->admin) && !timeflowCanReadAllTimeEntries($user);
-    if ($mustRestrict) {
-        $restrictionClause = ' AND (';
-        $restrictionClause .= '  NOT EXISTS (';
-        $restrictionClause .= '    SELECT 1 FROM '.$db->prefix().'element_contact AS ec';
-        $restrictionClause .= '    INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
-        $restrictionClause .= "    WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
-        $restrictionClause .= '    AND ec.statut = 4 AND ec.element_id = p.rowid';
-        $restrictionClause .= '  )';
-        $restrictionClause .= '  OR EXISTS (';
-        $restrictionClause .= '    SELECT 1 FROM '.$db->prefix().'element_contact AS ec2';
-        $restrictionClause .= '    INNER JOIN '.$db->prefix().'c_type_contact AS tc2 ON tc2.rowid = ec2.fk_c_type_contact';
-        $restrictionClause .= "    WHERE tc2.element = 'project' AND tc2.source = 'internal' AND tc2.code = 'PROJECTCONTRIBUTOR'";
-        $restrictionClause .= '    AND ec2.statut = 4 AND ec2.element_id = p.rowid AND ec2.fk_socpeople = '.(int) $user->id;
-        $restrictionClause .= '  )';
-        $restrictionClause .= ' )';
-    }
 
     $sql = 'SELECT p.rowid, p.ref, p.title, p.fk_soc, s.nom as soc_name';
     $sql .= ' FROM '.$db->prefix().'projet AS p';
@@ -941,7 +1018,7 @@ function timeflowFetchProjects($db, $user = null)
     // timeflowDeleteProject() — setClose() instead of a physical delete):
     // it must disappear from every picker, exactly like a real delete would.
     $sql .= ' AND p.fk_statut <> '.Project::STATUS_CLOSED;
-    $sql .= $restrictionClause;
+    $sql .= timeflowProjectMembershipRestrictionSql($db, $user, 'p');
     $sql .= ' ORDER BY p.title ASC, p.ref ASC, p.rowid DESC';
 
     $resql = $db->query($sql);
@@ -1313,6 +1390,9 @@ function timeflowProcessedHistoryWhere($input, $user = null)
     if (!empty($input['manual_only'])) {
         $where[] = timeflowManualEditedSqlPredicate($db, 't');
     }
+    if (!empty($input['billable_only'])) {
+        $where[] = 't.billable = 1';
+    }
     return implode(' AND ', $where);
 }
 
@@ -1464,6 +1544,20 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
     $countObj = $countRes ? $db->fetch_object($countRes) : null;
     $total = $countObj ? (int) $countObj->total : 0;
 
+    // Same idea as timeflowGetProcessedHistory()'s own $statsSql: aggregate
+    // counts over the FULL filtered set (same $whereSql, no LIMIT), not just
+    // the current page — a "Validé: 3" stat card must count every validated
+    // report matching the filters, not just however many landed on this
+    // page. Callers that render summary cards (ReportsPage's "reports" tab)
+    // use this instead of counting the page's own rows.
+    $statsSql = 'SELECT'
+        .' SUM(CASE WHEN r.status = 2 THEN 1 ELSE 0 END) AS validated_count,'
+        .' SUM(CASE WHEN r.status = 9 THEN 1 ELSE 0 END) AS refused_count,'
+        .' SUM(CASE WHEN r.date_last_content_edit IS NOT NULL AND r.date_last_content_edit <> r.date_creation THEN 1 ELSE 0 END) AS manual_count'
+        .' FROM '.$db->prefix().'timeflow_daily_report AS r WHERE '.$whereSql;
+    $statsRes = $db->query($statsSql);
+    $statsObj = $statsRes ? $db->fetch_object($statsRes) : null;
+
     $sql = 'SELECT r.rowid, r.fk_user, r.date_report, r.content, r.date_creation, r.tms, r.status, r.read_at, r.date_validated_at, r.fk_user_read, r.date_delete, r.date_last_content_edit, r.fk_user_last_content_edit,';
     $sql .= ' u.login, u.firstname, u.lastname, reader.login AS reader_login, reader.firstname AS reader_firstname, reader.lastname AS reader_lastname, editor.login AS editor_login, editor.firstname AS editor_firstname, editor.lastname AS editor_lastname';
     $sql .= ' FROM '.$db->prefix().'timeflow_daily_report AS r';
@@ -1502,6 +1596,11 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
     return array(
         'reports' => $reports,
         'pagination' => array('page' => $page, 'per_page' => $perPage, 'total' => $total, 'pages' => max(1, (int) ceil($total / $perPage))),
+        'stats' => array(
+            'validated_count' => (int) ($statsObj->validated_count ?? 0),
+            'refused_count' => (int) ($statsObj->refused_count ?? 0),
+            'manual_count' => (int) ($statsObj->manual_count ?? 0),
+        ),
     );
 }
 
@@ -1536,7 +1635,7 @@ switch ($action) {
         $note = !empty($postData['note']) ? $postData['note'] : GETPOST('note', 'restricthtml');
         $projectLabel = trim((string) ($postData['project_label'] ?? GETPOST('project_label', 'restricthtml')));
         $tags = '';
-        $billable = 0;
+        $billable = !empty($postData['billable']) ? 1 : (int) GETPOST('billable', 'int');
 
         dol_syslog('timeflow.startTimer received '.json_encode(array(
             'user_id' => (int) $user->id,
@@ -1775,14 +1874,27 @@ switch ($action) {
             'search' => trim((string) ($postData['search'] ?? GETPOST('search', 'alphanohtml'))),
             'source' => trim((string) ($postData['source'] ?? GETPOST('source', 'alpha'))),
         );
-        $timeflowDebugProjects = timeflowFetchTimeFlowProjects($db, $user, $projectFilters);
+        $projectsPage = !empty($postData['page']) ? (int) $postData['page'] : (int) GETPOST('page', 'int');
+        $projectsPage = $projectsPage > 0 ? $projectsPage : 1;
+        $projectsPerPage = !empty($postData['per_page']) ? (int) $postData['per_page'] : (int) GETPOST('per_page', 'int');
+        $projectsPerPage = $projectsPerPage > 0 ? $projectsPerPage : 20;
+        $timeflowDebugProjects = timeflowFetchTimeFlowProjects($db, $user, $projectFilters, $projectsPage, $projectsPerPage);
         timeflowJsonResponse(array('status' => 'success', 'data' => $timeflowDebugProjects));
         break;
 
-    // Rapports > Utilisateurs: read-only, no filters, same open-to-any-
-    // authenticated-user access as getTimeFlowProjects above.
+    // Rapports > Utilisateurs: manager-only (same timeflowCanReadAllTimeEntries()
+    // gate as the "read all" scope everywhere else) — a normal employee has
+    // no business use for a company-wide contact directory here, and the
+    // tab button is hidden client-side for them too (ReportsPage.jsx).
     case 'getTimeFlowUsers':
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTimeFlowUsers($db)));
+        if (!timeflowCanReadAllTimeEntries($user)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $usersPage = !empty($postData['page']) ? (int) $postData['page'] : (int) GETPOST('page', 'int');
+        $usersPage = $usersPage > 0 ? $usersPage : 1;
+        $usersPerPage = !empty($postData['per_page']) ? (int) $postData['per_page'] : (int) GETPOST('per_page', 'int');
+        $usersPerPage = $usersPerPage > 0 ? $usersPerPage : 20;
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTimeFlowUsers($db, $usersPage, $usersPerPage)));
         break;
 
     // Rapports' global "Export" button (above the tab bar, not per sub-page):
@@ -1913,17 +2025,38 @@ switch ($action) {
         $previousMarker = (string) ($postData['marker'] ?? GETPOST('marker', 'alphanohtml'));
         $marker = timeflowGetUpdateMarker($db, $user, $scope);
         $changed = $previousMarker !== '' && !hash_equals($previousMarker, $marker);
+        // A change anywhere in scope re-fetches the page the caller is
+        // currently looking at (not necessarily page 1), so a background
+        // poll never silently swaps what's on screen for a different page.
+        $updatePage = !empty($postData['page']) ? (int) $postData['page'] : (int) GETPOST('page', 'int');
+        $updatePage = $updatePage > 0 ? $updatePage : 1;
+        $updatePerPage = !empty($postData['per_page']) ? (int) $postData['per_page'] : (int) GETPOST('per_page', 'int');
+        $updatePerPage = $updatePerPage > 0 ? $updatePerPage : 20;
+        // Only meaningful for scope='entries' (see 'billable_only' below) —
+        // the caller (Suivi du temps) simply never sends it for scope=
+        // 'validation', so this stays false there regardless.
+        $updateBillableOnly = !empty($postData['billable_only']) || (bool) GETPOST('billable_only', 'int');
+        $updateResult = $changed ? timeflowFetchVisibleTimeEntries($timeentry, $user, $scope, $updatePage, $updatePerPage, $updateBillableOnly) : null;
         timeflowJsonResponse(array('status' => 'success', 'data' => array(
             'marker' => $marker,
             'changed' => $changed,
-            'entries' => $changed ? timeflowFetchVisibleTimeEntries($timeentry, $user, $scope) : array(),
+            'entries' => $changed ? $updateResult['entries'] : array(),
         )));
         break;
 
     case 'getTimeEntries':
-        $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
-        $limit = $limit > 0 ? $limit : 100;
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchVisibleTimeEntries($timeentry, $user, 'entries', $limit)));
+        $page = !empty($postData['page']) ? (int) $postData['page'] : (int) GETPOST('page', 'int');
+        $page = $page > 0 ? $page : 1;
+        $perPage = !empty($postData['per_page']) ? (int) $postData['per_page'] : (int) GETPOST('per_page', 'int');
+        $perPage = $perPage > 0 ? $perPage : 20;
+        // "Facturable uniquement" on Suivi du temps — deliberately NOT
+        // offered on getValidationEntries below: the validation queue is a
+        // review-everything-pending worklist, not a browsable report, and
+        // narrowing it by billable risks a manager missing an entry that
+        // still needs a decision. Same reasoning already applies to why
+        // ReportsPage's "reports" tab (daily reports) never got this filter.
+        $billableOnly = !empty($postData['billable_only']) || (bool) GETPOST('billable_only', 'int');
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchVisibleTimeEntries($timeentry, $user, 'entries', $page, $perPage, $billableOnly)));
         break;
 
     // Data source for the dedicated validation view.  Unlike the normal timer
@@ -1932,9 +2065,11 @@ switch ($action) {
         if (!timeflowCanValidate($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
-        $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
-        $limit = $limit > 0 ? $limit : 100;
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchVisibleTimeEntries($timeentry, $user, 'validation', $limit)));
+        $page = !empty($postData['page']) ? (int) $postData['page'] : (int) GETPOST('page', 'int');
+        $page = $page > 0 ? $page : 1;
+        $perPage = !empty($postData['per_page']) ? (int) $postData['per_page'] : (int) GETPOST('per_page', 'int');
+        $perPage = $perPage > 0 ? $perPage : 20;
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchVisibleTimeEntries($timeentry, $user, 'validation', $page, $perPage)));
         break;
 
     case 'getProcessedHistory':
@@ -2191,6 +2326,7 @@ switch ($action) {
             'reports' => $result['reports'],
             'employees' => $employees,
             'pagination' => $result['pagination'],
+            'stats' => $result['stats'],
         )));
         break;
 
@@ -2531,6 +2667,16 @@ switch ($action) {
         $hasNewEnd = array_key_exists('date_end', $postData);
         $newStart = $hasNewStart ? timeflowParseIncomingDate($postData['date_start']) : $oldStart;
         $newEnd = $hasNewEnd ? timeflowParseIncomingDate($postData['date_end']) : $oldEnd;
+        // Same partial-update rule as dates: omitted stays exactly as stored.
+        // Reuses this action rather than a separate endpoint deliberately —
+        // the same ownership check, the same timeflowEmployeeManualEditPolicy()
+        // status/day gate, and the same mandatory audit reason already apply
+        // to every correction made here, and billable is already one of
+        // TimeEntry::update()'s audited fields (see $fieldsToAudit), so no
+        // further backend plumbing is needed to get it into the modification
+        // history for free.
+        $hasNewBillable = array_key_exists('billable', $postData);
+        $newBillable = $hasNewBillable ? (!empty($postData['billable']) ? 1 : 0) : (int) $timeentry->billable;
         timeflowCorrectionTrace('values_prepared', array(
             'rowid' => (int) $timeentry->id,
             'old_start' => $oldStart,
@@ -2587,6 +2733,7 @@ switch ($action) {
         $timeentry->date_start = $newStart;
         $timeentry->date_end = $newEnd > 0 ? $newEnd : null;
         $timeentry->duration = $newEnd > 0 ? $newEnd - $newStart : 0;
+        $timeentry->billable = $newBillable;
         $res = $timeentry->update($user, 0, $auditReason, $isManager ? TimeEntry::MOD_ACTION_MANUAL_MANAGER : TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE);
         timeflowCorrectionTrace('update_finished', array('rowid' => (int) $timeentry->id, 'result' => $res, 'audit_insert_attempted' => $res > 0));
         if ($res > 0) {
@@ -2676,9 +2823,66 @@ switch ($action) {
  * TimeFlow / Dolibarr natif"): one project list, visible and consistent
  * on both sides, regardless of which UI created it.
  */
-function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
+function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1, $perPage = 20)
 {
     $projects = array();
+
+    // Unlike timeflowFetchProjects() (the ACTIVE picker used to start a timer
+    // or assign a project — closed projects must disappear from there, see
+    // that function's comment), this is a read-only consultation view
+    // ("Rapports > Projets"). A closed project must stay visible here with
+    // its real status badge, exactly like it stays visible everywhere else
+    // in native Dolibarr after Project::setClose() — no status filter here.
+    $whereSql = 'p.entity IN ('.getEntity('project').')';
+
+    $clientId = (int) ($filters['client_id'] ?? 0);
+    if ($clientId > 0) {
+        $whereSql .= ' AND p.fk_soc = '.$clientId;
+    }
+    $dateFrom = timeflowParseIncomingDate($filters['date_from'] ?? '');
+    if ($dateFrom !== false) {
+        $whereSql .= " AND p.datec >= '".$db->idate($dateFrom)."'";
+    }
+    $dateTo = timeflowParseIncomingDate($filters['date_to'] ?? '');
+    if ($dateTo !== false) {
+        $whereSql .= " AND p.datec <= '".$db->idate($dateTo + 86399)."'";
+    }
+    $search = trim((string) ($filters['search'] ?? ''));
+    if ($search !== '') {
+        $searchLike = "'%".$db->escape($search)."%'";
+        $whereSql .= ' AND (p.title LIKE '.$searchLike.' OR p.ref LIKE '.$searchLike.')';
+    }
+    $source = trim((string) ($filters['source'] ?? ''));
+    if (in_array($source, array('manual', 'clockify', 'native'), true)) {
+        $whereSql .= " AND ef.timeflow_source = '".$db->escape($source)."'";
+    }
+
+    // Same membership restriction as timeflowFetchProjects() (the Timer's
+    // active-project picker): a non-manager (no timeflowCanReadAllTimeEntries)
+    // only sees projects with no PROJECTCONTRIBUTOR assignment at all (open
+    // to everyone) or where they are themselves assigned. A manager/admin
+    // still sees every project, filters unchanged.
+    $whereSql .= timeflowProjectMembershipRestrictionSql($db, $user, 'p');
+
+    // Same page/per_page -> {rows, pagination:{page,per_page,total,pages}}
+    // contract as timeflowGetProcessedHistory()/timeflowFetchDailyReports().
+    // Count uses the exact same FROM+WHERE (the source filter needs the ef
+    // join too) as the page query, so total/pages always reflect the
+    // filtered result set, never the unfiltered table.
+    $page = max(1, (int) $page);
+    $perPage = min(100, max(1, (int) $perPage));
+    $offset = ($page - 1) * $perPage;
+    $countSql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'projet AS p';
+    $countSql .= ' LEFT JOIN '.$db->prefix().'projet_extrafields AS ef ON ef.fk_object = p.rowid';
+    $countSql .= ' WHERE '.$whereSql;
+    $total = 0;
+    $countRes = $db->query($countSql);
+    if ($countRes) {
+        $countObj = $db->fetch_object($countRes);
+        $total = $countObj ? (int) $countObj->nb : 0;
+        $db->free($countRes);
+    }
+
     $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.fk_soc, s.nom as soc_name, p.fk_statut, p.fk_opp_status, cls.code as opp_status_code, p.datec,';
     $sql .= ' ef.timeflow_source, ef.timeflow_import_key,';
     $sql .= ' (SELECT COUNT(*) FROM '.$db->prefix().'timeflow_timeentry AS t';
@@ -2687,35 +2891,7 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
     $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
     $sql .= ' LEFT JOIN '.$db->prefix().'projet_extrafields AS ef ON ef.fk_object = p.rowid';
     $sql .= ' LEFT JOIN '.$db->prefix().'c_lead_status AS cls ON cls.rowid = p.fk_opp_status';
-    $sql .= ' WHERE p.entity IN ('.getEntity('project').')';
-    // Unlike timeflowFetchProjects() (the ACTIVE picker used to start a timer
-    // or assign a project — closed projects must disappear from there, see
-    // that function's comment), this is a read-only consultation view
-    // ("Rapports > Projets"). A closed project must stay visible here with
-    // its real status badge, exactly like it stays visible everywhere else
-    // in native Dolibarr after Project::setClose() — no status filter here.
-
-    $clientId = (int) ($filters['client_id'] ?? 0);
-    if ($clientId > 0) {
-        $sql .= ' AND p.fk_soc = '.$clientId;
-    }
-    $dateFrom = timeflowParseIncomingDate($filters['date_from'] ?? '');
-    if ($dateFrom !== false) {
-        $sql .= " AND p.datec >= '".$db->idate($dateFrom)."'";
-    }
-    $dateTo = timeflowParseIncomingDate($filters['date_to'] ?? '');
-    if ($dateTo !== false) {
-        $sql .= " AND p.datec <= '".$db->idate($dateTo + 86399)."'";
-    }
-    $search = trim((string) ($filters['search'] ?? ''));
-    if ($search !== '') {
-        $searchLike = "'%".$db->escape($search)."%'";
-        $sql .= ' AND (p.title LIKE '.$searchLike.' OR p.ref LIKE '.$searchLike.')';
-    }
-    $source = trim((string) ($filters['source'] ?? ''));
-    if (in_array($source, array('manual', 'clockify', 'native'), true)) {
-        $sql .= " AND ef.timeflow_source = '".$db->escape($source)."'";
-    }
+    $sql .= ' WHERE '.$whereSql;
 
     // Explicit CASE, not a bare "ORDER BY fk_statut": the numeric codes
     // (0=Brouillon, 1=Ouvert, 2=Clôturé — see ProjectStatusBadge.jsx's
@@ -2725,6 +2901,7 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
     // recent first); rowid DESC is the last-resort tiebreaker for a dead-heat
     // same-status-same-datec pair.
     $sql .= ' ORDER BY CASE p.fk_statut WHEN 1 THEN 0 WHEN 0 THEN 1 WHEN 2 THEN 2 ELSE 3 END ASC, p.datec DESC, p.rowid DESC';
+    $sql .= $db->plimit($perPage, $offset);
 
     // Assigned users per project, keyed by project id — a separate query
     // (rather than GROUP_CONCAT) to avoid MySQL's group_concat length limit
@@ -2803,7 +2980,10 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array())
         }
     }
 
-    return $projects;
+    return array(
+        'rows' => $projects,
+        'pagination' => array('page' => $page, 'per_page' => $perPage, 'total' => $total, 'pages' => max(1, (int) ceil($total / $perPage))),
+    );
 }
 
 function timeflowFetchActiveThirdParties($db)

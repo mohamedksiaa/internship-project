@@ -102,15 +102,20 @@ export default function DailyReportComposer({ onSaved = () => {} }) {
       setError('');
       if (editingId) {
         const updated = await updateDailyReport(editingId, trimmed, status);
-        setReports((items) => items.map((r) => (Number(r.id) === Number(updated.id) ? { ...r, ...updated, status: updated.status ?? r.status } : r)));
         setContent('');
         setEditingId(null);
         onSaved(updated);
+        // Refresh the current page from the backend instead of splicing
+        // locally: with pagination, a local patch can no longer be trusted
+        // to keep the displayed list consistent with pagination.total/pages.
+        await loadReports(page);
       } else {
         const saved = await saveDailyReport(dateReport, trimmed, status);
-        setReports((items) => [{ ...saved, status: saved.status ?? status }, ...items]);
         setContent('');
         onSaved(saved);
+        // A brand new report sorts first (most recent date_report/tms) —
+        // jump back to page 1 so the user actually sees what they just saved.
+        await loadReports(1);
       }
     } catch (err) {
       setError(err.message);
@@ -131,15 +136,13 @@ export default function DailyReportComposer({ onSaved = () => {} }) {
     try {
       setError('');
       const updated = await updateDailyReport(report.id, (report.content || '').trim(), 1);
-      setReports((items) => items.map((item) => (Number(item.id) === Number(updated.id || report.id)
-        ? { ...item, ...updated, status: updated.status ?? 1 }
-        : item)));
       if (Number(editingId) === Number(report.id)) {
         setEditingId(null);
         setDateReport(today());
         setContent('');
       }
       onSaved(updated);
+      await loadReports(page);
     } catch (err) {
       setError(err.message);
     }
@@ -157,12 +160,14 @@ export default function DailyReportComposer({ onSaved = () => {} }) {
     try {
       setError('');
       await deleteDailyReport(report.id);
-      setReports((items) => items.filter((item) => Number(item.id) !== Number(report.id)));
       if (Number(editingId) === Number(report.id)) {
         setEditingId(null);
         setDateReport(today());
         setContent('');
       }
+      // loadReports() clamps to the last valid page itself if this was the
+      // sole remaining report on the current (now out-of-range) page.
+      await loadReports(page);
     } catch (err) {
       setError(err.message);
     }
@@ -185,7 +190,31 @@ export default function DailyReportComposer({ onSaved = () => {} }) {
             <button type="submit" disabled={saving || content.trim() === ''} className="tw-rounded-xl tw-bg-[#5B8FA8] tw-px-5 tw-py-2.5 tw-text-sm tw-font-semibold tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba] disabled:tw-opacity-50">{saving ? t('daily_report.saving') : t('daily_report.save')}</button>
           </div>
         </form>
-        <div className="tw-mt-8 tw-border-t tw-border-slate-200 dark:tw-border-slate-700 tw-pt-5"><h3 className="tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{t('daily_report.history_title')}</h3>{loading ? <p className="tw-mt-3 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('daily_report.loading')}</p> : reports.length === 0 ? <p className="tw-mt-3 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('daily_report.empty')}</p> : <div className="tw-mt-3 tw-space-y-3">{reports.map((report) => <article key={report.id} className="tw-rounded-2xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-p-4"><div className="tw-flex tw-items-center tw-justify-between tw-gap-3"><div className="tw-min-w-0"><strong className="tw-block tw-text-sm tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{report.date_report}</strong><div className="tw-text-xs tw-text-slate-500 dark:tw-text-slate-400">{formatDateTime(report.date_creation || report.date_modification)}</div></div><div className="tw-flex tw-items-center tw-gap-2"><StatusBadge status={Number(report.status ?? 1)} />{isManuallyModifiedRecord(report.date_creation, report.date_last_content_edit) && <ModifiedManuallyBadge title="Temps corrigé et tracé" />}</div></div><div className="tw-mt-3 tw-flex tw-items-center tw-justify-between tw-gap-3"><div className="tw-flex-1" /> <div className="tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2"> <button type="button" onClick={() => setSelectedReport(report)} className="tw-rounded-lg tw-border tw-border-sky-200 dark:tw-border-sky-800 tw-bg-sky-50 dark:tw-bg-sky-900/30 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-sky-700 dark:tw-text-sky-300 hover:tw-bg-sky-100 dark:hover:tw-bg-sky-900/50">{t('daily_report.read_report')}</button>{Number(report.status ?? 1) !== 2 && !isDraftExpired(report) && <button type="button" onClick={() => handleEdit(report)} className="tw-rounded-lg tw-border tw-border-slate-200 dark:tw-border-slate-600 tw-bg-slate-50 dark:tw-bg-slate-800 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-100 dark:hover:tw-bg-slate-700">{t('daily_report.edit')}</button>}{Number(report.status ?? 1) === 0 && !isDraftExpired(report) && <button type="button" onClick={() => handleSend(report)} className="tw-rounded-lg tw-border tw-border-emerald-200 dark:tw-border-emerald-800 tw-bg-emerald-50 dark:tw-bg-emerald-900/30 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-emerald-700 dark:tw-text-emerald-300 hover:tw-bg-emerald-100 dark:hover:tw-bg-emerald-900/50">{t('daily_report.send_report')}</button>}{canDeleteReport(report) && <button type="button" onClick={() => handleDelete(report)} className="tw-rounded-lg tw-border tw-border-rose-200 dark:tw-border-rose-800 tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-rose-700 dark:tw-text-rose-300 hover:tw-bg-rose-100 dark:hover:tw-bg-rose-900/50">{t('daily_report.delete')}</button>}</div></div></article>)}</div>}</div>
+        <div className="tw-mt-8 tw-border-t tw-border-slate-200 dark:tw-border-slate-700 tw-pt-5"><h3 className="tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{t('daily_report.history_title')}</h3>{loading ? <p className="tw-mt-3 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('daily_report.loading')}</p> : reports.length === 0 ? <p className="tw-mt-3 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('daily_report.empty')}</p> : <div className="tw-mt-3 tw-space-y-3">{reports.map((report) => <article key={report.id} className="tw-rounded-2xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-p-4"><div className="tw-flex tw-items-center tw-justify-between tw-gap-3"><div className="tw-min-w-0"><strong className="tw-block tw-text-sm tw-font-semibold tw-text-slate-900 dark:tw-text-slate-100">{report.date_report}</strong><div className="tw-text-xs tw-text-slate-500 dark:tw-text-slate-400">{formatDateTime(report.date_creation || report.date_modification)}</div></div><div className="tw-flex tw-items-center tw-gap-2"><StatusBadge status={Number(report.status ?? 1)} />{isManuallyModifiedRecord(report.date_creation, report.date_last_content_edit) && <ModifiedManuallyBadge title="Temps corrigé et tracé" />}</div></div><div className="tw-mt-3 tw-flex tw-items-center tw-justify-between tw-gap-3"><div className="tw-flex-1" /> <div className="tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2"> <button type="button" onClick={() => setSelectedReport(report)} className="tw-rounded-lg tw-border tw-border-sky-200 dark:tw-border-sky-800 tw-bg-sky-50 dark:tw-bg-sky-900/30 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-sky-700 dark:tw-text-sky-300 hover:tw-bg-sky-100 dark:hover:tw-bg-sky-900/50">{t('daily_report.read_report')}</button>{Number(report.status ?? 1) !== 2 && !isDraftExpired(report) && <button type="button" onClick={() => handleEdit(report)} className="tw-rounded-lg tw-border tw-border-slate-200 dark:tw-border-slate-600 tw-bg-slate-50 dark:tw-bg-slate-800 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-100 dark:hover:tw-bg-slate-700">{t('daily_report.edit')}</button>}{Number(report.status ?? 1) === 0 && !isDraftExpired(report) && <button type="button" onClick={() => handleSend(report)} className="tw-rounded-lg tw-border tw-border-emerald-200 dark:tw-border-emerald-800 tw-bg-emerald-50 dark:tw-bg-emerald-900/30 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-emerald-700 dark:tw-text-emerald-300 hover:tw-bg-emerald-100 dark:hover:tw-bg-emerald-900/50">{t('daily_report.send_report')}</button>}{canDeleteReport(report) && <button type="button" onClick={() => handleDelete(report)} className="tw-rounded-lg tw-border tw-border-rose-200 dark:tw-border-rose-800 tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-rose-700 dark:tw-text-rose-300 hover:tw-bg-rose-100 dark:hover:tw-bg-rose-900/50">{t('daily_report.delete')}</button>}</div></div></article>)}</div>}
+        {!loading && reports.length > 0 && (
+          <div className="tw-mt-4 tw-flex tw-items-center tw-justify-center tw-gap-4">
+            <button
+              type="button"
+              onClick={() => loadReports(Math.max(1, page - 1))}
+              disabled={page <= 1}
+              className={`tw-rounded tw-px-4 tw-py-2 ${page <= 1 ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+            >
+              {t('processed_history.pagination.previous')}
+            </button>
+            <div className="tw-text-sm tw-text-slate-700 dark:tw-text-slate-300">
+              {t('processed_history.pagination.page', { current: pagination.page || page, total: pagination.pages || 1 })}
+            </div>
+            <button
+              type="button"
+              onClick={() => loadReports(Math.min(pagination.pages || page, page + 1))}
+              disabled={page >= (pagination.pages || 1)}
+              className={`tw-rounded tw-px-4 tw-py-2 ${page >= (pagination.pages || 1) ? 'tw-bg-slate-200 dark:tw-bg-slate-800 tw-text-slate-500 dark:tw-text-slate-500' : 'tw-bg-slate-100 dark:tw-bg-slate-700 tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600'}`}
+            >
+              {t('processed_history.pagination.next')}
+            </button>
+          </div>
+        )}
+        </div>
       </Card>
       {selectedReport && <ReadDailyReportModal report={selectedReport} onClose={() => setSelectedReport(null)} />}
       {reportToDelete && (

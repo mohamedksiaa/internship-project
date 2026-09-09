@@ -69,6 +69,7 @@
     "no_client": "No client",
     "no_group": "No group",
     "total": "Total",
+    "of_which_billable": "Of which billable",
     "date_from": "From",
     "date_to": "To",
     "custom_chart_section": "Analysis",
@@ -108,6 +109,7 @@
   },
   "history": {
     "calendar": "Calendar",
+    "billable_indicator": "Billable entry",
     "daily_planning": "Daily planning",
     "weekly_planning": "Weekly planning",
     "today": "Today",
@@ -192,7 +194,8 @@
     "stop": "STOP",
     "ready_to_start": "Ready to start.",
     "start_without_project": "You can still start a timer without a project.",
-    "long_running_warning": "This timer has been running for over 12h. Make sure you haven't forgotten it."
+    "long_running_warning": "This timer has been running for over 12h. Make sure you haven't forgotten it.",
+    "billable_label": "Billable"
   },
   "nav": {
     "track_time": "TIME TRACKING",
@@ -271,19 +274,25 @@
     "col_end": "End",
     "col_status": "Status",
     "col_duration": "Duration",
+    "col_billable": "Billable",
     "col_modified": "Modified",
     "col_actions": "Actions",
     "no_description": "No description",
     "corrected_with_reason": "Corrected",
     "corrected_traced": "Corrected and traced",
     "modified_manually": "Modified manually",
+    "billable_badge": "Billable",
     "split_previous_day": "Continued from yesterday: timer left running past midnight, split automatically",
     "split_next_day": "Continues tomorrow: timer left running past midnight, split automatically",
     "title_submit": "Submit",
+    "submit_title": "Submit this entry?",
+    "submit_count": "{{count}} entry will be submitted.",
+    "submit_message": "Once submitted, this entry can no longer be freely modified: only a manager will be able to correct it.",
     "title_validate": "Validate",
     "title_reject": "Reject",
     "title_restart": "Restart",
     "title_edit": "Edit this entry",
+    "title_toggle_billable": "Click to change the billable status",
     "title_delete": "Delete entry",
     "title_task_segments": "Number of segments and total duration for this task",
     "project_unknown": "No project",
@@ -320,7 +329,8 @@
       "all_projects": "All projects",
       "start_date": "Start date",
       "end_date": "End date",
-      "modified_only": "Modified only"
+      "modified_only": "Modified only",
+      "billable_only": "Billable only"
     },
     "stats": {
       "validated_hours": "Validated hours",
@@ -336,6 +346,7 @@
       "end": "End",
       "status": "Status",
       "duration": "Duration",
+      "billable": "Billable",
       "modification": "Modification",
       "processed_by_at": "Processed by / at"
     },

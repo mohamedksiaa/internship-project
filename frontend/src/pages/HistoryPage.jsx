@@ -289,7 +289,16 @@ export default function HistoryPage() {
             nowIndicator={true}
             firstDay={1}
             locale={calendarLocale}
-            height="auto"
+            // height="auto" (previous value) makes FullCalendar render the
+            // full natural height of all 24 slots with NO internal scroll
+            // pane at all — its own Scroller component sets overflow-y:
+            // visible in that mode (see @fullcalendar/core's ScrollGrid),
+            // so scrollTime below has nothing to scroll and is silently a
+            // no-op. A fixed pixel height is what actually turns the body
+            // into a real scrollable region (overflow-y: auto) — matches
+            // the tw-min-h-[600px] already set on the wrapping
+            // .calendar-container below.
+            height={600}
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"
             scrollTime="07:00:00"
@@ -310,10 +319,20 @@ export default function HistoryPage() {
               const startTime = event.extendedProps.startTime;
               const endTime = event.extendedProps.endTime;
               const isSmall = event.height < 40;
+              const isBillable = Number(event.extendedProps.billable) === 1;
 
               return (
                 <div className="tw-flex tw-h-full tw-flex-col tw-overflow-hidden tw-px-1.5 tw-py-0.5 tw-text-[11px] tw-leading-tight">
-                  <div className="tw-font-semibold tw-truncate">{event.title}</div>
+                  <div className="tw-flex tw-min-w-0 tw-items-center tw-gap-1">
+                    {isBillable && (
+                      <span
+                        title={t('history.billable_indicator')}
+                        aria-label={t('history.billable_indicator')}
+                        className="tw-inline-block tw-h-1.5 tw-w-1.5 tw-shrink-0 tw-rounded-full tw-bg-emerald-500"
+                      />
+                    )}
+                    <span className="tw-truncate tw-font-semibold">{event.title}</span>
+                  </div>
                   {!isSmall && startTime && endTime && (
                     <div className="tw-opacity-80">{startTime} - {endTime}</div>
                   )}

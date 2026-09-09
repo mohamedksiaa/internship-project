@@ -52,7 +52,7 @@ describe('getTimeEntryUpdates', () => {
       entries: [{ id: 42, rowid: 42, tags: '', project_label: '', delete_allowed: false, delete_requires_strong_confirmation: false, duration: 3672, date_end: '2026-08-07T14:00:00Z', status: 1 }],
     });
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ scope: 'entries', marker: 'before-stop' }));
+    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ scope: 'entries', marker: 'before-stop', page: 1, per_page: 20, billable_only: 0 }));
   });
 });
 

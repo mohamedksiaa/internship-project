@@ -142,8 +142,10 @@ function handleMockRequest(action, body) {
       }
       mockActiveTimer = null;
       return Promise.resolve({ status: 'success', data: {} });
-    case 'getTimeEntries':
-      return Promise.resolve({ status: 'success', data: mockEntries });
+    case 'getTimeEntries': {
+      const visibleEntries = body?.billable_only ? mockEntries.filter((entry) => Number(entry.billable) === 1) : mockEntries;
+      return Promise.resolve({ status: 'success', data: { entries: visibleEntries, pagination: { page: 1, per_page: 20, total: visibleEntries.length, pages: 1 } } });
+    }
     case 'restartTimer': {
       // A resume never rewrites the previous entry — it creates a brand new
       // one with the same project/task/note, exactly like startTimer().
@@ -176,14 +178,19 @@ function handleMockRequest(action, body) {
       if (mockActiveTimer?.id === id) mockActiveTimer = null;
       return Promise.resolve({ status: 'success', data: { id } });
     }
-    case 'getValidationEntries':
-      return Promise.resolve({ status: 'success', data: mockEntries.filter((entry) => Number(entry.status) === 1) });
+    case 'getValidationEntries': {
+      const validationEntries = mockEntries.filter((entry) => Number(entry.status) === 1);
+      return Promise.resolve({ status: 'success', data: { entries: validationEntries, pagination: { page: 1, per_page: 20, total: validationEntries.length, pages: 1 } } });
+    }
     case 'getUpdateMarker':
       return Promise.resolve({ status: 'success', data: { marker: mockEntries.map((entry) => `${entry.id}:${entry.status}`).join('|') } });
     case 'getTimeEntryUpdates': {
       const marker = mockEntries.map((entry) => `${entry.id}:${entry.date_end || ''}:${entry.duration}:${entry.status}`).join('|');
       const scope = body?.scope === 'validation' ? 'validation' : 'entries';
-      const entries = scope === 'validation' ? mockEntries.filter((entry) => Number(entry.status) === 1) : mockEntries;
+      let entries = scope === 'validation' ? mockEntries.filter((entry) => Number(entry.status) === 1) : mockEntries;
+      if (scope === 'entries' && body?.billable_only) {
+        entries = entries.filter((entry) => Number(entry.billable) === 1);
+      }
       return Promise.resolve({ status: 'success', data: { marker, changed: Boolean(body?.marker) && body.marker !== marker, entries } });
     }
     case 'validateEntry': {
@@ -342,17 +349,34 @@ function handleMockRequest(action, body) {
         if (search && !project.title.toLowerCase().includes(search) && !String(project.ref || '').toLowerCase().includes(search)) return false;
         return true;
       });
-      return Promise.resolve({ status: 'success', data: filtered });
-    }
-
-    case 'getTimeFlowUsers':
+      const perPage = Number(body?.per_page) > 0 ? Number(body.per_page) : 20;
+      const page = Number(body?.page) > 0 ? Number(body.page) : 1;
+      const start = (page - 1) * perPage;
       return Promise.resolve({
         status: 'success',
-        data: [
-          { id: 1, firstname: 'Alice', lastname: 'Martin', label: 'Alice Martin', email: 'alice.martin@example.com', office_phone: '+33 1 23 45 67 89', user_mobile: '', groups: ['HRM'] },
-          { id: 2, firstname: 'Bob', lastname: 'Durand', label: 'Bob Durand', email: 'bob.durand@example.com', office_phone: '', user_mobile: '+33 6 12 34 56 78', groups: ['TBEE', 'TRAINING'] },
-        ],
+        data: {
+          rows: filtered.slice(start, start + perPage),
+          pagination: { page, per_page: perPage, total: filtered.length, pages: Math.max(1, Math.ceil(filtered.length / perPage)) },
+        },
       });
+    }
+
+    case 'getTimeFlowUsers': {
+      const mockUsers = [
+        { id: 1, firstname: 'Alice', lastname: 'Martin', label: 'Alice Martin', email: 'alice.martin@example.com', office_phone: '+33 1 23 45 67 89', user_mobile: '', groups: ['HRM'] },
+        { id: 2, firstname: 'Bob', lastname: 'Durand', label: 'Bob Durand', email: 'bob.durand@example.com', office_phone: '', user_mobile: '+33 6 12 34 56 78', groups: ['TBEE', 'TRAINING'] },
+      ];
+      const perPage = Number(body?.per_page) > 0 ? Number(body.per_page) : 20;
+      const page = Number(body?.page) > 0 ? Number(body.page) : 1;
+      const start = (page - 1) * perPage;
+      return Promise.resolve({
+        status: 'success',
+        data: {
+          rows: mockUsers.slice(start, start + perPage),
+          pagination: { page, per_page: perPage, total: mockUsers.length, pages: Math.max(1, Math.ceil(mockUsers.length / perPage)) },
+        },
+      });
+    }
     case 'exportGlobalCsv':
       return Promise.resolve({
         status: 'success',
@@ -390,11 +414,12 @@ export async function getActiveTimer() {
   return normalizeEntry(data?.data ?? null);
 }
 
-export async function startTimer(fkProject = 0, fkTask = 0, note = '') {
+export async function startTimer(fkProject = 0, fkTask = 0, note = '', billable = false) {
   const data = await moduleTimerRequest('startTimer', {
     fk_project: fkProject,
     fk_task: fkTask,
     note,
+    billable: billable ? 1 : 0,
   });
   const payload = data?.data ?? data;
   const numericId = typeof payload === 'number' || (typeof payload === 'string' && /^\d+$/.test(payload.trim()));
@@ -439,14 +464,20 @@ export async function deleteTimeEntry(id) {
   return data?.data ?? data;
 }
 
-export async function getTimeEntries(limit = 100) {
-  const data = await moduleTimerRequest('getTimeEntries', { limit });
-  return normalizeEntries(data?.data ?? data);
+// Backend pagination (page/per_page, default 20 — same {entries, pagination}
+// contract as timeflowFetchDailyReports/timeflowGetProcessedHistory)
+// replaces the old implicit "fetch up to `limit`, default 100" cap: beyond
+// that, entries used to be silently invisible instead of on another page.
+export async function getTimeEntries(page = 1, perPage = 20, billableOnly = false) {
+  const data = await moduleTimerRequest('getTimeEntries', { page, per_page: perPage, billable_only: billableOnly ? 1 : 0 });
+  const payload = data?.data ?? data ?? {};
+  return { entries: normalizeEntries(payload.entries), pagination: payload.pagination || {} };
 }
 
-export async function getValidationEntries(limit = 100) {
-  const data = await moduleTimerRequest('getValidationEntries', { limit });
-  return normalizeEntries(data?.data ?? data);
+export async function getValidationEntries(page = 1, perPage = 20) {
+  const data = await moduleTimerRequest('getValidationEntries', { page, per_page: perPage });
+  const payload = data?.data ?? data ?? {};
+  return { entries: normalizeEntries(payload.entries), pagination: payload.pagination || {} };
 }
 
 export async function getProcessedHistory(filters = {}) {
@@ -466,8 +497,14 @@ export async function getUpdateMarker(scope = 'entries') {
   return String(data?.data?.marker ?? data?.marker ?? '');
 }
 
-export async function getTimeEntryUpdates(scope = 'entries', marker = '') {
-  const data = await moduleTimerRequest('getTimeEntryUpdates', { scope, marker });
+// page/perPage tell the backend which page to re-fetch if something in
+// scope changed — otherwise a background poll would silently replace
+// whatever the caller is currently paginated to with page 1's content.
+// billableOnly is only meaningful for scope='entries' (Suivi du temps) — a
+// background poll must re-fetch under the SAME active filter, or it would
+// silently drop the filter the moment something elsewhere changes.
+export async function getTimeEntryUpdates(scope = 'entries', marker = '', page = 1, perPage = 20, billableOnly = false) {
+  const data = await moduleTimerRequest('getTimeEntryUpdates', { scope, marker, page, per_page: perPage, billable_only: billableOnly ? 1 : 0 });
   const payload = data?.data ?? data ?? {};
   return {
     marker: String(payload.marker ?? ''),
@@ -496,20 +533,24 @@ export async function getTasks(projectId = 0, limit = 100) {
   return normalizeTasks(data?.data ?? data);
 }
 
-export async function getTimeFlowProjects(filters = {}) {
+export async function getTimeFlowProjects(filters = {}, page = 1, perPage = 20) {
   const data = await moduleTimerRequest('getTimeFlowProjects', {
     client_id: filters.clientId || 0,
     date_from: filters.dateFrom || '',
     date_to: filters.dateTo || '',
     search: filters.search || '',
     source: filters.source || '',
+    page,
+    per_page: perPage,
   });
-  return Array.isArray(data?.data) ? data.data : [];
+  const payload = data?.data ?? data ?? {};
+  return { rows: Array.isArray(payload.rows) ? payload.rows : [], pagination: payload.pagination || {} };
 }
 
-export async function getTimeFlowUsers() {
-  const data = await moduleTimerRequest('getTimeFlowUsers');
-  return Array.isArray(data?.data) ? data.data : [];
+export async function getTimeFlowUsers(page = 1, perPage = 20) {
+  const data = await moduleTimerRequest('getTimeFlowUsers', { page, per_page: perPage });
+  const payload = data?.data ?? data ?? {};
+  return { rows: Array.isArray(payload.rows) ? payload.rows : [], pagination: payload.pagination || {} };
 }
 
 export async function exportGlobalCsv() {
