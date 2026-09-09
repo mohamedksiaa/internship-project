@@ -292,6 +292,7 @@ export default function HistoryPage() {
             height="auto"
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"
+            scrollTime="07:00:00"
             slotLabelFormat={{
               hour: '2-digit',
               minute: '2-digit',
