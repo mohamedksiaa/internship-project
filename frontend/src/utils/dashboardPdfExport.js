@@ -7,11 +7,28 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
 const PAGE_WIDTH_MM = 210;
+const PAGE_HEIGHT_MM = 297; // A4 portrait
 const MARGIN_MM = 15;
 const CONTENT_WIDTH_MM = PAGE_WIDTH_MM - MARGIN_MM * 2;
 const CAPTION_HEIGHT_MM = 8;
 const ANALYSIS_GAP_MM = 6;
 const ANALYSIS_LINE_HEIGHT_MM = 5;
+
+// The analysis text now lists every crossed category with its own
+// breakdown (buildChartAnalysisText in dashboardExport.js) instead of just
+// the dominant one, so it can run to several dozen lines — long enough to
+// run past the bottom of an A4 page. jsPDF never paginates on its own
+// (doc.text() past the page edge just draws off it, invisibly); this is
+// the one place in the export that can overflow enough for that to matter
+// in practice, so it's the one place that now checks before every line and
+// starts a fresh page rather than letting content disappear.
+function ensureSpace(doc, cursorY, neededMm) {
+  if (cursorY + neededMm > PAGE_HEIGHT_MM - MARGIN_MM) {
+    doc.addPage();
+    return MARGIN_MM;
+  }
+  return cursorY;
+}
 
 // Waits until `el` actually has a laid-out box (non-zero size) rather than
 // trusting a fixed delay: on a genuinely first, cold page load the chart's
@@ -121,11 +138,13 @@ export async function generateDashboardPdf({
       cursorY += imgHeightMm;
 
       if (analysisText) {
+        cursorY = ensureSpace(doc, cursorY, ANALYSIS_GAP_MM + ANALYSIS_LINE_HEIGHT_MM);
         cursorY += ANALYSIS_GAP_MM;
         doc.setFontSize(10);
         doc.setTextColor(60);
         const lines = doc.splitTextToSize(analysisText, CONTENT_WIDTH_MM);
         lines.forEach((line) => {
+          cursorY = ensureSpace(doc, cursorY, ANALYSIS_LINE_HEIGHT_MM);
           doc.text(line, MARGIN_MM, cursorY);
           cursorY += ANALYSIS_LINE_HEIGHT_MM;
         });

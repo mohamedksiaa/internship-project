@@ -5,14 +5,38 @@
  * Theme: eldy (Dolibarr 23.x)
  */
 
-/* Kill horizontal scrollbar from table-layout or hidden-but-space-reserving columns */
+/* Kill horizontal scrollbar from table-layout or hidden-but-space-reserving columns.
+ *
+ * width/max-width: 100vw used to be forced here too — removed (see git
+ * history): 100vw measures the viewport BEFORE the scrollbar this rule's
+ * own overflow-x:hidden removes, ~15-17px wider than <body>'s natural width
+ * on every other Dolibarr page, which pushed #id-top's tightly-packed
+ * top-right login block into wrapping.
+ *
+ * overflow-x: hidden (alone, with overflow-y left unset) is ALSO removed
+ * now, for a second, related reason: per the CSS Overflow spec, setting
+ * only one of overflow-x/overflow-y to a non-'visible' value forces the
+ * other to compute as 'auto' instead of 'visible' — so this rule was
+ * silently turning <body> into its own scroll container, something native
+ * Dolibarr pages (which never load this file) never do. #id-top uses
+ * position:sticky (Dolibarr's own eldy theme CSS, THEME_STICKY_TOPMENU),
+ * which establishes the containing block its position:absolute login-block
+ * child (avatar + "admin" + caret, div.login_block, top:0;right:0) resolves
+ * against; introducing a second, unexpected scroll container at the <body>
+ * level is exactly the kind of "changement de contexte de mise en page"
+ * that can make a browser fail to stick/contain it the way it does on every
+ * page that doesn't load this stylesheet — which is what put the login
+ * block on its own line below the module bar instead of beside it.
+ * #id-container, #id-right and #root below each already independently
+ * clamp their own width to 100vw with their own overflow-x:hidden, so
+ * dropping it here doesn't reopen any horizontal-scroll risk for
+ * TimeFlow's own content — it only stops <body>/<html> (and therefore
+ * #id-top, which this stylesheet was never meant to touch) from behaving
+ * any differently than they do on every other Dolibarr page. */
 html.mod-timeflow,
 body.mod-timeflow {
-    overflow-x: hidden !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 100vw !important;
-    max-width: 100vw !important;
 }
 
 /* === 1. Hide ONLY the Dolibarr LEFT menu (the "Rechercher" column) === */
@@ -65,3 +89,27 @@ body.mod-timeflow #root {
    Previously this removed necessary spacing inside cards; leaving defaults
    ensures Tailwind paddings (p-6, etc.) apply correctly. === */
 /* Intentionally left blank. */
+
+/* === 6. Dark mode: match #id-right's background to TimeFlow's own header ===
+   Dolibarr's own dark mode (Setup > Display > "Dark theme mode",
+   THEME_DARKMODEENABLED) colors #id-right via var(--colorbackbody), which
+   resolves to #1d1e20 — a different dark shade than TimeFlow's header
+   (dark:tw-bg-[#141b2d] in AppLayout.jsx). #id-top (the real native menu
+   bar: Home/Third-parties/Projects/...) is NOT recolored by Dolibarr's own
+   dark CSS in every install and can stay on its light/blue theme, so the
+   two different dark shades right below it (#id-right's padding, then
+   TimeFlow's header) read as one dark "band" against that light bar.
+   Fixing that is matching #id-right to TimeFlow's own shade exactly, so
+   the whole area from #id-top's bottom edge down becomes one continuous
+   color instead of a second, subtler seam layered under the first.
+   Only #id-right's background changes — #id-top itself, and every other
+   Dolibarr page/module (this selector requires body.mod-timeflow, only
+   present on TimeFlow's own pages), are left untouched in every mode. */
+body.mod-timeflow-dark-forced #id-right {
+    background: #141b2d !important;
+}
+@media (prefers-color-scheme: dark) {
+    body.mod-timeflow-dark-auto #id-right {
+        background: #141b2d !important;
+    }
+}

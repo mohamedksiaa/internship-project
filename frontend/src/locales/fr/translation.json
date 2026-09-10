@@ -6,7 +6,8 @@
     "section": "Validation",
     "heading": "Valider les entrées",
     "tasks_tab": "Validation des tâches des employés",
-    "reports_tab": "Validation des comptes-rendus des employés"
+    "reports_tab": "Validation des comptes-rendus des employés",
+    "tasks_description": "Examinez et validez les entrées de temps soumises par les employés."
   },
   "entries_one": "{{count}} entrée",
   "entries_other": "{{count}} entrées",
@@ -114,8 +115,12 @@
       "csv_crossed_with_header": "Ventilation par {{dimension}}",
       "analysis_no_data": "Aucune activité enregistrée sur cette période.",
       "analysis_dominant": "{{label}} représente {{pct}}% du temps total sur cette période, avec {{duration}}.",
-      "analysis_runner_up": "Suivi de {{label}} avec {{duration}}.",
-      "analysis_crossed_breakdown": "La majorité provient de {{label}} ({{cross}}), avec {{duration}}."
+      "analysis_list_item": "{{label}} : {{pct}}% ({{duration}})",
+      "analysis_top_list_intro": "Autres catégories principales :",
+      "analysis_crossed_breakdown_intro": "Répartition de {{label}} par {{cross}} :",
+      "analysis_billable_share": "{{pct}}% du temps total est facturable.",
+      "analysis_category_count": "Répartition sur {{count}} catégories.",
+      "analysis_other_bucket": "Le reste, réparti sur plusieurs petites catégories, représente {{pct}}% du temps total sur cette période, avec {{duration}}."
     },
     "days_few": "",
     "days_many": "",
@@ -185,9 +190,9 @@
     "saving": "Enregistrement…",
     "history_title": "Mes rapports envoyés",
     "delete_title": "Supprimer le rapport",
-    "delete_irreversible": "Cette action est irréversible.",
+    "delete_irreversible": "Ce rapport sera retiré de votre liste.",
     "delete_confirm": "Confirmer la suppression de ce rapport ?",
-    "delete_requires_confirmation": "Ce rapport a été soumis. Confirmer sa suppression définitive ?",
+    "delete_requires_confirmation": "Ce rapport a été soumis ou refusé. Confirmer sa suppression ?",
     "cancel": "Annuler",
     "confirm": "Confirmer",
     "loading": "Chargement…",
@@ -240,7 +245,6 @@
       "col_status": "Statut",
       "col_statut": "Statut",
       "col_etat": "État",
-      "col_source": "Source",
     "status": {
       "draft": "Brouillon",
       "opened": "Ouvert",
@@ -255,11 +259,6 @@
       "lost": "Perdu",
       "pending": "En attente"
     },
-    "source": {
-      "manual": "Manuel",
-      "clockify": "Clockify",
-      "native": "Natif"
-    },
     "everyone": "Tous",
     "assigned_users_more_one": "+{{count}} autre",
     "assigned_users_more_other": "+{{count}} autres",
@@ -270,8 +269,6 @@
       "date_to": "Créé au",
       "search_label": "Recherche",
       "search_placeholder": "Titre ou référence…",
-      "source_label": "Source",
-      "all_sources": "Toutes les sources",
       "reset": "Réinitialiser les filtres"
     }
   },

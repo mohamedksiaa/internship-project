@@ -6,7 +6,8 @@
     "section": "التحقق",
     "heading": "التحقق من السجلات",
     "tasks_tab": "التحقق من مهام الموظفين",
-    "reports_tab": "التحقق من تقارير الموظفين"
+    "reports_tab": "التحقق من تقارير الموظفين",
+    "tasks_description": "راجع سجلات الوقت التي أرسلها الموظفون واعتمدها."
   },
   "entries_zero": "لا توجد إدخالات",
   "entries_one": "{{count}} إدخال",
@@ -130,8 +131,12 @@
       "csv_crossed_with_header": "تفصيل حسب {{dimension}}",
       "analysis_no_data": "لم يتم تسجيل أي نشاط خلال هذه الفترة.",
       "analysis_dominant": "{{label}} يمثل {{pct}}% من إجمالي الوقت خلال هذه الفترة، بمقدار {{duration}}.",
-      "analysis_runner_up": "يليه {{label}} بمقدار {{duration}}.",
-      "analysis_crossed_breakdown": "يأتي معظمه من {{label}} ({{cross}})، بمقدار {{duration}}."
+      "analysis_list_item": "{{label}}: {{pct}}% ({{duration}})",
+      "analysis_top_list_intro": "فئات رئيسية أخرى:",
+      "analysis_crossed_breakdown_intro": "توزيع {{label}} حسب {{cross}}:",
+      "analysis_billable_share": "{{pct}}% من إجمالي الوقت قابل للفوترة.",
+      "analysis_category_count": "موزّع على {{count}} فئة.",
+      "analysis_other_bucket": "الباقي، الموزّع على عدة فئات صغيرة، يمثل {{pct}}% من إجمالي الوقت خلال هذه الفترة، بمقدار {{duration}}."
     }
   },
   "history": {
@@ -189,9 +194,9 @@
     "saving": "جارٍ الحفظ…",
     "history_title": "تقاريري المرسلة",
     "delete_title": "حذف التقرير",
-    "delete_irreversible": "هذا الإجراء لا رجعة فيه.",
+    "delete_irreversible": "سيُزال هذا التقرير من قائمتك.",
     "delete_confirm": "تأكيد حذف هذا التقرير؟",
-    "delete_requires_confirmation": "تم تقديم هذا التقرير. تأكيد الحذف الدائم؟",
+    "delete_requires_confirmation": "تم إرسال هذا التقرير أو رفضه. تأكيد الحذف؟",
     "cancel": "إلغاء",
     "confirm": "تأكيد",
     "loading": "جارٍ التحميل…",
@@ -241,7 +246,6 @@
     "col_entries": "السجلات",
     "col_statut": "الحالة",
     "col_etat": "الوضع",
-    "col_source": "المصدر",
     "status": {
       "draft": "مسودة",
       "opened": "مفتوح",
@@ -255,11 +259,6 @@
       "won": "فوز",
       "lost": "خسارة",
       "pending": "قيد الانتظار"
-    },
-    "source": {
-      "manual": "يدوي",
-      "clockify": "استيراد Clockify",
-      "native": "أصلي (Dolibarr)"
     },
     "everyone": "الجميع",
     "assigned_users_more_zero": "",
@@ -275,8 +274,6 @@
       "date_to": "أُنشئ إلى",
       "search_label": "بحث",
       "search_placeholder": "العنوان أو المرجع…",
-      "source_label": "المصدر",
-      "all_sources": "جميع المصادر",
       "reset": "إعادة تعيين الفلاتر"
     }
   },

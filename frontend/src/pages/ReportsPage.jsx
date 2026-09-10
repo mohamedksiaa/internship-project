@@ -18,7 +18,6 @@ import StatusBadge from '../components/atoms/StatusBadge';
 import TruncatedText from '../components/atoms/TruncatedText';
 import ProjectStatusBadge, { projectStatusLabelKey } from '../components/atoms/ProjectStatusBadge';
 import OpportunityStatusBadge, { opportunityStatusLabelKey } from '../components/atoms/OpportunityStatusBadge';
-import ProjectSourceBadge from '../components/atoms/ProjectSourceBadge';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
 import ImportPreviewModal from '../components/molecules/ImportPreviewModal.jsx';
 import { BillableBadge, ModifiedManuallyBadge, isManuallyModifiedRecord, taskClusterKey } from '../components/organisms/TimeEntryList.jsx';
@@ -102,7 +101,6 @@ function ProjectsReportTab() {
   const [dateRange, setDateFrom, setDateTo] = useUrlDateRange({ from: '', to: '' }, { from: 'projDateFrom', to: 'projDateTo' });
   const [searchFilter, setSearchFilter] = useUrlState('projSearch', '');
   const [searchInput, setSearchInput] = useState(searchFilter);
-  const [sourceFilter, setSourceFilter] = useUrlState('projSource', '');
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -116,10 +114,9 @@ function ProjectsReportTab() {
     dateFrom: dateRange.from,
     dateTo: dateRange.to,
     search: searchFilter,
-    source: sourceFilter,
-  }), [clientId, dateRange, searchFilter, sourceFilter]);
+  }), [clientId, dateRange, searchFilter]);
 
-  const hasActiveFilters = Boolean(clientId || dateRange.from || dateRange.to || searchFilter || sourceFilter);
+  const hasActiveFilters = Boolean(clientId || dateRange.from || dateRange.to || searchFilter);
 
   // Any filter change invalidates the current page number (a narrower filter
   // can easily have fewer pages than where the user was browsing) — same
@@ -130,7 +127,6 @@ function ProjectsReportTab() {
     setDateTo('');
     setSearchInput('');
     setSearchFilter('');
-    setSourceFilter('');
     setPage(1);
   }
   function handleClientChange(value) {
@@ -149,11 +145,6 @@ function ProjectsReportTab() {
     setSearchInput(value);
     setPage(1);
   }
-  function handleSourceChange(value) {
-    setSourceFilter(value);
-    setPage(1);
-  }
-
   // Backend pagination (page/per_page=20, same {rows, pagination} contract
   // as the rest of the module) — the volume here (dozens of projects) does
   // not force this today, but consistency means every list-bearing page uses
@@ -196,7 +187,7 @@ function ProjectsReportTab() {
 
     const header = [
       t('projects.col_ref'), t('projects.col_title'), t('projects.col_client'),
-      t('projects.col_assigned_users'), t('projects.col_statut'), t('projects.col_etat'), t('projects.col_source'),
+      t('projects.col_assigned_users'), t('projects.col_statut'), t('projects.col_etat'),
     ];
     downloadCsv('projets', header, allRows.map((project) => {
       const { text, title } = formatAssignedUsers(project, usersById, t);
@@ -208,7 +199,6 @@ function ProjectsReportTab() {
         title || text,
         oppKey ? t(oppKey) : '—',
         t(projectStatusLabelKey(Number(project.fk_statut ?? 0))),
-        t(`projects.source.${project.source}`, project.source || '—'),
       ];
     }));
   };
@@ -257,17 +247,6 @@ function ProjectsReportTab() {
           placeholder={t('projects.filters.search_placeholder')}
           className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100"
         />
-        <select
-          aria-label={t('projects.filters.source_label')}
-          value={sourceFilter}
-          onChange={(event) => handleSourceChange(event.target.value)}
-          className="tw-rounded tw-border tw-p-2 dark:tw-border-slate-600 dark:tw-bg-slate-800 dark:tw-text-slate-100"
-        >
-          <option value="">{t('projects.filters.all_sources')}</option>
-          <option value="manual">{t('projects.source.manual')}</option>
-          <option value="clockify">{t('projects.source.clockify')}</option>
-          <option value="native">{t('projects.source.native')}</option>
-        </select>
         {hasActiveFilters && (
           <button
             type="button"
@@ -296,7 +275,6 @@ function ProjectsReportTab() {
                   <th className="tw-px-3 tw-py-2">{t('projects.col_assigned_users')}</th>
                   <th className="tw-px-3 tw-py-2">{t('projects.col_statut')}</th>
                   <th className="tw-px-3 tw-py-2">{t('projects.col_etat')}</th>
-                  <th className="tw-px-3 tw-py-2 tw-text-right">{t('projects.col_source')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -322,9 +300,6 @@ function ProjectsReportTab() {
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-tabular-nums">
                       <ProjectStatusBadge status={Number(project.fk_statut ?? 0)} />
-                    </td>
-                    <td className="tw-px-3 tw-py-3 tw-text-right">
-                      <ProjectSourceBadge source={project.source} />
                     </td>
                   </tr>
                 ))}
@@ -560,6 +535,9 @@ export default function ReportsPage() {
     // pagination.total the moment a page held more than one status mix.
     const payload = {
       history: true,
+      // Audit history intentionally includes employee-soft-deleted reports.
+      // The backend only honors this in the manager history scope.
+      include_deleted: canReadAll,
       employee_id: filters.employee_id,
       date_from: filters.date_from,
       date_to: filters.date_to,

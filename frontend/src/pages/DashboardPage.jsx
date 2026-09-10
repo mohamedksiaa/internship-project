@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
-import CustomChartWidget, { buildSingleDimensionChartData, buildStackedChartData } from '../components/organisms/CustomChartWidget';
+import CustomChartWidget, { buildSingleDimensionChartData, buildStackedChartData, countPrimaryCategories } from '../components/organisms/CustomChartWidget';
 import { getDailyReports, getMyDailyReports, getSummaryReports } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
@@ -344,6 +344,8 @@ export default function DashboardPage() {
         totalSeconds: summaryStats.totalSeconds,
         formatDuration,
         crossWithLabel: isCrossing ? t(`dashboard.dimension.${crossWith}`) : undefined,
+        billableSeconds: summaryStats.billableSeconds,
+        categoryCount: countPrimaryCategories({ summary, dimension }),
       });
 
       const now = new Date();

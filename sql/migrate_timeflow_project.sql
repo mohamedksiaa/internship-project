@@ -3,13 +3,12 @@
 -- then repoint llx_timeflow_timeentry.fk_project to the new table.
 
 -- 1. Mirror Dolibarr projects into llx_timeflow_project (skip duplicates)
-INSERT INTO llx_timeflow_project (entity, ref, title, description, source, fk_dolibarr_project, fk_soc, fk_user_creat, date_creation, import_key)
+INSERT INTO llx_timeflow_project (entity, ref, title, description, fk_dolibarr_project, fk_soc, fk_user_creat, date_creation, import_key)
 SELECT
     p.entity,
     p.ref,
     p.title,
     p.description,
-    'migrated',
     p.rowid,
     p.fk_soc,
     p.fk_user_creat,

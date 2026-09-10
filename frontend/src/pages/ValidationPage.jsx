@@ -25,7 +25,10 @@ function currentMonthRange() {
 
 function TaskValidationTab() {
   const { t } = useTranslation();
+  const [dateRange, setDateFrom, setDateTo] = useUrlDateRange(currentMonthRange(), { from: 'validationDateFrom', to: 'validationDateTo' });
+  const [employeeId, setEmployeeId] = useUrlState('validationEmployee', '');
   const [entries, setEntries] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
@@ -46,13 +49,14 @@ function TaskValidationTab() {
     // timeflowFetchDailyReports) replaces the old implicit limit=100 cap.
     async function loadEntries(targetPage) {
       try {
-        const data = await getValidationEntries(targetPage, 20);
+        const data = await getValidationEntries(targetPage, 20, { dateFrom: dateRange.from, dateTo: dateRange.to, employeeId });
         const pages = data.pagination?.pages || 1;
         if (targetPage > pages && pages >= 1 && targetPage !== pages) {
           return loadEntries(pages);
         }
         if (isMounted) {
           setEntries(Array.isArray(data.entries) ? data.entries : []);
+          setEmployees(Array.isArray(data.employees) ? data.employees : []);
           setPagination(data.pagination || {});
           setPage(targetPage);
         }
@@ -73,7 +77,7 @@ function TaskValidationTab() {
       if (polling || document.visibilityState !== 'visible') return;
       polling = true;
       try {
-        const update = await getTimeEntryUpdates('validation', marker || '', pageRef.current, 20);
+        const update = await getTimeEntryUpdates('validation', marker || '', pageRef.current, 20, false, { dateFrom: dateRange.from, dateTo: dateRange.to, employeeId });
         if (!isMounted) return;
         if (marker === null) {
           marker = update.marker;
@@ -102,7 +106,7 @@ function TaskValidationTab() {
       await loadEntries(1);
       if (!isMounted) return;
       try {
-        const update = await getTimeEntryUpdates('validation', markerBefore || '', pageRef.current, 20);
+        const update = await getTimeEntryUpdates('validation', markerBefore || '', pageRef.current, 20, false, { dateFrom: dateRange.from, dateTo: dateRange.to, employeeId });
         marker = update.marker;
         if (markerBefore !== null && update.changed) {
           setEntries(update.entries);
@@ -126,11 +130,43 @@ function TaskValidationTab() {
       window.removeEventListener('focus', checkForUpdates);
       document.removeEventListener('visibilitychange', checkForUpdates);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [dateRange, employeeId]);
+
+  function handleDateFromChange(value) {
+    setDateFrom(value);
+    setPage(1);
+  }
+
+  function handleDateToChange(value) {
+    setDateTo(value);
+    setPage(1);
+  }
+
+  function handleEmployeeChange(value) {
+    setEmployeeId(value);
+    setPage(1);
+  }
 
   return (
     <Card size="section" titleSize="xl" headerLabel={t('validation.section')} title={t('validation.heading')} headerRight={<span className="tw-inline-flex tw-rounded-full tw-bg-slate-100 tw-px-3 tw-py-1 tw-text-sm tw-text-slate-700">{t('entries', { count: entries.length })}</span>}>
+      <p className="tw-mb-4 tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('validation.tasks_description')}</p>
+      <div className="tw-mb-4 tw-flex tw-flex-wrap tw-items-end tw-gap-4">
+        <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700 dark:tw-text-slate-300">
+          {t('reports.from')}
+          <input type="date" value={dateRange.from} onChange={(event) => handleDateFromChange(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
+        </label>
+        <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700 dark:tw-text-slate-300">
+          {t('reports.to')}
+          <input type="date" value={dateRange.to} onChange={(event) => handleDateToChange(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100" />
+        </label>
+        <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700 dark:tw-text-slate-300">
+          {t('reports.employee')}
+          <select aria-label={t('reports.filter_employee')} value={employeeId} onChange={(event) => handleEmployeeChange(event.target.value)} className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100">
+            <option value="">{t('reports.all_employees')}</option>
+            {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.label}</option>)}
+          </select>
+        </label>
+      </div>
       {loading && <p className="tw-text-sm tw-text-slate-600">{t('loading')}</p>}
       {error && <p className="tw-text-sm tw-text-rose-600">{error}</p>}
       {!loading && !error && (

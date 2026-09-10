@@ -361,16 +361,47 @@ function timeflowGetUpdateMarker($db, $user, $scope = 'entries')
  *        forwards this.
  * @return array{entries: array, pagination: array}
  */
-function timeflowFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', $page = 1, $perPage = 20, $billableOnly = false)
+function timeflowFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', $page = 1, $perPage = 20, $billableOnly = false, $filters = array())
 {
     global $db;
 
-    $filter = $scope === 'validation' ? 't.status:=:'.TimeEntry::STATUS_SUBMITTED : '';
+    // Every criterion appended below is individually wrapped in its own
+    // "(field:op:value)" parentheses — forgeSQLFromUniversalSearchCriteria()
+    // requires that per-criterion shape (its regexstring only recognizes a
+    // parenthesized triplet); an unparenthesized leading criterion silently
+    // breaks the whole filter into a "Bad syntax of the search string" error
+    // the moment a second criterion gets appended after it (harmless while
+    // this was the only criterion for 'validation', because forgeSQL...'s own
+    // top-level fallback auto-wraps a lone unparenthesized string — but not
+    // once anything is concatenated onto it), which fetchAll()/
+    // timeflowCountEntriesMatchingFilter() then both silently treat as "0
+    // rows" instead of surfacing the error. This was the actual cause of the
+    // "Validation des tâches" tab showing no entries once date filters were added.
+    $filter = $scope === 'validation' ? '(t.status:=:'.TimeEntry::STATUS_SUBMITTED.')' : '';
     if ($scope !== 'validation') {
         $filter .= ($filter !== '' ? ' AND ' : '').'(t.fk_user:=:'.((int) $user->id).')';
     }
     if ($billableOnly) {
         $filter .= ($filter !== '' ? ' AND ' : '').'(t.billable:=:1)';
+    }
+    if ($scope === 'validation') {
+        if (!empty($filters['employee_id'])) {
+            $filter .= ($filter !== '' ? ' AND ' : '').'(t.fk_user:=:'.((int) $filters['employee_id']).')';
+        }
+        if (!empty($filters['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
+            // Universal Search date criteria use the compact Dolibarr date
+            // format. Keep the API contract ISO (YYYY-MM-DD), but convert
+            // before handing the value to forgeSQLFromUniversalSearchCriteria.
+            $dateFrom = str_replace('-', '', $filters['date_from']);
+            $filter .= ($filter !== '' ? ' AND ' : '')."(t.date_start:>=:'".$db->escape($dateFrom)."')";
+        }
+        if (!empty($filters['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
+            $dateTo = DateTime::createFromFormat('!Y-m-d', $filters['date_to']);
+            if ($dateTo instanceof DateTime) {
+                $dateTo->modify('+1 day');
+                $filter .= ($filter !== '' ? ' AND ' : '')."(t.date_start:<:'".$db->escape($dateTo->format('Ymd'))."')";
+            }
+        }
     }
 
     $page = max(1, (int) $page);
@@ -391,7 +422,23 @@ function timeflowFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', 
     return array(
         'entries' => $rows,
         'pagination' => array('page' => $page, 'per_page' => $perPage, 'total' => $total, 'pages' => max(1, (int) ceil($total / $perPage))),
+        'employees' => $scope === 'validation' ? timeflowValidationEmployees() : array(),
     );
+}
+
+function timeflowValidationEmployees()
+{
+    global $db;
+    $sql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry AS t';
+    $sql .= ' LEFT JOIN '.$db->prefix().'user AS u ON u.rowid = t.fk_user';
+    $sql .= ' WHERE t.entity IN ('.getEntity('timeentry').') AND t.status = '.TimeEntry::STATUS_SUBMITTED;
+    $sql .= ' ORDER BY u.lastname, u.firstname, u.login';
+    $resql = $db->query($sql);
+    $employees = array();
+    while ($resql && ($obj = $db->fetch_object($resql))) {
+        $employees[] = array('id' => (int) $obj->fk_user, 'label' => trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));
+    }
+    return $employees;
 }
 
 function timeflowExportTimeEntry($object)
@@ -1446,10 +1493,11 @@ function timeflowGetProcessedHistory($input, $user = null)
 
 /**
  * Deletion policy for daily reports, mirroring TimeEntry::isDeletionAllowedFor()
- * exactly: a draft belongs to its employee (still requires the base
- * 'timeentry'/'write' right, not ownership alone); anything else (submitted,
- * validated, or refused) requires the same processed-entry deletion
- * authority as time entries. Deliberately reuses
+ * exactly for validated/submitted records. Drafts and refused reports belong
+ * to their employee (and still require the base 'timeentry'/'write' right).
+ * A refusal is not an approval, so its owner may soft-delete it. Submitted
+ * and validated reports require the processed-entry deletion authority.
+ * Deliberately reuses
  * TimeEntry::canDeleteProcessedEntry() / timeflow.timeentry.deletevalidated
  * rather than introducing a parallel dailyreport-scoped right — consistent
  * with timeflowCanValidate() above already reusing timeflow.timeentry.validate
@@ -1462,7 +1510,7 @@ function timeflowGetProcessedHistory($input, $user = null)
  */
 function timeflowCanDeleteDailyReport($user, $ownerId, $status)
 {
-    if ((int) $status !== 0) {
+    if ((int) $status !== 0 && (int) $status !== 9) {
         return TimeEntry::canDeleteProcessedEntry($user);
     }
     return !empty($user->admin) || ($user->hasRight('timeflow', 'timeentry', 'write') && (int) $ownerId === (int) $user->id);
@@ -1470,9 +1518,9 @@ function timeflowCanDeleteDailyReport($user, $ownerId, $status)
 
 /** Return daily free-text reports, scoped either to one user or to the whole team.
  *
- * Employee view: only active (non soft-deleted) reports are exposed.
- * Manager view: both active and soft-deleted reports are returned together,
- * with is_deleted and deleted_at for UI separation.
+ * Employee views always expose only active (non soft-deleted) reports. The
+ * manager report-history view may explicitly include deleted reports for
+ * audit purposes; all other manager views expose active reports only.
  *
  * Report history is read-only by design: employee history only shows their own
  * reports that have been read/validated, while managers see all read reports from
@@ -1483,12 +1531,15 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
     global $db, $conf, $user;
     $where = array('r.entity = '.((int) $conf->entity));
     $historyMode = !empty($input['history']) || (!empty($input['mode']) && $input['mode'] === 'history');
+    $includeDeleted = $allUsers && $historyMode && !empty($input['include_deleted']);
 
     if ($allUsers) {
         if (!empty($input['employee_id'])) {
             $where[] = 'r.fk_user = '.((int) $input['employee_id']);
         }
-        $where[] = 'r.date_delete IS NULL';
+        if (!$includeDeleted) {
+            $where[] = 'r.date_delete IS NULL';
+        }
         $status = isset($input['status']) ? (string) $input['status'] : '';
         if ($status === 'validated') {
             $where[] = 'r.status = 2';
@@ -1610,12 +1661,16 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
     );
 }
 
-function timeflowDailyReportEmployees()
+function timeflowDailyReportEmployees($includeDeleted = false)
 {
     global $db, $conf;
     $sql = 'SELECT DISTINCT r.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_daily_report AS r';
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS u ON u.rowid = r.fk_user';
-    $sql .= ' WHERE r.entity = '.((int) $conf->entity).' ORDER BY u.lastname, u.firstname, u.login';
+    $sql .= ' WHERE r.entity = '.((int) $conf->entity);
+    if (!$includeDeleted) {
+        $sql .= ' AND r.date_delete IS NULL';
+    }
+    $sql .= ' ORDER BY u.lastname, u.firstname, u.login';
     $resql = $db->query($sql);
     $employees = array();
     while ($resql && ($obj = $db->fetch_object($resql))) {
@@ -1878,7 +1933,6 @@ switch ($action) {
             'date_from' => $postData['date_from'] ?? GETPOST('date_from', 'alphanohtml'),
             'date_to' => $postData['date_to'] ?? GETPOST('date_to', 'alphanohtml'),
             'search' => trim((string) ($postData['search'] ?? GETPOST('search', 'alphanohtml'))),
-            'source' => trim((string) ($postData['source'] ?? GETPOST('source', 'alpha'))),
         );
         $projectsPage = !empty($postData['page']) ? (int) $postData['page'] : (int) GETPOST('page', 'int');
         $projectsPage = $projectsPage > 0 ? $projectsPage : 1;
@@ -2042,7 +2096,12 @@ switch ($action) {
         // the caller (Suivi du temps) simply never sends it for scope=
         // 'validation', so this stays false there regardless.
         $updateBillableOnly = !empty($postData['billable_only']) || (bool) GETPOST('billable_only', 'int');
-        $updateResult = $changed ? timeflowFetchVisibleTimeEntries($timeentry, $user, $scope, $updatePage, $updatePerPage, $updateBillableOnly) : null;
+        $updateFilters = array(
+            'date_from' => (string) ($postData['date_from'] ?? GETPOST('date_from', 'alphanohtml')),
+            'date_to' => (string) ($postData['date_to'] ?? GETPOST('date_to', 'alphanohtml')),
+            'employee_id' => (int) ($postData['employee_id'] ?? GETPOST('employee_id', 'int')),
+        );
+        $updateResult = $changed ? timeflowFetchVisibleTimeEntries($timeentry, $user, $scope, $updatePage, $updatePerPage, $updateBillableOnly, $updateFilters) : null;
         timeflowJsonResponse(array('status' => 'success', 'data' => array(
             'marker' => $marker,
             'changed' => $changed,
@@ -2075,7 +2134,12 @@ switch ($action) {
         $page = $page > 0 ? $page : 1;
         $perPage = !empty($postData['per_page']) ? (int) $postData['per_page'] : (int) GETPOST('per_page', 'int');
         $perPage = $perPage > 0 ? $perPage : 20;
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchVisibleTimeEntries($timeentry, $user, 'validation', $page, $perPage)));
+        $filters = array(
+            'date_from' => (string) ($postData['date_from'] ?? GETPOST('date_from', 'alphanohtml')),
+            'date_to' => (string) ($postData['date_to'] ?? GETPOST('date_to', 'alphanohtml')),
+            'employee_id' => (int) ($postData['employee_id'] ?? GETPOST('employee_id', 'int')),
+        );
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchVisibleTimeEntries($timeentry, $user, 'validation', $page, $perPage, false, $filters)));
         break;
 
     case 'getProcessedHistory':
@@ -2222,7 +2286,7 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Le contenu du rapport est obligatoire.'), 400);
         }
         // Ensure the report exists and belongs to the user (or allow admins/validators)
-        $sql = 'SELECT rowid, fk_user, date_report, date_delete, status FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' LIMIT 1';
+        $sql = 'SELECT rowid, fk_user, date_report, date_delete, status FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.((int) $id).' AND entity = '.((int) $conf->entity).' LIMIT 1';
         $res = $db->query($sql);
         if (!$res || $db->num_rows($res) <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
@@ -2243,7 +2307,7 @@ switch ($action) {
         if ($status !== null) {
             $sql .= ', status = '.((int) $status);
         }
-        $sql .= ' WHERE rowid = '.((int) $id);
+        $sql .= ' WHERE rowid = '.((int) $id).' AND entity = '.((int) $conf->entity).' AND date_delete IS NULL';
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de mettre à jour le rapport : '.$db->lasterror()), 500);
         }
@@ -2271,7 +2335,7 @@ switch ($action) {
         if ($id <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant du rapport invalide.'), 400);
         }
-        $sql = 'SELECT rowid, fk_user, status, date_delete, date_validated_at, date_report FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.$id.' LIMIT 1';
+        $sql = 'SELECT rowid, fk_user, status, date_delete, date_validated_at, date_report FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity).' LIMIT 1';
         $res = $db->query($sql);
         if (!$res || $db->num_rows($res) <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Rapport introuvable.'), 404);
@@ -2287,28 +2351,12 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'is_deleted' => true)), 200);
         }
 
-        // date_validated_at is set once and only once by validateDailyReport()
-        // or rejectDailyReport(), never cleared afterward — the permanent
-        // marker that a manager decision (positive or negative) was recorded
-        // for this report. That decision has audit value even when the
-        // decision was a rejection, so anything a manager has ever touched
-        // is protected by soft-delete only, exactly like TimeEntry treats
-        // fk_user_valid. Everything else (a draft never decided, or a
-        // submitted report still awaiting a decision) never had official
-        // value, so it is a real physical delete.
-        if (empty($obj->date_validated_at)) {
-            dol_syslog('timeflow.deleteDailyReport HARD DELETE user_id='.(int) $user->id.' report_id='.$id.' date_report='.$obj->date_report.' status_at_deletion='.$reportStatus, LOG_INFO);
-            $sql = 'DELETE FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.$id;
-            if (!$db->query($sql)) {
-                timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer définitivement le rapport : '.$db->lasterror()), 500);
-            }
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $id, 'is_deleted' => true, 'hard_deleted' => true)));
-        }
-
+        // Daily reports are never physically deleted. date_delete preserves
+        // the audit trail while hiding the report from active lists.
         $now = dol_now();
         $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report';
         $sql .= ' SET date_delete = "'.$db->idate($now).'", fk_user_delete = '.((int) $user->id);
-        $sql .= ' WHERE rowid = '.$id.' AND date_delete IS NULL';
+        $sql .= ' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity).' AND date_delete IS NULL';
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer le rapport : '.$db->lasterror()), 500);
         }
@@ -2324,7 +2372,8 @@ switch ($action) {
         $input = is_array($postData) ? $postData : $_REQUEST;
         $canReadAll = timeflowCanValidate($user) || timeflowCanReadAllTimeEntries($user);
         $result = timeflowFetchDailyReports($input, $canReadAll, $canReadAll ? 0 : (int) $user->id);
-        $employees = $canReadAll ? timeflowDailyReportEmployees() : array(array(
+        $includeDeleted = $canReadAll && !empty($input['history']) && !empty($input['include_deleted']);
+        $employees = $canReadAll ? timeflowDailyReportEmployees($includeDeleted) : array(array(
             'id' => (int) $user->id,
             'label' => timeflowResolveUserLabel((int) $user->id),
         ));
@@ -2342,7 +2391,7 @@ switch ($action) {
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
         $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET read_at = \''.$db->idate(dol_now()).'\',';
-        $sql .= ' fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity);
+        $sql .= ' fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity).' AND date_delete IS NULL';
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de marquer le rapport comme lu.'), 500);
         }
@@ -2355,7 +2404,7 @@ switch ($action) {
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
         $now = $db->idate(dol_now());
-        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET status = 2, read_at = \''.$now.'\', date_validated_at = \''.$now.'\', fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity);
+        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET status = 2, read_at = \''.$now.'\', date_validated_at = \''.$now.'\', fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity).' AND date_delete IS NULL';
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de valider le rapport.'), 500);
         }
@@ -2368,7 +2417,7 @@ switch ($action) {
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
         $now = $db->idate(dol_now());
-        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET status = 9, read_at = \''.$now.'\', date_validated_at = \''.$now.'\', fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity);
+        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET status = 9, read_at = \''.$now.'\', date_validated_at = \''.$now.'\', fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity).' AND date_delete IS NULL';
         if (!$db->query($sql)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de rejeter le rapport.'), 500);
         }
@@ -2858,11 +2907,6 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1
         $searchLike = "'%".$db->escape($search)."%'";
         $whereSql .= ' AND (p.title LIKE '.$searchLike.' OR p.ref LIKE '.$searchLike.')';
     }
-    $source = trim((string) ($filters['source'] ?? ''));
-    if (in_array($source, array('manual', 'clockify', 'native'), true)) {
-        $whereSql .= " AND ef.timeflow_source = '".$db->escape($source)."'";
-    }
-
     // Same membership restriction as timeflowFetchProjects() (the Timer's
     // active-project picker): a non-manager (no timeflowCanReadAllTimeEntries)
     // only sees projects with no PROJECTCONTRIBUTOR assignment at all (open
@@ -2890,7 +2934,7 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1
     }
 
     $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.fk_soc, s.nom as soc_name, p.fk_statut, p.fk_opp_status, cls.code as opp_status_code, p.datec,';
-    $sql .= ' ef.timeflow_source, ef.timeflow_import_key,';
+    $sql .= ' ef.timeflow_import_key,';
     $sql .= ' (SELECT COUNT(*) FROM '.$db->prefix().'timeflow_timeentry AS t';
     $sql .= '  WHERE t.fk_project = p.rowid AND t.date_delete IS NULL) AS entry_count';
     $sql .= ' FROM '.$db->prefix().'projet AS p';
@@ -2971,7 +3015,6 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1
                 'title' => $obj->title,
                 'ref' => !empty($obj->ref) ? $obj->ref : '',
                 'description' => !empty($obj->description) ? $obj->description : '',
-                'source' => !empty($obj->timeflow_source) ? $obj->timeflow_source : 'native',
                 'fk_soc' => (int) $obj->fk_soc,
                 'client' => !empty($obj->soc_name) ? $obj->soc_name : '',
                 'entry_count' => (int) $obj->entry_count,
@@ -3112,8 +3155,6 @@ function timeflowCreateProject($db, $user, $title, $fkSoc = 0, $description = ''
     $project->socid = (int) $fkSoc;
     $project->status = Project::STATUS_VALIDATED;
     $project->usage_task = 1;
-    $project->array_options['options_timeflow_source'] = 'manual';
-
     $result = $project->create($user);
     if ($result > 0) {
         return (int) $result;

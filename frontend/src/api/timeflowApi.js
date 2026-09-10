@@ -9,7 +9,7 @@ const API_MODE = import.meta.env.VITE_API_MODE || 'real';
 let mockActiveTimer = null;
 let mockDailyReports = [];
 let mockTimeFlowProjects = [
-  { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', source: 'manual', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0, date_creation: '2026-07-01T09:00:00Z' },
+  { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0, date_creation: '2026-07-01T09:00:00Z' },
 ];
 const mockEntries = [
   {
@@ -299,13 +299,22 @@ function handleMockRequest(action, body) {
       return Promise.resolve({ status: 'success', data: updated || {} });
     }
     case 'deleteDailyReport': {
-      mockDailyReports = mockDailyReports.filter((report) => report.id !== Number(body?.id));
-      return Promise.resolve({ status: 'success' });
+      const deletedAt = new Date().toISOString();
+      mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id)
+        ? { ...report, is_deleted: true, date_delete: deletedAt, deleted_at: deletedAt }
+        : report);
+      return Promise.resolve({ status: 'success', data: { id: Number(body?.id), is_deleted: true } });
     }
-    case 'getMyDailyReports':
-      return Promise.resolve({ status: 'success', data: { reports: mockDailyReports, pagination: { page: 1, per_page: 20, total: mockDailyReports.length, pages: 1 } } });
-    case 'getDailyReports':
-      return Promise.resolve({ status: 'success', data: { reports: mockDailyReports, employees: [], pagination: { page: 1, per_page: 20, total: mockDailyReports.length, pages: 1 } } });
+    case 'getMyDailyReports': {
+      const reports = mockDailyReports.filter((report) => !report.is_deleted && !report.date_delete);
+      return Promise.resolve({ status: 'success', data: { reports, pagination: { page: 1, per_page: 20, total: reports.length, pages: 1 } } });
+    }
+    case 'getDailyReports': {
+      const reports = body?.history && body?.include_deleted
+        ? mockDailyReports
+        : mockDailyReports.filter((report) => !report.is_deleted && !report.date_delete);
+      return Promise.resolve({ status: 'success', data: { reports, employees: [], pagination: { page: 1, per_page: 20, total: reports.length, pages: 1 } } });
+    }
     case 'markDailyReportRead':
       mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, is_read: true, read_at: new Date().toISOString() } : report);
       return Promise.resolve({ status: 'success' });
@@ -474,10 +483,20 @@ export async function getTimeEntries(page = 1, perPage = 20, billableOnly = fals
   return { entries: normalizeEntries(payload.entries), pagination: payload.pagination || {} };
 }
 
-export async function getValidationEntries(page = 1, perPage = 20) {
-  const data = await moduleTimerRequest('getValidationEntries', { page, per_page: perPage });
+export async function getValidationEntries(page = 1, perPage = 20, filters = {}) {
+  const data = await moduleTimerRequest('getValidationEntries', {
+    page,
+    per_page: perPage,
+    date_from: filters.dateFrom || '',
+    date_to: filters.dateTo || '',
+    employee_id: filters.employeeId || '',
+  });
   const payload = data?.data ?? data ?? {};
-  return { entries: normalizeEntries(payload.entries), pagination: payload.pagination || {} };
+  return {
+    entries: normalizeEntries(payload.entries),
+    pagination: payload.pagination || {},
+    employees: Array.isArray(payload.employees) ? payload.employees : [],
+  };
 }
 
 export async function getProcessedHistory(filters = {}) {
@@ -503,8 +522,18 @@ export async function getUpdateMarker(scope = 'entries') {
 // billableOnly is only meaningful for scope='entries' (Suivi du temps) — a
 // background poll must re-fetch under the SAME active filter, or it would
 // silently drop the filter the moment something elsewhere changes.
-export async function getTimeEntryUpdates(scope = 'entries', marker = '', page = 1, perPage = 20, billableOnly = false) {
-  const data = await moduleTimerRequest('getTimeEntryUpdates', { scope, marker, page, per_page: perPage, billable_only: billableOnly ? 1 : 0 });
+export async function getTimeEntryUpdates(scope = 'entries', marker = '', page = 1, perPage = 20, billableOnly = false, filters = {}) {
+  const requestPayload = {
+    scope,
+    marker,
+    page,
+    per_page: perPage,
+    billable_only: billableOnly ? 1 : 0,
+  };
+  if (filters.dateFrom) requestPayload.date_from = filters.dateFrom;
+  if (filters.dateTo) requestPayload.date_to = filters.dateTo;
+  if (filters.employeeId) requestPayload.employee_id = filters.employeeId;
+  const data = await moduleTimerRequest('getTimeEntryUpdates', requestPayload);
   const payload = data?.data ?? data ?? {};
   return {
     marker: String(payload.marker ?? ''),

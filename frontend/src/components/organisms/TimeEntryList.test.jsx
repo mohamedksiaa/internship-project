@@ -11,6 +11,45 @@ vi.mock('../../api/timeflowApi', () => ({
 
 const entry = { id: 42, fk_user: 5, user_label: 'med ahemd', note: 'Correction', date_start: '2026-08-12T13:04:00Z', date_end: '2026-08-12T14:04:00Z', duration: 3600, status: 1, manual_editable: true, manual_modified: true, manual_reason: 'raison exacte' };
 
+// Real payload captured from the real backend (timeflowFetchVisibleTimeEntries(),
+// scope='validation', default current-month filters) for 3 real SUBMITTED
+// rows in the dev DB (rowid 575/576/577 — the exact entries from the
+// "Validation des tâches" bug report), not fabricated fixtures.
+const realValidationEntries = [
+  { id: 577, fk_user: 1, fk_project: 2, date_start: '2026-09-10T18:49:21Z', date_end: '2026-09-10T18:49:24Z', duration: 3, note: 'aaaaaaaaaaaaaaaaaaaaaaaaaaa', tags: '', billable: '0', status: 1, user_label: 'SuperAdmin', project_label: "falous' app", manual_modified: false, manual_editable: false, delete_allowed: true, is_deleted: false },
+  { id: 576, fk_user: 1, fk_project: 1, date_start: '2026-09-10T18:47:35Z', date_end: '2026-09-10T18:47:37Z', duration: 2, note: 'azerty', tags: '', billable: '0', status: 1, user_label: 'SuperAdmin', project_label: 'dev mtaa app', manual_modified: false, manual_editable: false, delete_allowed: true, is_deleted: false },
+  { id: 575, fk_user: 1, fk_project: 1, date_start: '2026-09-10T16:36:00Z', date_end: '2026-09-10T18:36:55Z', duration: 7255, note: 'azerty', tags: '', billable: '0', status: 1, user_label: 'SuperAdmin', project_label: 'dev mtaa app', manual_modified: true, manual_reason: 'oublier', manual_editable: false, delete_allowed: true, is_deleted: false },
+];
+
+describe('TimeEntryList bulk-selection checkboxes vs Validation context (real data)', () => {
+  it('renders zero bulk-selection checkboxes in the Validation context (showValidationActions), with the real 3-entry payload from the reported bug', () => {
+    render(<TimeEntryList entries={realValidationEntries} showWorker showValidationActions setEntries={vi.fn()} />);
+
+    // No checkbox anywhere: neither the per-row selection nor the
+    // day-group "select all" checkbox, nor the bulk-delete button they'd
+    // otherwise drive.
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /Supprimer la sélection|selection/i })).not.toBeInTheDocument();
+
+    // The Actions column (validate/reject) is still there, for all 3 real
+    // submitted entries, with one fewer column competing for width now
+    // that the checkbox column is gone.
+    expect(screen.getAllByTitle(i18n.t('timeentry.title_validate'))).toHaveLength(3);
+    expect(screen.getAllByTitle(i18n.t('timeentry.title_reject'))).toHaveLength(3);
+    expect(screen.queryByRole('columnheader', { name: '' })).not.toBeInTheDocument();
+  });
+
+  it('still renders the bulk-selection checkboxes on "Suivi du temps" (no showValidationActions) with the same real entries', () => {
+    render(<TimeEntryList entries={realValidationEntries} setEntries={vi.fn()} />);
+
+    // One "select all" checkbox per day group, plus one per row: 3 entries
+    // span 2 distinct dates (2026-09-10 twice via date grouping is the
+    // same day for all three here) -> 1 group checkbox + 3 row checkboxes.
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe('TimeEntryList validation mode', () => {
   beforeAll(async () => {
     try {

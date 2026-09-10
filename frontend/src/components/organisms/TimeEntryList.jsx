@@ -425,7 +425,11 @@ export default function TimeEntryList({
   return (
     <section className="tw-space-y-6">
       {error && <p className="tw-whitespace-pre-line tw-text-sm tw-text-[#d64c4c] dark:tw-text-[#f0908f]">{error}</p>}
-      {selectedIds.size > 0 && (
+      {/* Bulk selection/delete only makes sense on "Suivi du temps" (an
+          employee curating their own drafts) — Validation is a read/approve/
+          reject manager view with no delete action of its own, see the
+          per-row checkbox and its column header below for the same guard. */}
+      {!showValidationActions && selectedIds.size > 0 && (
         <div className="tw-flex tw-justify-end">
           <button
             type="button"
@@ -457,8 +461,8 @@ export default function TimeEntryList({
           <div key={key} className="tw-border-b-4 tw-border-[#e3ebef] dark:tw-border-slate-800 tw-bg-white dark:tw-bg-slate-900 tw-overflow-x-auto">
             <div className="tw-flex tw-items-center tw-justify-between tw-bg-[#e5edf1] dark:tw-bg-slate-800 tw-px-5 tw-py-2 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">
               <div className="tw-flex tw-items-center tw-gap-3">
-                {/** group selection checkbox */}
-                {(() => {
+                {/** group selection checkbox — bulk delete only, never in Validation */}
+                {!showValidationActions && (() => {
                   const allSelected = group.every((e) => selectedIds.has(e.id));
                   return (
                     <input
@@ -479,8 +483,8 @@ export default function TimeEntryList({
 
             <table className="tw-w-full tw-text-left tw-border-collapse">
               <thead>
-                <tr className="tw-border-b tw-border-[#dce5ea] dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wide tw-text-[#8a9aa4] dark:tw-text-slate-500">
-                  <th className="tw-px-3 tw-py-2" />
+                <tr className="tw-border-b tw-border-[#dce5ea] dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wide tw-text-[#8a9aa4] dark:tw-text-slate-400">
+                  {!showValidationActions && <th className="tw-px-3 tw-py-2" />}
                   <th className="tw-px-5 tw-py-2">{t('timeentry.col_task')}</th>
                   <th className="tw-px-3 tw-py-2">{t('timeentry.col_project')}</th>
                   {showWorker && <th className="tw-px-3 tw-py-2">{t('timeentry.col_who')}</th>}
@@ -496,15 +500,17 @@ export default function TimeEntryList({
               <tbody>
                 {group.map((entry) => (
                   <tr key={entry.id} className="tw-border-b tw-border-[#dce5ea] dark:tw-border-slate-700 hover:tw-bg-[#f9fbfd] dark:hover:tw-bg-slate-800 tw-text-sm tw-text-[#2c3e49] dark:tw-text-slate-200">
-                    <td className="tw-px-3 tw-py-3 tw-w-8">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(entry.id)}
-                        onChange={() => toggleSelect(entry.id)}
-                        aria-label={t('processed_history.select_entry_aria')}
-                        className="tw-h-4 tw-w-4"
-                      />
-                    </td>
+                    {!showValidationActions && (
+                      <td className="tw-px-3 tw-py-3 tw-w-8">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(entry.id)}
+                          onChange={() => toggleSelect(entry.id)}
+                          aria-label={t('processed_history.select_entry_aria')}
+                          className="tw-h-4 tw-w-4"
+                        />
+                      </td>
+                    )}
                     <td className="tw-px-5 tw-py-3 tw-min-w-[180px] tw-max-w-[320px]">
                       <TruncatedText text={entry.note || t('timeentry.no_description')} className="tw-font-medium tw-text-[#2c3e49] dark:tw-text-slate-200" />
                     </td>

@@ -19,7 +19,6 @@ CREATE TABLE llx_timeflow_project(
     ref           varchar(128) NOT NULL,
     title         varchar(255) NOT NULL,
     description   text,
-    source        varchar(20) NOT NULL DEFAULT 'manual',
     fk_dolibarr_project integer DEFAULT NULL,
     fk_soc        integer DEFAULT NULL,
     fk_user_creat integer NOT NULL,
@@ -28,6 +27,5 @@ CREATE TABLE llx_timeflow_project(
     import_key    varchar(14),
     INDEX idx_timeflow_project_entity (entity),
     INDEX idx_timeflow_project_fk_soc (fk_soc),
-    INDEX idx_timeflow_project_source (source),
     INDEX idx_timeflow_project_fk_dolibarr (fk_dolibarr_project)
 ) ENGINE=innodb;

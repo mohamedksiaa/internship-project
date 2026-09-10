@@ -114,13 +114,6 @@ foreach ($requiredTables as $table) {
 		exit(1);
 	}
 }
-$extrafieldColumnCheck = $db->query("SHOW COLUMNS FROM llx_projet_extrafields LIKE 'timeflow_source'");
-if (!$extrafieldColumnCheck || $db->num_rows($extrafieldColumnCheck) === 0) {
-	echo "ERROR: llx_projet_extrafields.timeflow_source column does not exist yet.\n";
-	echo "Run: mysql ... < sql/migrate_project_extrafields.sql\n";
-	exit(1);
-}
-
 $actingUser = new User($db);
 if ($actingUser->fetch($asUserId) <= 0) {
 	echo "ERROR: could not fetch user id=".$asUserId." to act as migration author.\n";
@@ -155,7 +148,7 @@ echo "Before: llx_timeflow_project=".$countBefore['timeflow_project']
 // ---------------------------------------------------------------------
 $stats = array('created' => 0, 'linked_fk_dolibarr_project' => 0, 'reused_by_ref' => 0, 'skipped_already_mapped' => 0, 'errors' => 0);
 
-$resql = $db->query('SELECT rowid, ref, title, description, fk_dolibarr_project, fk_soc, fk_user_creat, date_creation, source, import_key FROM llx_timeflow_project ORDER BY rowid ASC');
+$resql = $db->query('SELECT rowid, ref, title, description, fk_dolibarr_project, fk_soc, fk_user_creat, date_creation, import_key FROM llx_timeflow_project ORDER BY rowid ASC');
 if (!$resql) {
 	echo "ERROR: could not read llx_timeflow_project: ".$db->lasterror()."\n";
 	exit(1);
@@ -203,7 +196,7 @@ while ($row = $db->fetch_object($resql)) {
 	// Case 3: create it
 	if ($newId === 0) {
 		if ($dryRun) {
-			echo "WOULD CREATE native project for ".$label." (fk_soc=".((int) $row->fk_soc).", source=".$row->source.")\n";
+			echo "WOULD CREATE native project for ".$label." (fk_soc=".((int) $row->fk_soc).")\n";
 			$stats['created']++;
 			continue;
 		}
@@ -215,7 +208,6 @@ while ($row = $db->fetch_object($resql)) {
 		$project->socid = (int) $row->fk_soc;
 		$project->status = Project::STATUS_VALIDATED; // "Ouvert"
 		$project->usage_task = 1; // TimeFlow already relies on native tasks (llx_projet_task)
-		$project->array_options['options_timeflow_source'] = (string) $row->source;
 		$project->array_options['options_timeflow_import_key'] = (string) $row->import_key;
 
 		$createResult = $project->create($actingUser, 1); // notrigger=1: pure data backfill, no notifications
