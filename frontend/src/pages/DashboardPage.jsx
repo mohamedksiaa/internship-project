@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
 import CustomChartWidget, { buildSingleDimensionChartData, buildStackedChartData } from '../components/organisms/CustomChartWidget';
-import DashboardExportCharts, { EXPORT_CHART_WIDTH } from '../components/organisms/DashboardExportCharts';
-import { getDailyReports, getMyDailyReports, getSummaryReports, getTimeEntries } from '../api/timeflowApi';
+import { getDailyReports, getMyDailyReports, getSummaryReports } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
-import { buildDashboardCsvRows, buildTrendData, chooseTrendGranularity, detectRedundantFixedViews } from '../utils/dashboardExport.js';
+import { buildChartAnalysisText, buildDashboardCsvRows } from '../utils/dashboardExport.js';
 import Card from '../components/atoms/Card';
 import useDarkMode from '../hooks/useDarkMode';
 import { useUrlDateRange, useUrlState } from '../hooks/useUrlState.js';
@@ -24,6 +23,11 @@ import {
 } from 'recharts';
 
 const TEAM_CHART_COLORS = ['#5B8FA8', '#4d5fca', '#35a66f', '#f59e0b', '#d66', '#8a9aa4'];
+
+// Pixel width of the off-screen configured-chart clone captured for the PDF
+// export (see handleExportPdf below) — used instead of ResponsiveContainer's
+// async "100%" measurement, which is what used to make that capture flaky.
+const EXPORT_CHART_WIDTH = 800;
 
 function entryDate(value) {
   if (!value) return new Date(0);
@@ -99,27 +103,6 @@ function writeStoredDashboardDateRange(range) {
   }
 }
 
-// getTimeEntries() is now backend-paginated (see ajax/timeentry.php's
-// timeflowFetchVisibleTimeEntries), capped at 100 rows/page — this used to
-// be a single getTimeEntries(1000) call relying on an uncapped $limit. Walk
-// pages at the backend's own max page size until exhausted or the same
-// 1000-row ceiling the old call had, to feed the trend chart an equivalent
-// volume without going back to an unbounded query.
-async function fetchAllTimeEntriesUpTo(maxEntries) {
-  const perPage = 100;
-  let page = 1;
-  let all = [];
-  for (;;) {
-    const data = await getTimeEntries(page, perPage);
-    const rows = Array.isArray(data?.entries) ? data.entries : [];
-    all = all.concat(rows);
-    const pages = data?.pagination?.pages || 1;
-    if (rows.length === 0 || page >= pages || all.length >= maxEntries) break;
-    page += 1;
-  }
-  return all.slice(0, maxEntries);
-}
-
 export default function DashboardPage() {
   const { t, i18n } = useTranslation();
   const isDark = useDarkMode();
@@ -146,16 +129,14 @@ export default function DashboardPage() {
     writeStoredDashboardDateRange({ from: dateRange.from, to: value });
   };
   const [summary, setSummary] = useState(null);
-  const [allEntries, setAllEntries] = useState([]);
   const [pendingReports, setPendingReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState('');
 
-  // Mount-once data: weekly timesheet (feeds nothing here directly but kept
-  // for parity with prior behavior), all entries (for the trend chart), and
-  // pending reports (fixed window, see PENDING_REPORTS_WINDOW above).
+  // Mount-once data: pending reports (fixed window, see
+  // PENDING_REPORTS_WINDOW above).
   useEffect(() => {
     let isMounted = true;
 
@@ -164,13 +145,9 @@ export default function DashboardPage() {
         if (!isMounted) return;
         setLoading(true);
 
-        const reportRequest = canReadAll
+        const pendingReportsData = await (canReadAll
           ? getDailyReports({ date_from: PENDING_REPORTS_WINDOW.from, date_to: PENDING_REPORTS_WINDOW.to })
-          : getMyDailyReports({ date_from: PENDING_REPORTS_WINDOW.from, date_to: PENDING_REPORTS_WINDOW.to });
-        const [entries, pendingReportsData] = await Promise.all([
-          fetchAllTimeEntriesUpTo(1000),
-          reportRequest,
-        ]);
+          : getMyDailyReports({ date_from: PENDING_REPORTS_WINDOW.from, date_to: PENDING_REPORTS_WINDOW.to }));
 
         if (!isMounted) return;
 
@@ -178,12 +155,10 @@ export default function DashboardPage() {
           ? pendingReportsData.reports.filter((report) => Number(report.status ?? 1) === 1)
           : [];
 
-        setAllEntries(entries);
         setPendingReports(filteredReports);
       } catch (err) {
         if (!isMounted) return;
         setError(err.message);
-        setAllEntries([]);
         setPendingReports([]);
       } finally {
         if (isMounted) {
@@ -253,17 +228,6 @@ export default function DashboardPage() {
       .slice(0, 5);
   }, [summary, noProjectLabel]);
 
-  // "Total d'heures par jour/semaine" — used by the PDF export's fixed trend
-  // view. Was a Dashboard-only, week-only computation (weeklyTrendData) never
-  // actually rendered on screen; generalized into utils/dashboardExport.js
-  // so the export can pick day-vs-week aggregation by period length (see
-  // chooseTrendGranularity — <=31 days -> daily bars, otherwise weekly).
-  const trendGranularity = useMemo(() => chooseTrendGranularity(dateRange), [dateRange]);
-  const trendData = useMemo(
-    () => buildTrendData(allEntries, dateRange, locale, trendGranularity),
-    [allEntries, dateRange, locale, trendGranularity]
-  );
-
   // getSummaryReports caps its fetch at `limit` rows (see ajax/timeentry.php)
   // for performance — entries_total_in_period is the real, unlimited count
   // for the same filter, so a mismatch means every card/chart fed by
@@ -286,15 +250,9 @@ export default function DashboardPage() {
   const [dimension] = useUrlState('dimension', 'project');
   const [chartType] = useUrlState('chartType', 'bar');
   const [crossWith] = useUrlState('crossWith', 'none');
-  const redundantFixedViews = useMemo(
-    () => detectRedundantFixedViews({ dimension, crossWith }),
-    [dimension, crossWith]
-  );
 
-  // Capture targets for the PDF export. All 4 sections (the configured
-  // chart + the 3 fixed views) are captured from dedicated off-screen clones
-  // that only exist in the DOM while exporting is true — see
-  // <DashboardExportCharts> and the off-screen <CustomChartWidget> below.
+  // Capture target for the PDF export: a dedicated off-screen clone of the
+  // configured chart, captured instead of the live on-screen widget above.
   //
   // Earlier version captured the configured chart straight from the
   // already-visible, on-screen <CustomChartWidget> instead, toggling its
@@ -306,24 +264,29 @@ export default function DashboardPage() {
   // surface') found ZERO elements, meaning ResponsiveContainer was rendering
   // nothing at all during the prop transition, not just measuring late.
   // Perturbing the live, already-stable widget for every export was the
-  // actual defect. A dedicated off-screen clone (identical to how the 3
-  // fixed views already work) never has that problem: it mounts once with
-  // its final pixel size already set, no transition to warn about, and
-  // never touches the on-screen widget at all.
+  // actual defect. A dedicated off-screen clone never has that problem: it
+  // mounts once with its final pixel size already set, no transition to
+  // warn about, and never touches the on-screen widget at all.
+  //
+  // The PDF used to also include 3 fixed off-screen views (project split,
+  // billable/non-billable, trend by day/week) captured the same way. That
+  // multi-element capture sequence broke repeatedly in real sessions —
+  // capture #2 failing with html2canvas' "Unable to find element in cloned
+  // iframe" immediately after capture #1 finished, across 4 different
+  // architectural attempts (a settle delay, a per-element stability wait +
+  // retry, lazily-read refs, even keeping every element permanently
+  // mounted). The configured chart alone, by contrast, has never failed in
+  // any real test. Rather than keep patching an increasingly elaborate
+  // multi-capture mechanism, the 3 fixed views were dropped from the PDF
+  // entirely — see dashboardPdfExport.js and DashboardExportCharts'
+  // removal in the PR notes.
   const exportConfiguredChartRef = useRef(null);
-  const exportProjectRef = useRef(null);
-  const exportBillableRef = useRef(null);
-  const exportTrendRef = useRef(null);
   const [isPreparingExport, setIsPreparingExport] = useState(false);
   const [exportError, setExportError] = useState('');
 
   function nextPaint() {
     return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   }
-
-  const trendCaption = trendGranularity === 'day'
-    ? t('dashboard.export.trend_caption_day')
-    : t('dashboard.export.trend_caption_week');
 
   const configuredChartCaption = useMemo(() => {
     const dimLabel = t(`dashboard.dimension.${dimension}`);
@@ -334,6 +297,14 @@ export default function DashboardPage() {
     }
     return base;
   }, [dimension, chartType, crossWith, t]);
+
+  // Same crossing condition as CustomChartWidget's own isCrossing — the CSV
+  // and PDF export must both match exactly what's currently on screen: a
+  // flat "category, duration" table/analysis with no crossing, or the real
+  // pivot (one column/breakdown per crossing category) when one is active,
+  // built from the same buildStackedChartData() the chart itself renders
+  // from. Shared by handleExportPdf and handleExportCsv below.
+  const isCrossing = chartType === 'bar' && crossWith !== 'none';
 
   const handleExportPdf = async () => {
     setExportError('');
@@ -347,36 +318,35 @@ export default function DashboardPage() {
       // fetch time on top of the wait, on exactly the first click.
       const pdfModulePromise = import('../utils/dashboardPdfExport.js');
 
-      // Mount the off-screen configured-chart clone and the 3 fixed-view
-      // charts and let them actually paint before capturing — each has a
-      // fixed pixel size from the moment it mounts (see CustomChartWidget's
-      // forcedSize and DashboardExportCharts), so there's no ResizeObserver
-      // to wait on, but a real paint still needs to happen, hence the
-      // settle wait rather than capturing on the same tick as the state update.
+      // Let the off-screen configured-chart clone actually paint before
+      // capturing — it has a fixed pixel size from the moment it mounts
+      // (see CustomChartWidget's forcedSize), so there's no ResizeObserver
+      // to wait on, but a real paint still needs to happen. The actual
+      // size/stability check lives in dashboardPdfExport.js's
+      // captureElementAsImage (with a retry for the html2canvas "cloned
+      // iframe" race) — this is just the initial settle before that, not a
+      // substitute for it.
       await nextPaint();
-      await new Promise((resolve) => setTimeout(resolve, 150));
 
-      console.log('[timeflow-pdf-diag] awaiting pdfModulePromise...');
       const pdfModule = await pdfModulePromise;
-      console.log('[timeflow-pdf-diag] pdfModule resolved:', pdfModule, typeof pdfModule?.generateDashboardPdf);
       const { generateDashboardPdf } = pdfModule;
 
-      const fixedViews = [];
-      if (!redundantFixedViews.project) {
-        fixedViews.push({ el: exportProjectRef.current, caption: t('dashboard.export.project_caption') });
-      }
-      if (!redundantFixedViews.billable) {
-        fixedViews.push({ el: exportBillableRef.current, caption: t('dashboard.export.billable_caption') });
-      }
-      fixedViews.push({ el: exportTrendRef.current, caption: trendCaption });
+      // Same chartData/crossedData the on-screen chart and the CSV export
+      // are built from (see handleExportCsv) — never a second, independent
+      // read of `summary`, so the analysis text can't end up describing
+      // different numbers than the image right above it.
+      const analysisChartData = isCrossing ? [] : buildSingleDimensionChartData({ summary, dimension, t });
+      const analysisCrossedData = isCrossing ? buildStackedChartData({ summary, dimension, crossWith, t }) : null;
+      const analysisText = buildChartAnalysisText({
+        t,
+        chartData: analysisChartData,
+        crossedData: analysisCrossedData,
+        totalSeconds: summaryStats.totalSeconds,
+        formatDuration,
+        crossWithLabel: isCrossing ? t(`dashboard.dimension.${crossWith}`) : undefined,
+      });
 
       const now = new Date();
-      console.log('[timeflow-pdf-diag] calling generateDashboardPdf, refs:', {
-        configured: exportConfiguredChartRef.current,
-        project: exportProjectRef.current,
-        billable: exportBillableRef.current,
-        trend: exportTrendRef.current,
-      });
       await generateDashboardPdf({
         fileName: `timeflow_tableau_de_bord_${now.toISOString().slice(0, 10)}.pdf`,
         title: t('dashboard.export.pdf_title'),
@@ -386,30 +356,28 @@ export default function DashboardPage() {
           t('dashboard.export.summary_total', { value: formatDuration(summaryStats.totalSeconds) }),
           t('dashboard.export.summary_billable', { value: formatDuration(summaryStats.billableSeconds) }),
         ],
-        configuredChart: { el: exportConfiguredChartRef.current, caption: configuredChartCaption },
-        fixedViews,
+        // A getter, not a value read once: it's still read right at
+        // capture time inside dashboardPdfExport.js, which is the correct
+        // habit to keep even now that there's only one element to capture.
+        configuredChart: { get el() { return exportConfiguredChartRef.current; }, caption: configuredChartCaption },
         emptyChartMessage: t('dashboard.custom_chart_empty'),
+        analysisText,
       });
-      console.log('[timeflow-pdf-diag] generateDashboardPdf resolved OK');
     } catch (err) {
-      // TEMPORARY diagnostic instrumentation — removed once the root cause
-      // behind the "first click reloads the page" report is confirmed.
-      console.error('[timeflow-pdf-diag] handleExportPdf caught:', err, err?.stack);
-      setExportError(err?.message || t('dashboard.export.pdf_error'));
+      // Always a translated, user-facing message here — err.message is a
+      // library-internal string (e.g. html2canvas' own error text), not
+      // something to show as-is. The real error still goes to the console
+      // for whoever needs to debug a report of this.
+      console.error('Dashboard PDF export failed:', err);
+      setExportError(t('dashboard.export.pdf_error'));
     } finally {
       setIsPreparingExport(false);
     }
   };
 
-  // Same crossing condition as CustomChartWidget's own isCrossing — the CSV's
-  // data table must match exactly what's currently on screen: a flat
-  // "category, duration" table with no crossing, or a real pivot table (one
-  // column per crossing category) when one is active, built from the same
-  // buildStackedChartData() the chart itself renders from.
-  const isCrossingCsv = chartType === 'bar' && crossWith !== 'none';
   const handleExportCsv = () => {
-    const csvChartData = isCrossingCsv ? [] : buildSingleDimensionChartData({ summary, dimension, t });
-    const crossedData = isCrossingCsv ? buildStackedChartData({ summary, dimension, crossWith, t }) : null;
+    const csvChartData = isCrossing ? [] : buildSingleDimensionChartData({ summary, dimension, t });
+    const crossedData = isCrossing ? buildStackedChartData({ summary, dimension, crossWith, t }) : null;
     const rows = buildDashboardCsvRows({
       t,
       dateRange,
@@ -418,6 +386,8 @@ export default function DashboardPage() {
       formatDuration,
       chartData: csvChartData,
       crossedData,
+      dimensionLabel: t(`dashboard.dimension.${dimension}`),
+      crossWithLabel: isCrossing ? t(`dashboard.dimension.${crossWith}`) : undefined,
     });
     downloadCsv('tableau_de_bord', [t('dashboard.export.pdf_title'), ''], rows);
   };
@@ -484,7 +454,7 @@ export default function DashboardPage() {
             <CustomChartWidget summary={summary} />
           </>
         )}
-        {isPreparingExport && (
+        {!loading && !error && (
           <>
             {/* Dedicated off-screen clone of the configured chart, captured
                 instead of the live on-screen widget above — see the long
@@ -493,7 +463,13 @@ export default function DashboardPage() {
                 itself the bug. Reads dimension/chartType/crossWith from the
                 same URL the on-screen widget does (useUrlState), so it
                 always renders the identical chart, just off-screen and at a
-                fixed pixel size. */}
+                fixed pixel size.
+
+                MOUNTED PERMANENTLY (same condition as the on-screen widget
+                above), not gated on isPreparingExport — updated in place on
+                every summary change, exactly like the on-screen widget
+                already is, so there is no mount/unmount cycle around each
+                export for a capture to race against. */}
             <div style={{ position: 'absolute', left: '-9999px', top: 0 }} aria-hidden="true">
               {/* height stays 320 to match the wrapping div's own tw-h-[320px]
                   (same as the on-screen widget, never actually the uncertain
@@ -505,11 +481,6 @@ export default function DashboardPage() {
                 forcedSize={{ width: EXPORT_CHART_WIDTH, height: 320 }}
               />
             </div>
-            <DashboardExportCharts
-              summary={summary}
-              trendData={trendData}
-              refs={{ project: exportProjectRef, billable: exportBillableRef, trend: exportTrendRef }}
-            />
           </>
         )}
       </div>

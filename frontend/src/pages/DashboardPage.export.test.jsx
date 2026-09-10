@@ -18,7 +18,6 @@ vi.mock('../api/timeflowApi', () => ({
     by_project_employee: { '5|1': 7200, '6|1': 3600 },
     by_status: {},
   }),
-  getTimeEntries: vi.fn().mockResolvedValue({ entries: [], pagination: { page: 1, per_page: 100, total: 0, pages: 1 } }),
   getDailyReports: vi.fn().mockResolvedValue({ reports: [], employees: [] }),
   getMyDailyReports: vi.fn().mockResolvedValue([]),
 }));
@@ -71,10 +70,14 @@ describe('DashboardPage — export buttons', () => {
 
     expect(downloadCsv).toHaveBeenCalledTimes(1);
     const [, , rows] = downloadCsv.mock.calls[0];
-    const headerRow = rows[5];
-    // Must NOT be the old flat "Catégorie, Durée" — one column per project.
-    expect(headerRow).not.toEqual([i18n.t('dashboard.export.csv_category'), i18n.t('dashboard.export.csv_duration')]);
-    expect(headerRow[0]).toBe(i18n.t('dashboard.export.csv_category'));
+    // A line naming the crossing dimension (Projet) comes right before the
+    // header, so the table reads on its own without the chart in view —
+    // the exact reported readability gap.
+    expect(rows[5]).toEqual([i18n.t('dashboard.export.csv_crossed_with_header', { dimension: i18n.t('dashboard.dimension.project') })]);
+    const headerRow = rows[6];
+    // Must NOT be the old generic "Catégorie" — the real dimension (Employé).
+    expect(headerRow[0]).toBe(i18n.t('dashboard.dimension.employee'));
+    expect(headerRow[0]).not.toBe(i18n.t('dashboard.export.csv_category'));
     expect(headerRow).toContain('Projet Alpha');
     expect(headerRow).toContain('Projet Beta');
 
@@ -85,7 +88,26 @@ describe('DashboardPage — export buttons', () => {
     expect(aliceRow[alphaCol]).toBe('02:00:00'); // 7200s, from by_project_employee "5|1"
   });
 
-  it('PDF export calls generateDashboardPdf once, with the configured chart and every non-redundant fixed view', async () => {
+  it('PDF export calls generateDashboardPdf once, with the configured chart captured and captioned', async () => {
+    // The PDF used to also carry 3 fixed off-screen views (project split,
+    // billable/non-billable, trend). That multi-element capture sequence
+    // broke repeatedly in real sessions across 4 different architectural
+    // fixes — always the same failure, capture #2 onward finding its
+    // target already gone. The configured chart alone never failed in any
+    // real test, so the PDF now contains only it; see dashboardPdfExport.js
+    // and the DashboardPage.jsx comment above exportConfiguredChartRef.
+    //
+    // configuredChart.el is a getter backed by a ref (see DashboardPage.jsx's
+    // handleExportPdf) so it always resolves the *current* DOM node instead
+    // of a snapshot taken before the capture runs. That means it must be
+    // read synchronously inside the call, same as the real capture code
+    // does; reading it later (once export has finished and the off-screen
+    // block has unmounted) would correctly see null, not prove anything wrong.
+    let capturedEl;
+    generateDashboardPdf.mockImplementationOnce(async (params) => {
+      capturedEl = params.configuredChart.el;
+    });
+
     const user = userEvent.setup();
     renderDashboard();
     await screen.findByText(i18n.t('dashboard.total'));
@@ -93,49 +115,25 @@ describe('DashboardPage — export buttons', () => {
     await user.click(screen.getByRole('button', { name: i18n.t('dashboard.export.pdf_button') }));
 
     await waitFor(() => expect(generateDashboardPdf).toHaveBeenCalledTimes(1));
+    expect(capturedEl).toBeTruthy();
     const call = generateDashboardPdf.mock.calls[0][0];
-    expect(call.configuredChart.el).toBeTruthy();
-    // Default URL state is dimension=project, crossWith=none -> the "project"
-    // fixed view is redundant with the configured chart and must be skipped.
-    const captions = call.fixedViews.map((view) => view.caption);
-    expect(captions).not.toContain(i18n.t('dashboard.export.project_caption'));
-    expect(captions).toContain(i18n.t('dashboard.export.billable_caption'));
-    expect(captions.some((c) => c === i18n.t('dashboard.export.trend_caption_day') || c === i18n.t('dashboard.export.trend_caption_week'))).toBe(true);
+    expect(call.configuredChart.caption).toContain(i18n.t('dashboard.dimension.project'));
+    expect(call.fixedViews).toBeUndefined();
   });
 
-  it('includes the project fixed view when the configured chart is NOT plain-project (e.g. crossed)', async () => {
-    const user = userEvent.setup();
-    renderDashboard(['/?dimension=project&crossWith=billable']);
-    await screen.findByText(i18n.t('dashboard.total'));
-
-    await user.click(screen.getByRole('button', { name: i18n.t('dashboard.export.pdf_button') }));
-
-    await waitFor(() => expect(generateDashboardPdf).toHaveBeenCalledTimes(1));
-    const captions = generateDashboardPdf.mock.calls[0][0].fixedViews.map((view) => view.caption);
-    expect(captions).toContain(i18n.t('dashboard.export.project_caption'));
-  });
-
-  it('skips the billable fixed view when the user already configured a plain billable chart', async () => {
-    const user = userEvent.setup();
-    renderDashboard(['/?dimension=billable&crossWith=none']);
-    await screen.findByText(i18n.t('dashboard.total'));
-
-    await user.click(screen.getByRole('button', { name: i18n.t('dashboard.export.pdf_button') }));
-
-    await waitFor(() => expect(generateDashboardPdf).toHaveBeenCalledTimes(1));
-    const captions = generateDashboardPdf.mock.calls[0][0].fixedViews.map((view) => view.caption);
-    expect(captions).not.toContain(i18n.t('dashboard.export.billable_caption'));
-    expect(captions).toContain(i18n.t('dashboard.export.project_caption'));
-  });
-
-  it('shows an error message if PDF generation throws, without crashing', async () => {
-    generateDashboardPdf.mockRejectedValueOnce(new Error('boom'));
+  it('shows a clear, translated error message if PDF generation throws, without crashing', async () => {
+    // The shown message must always be the translated, user-facing one —
+    // never the raw thrown error (a library-internal string like
+    // html2canvas' "Unable to find element in cloned iframe" is not
+    // something an end user should see as-is).
+    generateDashboardPdf.mockRejectedValueOnce(new Error('Unable to find element in cloned iframe'));
     const user = userEvent.setup();
     renderDashboard();
     await screen.findByText(i18n.t('dashboard.total'));
 
     await user.click(screen.getByRole('button', { name: i18n.t('dashboard.export.pdf_button') }));
 
-    expect(await screen.findByText('boom')).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t('dashboard.export.pdf_error'))).toBeInTheDocument();
+    expect(screen.queryByText('Unable to find element in cloned iframe')).not.toBeInTheDocument();
   });
 });

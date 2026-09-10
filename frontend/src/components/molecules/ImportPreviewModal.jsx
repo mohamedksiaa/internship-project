@@ -161,6 +161,20 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
     return () => { active = false; };
   }, [open, loading, error]);
 
+  // Escape-to-close: a safety net for exactly the scenario this component
+  // otherwise had a bug for — a tall result (many groups/clients detected)
+  // pushing the close button out of the viewport with no way to scroll back
+  // to it. Even with that fixed (see the panel's own layout below), Escape
+  // costs nothing and is the standard way to dismiss a modal regardless.
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const pendingUsers = users.filter((row) => row.target_action === 'create_pending');
@@ -254,8 +268,19 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
 
   return (
     <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-p-4" role="dialog" aria-modal="true" aria-labelledby="import-preview-title">
-      <div className="tw-w-full tw-max-w-2xl tw-space-y-4 tw-rounded-lg tw-bg-white dark:tw-bg-slate-900 tw-p-6 tw-shadow-xl dark:tw-border dark:tw-border-slate-700">
-        <div className="tw-flex tw-items-start tw-justify-between">
+      {/*
+        max-h-[90vh] + flex-col, with only the middle section below scrolling
+        (flex-1 min-h-0 overflow-y-auto): the header (title + × button) and
+        footer (action buttons, including "Fermer") are shrink-0 siblings
+        pinned outside that scroll area, not just visually above it. Before
+        this, the panel itself had no height cap — a long result (many
+        groups/clients detected) could grow the whole panel taller than the
+        viewport, and since this outer overlay has no scroll of its own
+        either, the header (with the close button) got pushed above the top
+        edge of the screen with literally no way to scroll back up to it.
+      */}
+      <div className="tw-flex tw-max-h-[90vh] tw-w-full tw-max-w-2xl tw-flex-col tw-rounded-lg tw-bg-white dark:tw-bg-slate-900 tw-shadow-xl dark:tw-border dark:tw-border-slate-700">
+        <div className="tw-flex tw-shrink-0 tw-items-start tw-justify-between tw-border-b tw-border-slate-100 dark:tw-border-slate-800 tw-p-6 tw-pb-4">
           <div>
             <h2 id="import-preview-title" className="tw-text-lg tw-font-semibold tw-text-[#263746] dark:tw-text-slate-100">{t('processed_history.import.modal_title')}</h2>
             <p className="tw-mt-1 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">{t('processed_history.import.modal_subtitle')}</p>
@@ -278,6 +303,9 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
           fetch errors, the mapping-resolution error, the pre-execution
           recap+confirm step, the in-progress spinner, and the final
           success/error summary — lives here, never inside tw-overflow-y-auto.
+          shrink-0, same reasoning as the header/footer below: this whole
+          panel is now a bounded flex column, and only the data-list section
+          further down is the scrolling part.
         */}
         {(
           (!loading && error)
@@ -286,7 +314,7 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
           || executePhase === 'executing'
           || executePhase === 'done'
         ) && (
-          <div className="tw-shrink-0 tw-space-y-3">
+          <div className="tw-shrink-0 tw-space-y-3 tw-px-6 tw-pt-4">
             {!loading && error && (
               <div className="tw-rounded-lg tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-p-3 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">{error}</div>
             )}
@@ -372,7 +400,7 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
           </div>
         )}
 
-        <div className="tw-max-h-[55vh] tw-space-y-5 tw-overflow-y-auto tw-pr-1">
+        <div className="tw-min-h-0 tw-flex-1 tw-space-y-5 tw-overflow-y-auto tw-px-6 tw-py-4">
           {loading && (
             <div className="tw-flex tw-items-center tw-justify-center tw-gap-3 tw-py-10">
               <div className="tw-h-6 tw-w-6 tw-animate-spin tw-rounded-full tw-border-2 tw-border-[#5B8FA8] tw-border-t-transparent"></div>
@@ -480,7 +508,11 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
           )}
         </div>
 
-        <div className="tw-flex tw-justify-end tw-gap-2">
+        {/* shrink-0, same as the header: always visible regardless of how
+            tall the scrollable content above ends up being — this is the
+            other of the two ways to close the modal (with the × in the
+            header), and the one most reports referred to as "Fermer". */}
+        <div className="tw-flex tw-shrink-0 tw-justify-end tw-gap-2 tw-border-t tw-border-slate-100 dark:tw-border-slate-800 tw-p-6 tw-pt-4">
           <button
             type="button"
             onClick={onClose}

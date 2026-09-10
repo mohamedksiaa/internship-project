@@ -215,9 +215,9 @@ export function formatHoursTick(seconds) {
 //
 // forcedSize ({ width, height } in px, or null) lets the PDF export flow
 // (DashboardPage's handleExportPdf) briefly pin this chart to an explicit
-// pixel size instead of the normal "100%"/"100%" ResponsiveContainer. Same
-// root cause as DashboardExportCharts.jsx's off-screen views: ResponsiveContainer
-// only knows its size once a ResizeObserver fires, which is asynchronous —
+// pixel size instead of the normal "100%"/"100%" ResponsiveContainer.
+// ResponsiveContainer only knows its size once a ResizeObserver fires,
+// which is asynchronous —
 // on a genuinely first, cold page load (real Dolibarr chrome/menus/fonts all
 // competing for layout time), that callback can still not have fired by the
 // time html2canvas captures this already-visible chart, even though its own

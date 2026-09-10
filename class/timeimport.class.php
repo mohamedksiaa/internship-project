@@ -1829,6 +1829,10 @@ class TimeImportClockify
 
             $billable = in_array($billableCell, $billableTrueValues, true) ? 1 : 0;
             $timeentry->import_key = $importKey;
+            // No status arg: imported entries now use createManualEntry()'s
+            // natural default (STATUS_VALIDATED) instead of being forced to
+            // DRAFT — a Clockify import no longer needs a manual bulk
+            // validation pass afterward.
             $newId = $timeentry->createManualEntry(
                 $resolvedUserId,
                 $resolvedProjectId,
@@ -1838,14 +1842,22 @@ class TimeImportClockify
                 $description,
                 '',
                 $billable,
-                $rowUser,
-                null,
-                TimeEntry::STATUS_DRAFT
+                $rowUser
             );
 
             if ($newId > 0) {
                 $timeentry->fetch($newId);
+                // createManualEntry() sets fk_user_valid to $fk_user (the
+                // entry's owner) for its other callers, e.g. self-validated
+                // manual entries. Here the "validator" is really whoever
+                // executed the import, so it's corrected to the importing
+                // admin right after creation, then persisted silently
+                // (empty $reason -> no audit row for this call; the
+                // dedicated validation row below covers the audit trail).
+                $timeentry->fk_user_valid = (int) $user->id;
+                $timeentry->update($user);
                 $timeentry->logManualCreation($user, 'Import CSV Clockify');
+                $timeentry->logAutoValidationOnImport($user, 'Validation automatique — import Clockify');
                 $report['time_entries_created']++;
             } else {
                 $report['time_entries_skipped_invalid']++;
