@@ -110,6 +110,27 @@
       "bar": "أعمدة",
       "pie": "دائري",
       "line": "خطي"
+    },
+    "export": {
+      "csv_button": "تصدير CSV",
+      "pdf_button": "تصدير PDF",
+      "pdf_generating": "جارٍ الإنشاء…",
+      "pdf_title": "لوحة تحكم TimeFlow",
+      "pdf_error": "تعذر إنشاء ملف PDF.",
+      "generated_at": "تم الإنشاء في {{date}}",
+      "summary_period": "الفترة: {{from}} - {{to}}",
+      "summary_total": "الإجمالي: {{value}}",
+      "summary_billable": "منها القابل للفوترة: {{value}}",
+      "configured_chart_caption": "الرسم البياني المخصص — {{dimension}}، {{type}}",
+      "configured_chart_crossed_with": "· متقاطع مع {{cross}}",
+      "project_caption": "توزيع الوقت حسب المشروع",
+      "billable_caption": "قابل للفوترة مقابل غير قابل للفوترة",
+      "trend_caption_day": "إجمالي الساعات لكل يوم",
+      "trend_caption_week": "إجمالي الساعات لكل أسبوع",
+      "csv_period_from": "الفترة من",
+      "csv_period_to": "الفترة إلى",
+      "csv_category": "الفئة",
+      "csv_duration": "المدة"
     }
   },
   "history": {

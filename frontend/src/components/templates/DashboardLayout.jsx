@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { formatDuration, summarizeWeek } from '../../utils/FormatDuration.js';
 import Card from '../atoms/Card';
 
-export default function DashboardLayout({ timer, entryList, stats = [], summary: summaryData = null, children = null, canReadAll = false, totalLabel = null, periodPicker = null }) {
+export default function DashboardLayout({ timer, entryList, stats = [], summary: summaryData = null, children = null, canReadAll = false, totalLabel = null, periodPicker = null, showBillableCard = true }) {
   const { t } = useTranslation();
   const summary = useMemo(() => summaryData || summarizeWeek(stats), [summaryData, stats]);
   return (
@@ -14,9 +14,11 @@ export default function DashboardLayout({ timer, entryList, stats = [], summary:
         <Card headerLabel={totalLabel || t('dashboard.total_week')} className="tw-flex-1 tw-text-center" headerRight={canReadAll ? <span title={t('dashboard.team_total_tooltip')} className="tw-text-xs tw-text-[#71838f] dark:tw-text-slate-400">ℹ︎</span> : null}>
           <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-[#263746] dark:tw-text-slate-100">{formatDuration(summary.totalSeconds)}</p>
         </Card>
-        <Card headerLabel={t('dashboard.of_which_billable')} className="tw-flex-1 tw-text-center">
-          <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-[#263746] dark:tw-text-slate-100">{formatDuration(summary.billableSeconds)}</p>
-        </Card>
+        {showBillableCard && (
+          <Card headerLabel={t('dashboard.of_which_billable')} className="tw-flex-1 tw-text-center">
+            <p className="tw-mt-2 tw-text-2xl tw-font-semibold tw-text-[#263746] dark:tw-text-slate-100">{formatDuration(summary.billableSeconds)}</p>
+          </Card>
+        )}
       </div>
       {children}
       {entryList}
