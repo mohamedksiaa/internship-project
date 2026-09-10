@@ -1396,8 +1396,6 @@ class TimeImportClockify
                 $project->title = $title;
                 $project->status = Project::STATUS_VALIDATED;
                 $project->usage_task = 1;
-                $project->array_options['options_timeflow_source'] = $this->sourceSystem;
-
                 $resolvedClientId = $this->findResolvedClientIdForProject($row->source_value);
                 if ($resolvedClientId > 0) {
                     $project->socid = $resolvedClientId;

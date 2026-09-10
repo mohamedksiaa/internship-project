@@ -157,7 +157,22 @@ $headHtml .= '<link rel="stylesheet" href="'.dol_buildpath('/custom/timeflow/css
 
 $conf->global->MAIN_MENU_LEFT_HIDDEN = '1';
 
-llxHeader($headHtml, $langs->trans("TimeFlowArea"), '', '', 0, 0, '', '', '', 'mod-timeflow page-index');
+// Extra body class so timeflow_fullscreen.css can override Dolibarr's own
+// #id-right background (var(--colorbackbody), a different dark shade than
+// TimeFlow's own header) to match TimeFlow's header exactly — see that
+// file for why, and why this mirrors THEME_DARKMODEENABLED's own two forms
+// (1 = only when the browser itself prefers dark, 2 = always) rather than
+// applying unconditionally, which would incorrectly darken #id-right on
+// TimeFlow pages even when Dolibarr's own theme is fully in light mode.
+$timeflowMoreCssOnBody = 'mod-timeflow page-index';
+$timeflowDarkModeSetting = getDolGlobalInt('THEME_DARKMODEENABLED');
+if ($timeflowDarkModeSetting == 2) {
+	$timeflowMoreCssOnBody .= ' mod-timeflow-dark-forced';
+} elseif ($timeflowDarkModeSetting == 1) {
+	$timeflowMoreCssOnBody .= ' mod-timeflow-dark-auto';
+}
+
+llxHeader($headHtml, $langs->trans("TimeFlowArea"), '', '', 0, 0, '', '', '', $timeflowMoreCssOnBody);
 print '<div id="root" style="width:100%;min-height:calc(100vh - 60px);"></div>';
 print '<script>';
 print 'window.DOL_URL_ROOT = '.json_encode(DOL_URL_ROOT).';';
@@ -179,7 +194,7 @@ print 'window.TIMEFLOW_CAN_WRITE = '.json_encode((bool) ($user->admin || $user->
 // or attribute to detect it from. We read the same $conf constant Dolibarr
 // itself reads and expose it explicitly so the React app can follow it.
 // 0 = always disabled, 1 = follow browser (prefers-color-scheme), 2 = always enabled.
-print 'window.TIMEFLOW_DARK_MODE = '.json_encode(getDolGlobalInt('THEME_DARKMODEENABLED')).';';
+print 'window.TIMEFLOW_DARK_MODE = '.json_encode($timeflowDarkModeSetting).';';
 
 // Expose Dolibarr current language for the frontend (user/profile language)
 if (!empty($langs->defaultlang)) {

@@ -28,6 +28,10 @@ const MAX_SLICES = 9;
 // unreadable confetti. 5 named segments + one "Autre" bucket stays legible.
 const MAX_STACK_SEGMENTS = 5;
 const DIMENSIONS = ['project', 'employee', 'client', 'billable'];
+
+// Shared by buildSingleDimensionChartData() and countPrimaryCategories() so
+// both always agree on which summary bucket a dimension reads from.
+const SUMMARY_KEY_BY_DIMENSION = { client: 'by_client', employee: 'by_user', project: 'by_project', group: 'by_group' };
 const CHART_TYPES = ['bar', 'pie', 'line'];
 
 // "group" is deliberately never part of this list: an employee can belong to
@@ -165,7 +169,6 @@ export function buildSingleDimensionChartData({ summary, dimension, t }) {
     ].filter((row) => row.value > 0);
   }
 
-  const mapKeyByDimension = { client: 'by_client', employee: 'by_user', project: 'by_project', group: 'by_group' };
   const labelMapKeyByDimension = { client: 'client_labels', employee: 'user_labels', project: 'project_labels', group: 'group_labels' };
   const fallbackLabelByDimension = {
     client: t('dashboard.no_client'),
@@ -174,7 +177,7 @@ export function buildSingleDimensionChartData({ summary, dimension, t }) {
     group: t('dashboard.no_group'),
   };
 
-  const byX = summary[mapKeyByDimension[dimension]] || {};
+  const byX = summary[SUMMARY_KEY_BY_DIMENSION[dimension]] || {};
   const labels = summary[labelMapKeyByDimension[dimension]] || {};
 
   const rows = Object.entries(byX)
@@ -190,6 +193,24 @@ export function buildSingleDimensionChartData({ summary, dimension, t }) {
   const top = rows.slice(0, MAX_SLICES - 1);
   const otherTotal = rows.slice(MAX_SLICES - 1).reduce((sum, row) => sum + row.value, 0);
   return [...top, { key: 'other', label: t('dashboard.other_bucket'), value: otherTotal }];
+}
+
+/**
+ * Total distinct non-zero categories for a dimension, *before* the
+ * top-K-plus-"Autres" bucketing buildSingleDimensionChartData()/
+ * buildStackedChartData() apply — those two only ever expose up to
+ * MAX_SLICES rows, so this is the one place that still knows the real
+ * count. Used by the Dashboard PDF export's analysis text ("Répartition sur
+ * N catégories."), which needs the true figure, not the display-bucketed one.
+ *
+ * 'billable' has no real notion of "distinct categories" (always exactly
+ * the fixed billable/non-billable split), so it returns 0 there — the
+ * caller treats 0 as "omit this sentence".
+ */
+export function countPrimaryCategories({ summary, dimension }) {
+  if (!summary || dimension === 'billable') return 0;
+  const byX = summary[SUMMARY_KEY_BY_DIMENSION[dimension]] || {};
+  return Object.values(byX).filter((seconds) => Number(seconds || 0) > 0).length;
 }
 
 // Recharts auto-picks evenly spaced Y-axis ticks (e.g. 0/1800/3600/5400/7200s

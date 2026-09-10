@@ -11,13 +11,19 @@ CREATE TABLE IF NOT EXISTS llx_timeflow_daily_report(
     content        text NOT NULL,
     date_creation  datetime NOT NULL,
     tms            timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    date_delete    datetime DEFAULT NULL,
     fk_user_creat  integer NOT NULL,
     fk_user_modif  integer DEFAULT NULL,
+    fk_user_delete integer DEFAULT NULL,
     status         integer DEFAULT 1 NOT NULL,
     read_at        datetime DEFAULT NULL,
+    date_validated_at datetime DEFAULT NULL,
     fk_user_read   integer DEFAULT NULL,
+    date_last_content_edit datetime DEFAULT NULL,
+    fk_user_last_content_edit integer DEFAULT NULL,
     INDEX idx_cdr_date (entity, date_report),
-    INDEX idx_cdr_user (entity, fk_user)
+    INDEX idx_cdr_user (entity, fk_user),
+    INDEX idx_timeflow_daily_report_date_delete (date_delete)
 ) ENGINE=innodb;
 -- Note: multiple daily reports per user and date are allowed. Older installs
 -- might have created a UNIQUE index on (entity,fk_user,date_report). If you
@@ -94,7 +100,6 @@ CREATE TABLE IF NOT EXISTS llx_timeflow_project(
     ref           varchar(128) NOT NULL,
     title         varchar(255) NOT NULL,
     description   text,
-    source        varchar(20) NOT NULL DEFAULT 'manual',
     fk_dolibarr_project integer DEFAULT NULL,
     fk_soc        integer DEFAULT NULL,
     fk_user_creat integer NOT NULL,
@@ -103,7 +108,6 @@ CREATE TABLE IF NOT EXISTS llx_timeflow_project(
     import_key    varchar(14),
     INDEX idx_timeflow_project_entity (entity),
     INDEX idx_timeflow_project_fk_soc (fk_soc),
-    INDEX idx_timeflow_project_source (source),
     INDEX idx_timeflow_project_fk_dolibarr (fk_dolibarr_project)
 ) ENGINE=innodb;
 

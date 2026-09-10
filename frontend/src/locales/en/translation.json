@@ -6,7 +6,8 @@
     "section": "Validation",
     "heading": "Validate entries",
     "tasks_tab": "Employee task validation",
-    "reports_tab": "Employee report validation"
+    "reports_tab": "Employee report validation",
+    "tasks_description": "Review and validate time entries submitted by employees."
   },
   "entries_one": "{{count}} entry",
   "entries_other": "{{count}} entries",
@@ -113,8 +114,12 @@
       "csv_crossed_with_header": "Breakdown by {{dimension}}",
       "analysis_no_data": "No activity recorded for this period.",
       "analysis_dominant": "{{label}} accounts for {{pct}}% of the total time for this period, with {{duration}}.",
-      "analysis_runner_up": "Followed by {{label}} with {{duration}}.",
-      "analysis_crossed_breakdown": "Most of it comes from {{label}} ({{cross}}), with {{duration}}."
+      "analysis_list_item": "{{label}}: {{pct}}% ({{duration}})",
+      "analysis_top_list_intro": "Other leading categories:",
+      "analysis_crossed_breakdown_intro": "Breakdown of {{label}} by {{cross}}:",
+      "analysis_billable_share": "{{pct}}% of the total time is billable.",
+      "analysis_category_count": "Spread across {{count}} categories.",
+      "analysis_other_bucket": "The remainder, spread across several smaller categories, accounts for {{pct}}% of the total time for this period, with {{duration}}."
     },
     "days_few": "",
     "days_many": "",
@@ -184,9 +189,9 @@
     "saving": "Saving…",
     "history_title": "My sent reports",
     "delete_title": "Delete report",
-    "delete_irreversible": "This action is irreversible.",
+    "delete_irreversible": "This report will be removed from your list.",
     "delete_confirm": "Confirm deletion of this report?",
-    "delete_requires_confirmation": "This report has been submitted. Confirm permanent deletion?",
+    "delete_requires_confirmation": "This report has been submitted or rejected. Confirm deletion?",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "loading": "Loading…",
@@ -238,7 +243,6 @@
     "col_entries": "Entries",
     "col_statut": "Status",
     "col_etat": "State",
-    "col_source": "Source",
     "status": {
       "draft": "Draft",
       "opened": "Open",
@@ -253,11 +257,6 @@
       "lost": "Lost",
       "pending": "Pending"
     },
-    "source": {
-      "manual": "Manual",
-      "clockify": "Clockify",
-      "native": "Native"
-    },
     "everyone": "Everyone",
     "assigned_users_more_one": "+{{count}} more",
     "assigned_users_more_other": "+{{count}} more",
@@ -268,8 +267,6 @@
       "date_to": "Created to",
       "search_label": "Search",
       "search_placeholder": "Title or reference…",
-      "source_label": "Source",
-      "all_sources": "All sources",
       "reset": "Reset filters"
     }
   },

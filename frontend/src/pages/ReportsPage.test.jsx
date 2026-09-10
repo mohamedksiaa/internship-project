@@ -239,10 +239,11 @@ describe('ReportsPage', () => {
       reports: [
         { id: 22, user_label: 'Alice', date_report: '2026-08-11', content: 'Rapport validé', status: 2, date_creation: '2026-08-11 08:00:00', date_last_content_edit: '2026-08-11 08:00:00' },
         { id: 23, user_label: 'Bob', date_report: '2026-08-10', content: 'Rapport refusé', status: 9, date_creation: '2026-08-10 08:00:00', date_last_content_edit: '2026-08-10 08:00:00' },
+        { id: 24, user_label: 'Chloé', date_report: '2026-08-09', content: 'Rapport supprimé', status: 9, date_creation: '2026-08-09 08:00:00', date_last_content_edit: '2026-08-09 08:00:00', is_deleted: true, deleted_at: '2026-08-10 09:00:00' },
       ],
       employees: [],
-      pagination: { page: 1, per_page: 20, total: 2, pages: 1 },
-      stats: { validated_count: 1, refused_count: 1, manual_count: 0 },
+      pagination: { page: 1, per_page: 20, total: 3, pages: 1 },
+      stats: { validated_count: 1, refused_count: 2, manual_count: 0 },
     });
 
     renderReportsPage();
@@ -254,7 +255,10 @@ describe('ReportsPage', () => {
     // report's own date).
     await waitFor(() => expect(screen.getAllByText('2026-08-11').length).toBeGreaterThan(0));
     expect(screen.getAllByText('2026-08-10').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('2026-08-09').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Alice')).toHaveLength(1);
+    expect(screen.queryByText('Supprimé par l’utilisateur')).not.toBeInTheDocument();
+    expect(getDailyReports).toHaveBeenLastCalledWith(expect.objectContaining({ history: true, include_deleted: true }));
     // Read-only historical view: no validate/reject action here (that lives
     // in Validations > "Validation des comptes-rendus des employés" now).
     expect(screen.queryByRole('button', { name: i18n.t('reports.validate') })).not.toBeInTheDocument();

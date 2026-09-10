@@ -6,7 +6,8 @@
     "section": "Validierung",
     "heading": "Einträge validieren",
     "tasks_tab": "Validierung der Mitarbeiteraufgaben",
-    "reports_tab": "Validierung der Mitarbeiterberichte"
+    "reports_tab": "Validierung der Mitarbeiterberichte",
+    "tasks_description": "Prüfen und validieren Sie die von Mitarbeitern eingereichten Zeiteinträge."
   },
   "entries_one": "{{count}} Eintrag",
   "entries_other": "{{count}} Einträge",
@@ -114,8 +115,12 @@
       "csv_crossed_with_header": "Aufschlüsselung nach {{dimension}}",
       "analysis_no_data": "Keine Aktivität in diesem Zeitraum erfasst.",
       "analysis_dominant": "{{label}} macht {{pct}}% der Gesamtzeit in diesem Zeitraum aus, mit {{duration}}.",
-      "analysis_runner_up": "Gefolgt von {{label}} mit {{duration}}.",
-      "analysis_crossed_breakdown": "Der Großteil stammt von {{label}} ({{cross}}), mit {{duration}}."
+      "analysis_list_item": "{{label}}: {{pct}}% ({{duration}})",
+      "analysis_top_list_intro": "Weitere führende Kategorien:",
+      "analysis_crossed_breakdown_intro": "Aufschlüsselung von {{label}} nach {{cross}}:",
+      "analysis_billable_share": "{{pct}}% der Gesamtzeit ist abrechenbar.",
+      "analysis_category_count": "Verteilt auf {{count}} Kategorien.",
+      "analysis_other_bucket": "Der Rest, verteilt auf mehrere kleinere Kategorien, macht {{pct}}% der Gesamtzeit in diesem Zeitraum aus, mit {{duration}}."
     },
     "days_few": "",
     "days_many": "",
@@ -185,9 +190,9 @@
     "saving": "Wird gespeichert…",
     "history_title": "Meine gesendeten Berichte",
     "delete_title": "Bericht löschen",
-    "delete_irreversible": "Diese Aktion ist irreversibel.",
+    "delete_irreversible": "Dieser Bericht wird aus Ihrer Liste entfernt.",
     "delete_confirm": "Löschung dieses Berichts bestätigen?",
-    "delete_requires_confirmation": "Dieser Bericht wurde eingereicht. Permanente Löschung bestätigen?",
+    "delete_requires_confirmation": "Dieser Bericht wurde eingereicht oder abgelehnt. Löschung bestätigen?",
     "cancel": "Abbrechen",
     "confirm": "Bestätigen",
     "loading": "Wird geladen…",
@@ -237,7 +242,6 @@
     "col_entries": "Einträge",
     "col_statut": "Status",
     "col_etat": "Zustand",
-    "col_source": "Quelle",
     "status": {
       "draft": "Entwurf",
       "opened": "Offen",
@@ -252,11 +256,6 @@
       "lost": "Verloren",
       "pending": "Ausstehend"
     },
-    "source": {
-      "manual": "Manuell",
-      "clockify": "Clockify",
-      "native": "Nativ"
-    },
     "everyone": "Alle",
     "assigned_users_more_one": "+{{count}} weiterer",
     "assigned_users_more_other": "+{{count}} weitere",
@@ -267,8 +266,6 @@
       "date_to": "Erstellt bis",
       "search_label": "Suche",
       "search_placeholder": "Titel oder Referenz…",
-      "source_label": "Quelle",
-      "all_sources": "Alle Quellen",
       "reset": "Filter zurücksetzen"
     }
   },

@@ -15,6 +15,11 @@ const jsPdfInstance = {
   addImage: vi.fn(),
   addPage: vi.fn(),
   save: vi.fn(),
+  // Real jsPDF word-wraps by font metrics; the mock only needs to turn the
+  // analysis text into "one array entry per line" so the pagination logic
+  // (which only cares about line *count*, not exact wrap points) can be
+  // exercised deterministically.
+  splitTextToSize: vi.fn((text) => String(text).split('\n')),
 };
 vi.mock('jspdf', () => ({
   jsPDF: vi.fn(function jsPDFMock() {
@@ -145,5 +150,45 @@ describe('dashboardPdfExport — html2canvas cloned-iframe race', () => {
     await generateDashboardPdf(params);
 
     expect(html2canvasMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('dashboardPdfExport — analysis text pagination', () => {
+  beforeEach(() => {
+    html2canvasMock.mockReset().mockResolvedValue(makeCanvasResult());
+    Object.values(jsPdfInstance).forEach((fn) => fn.mockClear());
+  });
+
+  it('never calls addPage for a short analysis text that comfortably fits on one page', async () => {
+    await generateDashboardPdf(
+      baseParams({
+        configuredChart: { el: makeEl(), caption: 'Chart' },
+        analysisText: 'Ligne 1\nLigne 2\nLigne 3',
+      })
+    );
+
+    expect(jsPdfInstance.addPage).not.toHaveBeenCalled();
+  });
+
+  it('starts a new page (and keeps writing every line) when the analysis text — now listing every crossed category, not just the dominant one — runs past the bottom of the page', async () => {
+    // buildChartAnalysisText can now produce one block (header + several
+    // bullet lines) per category; with e.g. 8 categories that's easily
+    // 50+ lines, well past what one A4 page holds below the chart image.
+    const manyLines = Array.from({ length: 80 }, (_, i) => `Ligne ${i + 1}`).join('\n');
+
+    await generateDashboardPdf(
+      baseParams({
+        configuredChart: { el: makeEl(), caption: 'Chart' },
+        analysisText: manyLines,
+      })
+    );
+
+    expect(jsPdfInstance.addPage.mock.calls.length).toBeGreaterThan(0);
+    // Every single line still gets written — pagination must never drop
+    // content, only move the cursor to a fresh page for it.
+    const writtenLines = jsPdfInstance.text.mock.calls.map((call) => call[0]);
+    for (let i = 1; i <= 80; i++) {
+      expect(writtenLines).toContain(`Ligne ${i}`);
+    }
   });
 });

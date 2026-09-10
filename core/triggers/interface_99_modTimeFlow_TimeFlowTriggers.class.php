@@ -73,22 +73,6 @@ class InterfaceTimeFlowTriggers extends DolibarrTriggers
 			}
 		}
 
-		// A project created via TimeFlow's own "Nouveau projet" button or the
-		// Clockify import already sets options_timeflow_source ('manual' /
-		// 'clockify') on $object BEFORE calling Project::create() — this
-		// trigger fires from inside that same create(), but crucially BEFORE
-		// its own insertExtraFields() call, so any value we set on
-		// $object->array_options here still gets persisted normally right
-		// after. A project created any other way (Dolibarr's native
-		// "Projets" module, another custom module, etc.) never sets this
-		// extrafield at all, so it's still empty at this point — fill it
-		// with 'native' so no project is ever left without a source.
-		if ($action == 'PROJECT_CREATE') {
-			if (empty($object->array_options['options_timeflow_source'])) {
-				$object->array_options['options_timeflow_source'] = 'native';
-			}
-		}
-
 		return 0;
 	}
 	

@@ -16,7 +16,13 @@ export default function TimerPage() {
   const [projectsError, setProjectsError] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({});
-  const [billableOnly, setBillableOnly] = useState(false);
+  // No UI sets this anymore (the "Facturable uniquement" checkbox was
+  // removed) — kept as a permanently-false value rather than stripped out,
+  // since loadEntries()/getTimeEntries()/getTimeEntryUpdates() still take a
+  // billableOnly argument through several call sites (pagination, polling,
+  // reload), and removing it there would be a much larger, riskier change
+  // for no behavioral difference (it would just always pass false too).
+  const [billableOnly] = useState(false);
 
   // Re-run on every mount AND every time the project selector is opened, so a
   // project closed elsewhere (fk_statut -> CLOSED) disappears from the picker
@@ -155,14 +161,6 @@ export default function TimerPage() {
     return timer.resume(entry.id);
   };
 
-  // Any filter change invalidates the current page number (a narrower
-  // filter can easily have fewer pages than where the user was browsing) —
-  // same rule as the "Rapports des tâches" filters (ReportsPage's update()).
-  const handleBillableOnlyChange = (checked) => {
-    setBillableOnly(checked);
-    loadEntries(1, checked);
-  };
-
   return (
     <div className="tw-mx-auto tw-w-full tw-max-w-[1680px] tw-px-5 tw-py-7">
       <TimerWidget
@@ -175,13 +173,9 @@ export default function TimerPage() {
       />
 
       <div className="tw-mt-10">
-        <div className="tw-mb-4 tw-flex tw-items-center tw-justify-between tw-text-sm tw-text-[#52656f]">
-          <h1 className="tw-font-medium tw-text-[#263746]">{t('timer_page.task_history')}</h1>
+        <div className="tw-mb-4 tw-flex tw-items-center tw-justify-between tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">
+          <h1 className="tw-font-medium tw-text-[#263746] dark:tw-text-slate-400">{t('timer_page.task_history')}</h1>
           <div className="tw-flex tw-items-center tw-gap-4">
-            <label className="tw-flex tw-items-center tw-gap-2">
-              <input type="checkbox" checked={billableOnly} onChange={(event) => handleBillableOnlyChange(event.target.checked)} />
-              {t('processed_history.filters.billable_only')}
-            </label>
             <span>
               {t(entries.length > 1 ? 'timer_page.entries_plural' : 'timer_page.entries_one', { count: entries.length })}
             </span>

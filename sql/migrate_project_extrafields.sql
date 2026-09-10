@@ -16,8 +16,7 @@
 -- Step 1 of the TimeFlow -> native llx_projet migration (see the audit
 -- "Unification des projets TimeFlow / Dolibarr natif").
 --
--- Adds the two TimeFlow-specific fields that have no native equivalent
--- (timeflow_source, timeflow_import_key) as standard Dolibarr extrafields
+-- Adds the TimeFlow import key as a standard Dolibarr extrafield
 -- on elementtype='projet', using the exact mechanism the extrafields admin
 -- screen itself uses: a real column on the companion *_extrafields table,
 -- plus a metadata row in llx_extrafields describing it. No core table is
@@ -27,9 +26,6 @@
 -- Idempotent: safe to run more than once. MariaDB 10.6 supports
 -- "ADD COLUMN IF NOT EXISTS"; the llx_extrafields inserts are guarded with
 -- a NOT EXISTS check since there is no natural unique key to rely on.
-
-ALTER TABLE llx_projet_extrafields
-    ADD COLUMN IF NOT EXISTS timeflow_source varchar(20) DEFAULT NULL;
 
 ALTER TABLE llx_projet_extrafields
     ADD COLUMN IF NOT EXISTS timeflow_import_key varchar(14) DEFAULT NULL;
@@ -43,18 +39,8 @@ INSERT INTO llx_extrafields
     (name, entity, elementtype, label, type, size, fieldunique, fieldrequired,
      alwayseditable, `list`, printable, totalizable, module, pos, datec)
 SELECT
-    'timeflow_source', 0, 'projet', 'Source TimeFlow', 'varchar', '20', 0, 0,
-    1, '1', 1, 0, 'timeflow', 1, NOW()
-WHERE NOT EXISTS (
-    SELECT 1 FROM llx_extrafields WHERE name = 'timeflow_source' AND elementtype = 'projet' AND entity = 0
-);
-
-INSERT INTO llx_extrafields
-    (name, entity, elementtype, label, type, size, fieldunique, fieldrequired,
-     alwayseditable, `list`, printable, totalizable, module, pos, datec)
-SELECT
     'timeflow_import_key', 0, 'projet', 'Clé d''import TimeFlow', 'varchar', '14', 0, 0,
-    1, '0', 0, 0, 'timeflow', 2, NOW()
+    1, '0', 0, 0, 'timeflow', 1, NOW()
 WHERE NOT EXISTS (
     SELECT 1 FROM llx_extrafields WHERE name = 'timeflow_import_key' AND elementtype = 'projet' AND entity = 0
 );

@@ -35,7 +35,7 @@ vi.mock('../api/timeflowApi', () => ({
   getTimeEntryUpdates,
 }));
 
-describe('TimerPage — "Facturable uniquement" filter', () => {
+describe('TimerPage — "Facturable uniquement" filter removed', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('fr');
     getActiveTimer.mockReset().mockResolvedValue(null);
@@ -49,24 +49,15 @@ describe('TimerPage — "Facturable uniquement" filter', () => {
     cleanup();
   });
 
-  it('sends billable_only=false by default, then true after checking the filter, resetting to page 1', async () => {
-    const user = userEvent.setup();
+  it('no longer renders the "Facturable uniquement" checkbox', async () => {
     render(<TimerPage />);
 
     await waitFor(() => expect(getTimeEntries).toHaveBeenCalledWith(1, 20, false));
-
-    getTimeEntries.mockResolvedValueOnce({
-      entries: [{ id: 5, note: 'Tâche facturable', duration: 3600, status: 2, billable: 1, date_start: '2026-09-01T08:00:00Z', date_end: '2026-09-01T09:00:00Z' }],
-      pagination: { page: 1, per_page: 20, total: 1, pages: 1 },
-    });
-
-    await user.click(screen.getByRole('checkbox', { name: i18n.t('processed_history.filters.billable_only') }));
-
-    await waitFor(() => expect(getTimeEntries).toHaveBeenLastCalledWith(1, 20, true));
-    expect(await screen.findByText('Tâche facturable')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: i18n.t('processed_history.filters.billable_only') })).not.toBeInTheDocument();
+    expect(screen.queryByText(i18n.t('processed_history.filters.billable_only'))).not.toBeInTheDocument();
   });
 
-  it('keeps the active filter when paging, and when the background poll refetches', async () => {
+  it('still fetches with billable_only permanently false — removing the UI did not break the list or its pagination', async () => {
     getTimeEntries.mockResolvedValue({
       entries: [{ id: 1, note: 'Entrée', duration: 60, status: 2, date_start: '2026-09-01T08:00:00Z', date_end: '2026-09-01T08:01:00Z' }],
       pagination: { page: 1, per_page: 20, total: 25, pages: 2 },
@@ -75,10 +66,9 @@ describe('TimerPage — "Facturable uniquement" filter', () => {
     render(<TimerPage />);
 
     await screen.findByText('Entrée');
-    await user.click(screen.getByRole('checkbox', { name: i18n.t('processed_history.filters.billable_only') }));
-    await waitFor(() => expect(getTimeEntries).toHaveBeenLastCalledWith(1, 20, true));
+    expect(getTimeEntries).toHaveBeenCalledWith(1, 20, false);
 
     await user.click(screen.getByRole('button', { name: i18n.t('processed_history.pagination.next') }));
-    await waitFor(() => expect(getTimeEntries).toHaveBeenLastCalledWith(2, 20, true));
+    await waitFor(() => expect(getTimeEntries).toHaveBeenLastCalledWith(2, 20, false));
   });
 });
