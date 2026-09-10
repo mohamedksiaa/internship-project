@@ -19,8 +19,19 @@ function todayStamp() {
   return `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}`;
 }
 
+// Excel/LibreOffice auto-detect an ISO date ("2026-08-01") and silently
+// convert it to a date serial number even inside a quoted CSV field — the
+// quotes only escape the delimiter, they are not a type hint. The result is
+// a column too narrow for the reformatted date, rendered as "###". A leading
+// apostrophe is the standard CSV convention both apps honor to force text.
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 function csvEscape(value) {
-  return `"${String(value ?? '').replaceAll('"', '""')}"`;
+  let text = String(value ?? '');
+  if (ISO_DATE_PATTERN.test(text)) {
+    text = `'${text}`;
+  }
+  return `"${text.replaceAll('"', '""')}"`;
 }
 
 // `delimiter` defaults to ';' for the per-tab exports above. The global

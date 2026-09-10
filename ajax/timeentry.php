@@ -1375,7 +1375,13 @@ function timeflowCountEntriesMatchingFilter($db, $filter)
 function timeflowProcessedHistoryWhere($input, $user = null)
 {
     global $db;
-    $where = array('t.entity IN ('.getEntity('timeentry').')', 't.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')');
+    // t.date_delete IS NULL: a soft-deleted entry must not appear in this
+    // history nor count toward its stats, even if it was validated/refused
+    // before being deleted — unlike getTimeOverlaps(), which deliberately
+    // keeps soft-deleted rows (a deleted entry still represents a slot that
+    // was historically occupied, for overlap detection). The two are
+    // legitimately opposite on the same date_delete column; do not unify them.
+    $where = array('t.entity IN ('.getEntity('timeentry').')', 't.date_delete IS NULL', 't.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')');
     if ($user && !timeflowCanReadAllTimeEntries($user)) {
         $where[] = 't.fk_user = '.((int) $user->id);
     } elseif (!empty($input['employee_id'])) {
@@ -1428,7 +1434,7 @@ function timeflowGetProcessedHistory($input, $user = null)
     }
     $employees = array();
     if ($isManagerView) {
-        $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')';
+        $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.date_delete IS NULL AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')';
         $employeeSql .= ' ORDER BY u.lastname, u.firstname, u.login';
         $employeeRes = $db->query($employeeSql);
         while ($employeeRes && ($obj = $db->fetch_object($employeeRes))) $employees[] = array('id'=>(int) $obj->fk_user, 'label'=>trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));

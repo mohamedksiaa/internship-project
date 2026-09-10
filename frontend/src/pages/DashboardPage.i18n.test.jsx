@@ -78,7 +78,7 @@ describe('DashboardPage i18n integration', () => {
     expect(timeflowApi.getDailyReports).not.toHaveBeenCalled();
   });
 
-  it('shows the "Dont facturable" KPI card next to Total, using the same duration formatting', async () => {
+  it('shows the Total KPI card, but not a separate "Dont facturable" card (billable time is only in the PDF/CSV exports, not a Dashboard card)', async () => {
     await act(async () => {
       await i18n.changeLanguage('fr');
     });
@@ -89,11 +89,9 @@ describe('DashboardPage i18n integration', () => {
       </MemoryRouter>
     );
 
-    // total_seconds: 7200 -> "02:00:00", billable_seconds: 3600 -> "01:00:00"
-    // (getSummaryReports mock above) — same formatDuration() used by Total.
+    // total_seconds: 7200 -> "02:00:00" (getSummaryReports mock above).
     expect(await screen.findByText('Total')).toBeInTheDocument();
-    expect(await screen.findByText('Dont facturable')).toBeInTheDocument();
     expect(screen.getByText('02:00:00')).toBeInTheDocument();
-    expect(screen.getByText('01:00:00')).toBeInTheDocument();
+    expect(screen.queryByText('Dont facturable')).not.toBeInTheDocument();
   });
 });

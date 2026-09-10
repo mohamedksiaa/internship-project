@@ -148,11 +148,55 @@ export function buildStackedChartData({ summary, dimension, crossWith, t }) {
   return { rows, segments };
 }
 
+/**
+ * Single-dimension breakdown (no crossing) — one row per category, top-K +
+ * "Autre" bucketing. Extracted out of CustomChartWidget's own useMemo so the
+ * dashboard's PDF/CSV export (its fixed "by project" / "billable vs
+ * non-billable" views) can build the exact same data without a second,
+ * drift-prone implementation.
+ */
+export function buildSingleDimensionChartData({ summary, dimension, t }) {
+  if (!summary) return [];
+
+  if (dimension === 'billable') {
+    return [
+      { key: 'billable', label: t('dashboard.billable_label'), value: Number(summary.billable_seconds || 0) },
+      { key: 'non_billable', label: t('dashboard.non_billable_label'), value: Number(summary.non_billable_seconds || 0) },
+    ].filter((row) => row.value > 0);
+  }
+
+  const mapKeyByDimension = { client: 'by_client', employee: 'by_user', project: 'by_project', group: 'by_group' };
+  const labelMapKeyByDimension = { client: 'client_labels', employee: 'user_labels', project: 'project_labels', group: 'group_labels' };
+  const fallbackLabelByDimension = {
+    client: t('dashboard.no_client'),
+    employee: t('dashboard.user_fallback', { userId: 0 }),
+    project: t('dashboard.no_project'),
+    group: t('dashboard.no_group'),
+  };
+
+  const byX = summary[mapKeyByDimension[dimension]] || {};
+  const labels = summary[labelMapKeyByDimension[dimension]] || {};
+
+  const rows = Object.entries(byX)
+    .map(([key, seconds]) => ({
+      key,
+      label: key === '0' ? fallbackLabelByDimension[dimension] : (labels[key] || `#${key}`),
+      value: Number(seconds || 0),
+    }))
+    .filter((row) => row.value > 0)
+    .sort((left, right) => right.value - left.value);
+
+  if (rows.length <= MAX_SLICES) return rows;
+  const top = rows.slice(0, MAX_SLICES - 1);
+  const otherTotal = rows.slice(MAX_SLICES - 1).reduce((sum, row) => sum + row.value, 0);
+  return [...top, { key: 'other', label: t('dashboard.other_bucket'), value: otherTotal }];
+}
+
 // Recharts auto-picks evenly spaced Y-axis ticks (e.g. 0/1800/3600/5400/7200s
 // for a ~2h range) that don't always land on whole hours. Rounding straight
 // to the nearest hour collapsed distinct ticks onto the same label (1800s and
 // 3600s both became "1h"), so this keeps the minutes whenever they're non-zero.
-function formatHoursTick(seconds) {
+export function formatHoursTick(seconds) {
   const totalMinutes = Math.round(Number(seconds) / 60);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -164,7 +208,24 @@ function formatHoursTick(seconds) {
  * by the user. Reuses the same getSummaryReports payload that feeds the
  * period cards above — no extra network call for this widget.
  */
-export default function CustomChartWidget({ summary }) {
+// chartRef is attached only to the chart-rendering area (not the Dimension/
+// Chart type/Croiser avec controls above it) — the Dashboard's PDF export
+// captures via this ref so the exported image is the visualization alone,
+// never the form controls.
+//
+// forcedSize ({ width, height } in px, or null) lets the PDF export flow
+// (DashboardPage's handleExportPdf) briefly pin this chart to an explicit
+// pixel size instead of the normal "100%"/"100%" ResponsiveContainer. Same
+// root cause as DashboardExportCharts.jsx's off-screen views: ResponsiveContainer
+// only knows its size once a ResizeObserver fires, which is asynchronous —
+// on a genuinely first, cold page load (real Dolibarr chrome/menus/fonts all
+// competing for layout time), that callback can still not have fired by the
+// time html2canvas captures this already-visible chart, even though its own
+// CSS box already measures correctly (confirmed via a real authenticated
+// session: box was 954x320, recharts still warned "width(0) height(0)").
+// Passing a NUMBER (not a percentage) to ResponsiveContainer makes it skip
+// the observer entirely and render synchronously at that exact size.
+export default function CustomChartWidget({ summary, chartRef, forcedSize = null }) {
   const { t } = useTranslation();
   const isDark = useDarkMode();
   // Kept in the URL (?dimension=&chartType=) rather than local state — this
@@ -204,42 +265,10 @@ export default function CustomChartWidget({ summary }) {
     return buildStackedChartData({ summary, dimension, crossWith, t });
   }, [summary, dimension, crossWith, isCrossing, t]);
 
-  const chartData = useMemo(() => {
-    if (!summary) return [];
-
-    if (dimension === 'billable') {
-      return [
-        { key: 'billable', label: t('dashboard.billable_label'), value: Number(summary.billable_seconds || 0) },
-        { key: 'non_billable', label: t('dashboard.non_billable_label'), value: Number(summary.non_billable_seconds || 0) },
-      ].filter((row) => row.value > 0);
-    }
-
-    const mapKeyByDimension = { client: 'by_client', employee: 'by_user', project: 'by_project', group: 'by_group' };
-    const labelMapKeyByDimension = { client: 'client_labels', employee: 'user_labels', project: 'project_labels', group: 'group_labels' };
-    const fallbackLabelByDimension = {
-      client: t('dashboard.no_client'),
-      employee: t('dashboard.user_fallback', { userId: 0 }),
-      project: t('dashboard.no_project'),
-      group: t('dashboard.no_group'),
-    };
-
-    const byX = summary[mapKeyByDimension[dimension]] || {};
-    const labels = summary[labelMapKeyByDimension[dimension]] || {};
-
-    const rows = Object.entries(byX)
-      .map(([key, seconds]) => ({
-        key,
-        label: key === '0' ? fallbackLabelByDimension[dimension] : (labels[key] || `#${key}`),
-        value: Number(seconds || 0),
-      }))
-      .filter((row) => row.value > 0)
-      .sort((left, right) => right.value - left.value);
-
-    if (rows.length <= MAX_SLICES) return rows;
-    const top = rows.slice(0, MAX_SLICES - 1);
-    const otherTotal = rows.slice(MAX_SLICES - 1).reduce((sum, row) => sum + row.value, 0);
-    return [...top, { key: 'other', label: t('dashboard.other_bucket'), value: otherTotal }];
-  }, [summary, dimension, t]);
+  const chartData = useMemo(
+    () => buildSingleDimensionChartData({ summary, dimension, t }),
+    [summary, dimension, t]
+  );
 
   const axisColor = isDark ? '#334155' : '#dce5ea';
   const tickColor = isDark ? '#94a3b8' : '#334155';
@@ -290,8 +319,8 @@ export default function CustomChartWidget({ summary }) {
         stackedChartData === null || stackedChartData.rows.length === 0 ? (
           <p className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('dashboard.custom_chart_empty')}</p>
         ) : (
-          <div className="tw-h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="tw-h-[320px]" ref={chartRef}>
+            <ResponsiveContainer width={forcedSize?.width ?? '100%'} height={forcedSize?.height ?? '100%'}>
               <BarChart data={stackedChartData.rows} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                 <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: axisColor }} tick={{ fill: tickColor, fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
@@ -308,13 +337,19 @@ export default function CustomChartWidget({ summary }) {
       ) : chartData.length === 0 ? (
         <p className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('dashboard.custom_chart_empty')}</p>
       ) : (
-        <div className="tw-h-[320px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="tw-h-[320px]" ref={chartRef}>
+          <ResponsiveContainer width={forcedSize?.width ?? '100%'} height={forcedSize?.height ?? '100%'}>
             {chartType === 'pie' ? (
               <PieChart>
                 <Tooltip formatter={(value) => formatDuration(value)} contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ color: tickColor, fontSize: 12 }} />
-                <Pie data={chartData} dataKey="value" nameKey="label" cx="50%" cy="50%" outerRadius={110} label={(entry) => entry.label}>
+                {/* endAngle stops just short of a full 360° sweep: when a
+                    single slice holds 100% of the total (e.g. all time
+                    billable, none non-billable), d3's arc generator produces
+                    a degenerate path when start and end angle coincide
+                    exactly, rendering as a near-invisible sliver instead of
+                    a full circle. */}
+                <Pie data={chartData} dataKey="value" nameKey="label" cx="50%" cy="50%" outerRadius={110} startAngle={0} endAngle={359.999} label={(entry) => entry.label}>
                   {chartData.map((entry, index) => <Cell key={entry.key} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
                 </Pie>
               </PieChart>
