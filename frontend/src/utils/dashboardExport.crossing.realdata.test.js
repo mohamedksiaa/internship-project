@@ -35,7 +35,7 @@ describe('Dashboard CSV export — crossing reflects the real chart (real backen
     expect(wissalRow[tbUnitedSegment.dataKey]).toBe(466118);
   });
 
-  it('the CSV rows are a real pivot table (one column per project) matching the chart data 1:1, not a 2-column flat total', () => {
+  it('the CSV rows are a real pivot table (one column per project) matching the chart data 1:1, not a 2-column flat total, and names both dimensions', () => {
     const crossedData = buildStackedChartData({ summary: realSummary, dimension: 'employee', crossWith: 'project', t });
     const csvRows = buildDashboardCsvRows({
       t,
@@ -45,11 +45,20 @@ describe('Dashboard CSV export — crossing reflects the real chart (real backen
       formatDuration,
       chartData: [],
       crossedData,
+      dimensionLabel: t('dashboard.dimension.employee'),
+      crossWithLabel: t('dashboard.dimension.project'),
     });
 
-    const headerRow = csvRows[5];
-    // "Catégorie" + one column per project segment — not "Catégorie, Durée".
-    expect(headerRow[0]).toBe(t('dashboard.export.csv_category'));
+    // A line naming the crossing dimension comes right before the header —
+    // the exact reported readability gap (opening the CSV alone gave no
+    // way to tell the columns were projects).
+    expect(csvRows[5]).toEqual([t('dashboard.export.csv_crossed_with_header', { dimension: t('dashboard.dimension.project') })]);
+
+    const headerRow = csvRows[6];
+    // The real dimension name ("Employé") + one column per project segment
+    // — not the generic "Catégorie", and not "Catégorie, Durée".
+    expect(headerRow[0]).toBe(t('dashboard.dimension.employee'));
+    expect(headerRow[0]).not.toBe(t('dashboard.export.csv_category'));
     expect(headerRow.length).toBe(1 + crossedData.segments.length);
     expect(headerRow).toContain('TB-UNITED');
     expect(headerRow).not.toContain(t('dashboard.export.csv_duration'));
@@ -58,7 +67,7 @@ describe('Dashboard CSV export — crossing reflects the real chart (real backen
     const tbUnitedColIndex = headerRow.indexOf('TB-UNITED');
     expect(wissalCsvRow[tbUnitedColIndex]).toBe(formatDuration(466118));
     // Every data row has exactly as many cells as the header.
-    csvRows.slice(6).forEach((row) => expect(row.length).toBe(headerRow.length));
+    csvRows.slice(7).forEach((row) => expect(row.length).toBe(headerRow.length));
   });
 
   it('still produces the old flat 2-column CSV when crossWith is none (unchanged behavior)', () => {

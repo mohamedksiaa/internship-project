@@ -729,6 +729,40 @@ class TimeEntry extends CommonObject
         $this->logModifications($user, $oldValues, $reason, $action);
     }
 
+    /**
+     * Record that an entry was auto-validated at creation time (e.g. an
+     * import that creates entries directly as STATUS_VALIDATED instead of
+     * going through the Validation page), as a distinct 'validate' audit
+     * row alongside the creation row logManualCreation() already writes.
+     *
+     * validateEntry() itself calls update() with no $reason, so a manual
+     * manager validation from the Validation page leaves no audit row at
+     * all — any 'validate' row therefore always comes from either this
+     * method or a one-off backfill script, both identifiable by $reason.
+     *
+     * Reuses logModifications() by feeding it every current field value as
+     * its own "old" value except status (forced to STATUS_DRAFT), so only
+     * the status field is reported as changed and exactly one row is
+     * written — mirroring what a real DRAFT->VALIDATED transition would
+     * have logged, without duplicating the creation row's other fields.
+     */
+    public function logAutoValidationOnImport(User $user, string $reason, string $action = self::MOD_ACTION_VALIDATE)
+    {
+        $oldValues = array(
+            'fk_project' => $this->fk_project,
+            'fk_task' => $this->fk_task,
+            'date_start' => $this->date_start,
+            'date_end' => $this->date_end,
+            'duration' => $this->duration,
+            'note' => $this->note,
+            'tags' => $this->tags,
+            'billable' => $this->billable,
+            'thm' => $this->thm,
+            'status' => (string) self::STATUS_DRAFT,
+        );
+        $this->logModifications($user, $oldValues, $reason, $action);
+    }
+
 	/** Return true when the requested time range overlaps another user entry. */
 	public function hasTimeOverlap($fkUser, $dateStart, $dateEnd, $excludeId = 0)
 	{
