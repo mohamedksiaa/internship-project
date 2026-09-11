@@ -78,6 +78,18 @@ class TimeImportClockify
      */
     public function previewFromCsvPath($csvPath)
     {
+        // Same rationale as executeImportFromCsvPath(): resolving user/project/
+        // client/group mappings does several SQL round-trips per CSV row
+        // (lookup, then insert if unresolved) across resolveUserMapping()/
+        // resolveProjectMapping()/resolveClientMapping()/resolveGroupMapping();
+        // on a several-hundred-row export this reliably exceeds PHP's default
+        // 30s max_execution_time and dies mid-run with a fatal error. Nothing
+        // here writes to any table except llx_timeflow_import_mapping/
+        // *_link, so a timeout is never data-unsafe — but it shouldn't happen
+        // on a single normal-sized preview. Raise it for this request only,
+        // regardless of what the server's php.ini otherwise allows.
+        set_time_limit(300);
+
         if (!is_readable($csvPath)) {
             throw new RuntimeException('Le fichier CSV ne peut pas être lu.');
         }
