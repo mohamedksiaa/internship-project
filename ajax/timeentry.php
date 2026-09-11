@@ -1900,7 +1900,6 @@ switch ($action) {
         break;
 
     case 'deleteTimeEntry':
-    case 'deleteEntry':
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
         if ($id <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant d’entrée invalide'), 400);
@@ -2379,7 +2378,6 @@ switch ($action) {
         break;
 
     case 'validateEntry':
-    case 'approveTimeEntry':
         if (!timeflowCanValidate($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
@@ -2392,7 +2390,6 @@ switch ($action) {
         break;
 
     case 'rejectEntry':
-    case 'rejectTimeEntry':
         if (!timeflowCanValidate($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
