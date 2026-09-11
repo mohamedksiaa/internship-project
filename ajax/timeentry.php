@@ -438,8 +438,8 @@ function timeflowExportTimeEntry($object)
         'date_start',
         'date_end',
         'duration',
-		'occurrence_count',
-		'date_reprise',
+        'occurrence_count',
+        'date_reprise',
         'note',
         'tags',
         'billable',
@@ -1874,7 +1874,7 @@ switch ($action) {
         // clear HTTP response and repeat it in TimeEntry::delete() so a
         // caller cannot bypass the endpoint.
         if ((int) $timeentry->status !== TimeEntry::STATUS_DRAFT && !TimeEntry::canDeleteProcessedEntry($user)) {
-			timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer une entrée déjà soumise, validée ou refusée'), 403);
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer une entrée déjà soumise, validée ou refusée'), 403);
         }
         if (!$timeentry->isDeletionAllowedFor($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
