@@ -91,9 +91,20 @@ if (!empty($user->socid) && $user->socid > 0) {
 // Security check (enable the most restrictive one)
 //if ($user->socid > 0) accessforbidden();
 //if ($user->socid > 0) $socid = $user->socid;
-//if (!isModEnabled('timeflow')) {
-//	accessforbidden('Module not enabled');
-//}
+// By consistency with the other 6 TimeFlow pages (timeentry_card.php and
+// its satellite tabs, timeentry_list.php): this page had no active check
+// at all, not even module-enabled. The real data-returning surface is
+// ajax/timeentry.php (already permission-checked per action) — this page
+// only boots the React shell — but there is no reason to serve that shell,
+// or the user's own token/id/right flags, to a session where the module
+// isn't even enabled or where main.inc.php somehow let a logged-out
+// request through.
+if (empty($user->id)) {
+	accessforbidden();
+}
+if (!isModEnabled('timeflow')) {
+	accessforbidden('Module not enabled');
+}
 //if (! $user->hasRight('timeflow', 'myobject', 'read')) {
 //	accessforbidden();
 //}
