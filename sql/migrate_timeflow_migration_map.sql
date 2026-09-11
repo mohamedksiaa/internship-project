@@ -24,7 +24,7 @@
 -- (including the application-code cutover, done in a later step) is
 -- validated. Kept around deliberately for now so the remap step and any
 -- manual audit can rely on it.
-CREATE TABLE IF NOT EXISTS llx_timeflow_migration_map (
+CREATE TABLE llx_timeflow_migration_map(
     rowid          integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
     old_rowid      integer NOT NULL,      -- llx_timeflow_project.rowid
     new_rowid      integer NOT NULL,      -- llx_projet.rowid
