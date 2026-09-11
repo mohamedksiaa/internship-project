@@ -959,12 +959,13 @@ function timeflowBuildGlobalCsvRows($db, $user)
 
 /**
  * Whether llx_timeflow_project_user exists yet. The migration that creates
- * it (sql/migrate_timeflow_project_user.sql) is provided but NOT applied
- * automatically — every function that reads this table must check this
- * first and fail OPEN (behave as "unrestricted") when it's false, so
- * shipping this code ahead of the migration never breaks project listing
- * or timer start for anyone. Memoized per-request: cheap, but no need to
- * repeat the existence probe on every call within the same page load.
+ * it (scripts/archive/sql/migrate_timeflow_project_user.sql) is archived
+ * and NOT applied automatically — every function that reads this table
+ * must check this first and fail OPEN (behave as "unrestricted") when
+ * it's false, so shipping this code ahead of the migration never breaks
+ * project listing or timer start for anyone. Memoized per-request: cheap,
+ * but no need to repeat the existence probe on every call within the
+ * same page load.
  */
 function timeflowProjectUserTableExists($db)
 {
