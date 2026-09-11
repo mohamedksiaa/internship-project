@@ -1,3 +1,33 @@
+# ARCHIVÉ : déplacé de frontend/ vers scripts/archive/. Jamais appelé par
+# aucun script/CI/README (confirmé par grep exhaustif sur tout le dépôt) :
+# usage manuel ponctuel uniquement (`python fill_missing_locales.py`, à
+# lancer depuis frontend/ -- le chemin 'src/locales' ci-dessous est
+# relatif au répertoire d'exécution, pas au fichier lui-même).
+#
+# Raison de l'archivage, plus sérieuse qu'un simple "logique dépassée" :
+# CE SCRIPT ÉCRIT SUR DISQUE (contrairement à check_locales.py, purement
+# en lecture), et le relancer aujourd'hui ferait activement du tort :
+# 1. Il court-circuiterait le processus de revue humaine déjà en place
+#    (frontend/src/locales/TRANSLATIONS_TO_REVIEW.md, qui exige qu'une
+#    traduction de/ar validée passe par une revue humaine, jamais par
+#    une copie automatique de l'anglais) en remplissant silencieusement
+#    toute clé manquante avec le texte ANGLAIS tel quel -- une fausse
+#    traduction qu'un utilisateur de/ar verrait comme définitive alors
+#    qu'elle ne l'est pas.
+# 2. Il propagerait projects.col_status (clé déjà morte, présente
+#    seulement en fr, jamais lue par aucun composant React -- la vraie
+#    clé utilisée est timeentry.col_status) vers en/de/ar au lieu de la
+#    supprimer là où elle traîne inutilement.
+# 3. Il remplirait en/fr/de avec des variantes de pluriel CLDR
+#    (_two/_few/_many/_zero) qu'elles n'utilisent jamais grammaticalement
+#    (seul l'arabe a besoin de ces 6 formes ; en/fr/de n'en résolvent
+#    que 2) -- du bruit permanent ajouté aux fichiers de langue sans
+#    aucun bénéfice fonctionnel.
+# Les 2 vraies clés manquantes qu'il aurait fini par "corriger"
+# (daily_report.read_report / daily_report.send_report en de et ar) ont
+# été traitées séparément, à la main, en suivant le vrai processus de
+# revue documenté dans TRANSLATIONS_TO_REVIEW.md -- voir l'historique
+# git pour ce commit.
 import json
 from pathlib import Path
 
