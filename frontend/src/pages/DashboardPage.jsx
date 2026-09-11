@@ -6,21 +6,8 @@ import { getDailyReports, getMyDailyReports, getSummaryReports } from '../api/ti
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
 import { buildChartAnalysisText, buildDashboardCsvRows } from '../utils/dashboardExport.js';
-import Card from '../components/atoms/Card';
 import useDarkMode from '../hooks/useDarkMode';
 import { useUrlDateRange, useUrlState } from '../hooks/useUrlState.js';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 
 const TEAM_CHART_COLORS = ['#5B8FA8', '#4d5fca', '#35a66f', '#f59e0b', '#d66', '#8a9aa4'];
 
