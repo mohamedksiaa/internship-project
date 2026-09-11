@@ -25,7 +25,6 @@ dol_include_once('/timeflow/class/timeimport.class.php');
 dol_include_once('/timeflow/lib/timeflow.lib.php');
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
-require_once DOL_DOCUMENT_ROOT.'/core/class/cleadstatus.class.php';
 
 top_httphead('application/json');
 
