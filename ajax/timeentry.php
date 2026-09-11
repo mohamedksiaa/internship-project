@@ -72,9 +72,9 @@ function timeflowJsonResponse($payload, $status = 200)
 }
 
 /**
- * Temporary diagnostic trace for startTimer rejections.  It deliberately
- * records only the fields needed to reproduce the validation, never the CSRF
- * token or the whole request body.
+ * startTimer rejection: logs the full validation context server-side only
+ * (never the CSRF token or the whole request body) — the client response
+ * carries just the user-facing reason.
  */
 function timeflowStartTimerRejected($reason, array $context = array())
 {
@@ -82,12 +82,7 @@ function timeflowStartTimerRejected($reason, array $context = array())
         'reason' => $reason,
         'user_id' => (int) $GLOBALS['user']->id,
     ), $context)), LOG_WARNING);
-    // Include the context in the JSON response to aid debugging (temporary).
-    $payload = array('status' => 'error', 'message' => $reason);
-    if (!empty($context)) {
-        $payload['context'] = $context;
-    }
-    timeflowJsonResponse($payload, 400);
+    timeflowJsonResponse(array('status' => 'error', 'message' => $reason), 400);
 }
 
 /**
