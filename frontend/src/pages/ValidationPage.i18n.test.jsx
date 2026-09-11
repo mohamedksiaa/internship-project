@@ -2,11 +2,11 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react-dom/test-utils';
 import { MemoryRouter } from 'react-router-dom';
-import i18n from '../../i18n';
-import { getValidationEntries } from '../../api/timeflowApi';
-import ValidationPage from '../ValidationPage';
+import i18n from '../i18n';
+import { getValidationEntries } from '../api/timeflowApi';
+import ValidationPage from './ValidationPage';
 
-vi.mock('../../api/timeflowApi', () => ({
+vi.mock('../api/timeflowApi', () => ({
   getValidationEntries: vi.fn().mockResolvedValue({ entries: [], pagination: { page: 1, per_page: 20, total: 0, pages: 1 } }),
   getTimeEntryUpdates: vi.fn().mockResolvedValue({ marker: '', changed: false, entries: [] }),
 }));
