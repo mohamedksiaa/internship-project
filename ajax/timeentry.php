@@ -171,7 +171,6 @@ function timeflowFormatOverlapMessage(array $overlaps)
 function timeflowCanValidate($user)
 {
     return !empty($user->admin)
-        || $user->hasRight('timeflow', 'valider')
         || $user->hasRight('timeflow', 'timeentry', 'validate');
 }
 
