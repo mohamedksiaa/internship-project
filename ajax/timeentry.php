@@ -87,10 +87,15 @@ function timeflowStartTimerRejected($reason, array $context = array())
 
 /**
  * Temporary diagnostic trace for the controlled time-correction flow.
- * Remove once the investigation is complete.
+ * Remove once the investigation is complete. Never sent to the client —
+ * server-side dol_syslog() only — and, like the other debug instrumentation
+ * in this file, gated to admins with ?debug=1 so it stays opt-in in production.
  */
 function timeflowCorrectionTrace($event, array $context = array())
 {
+    if (empty($GLOBALS['user']->admin) || !GETPOST('debug', 'int')) {
+        return;
+    }
     dol_syslog('timeflow.correctTimeEntry '.$event.' '.json_encode($context), LOG_INFO);
 }
 
