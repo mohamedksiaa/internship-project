@@ -99,7 +99,7 @@ $id = GETPOSTINT('id');
 $ref = GETPOST('ref', 'alpha');
 $action = GETPOST('action', 'aZ09');
 $cancel = GETPOST('cancel');
-$contextpage = GETPOST('contextpage', 'aZ') ? GETPOST('contextpage', 'aZ') : getDolDefaultContextPage(__FILE__); // To manage different context of search
+$contextpage = GETPOST('contextpage', 'aZ') ? GETPOST('contextpage', 'aZ') : str_replace('_', '', basename(__FILE__, '.php')); // To manage different context of search
 $backtopage = GETPOST('backtopage', 'alpha');
 
 if (GETPOSTISARRAY('actioncode')) {
@@ -322,7 +322,7 @@ if ($object->id > 0) {
 		print '<br>';
 
 		$param = '&id='.$object->id;
-		if (!empty($contextpage) && $contextpage != getDolDefaultContextPage(__FILE__)) {
+		if (!empty($contextpage) && $contextpage != str_replace('_', '', basename(__FILE__, '.php'))) {
 			$param .= '&contextpage='.urlencode($contextpage);
 		}
 		if ($limit > 0 && $limit != $conf->liste_limit) {
