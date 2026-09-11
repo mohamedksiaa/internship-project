@@ -174,10 +174,7 @@ class TimeEntry extends CommonObject
 	public $splitSegments = array();
 
     const MOD_ACTION_EDIT = 'edit';
-    const MOD_ACTION_SUBMIT = 'submit';
     const MOD_ACTION_VALIDATE = 'validate';
-    const MOD_ACTION_REJECT = 'reject';
-    const MOD_ACTION_REOPEN = 'reopen';
     const MOD_ACTION_MANUAL_EMPLOYEE = 'manual_employee';
     const MOD_ACTION_MANUAL_MANAGER = 'manual_manager';
     const MOD_ACTION_MANUAL_CREATE = 'manual_create';
