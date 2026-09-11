@@ -119,7 +119,7 @@ class TimeFlow extends DolibarrApi
      * @param int $id ID du TimeEntry à stopper
      * @return array
      *
-     * @url POST /timeentrys/stop
+     * @url POST /timeentrys/{id}/stop
      */
     public function stopTimer($id)
     {
