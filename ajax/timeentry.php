@@ -945,27 +945,6 @@ function timeflowBuildGlobalCsvRows($db, $user)
 }
 
 /**
- * Whether llx_timeflow_project_user exists yet. The migration that creates
- * it (scripts/archive/sql/migrate_timeflow_project_user.sql) is archived
- * and NOT applied automatically — every function that reads this table
- * must check this first and fail OPEN (behave as "unrestricted") when
- * it's false, so shipping this code ahead of the migration never breaks
- * project listing or timer start for anyone. Memoized per-request: cheap,
- * but no need to repeat the existence probe on every call within the
- * same page load.
- */
-function timeflowProjectUserTableExists($db)
-{
-    static $exists = null;
-    if ($exists !== null) {
-        return $exists;
-    }
-    $resql = @$db->query('SELECT 1 FROM '.$db->prefix().'timeflow_project_user LIMIT 1');
-    $exists = (bool) $resql;
-    return $exists;
-}
-
-/**
  * Whether $user may use $fkProject on a time entry. A project with no
  * internal PROJECTCONTRIBUTOR contact is open to everyone (default,
  * preserves current behavior for every project that predates this

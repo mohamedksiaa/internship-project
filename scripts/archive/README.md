@@ -29,11 +29,14 @@ sont donc plus créées automatiquement par `_load_tables()` à l'activation
 du module sur une installation neuve — c'est voulu : ce sont des tables
 de support *temporaires* pour cette migration one-shot déjà archivée,
 sans utilité sur une install neuve normale (voir l'audit de code mort de
-ce module). Le code applicatif (`ajax/timeentry.php`,
-`timeflowProjectUserTableExists()`) est déjà écrit pour fonctionner sans
-`llx_timeflow_project_user` (accès "non restreint" par défaut si la table
-n'existe pas) — les retirer de `sql/` ne change donc rien au comportement
-d'une install neuve.
+ce module). `llx_timeflow_project_user` en particulier n'est déjà plus lue
+par aucun code applicatif vivant : la restriction d'accès à un projet
+("projet ouvert à certains utilisateurs seulement") passe entièrement par
+les contacts internes natifs Dolibarr (`llx_element_contact`/
+`PROJECTCONTRIBUTOR`, voir `timeflowCanAccessProject()` et
+`timeflowProjectMembershipRestrictionSql()` dans `ajax/timeentry.php`) —
+un mécanisme différent, indépendant de cette table. Les retirer de `sql/`
+ne change donc rien au comportement d'une install neuve.
 
 **Si vous relancez un jour cette migration**, exécutez d'abord les deux
 fichiers de ce dossier manuellement, dans cet ordre, avant les scripts
