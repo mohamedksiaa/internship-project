@@ -1206,17 +1206,6 @@ class TimeEntry extends CommonObject
 	/**
 	 *  Return the label of the status
 	 *
-	 *  @param	int<0,6>	$mode          0=long label, 1=short label, 2=Picto + short label, 3=Picto, 4=Picto + long label, 5=Short label + Picto, 6=Long label + Picto
-	 *  @return	string 			       Label of status
-	 */
-	public function getLabelStatus($mode = 0)
-	{
-		return $this->LibStatut($this->status, $mode);
-	}
-
-	/**
-	 *  Return the label of the status
-	 *
 	 *  @param	int<0,6>	$mode	0=long label, 1=short label, 2=Picto + short label, 3=Picto, 4=Picto + long label, 5=Short label + Picto, 6=Long label + Picto
 	 *  @return	string				Label of status
 	 */
