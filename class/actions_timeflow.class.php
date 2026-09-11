@@ -252,10 +252,14 @@ class ActionsTimeFlow extends CommonHookActions
 	
 	public function addMoreActionsButtons($parameters, &$object, &$action, $hookmanager)
 	{
-		if ($parameters['currentcontext'] == 'projectcard') {
-			global $langs;
-			$this->resprints = '<a class="butAction" href="'.dol_buildpath('/timeflow/ajax/timer.php', 1).'?action=start&fk_project='.$object->id.'">Démarrer le chrono</a>';
-		}
+		// Removed: this used to link to ajax/timer.php?action=start, which
+		// does not exist — the real timer endpoint (ajax/timeentry.php,
+		// action startTimer) requires a POST with a JSON body, a CSRF token,
+		// and a non-empty note (3 chars min business rule), none of which a
+		// plain <a href> GET link can provide. Properly wiring a "Start
+		// timer" button here needs real JS (a note prompt + authenticated
+		// fetch()), not a mechanical link fix — left unimplemented rather
+		// than shipping another dead link.
 		return 0;
 	}
 
