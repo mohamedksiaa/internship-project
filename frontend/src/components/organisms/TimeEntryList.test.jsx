@@ -16,9 +16,9 @@ const entry = { id: 42, fk_user: 5, user_label: 'med ahemd', note: 'Correction',
 // rows in the dev DB (rowid 575/576/577 — the exact entries from the
 // "Validation des tâches" bug report), not fabricated fixtures.
 const realValidationEntries = [
-  { id: 577, fk_user: 1, fk_project: 2, date_start: '2026-09-10T18:49:21Z', date_end: '2026-09-10T18:49:24Z', duration: 3, note: 'aaaaaaaaaaaaaaaaaaaaaaaaaaa', tags: '', billable: '0', status: 1, user_label: 'SuperAdmin', project_label: "falous' app", manual_modified: false, manual_editable: false, delete_allowed: true, is_deleted: false },
-  { id: 576, fk_user: 1, fk_project: 1, date_start: '2026-09-10T18:47:35Z', date_end: '2026-09-10T18:47:37Z', duration: 2, note: 'azerty', tags: '', billable: '0', status: 1, user_label: 'SuperAdmin', project_label: 'dev mtaa app', manual_modified: false, manual_editable: false, delete_allowed: true, is_deleted: false },
-  { id: 575, fk_user: 1, fk_project: 1, date_start: '2026-09-10T16:36:00Z', date_end: '2026-09-10T18:36:55Z', duration: 7255, note: 'azerty', tags: '', billable: '0', status: 1, user_label: 'SuperAdmin', project_label: 'dev mtaa app', manual_modified: true, manual_reason: 'oublier', manual_editable: false, delete_allowed: true, is_deleted: false },
+  { id: 577, fk_user: 1, fk_project: 2, date_start: '2026-09-10T18:49:21Z', date_end: '2026-09-10T18:49:24Z', duration: 3, note: 'aaaaaaaaaaaaaaaaaaaaaaaaaaa', tags: '', billable: '0', status: 1, user_label: 'SuperAdmin', project_label: 'Projet Theta', manual_modified: false, manual_editable: false, delete_allowed: true, is_deleted: false },
+  { id: 576, fk_user: 1, fk_project: 1, date_start: '2026-09-10T18:47:35Z', date_end: '2026-09-10T18:47:37Z', duration: 2, note: 'azerty', tags: '', billable: '0', status: 1, user_label: 'SuperAdmin', project_label: 'Projet Iota', manual_modified: false, manual_editable: false, delete_allowed: true, is_deleted: false },
+  { id: 575, fk_user: 1, fk_project: 1, date_start: '2026-09-10T16:36:00Z', date_end: '2026-09-10T18:36:55Z', duration: 7255, note: 'azerty', tags: '', billable: '0', status: 1, user_label: 'SuperAdmin', project_label: 'Projet Iota', manual_modified: true, manual_reason: 'oublier', manual_editable: false, delete_allowed: true, is_deleted: false },
 ];
 
 describe('TimeEntryList bulk-selection checkboxes vs Validation context (real data)', () => {

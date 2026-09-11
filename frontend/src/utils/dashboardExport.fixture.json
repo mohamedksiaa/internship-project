@@ -25,16 +25,16 @@
     "10": "frontend",
     "13": "ACME-CORE",
     "1": "Projet Test",
-    "15": "LEARN",
-    "17": "INFRA",
+    "15": "PROJET-EPSILON",
+    "17": "PROJET-ZETA",
     "25": "test",
     "18": "pause cafe",
-    "14": "IDARA",
+    "14": "PROJET-DELTA",
     "12": "Projet Beta",
     "11": "backend",
     "5": "Projet Gamma",
     "8": "test - 02",
-    "16": "TRAINING"
+    "16": "PROJET-ETA"
   },
   "by_client": {
     "4": 7,
@@ -79,9 +79,9 @@
   },
   "group_labels": {
     "3": "HRM",
-    "2": "idara",
+    "2": "Administration",
     "4": "TBEE",
-    "5": "TRAINING",
+    "5": "PROJET-ETA",
     "6": "CMS"
   },
   "by_tag": [],

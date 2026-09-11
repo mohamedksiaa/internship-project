@@ -7,8 +7,8 @@ const t = (key, params) => i18n.t(key, params);
 
 vi.mock('../../api/timeflowApi', () => ({
   getModificationHistory: vi.fn().mockResolvedValue([
-    { rowid: 7, fk_user: 5, user_label: 'soumeya chouaieb', field_name: 'date_start', old_value: '2026-08-12T08:33:00Z', new_value: '2026-08-12T07:33:00Z', reason: 'aaaaaaaa', date_creation: '2026-08-12 15:25:00' },
-    { rowid: 8, fk_user: 5, user_label: 'soumeya chouaieb', field_name: 'date_end', old_value: '2026-08-12T08:33:00Z', new_value: '2026-08-12T08:33:00Z', reason: 'aaaaaaaa', date_creation: '2026-08-12 15:25:00' },
+    { rowid: 7, fk_user: 5, user_label: 'Emma Lambert', field_name: 'date_start', old_value: '2026-08-12T08:33:00Z', new_value: '2026-08-12T07:33:00Z', reason: 'aaaaaaaa', date_creation: '2026-08-12 15:25:00' },
+    { rowid: 8, fk_user: 5, user_label: 'Emma Lambert', field_name: 'date_end', old_value: '2026-08-12T08:33:00Z', new_value: '2026-08-12T08:33:00Z', reason: 'aaaaaaaa', date_creation: '2026-08-12 15:25:00' },
   ]),
 }));
 
