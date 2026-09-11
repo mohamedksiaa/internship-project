@@ -339,26 +339,8 @@ class TimeEntry extends CommonObject
 			// See comment in create(): no real 'ref' column, fall back to the numeric id.
 			$this->ref = (string) $this->id;
 		}
-		if ($result > 0 && !empty($this->table_element_line) && empty($nolines)) {
-			$this->fetchLines($noextrafields);
-		}
 		return $result;
 	}
-
-	/**
-	 * Load object lines in memory from the database
-	 *
-	 * @param	int<0,1>	$noextrafields	0=Default to load extrafields, 1=No extrafields
-	 * @return 	int<-1,1>					Return integer <0 if KO, 0 if not found, >0 if OK
-	 */
-	public function fetchLines($noextrafields = 0)
-	{
-		$this->lines = array();
-
-		$result = $this->fetchLinesCommon('', $noextrafields);
-		return $result;
-	}
-
 
 	/**
 	 * Load list of objects in memory from the database.
@@ -1361,27 +1343,6 @@ class TimeEntry extends CommonObject
 	}
 
 	/**
-	 * 	Create an array of lines
-	 *
-	 * 	@return	CommonObjectLine[]|int		array of lines if OK, <0 if KO
-	 */
-	public function getLinesArray()
-	{
-		$this->lines = array();
-
-		$objectline = new TimeEntryLine($this->db);
-		$result = $objectline->fetchAll('ASC', 'position', 0, 0, '(fk_timeentry:=:'.((int) $this->id).')');
-
-		if (is_numeric($result)) {
-			$this->setErrorsFromObject($objectline);
-			return $result;
-		} else {
-			$this->lines = $result;
-			return $this->lines;
-		}
-	}
-
-	/**
 	 * Return the active entry for a user, if any.
 	 *
 	 * @param int $fk_user User id
@@ -1925,50 +1886,4 @@ class TimeEntry extends CommonObject
 		$this->fk_user_valid = $user->id;
 		return $this->update($user);
 	}
-}
-
-
-require_once DOL_DOCUMENT_ROOT.'/core/class/commonobjectline.class.php';
-
-/**
- * Class TimeEntryLine. You can also remove this and generate a CRUD class for lines objects.
- */
-class TimeEntryLine extends CommonObjectLine
-{
-	// To complete with content of an object TimeEntryLine
-	// We should have a field rowid, fk_timeentry and position
-
-	/**
-	 * To overload
-	 * @see CommonObjectLine
-	 */
-	public $parent_element = '';		// Example: '' or 'timeentry'
-
-	/**
-	 * To overload
-	 * @see CommonObjectLine
-	 */
-	public $fk_parent_attribute = '';	// Example: '' or 'fk_timeentry'
-
-	/**
-	 * @var int<0,1>	Does object support extrafields ? 0=No, 1=Yes
-	 */
-	public $isextrafieldmanaged = 0;
-
-	/**
-	 * @var int<0,1>|string|null  	Does this object support multicompany module ?
-	 * 								0=No test on entity, 1=Test with field entity in local table, 'field@table'=Test entity into the field@table (example 'fk_soc@societe')
-	 */
-	public $ismultientitymanaged = 0;
-
-
-	/**
-	 * Constructor
-	 *
-	 * @param	DoliDB $db Database handler
-	 */
-	public function __construct(DoliDB $db)
-	{
-		$this->db = $db;
-        }
 }
