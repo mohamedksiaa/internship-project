@@ -231,12 +231,11 @@ class TimeEntry extends CommonObject
 
 		$this->db = $db;
 
-		if (!getDolGlobalInt('MAIN_SHOW_TECHNICAL_ID') && isset($this->fields['rowid']) && !empty($this->fields['ref'])) {
-			$this->fields['rowid']['visible'] = 0;
-		}
-		if (!isModEnabled('multicompany') && isset($this->fields['entity'])) {
-			$this->fields['entity']['enabled'] = 0;
-		}
+		// TimeEntry has neither a 'ref' nor an 'entity' key in $fields (see
+		// the array above — $ismultientitymanaged = 0), so the two
+		// ModuleBuilder scaffold conditions that normally toggle the rowid/
+		// entity field visibility here would never fire; removed rather than
+		// kept as permanently-dead conditionals.
 
 		// Example to show how to set values of fields definition dynamically
 		/*if ($user->hasRight('timeflow', 'timeentry', 'read')) {
