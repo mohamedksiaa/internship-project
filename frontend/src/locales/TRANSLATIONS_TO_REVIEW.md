@@ -61,6 +61,8 @@ Ce fichier sert uniquement à conserver une trace des libellés déjà migrés m
 - `timeentry.delete_confirm`: "Diesen Zeiteintrag dauerhaft löschen? Diese Aktion ist irreversibel."
 - `timeentry.cancel`: "Abbrechen"
 - `timeentry.confirm`: "Bestätigen"
+- `daily_report.read_report`: "Bericht lesen"
+- `daily_report.send_report`: "Bericht senden"
 
 ## Arabe (ar)
 
@@ -121,6 +123,8 @@ Ce fichier sert uniquement à conserver une trace des libellés déjà migrés m
 - `timeentry.delete_confirm`: "حذف هذا الإدخال الزمني نهائياً؟ هذا الإجراء لا رجعة فيه."
 - `timeentry.cancel`: "إلغاء"
 - `timeentry.confirm`: "تأكيد"
+- `daily_report.read_report`: "قراءة التقرير"
+- `daily_report.send_report`: "إرسال التقرير"
 
 ## Règle de travail
 
