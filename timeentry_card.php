@@ -471,60 +471,6 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 	print dol_get_fiche_end();
 
 
-	/*
-	 * Lines
-	 */
-
-	if (!empty($object->table_element_line)) {
-		// Show object lines
-		$result = $object->getLinesArray();
-
-		print '	<form name="addproduct" id="addproduct" action="'.$_SERVER["PHP_SELF"].'?id='.$object->id.(($action != 'editline') ? '' : '#line_'.GETPOSTINT('lineid')).'" method="POST">
-		<input type="hidden" name="token" value="' . newToken().'">
-		<input type="hidden" name="action" value="' . (($action != 'editline') ? 'addline' : 'updateline').'">
-		<input type="hidden" name="mode" value="">
-		<input type="hidden" name="page_y" value="">
-		<input type="hidden" name="id" value="' . $object->id.'">
-		';
-
-		if (!empty($conf->use_javascript_ajax) && $object->status == 0) {
-			include DOL_DOCUMENT_ROOT.'/core/tpl/ajaxrow.tpl.php';
-		}
-
-		print '<div class="div-table-responsive-no-min">';
-		if (!empty($object->lines) || ($object->status == $object::STATUS_DRAFT && $permissiontoadd && $action != 'selectlines' && $action != 'editline')) {
-			print '<table id="tablelines" class="noborder noshadow" width="100%">';
-		}
-
-		if (!empty($object->lines)) {
-			$object->printObjectLines($action, $mysoc, null, GETPOSTINT('lineid'), 1);
-		}
-
-		// Form to add new line
-		if ($object->status == 0 && $permissiontoadd && $action != 'selectlines') {
-			if ($action != 'editline') {
-				// Add products/services form
-
-				$parameters = array();
-				$reshook = $hookmanager->executeHooks('formAddObjectLine', $parameters, $object, $action); // Note that $action and $object may have been modified by hook
-				if ($reshook < 0) {
-					setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
-				}
-				if (empty($reshook)) {
-					$object->formAddObjectLine(1, $mysoc, $soc);
-				}
-			}
-		}
-
-		if (!empty($object->lines) || ($object->status == $object::STATUS_DRAFT && $permissiontoadd && $action != 'selectlines' && $action != 'editline')) {
-			print '</table>';
-		}
-		print '</div>';
-
-		print "</form>\n";
-	}
-
-
 	// Buttons for actions
 
 	if ($action != 'presend' && $action != 'editline') {
@@ -551,12 +497,10 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 
 			// Validate
 			if ($object->status == $object::STATUS_DRAFT && $permissiontovalidate) {
-				if (empty($object->table_element_line) || (is_array($object->lines) && count($object->lines) > 0)) {
-					print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=confirm_validate&confirm=yes&token='.newToken(), '', 1);
-				} else {
-					$langs->load("errors");
-					print dolGetButtonAction($langs->trans("ErrorAddAtLeastOneLineFirst"), $langs->trans("Validate"), 'default', '#', '', 0);
-				}
+				// TimeEntry has no line subtable (no table_element_line — see
+				// class/timeentry.class.php), so the "add at least one line
+				// first" guard ModuleBuilder generates here never applied.
+				print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=confirm_validate&confirm=yes&token='.newToken(), '', 1);
 			}
 
 			// Clone
