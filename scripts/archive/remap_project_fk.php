@@ -78,7 +78,7 @@ if (substr($sapi_type, 0, 3) == 'cgi') {
 	exit(1);
 }
 
-require_once $path.'../../../master.inc.php';
+require_once $path.'../../../../master.inc.php';
 
 /**
  * @var DoliDB $db
