@@ -265,3 +265,32 @@ function timeflowCanAccessProject($db, $user, $fkProject)
     }
     return false;
 }
+
+/**
+ * Whether $user may view/act on a specific already-fetched TimeEntry
+ * $object on the native Dolibarr card and its satellite tab pages
+ * (timeentry_card.php, _agenda.php, _contact.php, _document.php,
+ * _note.php). The entry's owner, or a user with the global read-all
+ * right (or admin), may; every other authenticated user may not,
+ * regardless of what TIMEFLOW_ENABLE_PERMISSION_CHECK-style module
+ * right they hold — this is an object-level ownership gate, not a
+ * module-level one, and must be checked in addition to (not instead
+ * of) $user->hasRight('timeflow', 'timeentry', ...).
+ *
+ * Shared by all five pages above so they apply the exact same rule
+ * instead of five copies that could drift apart.
+ *
+ * @param User      $user
+ * @param TimeEntry $object Already fetched (fetchCommon()); $object->id
+ *                          may legitimately be 0/empty (e.g. action=create
+ *                          on the card before any object exists) — callers
+ *                          must skip this check in that case themselves.
+ * @return bool
+ */
+function timeflowCanAccessTimeEntry($user, $object)
+{
+    if (!empty($user->admin) || timeflowCanReadAllTimeEntries($user)) {
+        return true;
+    }
+    return !empty($object->fk_user) && (int) $object->fk_user === (int) $user->id;
+}
