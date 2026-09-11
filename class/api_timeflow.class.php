@@ -161,7 +161,7 @@ class TimeFlow extends DolibarrApi
         if (!DolibarrApiAccess::$user->id) {
             throw new RestException(401, 'Unauthorized');
         }
-        if (empty(DolibarrApiAccess::$user->admin) && !DolibarrApiAccess::$user->hasRight('timeflow', 'valider')) {
+        if (empty(DolibarrApiAccess::$user->admin) && !DolibarrApiAccess::$user->hasRight('timeflow', 'timeentry', 'validate')) {
             throw new RestException(403, 'Forbidden');
         }
 
@@ -188,7 +188,7 @@ class TimeFlow extends DolibarrApi
         if (!DolibarrApiAccess::$user->id) {
             throw new RestException(401, 'Unauthorized');
         }
-        if (empty(DolibarrApiAccess::$user->admin) && !DolibarrApiAccess::$user->hasRight('timeflow', 'valider')) {
+        if (empty(DolibarrApiAccess::$user->admin) && !DolibarrApiAccess::$user->hasRight('timeflow', 'timeentry', 'validate')) {
             throw new RestException(403, 'Forbidden');
         }
 
