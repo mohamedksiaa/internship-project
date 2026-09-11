@@ -331,7 +331,7 @@ function handleMockRequest(action, body) {
       return Promise.resolve({
         status: 'success',
         data: [
-          { id: 2, rowid: 2, title: 'PROJET-DELTA', label: 'PROJET-DELTA' },
+          { id: 2, rowid: 2, title: 'Administration', label: 'Administration' },
         ],
       });
     case 'getTimeFlowProjects': {
