@@ -77,7 +77,6 @@ if (!$user->admin) {
 }
 
 // Parameters
-$action = GETPOST('action', 'aZ09');
 $backtopage = GETPOST('backtopage', 'alpha');
 
 
@@ -92,10 +91,8 @@ $backtopage = GETPOST('backtopage', 'alpha');
  * View
  */
 
-$form = new Form($db);
-
 $help_url = '';
-$title = "TimeFlowSetup";
+$title = "TimeFlowAbout";
 
 llxHeader('', $langs->trans($title), $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-admin_about');
 
