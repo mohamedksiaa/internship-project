@@ -1,4 +1,25 @@
 <?php
+// ARCHIVÉ : déplacé de test/ vers scripts/archive/, avec inspect_specimen.php.
+// Raison : ce n'est PAS un test automatisé -- confirmé par grep exhaustif sur
+// tout le dépôt (composer.json, package.json/frontend/package.json, aucun
+// CI n'existe dans ce dépôt, aucun README) : aucun script, hook ou pipeline
+// n'invoque ce fichier. C'est un outil de diagnostic ad hoc, écrit pendant
+// une session d'audit/débogage antérieure pour reproduire manuellement,
+// contre une vraie installation Dolibarr, deux échecs précis de la suite
+// PHPUnit (testTimeEntryCreate et testStartTimerValidation) en appelant
+// directement TimeEntry::create()/startTimer() et en affichant
+// $te->error/$te->errors -- plus rapide qu'une itération complète de
+// PHPUnit quand on cherche seulement à voir le message d'erreur exact
+// derrière un échec déjà identifié.
+//
+// La vraie suite de tests reste test/phpunit/ (jamais touchée par cet
+// archivage). Ce script nécessite lui-même un vrai master.inc.php
+// Dolibarr pour s'exécuter (voir le bootstrap ci-dessous) -- il n'a donc
+// jamais pu tourner dans ce bac à sable, seulement sur une installation
+// réelle, en CLI : `php scripts/archive/diagnose_failures.php` depuis un
+// contexte où master.inc.php est atteignable en remontant l'arborescence
+// depuis le nouvel emplacement du fichier.
+//
 // Diagnostic script to reproduce failing test calls and show object error details
 $bootstrapDir = __DIR__;
 $foundBootstrap = false;
