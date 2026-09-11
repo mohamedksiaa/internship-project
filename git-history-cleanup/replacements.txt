@@ -1,0 +1,66 @@
+# git filter-repo --replace-text rules
+#
+# Format: each line is either
+#   literal-text==>replacement
+# or
+#   regex:pattern==>replacement
+# (see https://github.com/newren/git-filter-repo#examples — "--replace-text")
+#
+# Order matters: more specific/longer strings are listed before the
+# shorter strings they contain, so the specific one consumes the match
+# first (e.g. "imbus AG" before the bare "imbus").
+#
+# Terms known to be plain English/French words or risky short substrings
+# (imen, LEARN, TRAINING, INFRA) are anchored with regex word boundaries
+# to avoid corrupting unrelated content such as "dimension", "Infrastructure",
+# "react.dev/learn", or any future legitimate use of "training"/"infra".
+# This was verified against a full-history audit (see COMMITS_AND_FILES.md
+# in this same folder): every real occurrence of these terms sits inside
+# the specific files listed there, and no unrelated collateral hit exists
+# in the current repository content at the time this was prepared.
+#
+# Re-verify with a fresh `git log --all -G'...'` on your own clone before
+# and after running filter-repo if you add any files/commits in the
+# meantime, since this list was built from the state of the repo on
+# 2026-09-11.
+
+# --- Real client company (imbus AG / imbus TN) ---
+imbus AG==>Acme Corp
+imbus TN==>Globex Inc
+regex:\bimbus\b==>Acme Corp
+
+# --- Real employee full names (surname "chouaieb" shared by several) ---
+samir chouaieb==>Alex Martin
+Samir Chouaieb==>Alex Martin
+mohamed chouaieb==>Sam Dubois
+Mohamed Chouaieb==>Sam Dubois
+soumeya chouaieb==>Emma Lambert
+Soumeya Chouaieb==>Emma Lambert
+
+# --- Real employee first/login names (bare, word-boundary anchored) ---
+regex:\bwissal\b==>Nora Bernard
+regex:\bWissal\b==>Nora Bernard
+regex:\bbacem\b==>Julien Petit
+regex:\bBacem\b==>Julien Petit
+regex:\bwafa\b==>Claire Rousseau
+regex:\bWafa\b==>Claire Rousseau
+regex:\bsoyah\b==>Karim Lefevre
+regex:\bSoyah\b==>Karim Lefevre
+regex:\bimen\b==>Léa Moreau
+regex:\bImen\b==>Léa Moreau
+regex:\bsoumeya\b==>Emma Lambert
+regex:\bSoumeya\b==>Emma Lambert
+
+# --- Real project codenames / group names (case-sensitive, all-caps only,
+#     so as NOT to touch generic lowercase/Titlecase English words) ---
+regex:\bTB-UNITED\b==>ACME-CORE
+regex:\bIDARA\b==>PROJET-DELTA
+regex:\bLEARN\b==>PROJET-EPSILON
+regex:\bINFRA\b==>PROJET-ZETA
+regex:\bTRAINING\b==>PROJET-ETA
+regex:\bidara\b==>Administration
+
+# --- Informal real project nicknames ---
+falous' app==>Projet Theta
+falous’ app==>Projet Theta
+dev mtaa app==>Projet Iota
