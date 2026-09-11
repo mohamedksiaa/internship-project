@@ -1,4 +1,23 @@
 #!/usr/bin/env bash
+# ARCHIVÉ : déplacé de sql/ vers scripts/archive/sql/, avec son fichier
+# SQL compagnon migrate_remove_residual_clockify.sql (référencé ci-dessous
+# via un chemin relatif au script -- les deux fichiers doivent rester dans
+# le même dossier pour que ce chemin reste valide, ce qui est le cas ici).
+# Raison : le déploiement final de ce module se fait sur une installation
+# Dolibarr NEUVE, jamais une mise à niveau depuis une ancienne installation
+# ayant encore des résidus Clockify -- ce script ne sert jamais dans ce
+# contexte. Il n'a jamais été exécuté automatiquement par l'activation du
+# module de toute façon (ce n'est pas un fichier sql/llx_*.sql chargé par
+# _load_tables()) : c'est un outil manuel, à lancer soi-même sur un shell
+# serveur.
+#
+# À RÉINTÉGRER (déplacer ce fichier ET migrate_remove_residual_clockify.sql
+# depuis scripts/archive/sql/ vers sql/, ensemble) UNIQUEMENT si ce module
+# est un jour installé sur une base pré-existante portant encore des
+# résidus de l'ancien module Clockify -- l'exécuter alors manuellement,
+# comme documenté ci-dessous ; jamais auto-exécuté par l'activation du
+# module.
+#
 # Linux/macOS only (bash script, /tmp paths, sudo -u www-data). Not portable
 # to Windows — run this directly on the server, not from a Windows dev box.
 set -euo pipefail

@@ -27,7 +27,7 @@
  * (remap_project_fk.php) reads afterwards.
  *
  * PREREQUISITES (run manually first, this script does not create schema):
- *   mysql ... < sql/migrate_project_extrafields.sql
+ *   mysql ... < scripts/archive/sql/migrate_project_extrafields.sql
  *   mysql ... < scripts/archive/sql/migrate_timeflow_migration_map.sql
  *
  * SAFE BY DEFAULT: runs in dry-run mode unless --execute is passed. Dry-run
