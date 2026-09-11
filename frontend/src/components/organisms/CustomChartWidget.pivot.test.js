@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { buildStackedChartData, pairFieldFor } from './CustomChartWidget.jsx';
 
-// Real getSummaryReports payload captured from the live dev instance (10
-// projects, 8 employees, 3 clients — enough to exercise both the primary
-// MAX_SLICES=9 threshold and the secondary MAX_STACK_SEGMENTS=5 threshold).
+// Synthetic getSummaryReports-shaped payload (10 projects, 8 employees, 3
+// clients — enough to exercise both the primary MAX_SLICES=9 threshold and
+// the secondary MAX_STACK_SEGMENTS=5 threshold). All names are fictional.
 const summary = {
   total_seconds: 3733882,
   billable_seconds: 3090583,
   non_billable_seconds: 643299,
   by_project: { 6: 78, 5: 91, 8: 0, 11: 7290, 12: 4, 13: 3083195, 14: 625324, 15: 13676, 16: 2040, 17: 2184 },
-  project_labels: { 6: 'NOUVEAU PROJET', 5: 'AAAAA', 8: 'test - 02', 11: 'backend', 12: 'hahahahha', 13: 'TB-UNITED', 14: 'IDARA', 15: 'LEARN', 16: 'TRAINING', 17: 'INFRA' },
+  project_labels: { 6: 'NOUVEAU PROJET', 5: 'Projet Gamma', 8: 'test - 02', 11: 'backend', 12: 'Projet Beta', 13: 'ACME-CORE', 14: 'PROJET-DELTA', 15: 'PROJET-EPSILON', 16: 'PROJET-ETA', 17: 'PROJET-ZETA' },
   by_client: { 1: 7463, 2: 3083195, 3: 643224 },
-  client_labels: { 1: 'Client Test', 2: 'imbus AG', 3: 'imbus TN' },
+  client_labels: { 1: 'Client Test', 2: 'Acme Corp', 3: 'Globex Inc' },
   by_user: { 1: 7463, 9: 567547, 8: 533675, 11: 629890, 13: 468198, 14: 434172, 10: 625324, 15: 467613 },
-  user_labels: { 1: 'SuperAdmin', 9: 'samir chouaieb', 8: 'mohamed chouaieb', 11: 'bacem', 13: 'wissal', 14: 'wafa', 10: 'soyah', 15: 'imen' },
+  user_labels: { 1: 'SuperAdmin', 9: 'Alex Martin', 8: 'Sam Dubois', 11: 'Julien Petit', 13: 'Nora Bernard', 14: 'Claire Rousseau', 10: 'Karim Lefevre', 15: 'Léa Moreau' },
   by_project_employee: {
     '6|1': 78, '5|1': 91, '8|1': 0, '11|1': 7290, '12|1': 4,
     '13|9': 561299, '13|8': 531491, '13|11': 622502, '13|13': 466118, '13|14': 434172,
@@ -79,7 +79,7 @@ describe('buildStackedChartData — dimension x billable (simplest combo, fixed 
 
   it('every stacked bar sums back to the exact by_project total for that project (no double counting, no data loss)', () => {
     const { rows } = buildStackedChartData({ summary, dimension: 'project', crossWith: 'billable', t });
-    const biggest = rows.find((r) => r.label === 'TB-UNITED');
+    const biggest = rows.find((r) => r.label === 'ACME-CORE');
     expect(biggest.seg_1 + biggest.seg_0).toBe(summary.by_project['13']);
   });
 
@@ -111,20 +111,20 @@ describe('buildStackedChartData — project x employee (both thresholds active a
 
   it('a same employee keeps the same segment slot across every bar (global, not per-bar, top-K)', () => {
     const { rows, segments } = buildStackedChartData({ summary, dimension: 'project', crossWith: 'employee', t });
-    // "bacem" (employee 11) is the single biggest contributor overall
-    // (629890s across 3 projects: TB-UNITED, LEARN, TRAINING), so he's
-    // guaranteed a spot in the global top-4 segments — every bar he
+    // "Julien Petit" (employee 11) is the single biggest contributor overall
+    // (629890s across 3 projects: ACME-CORE, PROJET-EPSILON, PROJET-ETA), so
+    // he's guaranteed a spot in the global top-4 segments — every bar he
     // contributes to must expose the exact same seg_<key>, so a single
     // shared color/legend entry maps to him everywhere instead of one
     // "Autre" bucket per bar.
-    const bacemSegment = segments.find((s) => s.label === 'bacem');
-    expect(bacemSegment).toBeTruthy();
-    const tbUnited = rows.find((r) => r.label === 'TB-UNITED');
-    const learn = rows.find((r) => r.label === 'LEARN');
-    const training = rows.find((r) => r.label === 'TRAINING');
-    expect(tbUnited[bacemSegment.dataKey]).toBe(622502);
-    expect(learn[bacemSegment.dataKey]).toBe(5348);
-    expect(training[bacemSegment.dataKey]).toBe(2040);
+    const julienSegment = segments.find((s) => s.label === 'Julien Petit');
+    expect(julienSegment).toBeTruthy();
+    const acmeCore = rows.find((r) => r.label === 'ACME-CORE');
+    const projetEpsilon = rows.find((r) => r.label === 'PROJET-EPSILON');
+    const projetEta = rows.find((r) => r.label === 'PROJET-ETA');
+    expect(acmeCore[julienSegment.dataKey]).toBe(622502);
+    expect(projetEpsilon[julienSegment.dataKey]).toBe(5348);
+    expect(projetEta[julienSegment.dataKey]).toBe(2040);
   });
 
   it('conserves the grand total', () => {

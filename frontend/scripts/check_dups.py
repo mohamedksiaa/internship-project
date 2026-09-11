@@ -11,6 +11,15 @@ Usage:
   ./check_dups.py <json-file> [--clean]
 
 Returns exit code 0 when no duplicates, 1 when duplicates found, 2 on error.
+
+WARNING: --clean keeps the FIRST occurrence of a duplicate key and drops
+every later one -- the opposite of what json.loads/JSON.parse/i18next
+actually do at runtime (they keep the LAST). If a duplicate exists
+because someone appended a corrected value further down the file, that
+corrected value is the one currently in effect -- --clean would silently
+discard it and keep the older, wrong one instead. Never run --clean
+without diffing the result by hand afterwards. See README.md in this
+directory for the full explanation and usage details.
 """
 
 import sys

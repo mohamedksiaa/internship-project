@@ -2,25 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
 import CustomChartWidget, { buildSingleDimensionChartData, buildStackedChartData, countPrimaryCategories } from '../components/organisms/CustomChartWidget';
-import { getDailyReports, getMyDailyReports, getSummaryReports } from '../api/timeflowApi';
+import { getSummaryReports } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
 import { buildChartAnalysisText, buildDashboardCsvRows } from '../utils/dashboardExport.js';
 import useDarkMode from '../hooks/useDarkMode';
 import { useUrlDateRange, useUrlState } from '../hooks/useUrlState.js';
 
-const TEAM_CHART_COLORS = ['#5B8FA8', '#4d5fca', '#35a66f', '#f59e0b', '#d66', '#8a9aa4'];
-
 // Pixel width of the off-screen configured-chart clone captured for the PDF
 // export (see handleExportPdf below) — used instead of ResponsiveContainer's
 // async "100%" measurement, which is what used to make that capture flaky.
 const EXPORT_CHART_WIDTH = 800;
-
-function entryDate(value) {
-  if (!value) return new Date(0);
-  const raw = String(value);
-  return /^[0-9]+$/.test(raw) ? new Date(Number(raw) * (raw.length === 10 ? 1000 : 1)) : new Date(value);
-}
 
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -37,23 +29,6 @@ function currentMonthRange(referenceDate = new Date()) {
     to: [current.getFullYear(), String(current.getMonth() + 1).padStart(2, '0'), String(endOfMonth(current).getDate()).padStart(2, '0')].join('-'),
   };
 }
-
-function dayLabel(value, locale = 'fr-FR') {
-  const date = entryDate(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(locale, { weekday: 'short', day: 'numeric' });
-}
-
-function projectLabel(projectId, projectLabels = {}, fallbackLabel = 'dashboard.no_project') {
-  if (!projectId || Number(projectId) <= 0) {
-    return fallbackLabel;
-  }
-  return projectLabels[projectId] || projectLabels[String(projectId)] || 'dashboard.project_fallback';
-}
-
-// Fixed window for the "pending reports" alert count: intentionally NOT tied
-// to the user-editable date range below — it's a "right now" alert (reports
-// awaiting validation for too long), not a historical figure to browse.
-const PENDING_REPORTS_WINDOW = currentMonthRange();
 
 // Same persistence contract as the language selector (see i18n.js /
 // LanguageSelector.jsx: a plain, try/catch-guarded localStorage read/write,
@@ -116,50 +91,8 @@ export default function DashboardPage() {
     writeStoredDashboardDateRange({ from: dateRange.from, to: value });
   };
   const [summary, setSummary] = useState(null);
-  const [pendingReports, setPendingReports] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState('');
-
-  // Mount-once data: pending reports (fixed window, see
-  // PENDING_REPORTS_WINDOW above).
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadDashboard() {
-      try {
-        if (!isMounted) return;
-        setLoading(true);
-
-        const pendingReportsData = await (canReadAll
-          ? getDailyReports({ date_from: PENDING_REPORTS_WINDOW.from, date_to: PENDING_REPORTS_WINDOW.to })
-          : getMyDailyReports({ date_from: PENDING_REPORTS_WINDOW.from, date_to: PENDING_REPORTS_WINDOW.to }));
-
-        if (!isMounted) return;
-
-        const filteredReports = Array.isArray(pendingReportsData?.reports)
-          ? pendingReportsData.reports.filter((report) => Number(report.status ?? 1) === 1)
-          : [];
-
-        setPendingReports(filteredReports);
-      } catch (err) {
-        if (!isMounted) return;
-        setError(err.message);
-        setPendingReports([]);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadDashboard();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [canReadAll]);
 
   // Period-scoped summary: refetched whenever the user changes the date
   // range. Feeds the Total/Submitted/Validated tiles (via DashboardLayout),
@@ -200,20 +133,6 @@ export default function DashboardPage() {
   }, [dateRange.from, dateRange.to]);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : i18n.language === 'de' ? 'de-DE' : 'fr-FR';
-  const noProjectLabel = t('dashboard.no_project');
-
-  const topProjects = useMemo(() => {
-    const byProject = summary?.by_project || {};
-    const projectLabels = summary?.project_labels || {};
-    return Object.entries(byProject)
-      .map(([projectId, duration]) => ({
-        id: projectId,
-        name: projectLabel(projectId, projectLabels, noProjectLabel),
-        value: Number(duration || 0),
-      }))
-      .sort((left, right) => right.value - left.value)
-      .slice(0, 5);
-  }, [summary, noProjectLabel]);
 
   // getSummaryReports caps its fetch at `limit` rows (see ajax/timeentry.php)
   // for performance — entries_total_in_period is the real, unlimited count
@@ -435,15 +354,15 @@ export default function DashboardPage() {
   return (
     <DashboardLayout summary={summaryStats} canReadAll={canReadAll} totalLabel={t('dashboard.total')} periodPicker={periodPicker} showBillableCard={false}>
       <div className="tw-space-y-6">
-        {loading && <p className="tw-text-sm tw-text-[#71838f] dark:tw-text-slate-400">{t('loading')}</p>}
-        {error && <p className="tw-text-sm tw-text-[#d64c4c] dark:tw-text-[#f0908f]">{error}</p>}
-        {!loading && !error && (
+        {summaryLoading && <p className="tw-text-sm tw-text-[#71838f] dark:tw-text-slate-400">{t('loading')}</p>}
+        {summaryError && <p className="tw-text-sm tw-text-[#d64c4c] dark:tw-text-[#f0908f]">{summaryError}</p>}
+        {!summaryLoading && !summaryError && (
           <>
 
             <CustomChartWidget summary={summary} />
           </>
         )}
-        {!loading && !error && (
+        {!summaryLoading && !summaryError && (
           <>
             {/* Dedicated off-screen clone of the configured chart, captured
                 instead of the live on-screen widget above — see the long

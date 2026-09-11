@@ -282,7 +282,7 @@ class TimeImportClockify
     }
 
     /**
-     * Splits a CSV "Groupe" cell such as "HRM, IDARA, TBEE, TRAINING" into
+     * Splits a CSV "Groupe" cell such as "HRM, Administration, TBEE, CMS" into
      * trimmed, non-empty group names. Unlike user_email/project, a single
      * row can carry several group names at once.
      *
@@ -1215,7 +1215,7 @@ class TimeImportClockify
      * non-empty — running anyway would mean guessing what the user wants
      * for elements they were never asked to confirm.
      *
-     * @return string[] e.g. ["project:TB-UNITED", "group:HRM", "client:ACME"]
+     * @return string[] e.g. ["project:ACME-CORE", "group:HRM", "client:ACME"]
      */
     protected function findPendingProjectAndGroupMappings()
     {
@@ -1591,7 +1591,7 @@ class TimeImportClockify
      *     native email uses a different domain than the CSV export).
      *   - firstname/lastname: split from the "Utilisateur" display name
      *     ONLY if that value contains a space (so a bare login like
-     *     "bacem" is never mistaken for "Prénom Nom") AND firstname AND
+     *     "jdupont" is never mistaken for "Prénom Nom") AND firstname AND
      *     lastname are BOTH currently empty — a single already-filled
      *     field is enough to skip, since we can't know which of the two
      *     it corresponds to. Split on the first space: everything before

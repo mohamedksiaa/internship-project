@@ -127,7 +127,7 @@ export function buildChartAnalysisText({
     const namedRows = rowsWithTotal.filter((entry) => !isOtherRow(entry.row)).sort((a, b) => b.total - a.total);
     const otherRow = rowsWithTotal.find((entry) => isOtherRow(entry.row));
 
-    // Every named row's own crossing breakdown, e.g. "Répartition de IDARA
+    // Every named row's own crossing breakdown, e.g. "Répartition de Projet X
     // par Employé :" followed by one '• label : pct% (duration)' line per
     // sub-category of THAT row (percentages relative to the row's own
     // total, not the grand total) — '' when the row has no positive segment.

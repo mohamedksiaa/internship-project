@@ -331,7 +331,7 @@ function handleMockRequest(action, body) {
       return Promise.resolve({
         status: 'success',
         data: [
-          { id: 2, rowid: 2, title: 'idara', label: 'idara' },
+          { id: 2, rowid: 2, title: 'Administration', label: 'Administration' },
         ],
       });
     case 'getTimeFlowProjects': {
@@ -362,7 +362,7 @@ function handleMockRequest(action, body) {
     case 'getTimeFlowUsers': {
       const mockUsers = [
         { id: 1, firstname: 'Alice', lastname: 'Martin', label: 'Alice Martin', email: 'alice.martin@example.com', office_phone: '+33 1 23 45 67 89', user_mobile: '', groups: ['HRM'] },
-        { id: 2, firstname: 'Bob', lastname: 'Durand', label: 'Bob Durand', email: 'bob.durand@example.com', office_phone: '', user_mobile: '+33 6 12 34 56 78', groups: ['TBEE', 'TRAINING'] },
+        { id: 2, firstname: 'Bob', lastname: 'Durand', label: 'Bob Durand', email: 'bob.durand@example.com', office_phone: '', user_mobile: '+33 6 12 34 56 78', groups: ['TBEE', 'PROJET-ETA'] },
       ];
       const perPage = Number(body?.per_page) > 0 ? Number(body.per_page) : 20;
       const page = Number(body?.page) > 0 ? Number(body.page) : 1;

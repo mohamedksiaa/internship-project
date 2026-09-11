@@ -18,7 +18,7 @@ const {
 } = vi.hoisted(() => ({
   getProjects: vi.fn().mockResolvedValue([]),
   getProcessedHistory: vi.fn().mockResolvedValue({
-    rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Soumeya', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
+    rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Emma Lambert', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
     pagination: { page: 1, pages: 1 },
     stats: { validated_count: 1, refused_count: 0, manual_count: 0 },
   }),
@@ -55,7 +55,7 @@ describe('ReportsPage', () => {
     window.TIMEFLOW_CAN_READALL = false;
     getProjects.mockClear();
     getProcessedHistory.mockReset().mockResolvedValue({
-      rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Soumeya', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
+      rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Emma Lambert', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
       pagination: { page: 1, pages: 1 },
       stats: { validated_count: 1, refused_count: 0, manual_count: 0 },
     });
@@ -85,8 +85,8 @@ describe('ReportsPage', () => {
   it('shows a Facturable badge for billable rows and a dash otherwise, and pushes "billable only" to the backend filter', async () => {
     getProcessedHistory.mockReset().mockResolvedValue({
       rows: [
-        { id: 1, note: 'Ligne facturable', project_label: 'Projet test', user_label: 'Soumeya', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, billable: 1, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' },
-        { id: 2, note: 'Ligne non facturable', project_label: 'Projet test', user_label: 'Soumeya', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 1800, billable: 0, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' },
+        { id: 1, note: 'Ligne facturable', project_label: 'Projet test', user_label: 'Emma Lambert', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, billable: 1, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' },
+        { id: 2, note: 'Ligne non facturable', project_label: 'Projet test', user_label: 'Emma Lambert', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 1800, billable: 0, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' },
       ],
       pagination: { page: 1, per_page: 20, total: 2, pages: 1 },
       stats: { validated_count: 2, refused_count: 0, manual_count: 0 },

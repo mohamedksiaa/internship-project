@@ -91,7 +91,7 @@ describe('buildDashboardCsvRows', () => {
       crossWithLabel: 'Projet',
       crossedData: {
         segments: [
-          { dataKey: 'p5', label: 'TB-UNITED' },
+          { dataKey: 'p5', label: 'ACME-CORE' },
           { dataKey: 'p6', label: 'project-example' },
         ],
         rows: [
@@ -104,7 +104,7 @@ describe('buildDashboardCsvRows', () => {
     // *then* the header row naming the primary dimension — in that order,
     // so opening the CSV alone still reads top to bottom without the chart.
     expect(rows[5]).toEqual(['Ventilation par Projet']);
-    expect(rows[6]).toEqual(['Employé', 'TB-UNITED', 'project-example']);
+    expect(rows[6]).toEqual(['Employé', 'ACME-CORE', 'project-example']);
     expect(rows[7]).toEqual(['Alice', '2h', '1h']);
   });
 });
@@ -138,11 +138,11 @@ describe('buildChartAnalysisText', () => {
   const formatDuration = (seconds) => `${Math.floor(seconds / 3600)}h${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}`;
 
   it('reports the dominant category with its exact share and duration, then up to two runners-up as a bulleted list', () => {
-    // TB-UNITED dominant at 8h18, project-example 2nd, project-c 3rd, total 9h11.
+    // ACME-CORE dominant at 8h18, project-example 2nd, project-c 3rd, total 9h11.
     const text = buildChartAnalysisText({
       t,
       chartData: [
-        { key: '1', label: 'TB-UNITED', value: 29880 }, // 8h18, 90%
+        { key: '1', label: 'ACME-CORE', value: 29880 }, // 8h18, 90%
         { key: '2', label: 'project-example', value: 2400 }, // 0h40, 7%
         { key: '3', label: 'project-c', value: 780 }, // 0h13, 2%
       ],
@@ -152,7 +152,7 @@ describe('buildChartAnalysisText', () => {
     });
 
     expect(text).toBe(
-      'TB-UNITED représente 90% du temps total sur cette période, avec 8h18.\n\n' +
+      'ACME-CORE représente 90% du temps total sur cette période, avec 8h18.\n\n' +
       'Autres catégories principales :\n' +
       '• project-example : 7% (0h40)\n' +
       '• project-c : 2% (0h13)'
@@ -181,13 +181,13 @@ describe('buildChartAnalysisText', () => {
   it('omits the runners-up list when only one category has data', () => {
     const text = buildChartAnalysisText({
       t,
-      chartData: [{ key: '1', label: 'TB-UNITED', value: 29880 }],
+      chartData: [{ key: '1', label: 'ACME-CORE', value: 29880 }],
       crossedData: null,
       totalSeconds: 29880,
       formatDuration,
     });
 
-    expect(text).toBe('TB-UNITED représente 100% du temps total sur cette période, avec 8h18.');
+    expect(text).toBe('ACME-CORE représente 100% du temps total sur cette période, avec 8h18.');
   });
 
   it('reports "no activity" instead of an absurd percentage when the total is 0', () => {
@@ -203,7 +203,7 @@ describe('buildChartAnalysisText', () => {
   it('adds the billable-share sentence when billableSeconds is provided', () => {
     const text = buildChartAnalysisText({
       t,
-      chartData: [{ key: '1', label: 'TB-UNITED', value: 29880 }],
+      chartData: [{ key: '1', label: 'ACME-CORE', value: 29880 }],
       crossedData: null,
       totalSeconds: 29880,
       formatDuration,
@@ -211,14 +211,14 @@ describe('buildChartAnalysisText', () => {
     });
 
     expect(text).toBe(
-      'TB-UNITED représente 100% du temps total sur cette période, avec 8h18.\n\n58% du temps total est facturable.'
+      'ACME-CORE représente 100% du temps total sur cette période, avec 8h18.\n\n58% du temps total est facturable.'
     );
   });
 
   it('adds the category-count sentence when categoryCount is provided, and omits it when 0/absent', () => {
     const withCount = buildChartAnalysisText({
       t,
-      chartData: [{ key: '1', label: 'TB-UNITED', value: 29880 }],
+      chartData: [{ key: '1', label: 'ACME-CORE', value: 29880 }],
       crossedData: null,
       totalSeconds: 29880,
       formatDuration,
@@ -228,7 +228,7 @@ describe('buildChartAnalysisText', () => {
 
     const withoutCount = buildChartAnalysisText({
       t,
-      chartData: [{ key: '1', label: 'TB-UNITED', value: 29880 }],
+      chartData: [{ key: '1', label: 'ACME-CORE', value: 29880 }],
       crossedData: null,
       totalSeconds: 29880,
       formatDuration,
@@ -241,7 +241,7 @@ describe('buildChartAnalysisText', () => {
     const text = buildChartAnalysisText({
       t,
       chartData: [
-        { key: '1', label: 'TB-UNITED', value: 6000 },
+        { key: '1', label: 'ACME-CORE', value: 6000 },
         { key: 'other', label: 'Autres', value: 4000 }, // would outrank a smaller real 2nd place, must never headline
       ],
       crossedData: null,
@@ -252,7 +252,7 @@ describe('buildChartAnalysisText', () => {
     expect(text).not.toContain('Autres représente');
     expect(text).not.toContain('La majorité provient de Autres');
     expect(text).toBe(
-      'TB-UNITED représente 60% du temps total sur cette période, avec 1h40.\n\n' +
+      'ACME-CORE représente 60% du temps total sur cette période, avec 1h40.\n\n' +
       'Le reste, réparti sur plusieurs petites catégories, représente 40% du temps total sur cette période, avec 1h06.'
     );
   });
@@ -275,11 +275,11 @@ describe('buildChartAnalysisText', () => {
       chartData: [],
       crossedData: {
         segments: [
-          { dataKey: 'p5', label: 'Mohamed' },
-          { dataKey: 'p6', label: 'Soumeya' },
+          { dataKey: 'p5', label: 'Sam Dubois' },
+          { dataKey: 'p6', label: 'Emma Lambert' },
         ],
         rows: [
-          { key: '1', label: 'TB-UNITED', p5: 25200, p6: 3600 }, // 7h + 1h = 8h total
+          { key: '1', label: 'ACME-CORE', p5: 25200, p6: 3600 }, // 7h + 1h = 8h total
           { key: '2', label: 'project-example', p5: 3600, p6: 0 }, // 1h total
         ],
       },
@@ -289,14 +289,14 @@ describe('buildChartAnalysisText', () => {
     });
 
     expect(text).toBe(
-      'TB-UNITED représente 89% du temps total sur cette période, avec 8h00.\n\n' +
-      'Répartition de TB-UNITED par Employé :\n' +
-      '• Mohamed : 88% (7h00)\n' +
-      '• Soumeya : 13% (1h00)\n\n' +
+      'ACME-CORE représente 89% du temps total sur cette période, avec 8h00.\n\n' +
+      'Répartition de ACME-CORE par Employé :\n' +
+      '• Sam Dubois : 88% (7h00)\n' +
+      '• Emma Lambert : 13% (1h00)\n\n' +
       'Autres catégories principales :\n\n' +
       '▸ project-example : 11% (1h00)\n' +
       '  Répartition de project-example par Employé :\n' +
-      '  • Mohamed : 100% (1h00)'
+      '  • Sam Dubois : 100% (1h00)'
     );
   });
 
@@ -308,7 +308,7 @@ describe('buildChartAnalysisText', () => {
         segments: [{ dataKey: 'p5', label: 'Alice' }],
         rows: [
           { key: '__other_primary__', label: 'Autres', p5: 9000 },
-          { key: '1', label: 'TB-UNITED', p5: 1000 },
+          { key: '1', label: 'ACME-CORE', p5: 1000 },
         ],
       },
       totalSeconds: 10000,
@@ -317,15 +317,15 @@ describe('buildChartAnalysisText', () => {
     });
 
     expect(text).not.toContain('Autres représente');
-    expect(text.startsWith('TB-UNITED')).toBe(true);
+    expect(text.startsWith('ACME-CORE')).toBe(true);
     expect(text).toContain('Le reste, réparti sur plusieurs petites catégories, représente 90%');
   });
 
-  it('demo — same scenario, now with all 8 categories (Dimension=Projet crossed with Employé): every category gets its own crossing breakdown, not just TB-UNITED', () => {
+  it('demo — same scenario, now with all 8 categories (Dimension=Projet crossed with Employé): every category gets its own crossing breakdown, not just ACME-CORE', () => {
     // Realistic round numbers, 100h period, 8 real projects summing exactly
     // to the total (no primary "Autres" bucket needed here — the primary
     // "Autres" case is already covered by the dedicated test above).
-    // TB-UNITED's own breakdown still includes a secondary "Autres" bucket,
+    // ACME-CORE's own breakdown still includes a secondary "Autres" bucket,
     // to also exercise that alongside the multi-category listing.
     const totalSeconds = 360000; // 100h
     const realT = (key, vars) => {
@@ -348,19 +348,19 @@ describe('buildChartAnalysisText', () => {
       chartData: [],
       crossedData: {
         segments: [
-          { dataKey: 'seg_mohamed', label: 'Mohamed' },
-          { dataKey: 'seg_soumeya', label: 'Soumeya' },
+          { dataKey: 'seg_sam', label: 'Sam Dubois' },
+          { dataKey: 'seg_emma', label: 'Emma Lambert' },
           { dataKey: 'seg___other_secondary__', label: 'Autres' },
         ],
         rows: [
-          { key: '1', label: 'TB-UNITED', seg_mohamed: 108000, seg_soumeya: 45000, seg___other_secondary__: 27000 }, // 180000 = 50h, 50%
-          { key: '2', label: 'IDARA', seg_mohamed: 54000, seg_soumeya: 0, seg___other_secondary__: 0 }, // 15h, 15%
-          { key: '3', label: 'LEARN', seg_mohamed: 0, seg_soumeya: 36000, seg___other_secondary__: 0 }, // 10h, 10%
-          { key: '4', label: 'INFRA', seg_mohamed: 20160, seg_soumeya: 8640, seg___other_secondary__: 0 }, // 8h, 8%
-          { key: '5', label: 'TRAINING', seg_mohamed: 25200, seg_soumeya: 0, seg___other_secondary__: 0 }, // 7h, 7%
-          { key: '6', label: 'project-example', seg_mohamed: 0, seg_soumeya: 18000, seg___other_secondary__: 0 }, // 5h, 5%
-          { key: '7', label: "falous' app", seg_mohamed: 10800, seg_soumeya: 0, seg___other_secondary__: 0 }, // 3h, 3%
-          { key: '8', label: 'dev mtaa app', seg_mohamed: 7200, seg_soumeya: 0, seg___other_secondary__: 0 }, // 2h, 2%
+          { key: '1', label: 'ACME-CORE', seg_sam: 108000, seg_emma: 45000, seg___other_secondary__: 27000 }, // 180000 = 50h, 50%
+          { key: '2', label: 'PROJET-DELTA', seg_sam: 54000, seg_emma: 0, seg___other_secondary__: 0 }, // 15h, 15%
+          { key: '3', label: 'PROJET-EPSILON', seg_sam: 0, seg_emma: 36000, seg___other_secondary__: 0 }, // 10h, 10%
+          { key: '4', label: 'PROJET-ZETA', seg_sam: 20160, seg_emma: 8640, seg___other_secondary__: 0 }, // 8h, 8%
+          { key: '5', label: 'PROJET-ETA', seg_sam: 25200, seg_emma: 0, seg___other_secondary__: 0 }, // 7h, 7%
+          { key: '6', label: 'project-example', seg_sam: 0, seg_emma: 18000, seg___other_secondary__: 0 }, // 5h, 5%
+          { key: '7', label: "Projet Theta", seg_sam: 10800, seg_emma: 0, seg___other_secondary__: 0 }, // 3h, 3%
+          { key: '8', label: 'Projet Iota', seg_sam: 7200, seg_emma: 0, seg___other_secondary__: 0 }, // 2h, 2%
         ],
       },
       totalSeconds,
@@ -374,27 +374,27 @@ describe('buildChartAnalysisText', () => {
     console.log('\n----- buildChartAnalysisText demo output (8 categories) -----\n' + text + '\n----- end -----\n');
 
     // Headline + its own full breakdown, unchanged from before.
-    expect(text).toContain('TB-UNITED représente 50% du temps total sur cette période, avec 50h00.');
-    expect(text).toContain('Répartition de TB-UNITED par Employé :\n• Mohamed : 60% (30h00)\n• Soumeya : 25% (12h30)\n• Autres : 15% (7h30)');
+    expect(text).toContain('ACME-CORE représente 50% du temps total sur cette période, avec 50h00.');
+    expect(text).toContain('Répartition de ACME-CORE par Employé :\n• Sam Dubois : 60% (30h00)\n• Emma Lambert : 25% (12h30)\n• Autres : 15% (7h30)');
 
     // Every other named category gets its own '▸' line...
-    expect(text).toContain('▸ IDARA : 15% (15h00)');
-    expect(text).toContain('▸ LEARN : 10% (10h00)');
-    expect(text).toContain('▸ INFRA : 8% (8h00)');
-    expect(text).toContain('▸ TRAINING : 7% (7h00)');
+    expect(text).toContain('▸ PROJET-DELTA : 15% (15h00)');
+    expect(text).toContain('▸ PROJET-EPSILON : 10% (10h00)');
+    expect(text).toContain('▸ PROJET-ZETA : 8% (8h00)');
+    expect(text).toContain('▸ PROJET-ETA : 7% (7h00)');
     expect(text).toContain('▸ project-example : 5% (5h00)');
-    expect(text).toContain("▸ falous' app : 3% (3h00)");
-    expect(text).toContain('▸ dev mtaa app : 2% (2h00)');
+    expect(text).toContain("▸ Projet Theta : 3% (3h00)");
+    expect(text).toContain('▸ Projet Iota : 2% (2h00)');
 
     // ...AND its own nested, indented "Répartition de X par Employé" —
     // the actual point of this change: not just the dominant category.
-    expect(text).toContain('  Répartition de IDARA par Employé :\n  • Mohamed : 100% (15h00)');
-    expect(text).toContain('  Répartition de LEARN par Employé :\n  • Soumeya : 100% (10h00)');
-    expect(text).toContain('  Répartition de INFRA par Employé :\n  • Mohamed : 70% (5h36)\n  • Soumeya : 30% (2h24)');
-    expect(text).toContain('  Répartition de TRAINING par Employé :\n  • Mohamed : 100% (7h00)');
-    expect(text).toContain('  Répartition de project-example par Employé :\n  • Soumeya : 100% (5h00)');
-    expect(text).toContain("  Répartition de falous' app par Employé :\n  • Mohamed : 100% (3h00)");
-    expect(text).toContain('  Répartition de dev mtaa app par Employé :\n  • Mohamed : 100% (2h00)');
+    expect(text).toContain('  Répartition de PROJET-DELTA par Employé :\n  • Sam Dubois : 100% (15h00)');
+    expect(text).toContain('  Répartition de PROJET-EPSILON par Employé :\n  • Emma Lambert : 100% (10h00)');
+    expect(text).toContain('  Répartition de PROJET-ZETA par Employé :\n  • Sam Dubois : 70% (5h36)\n  • Emma Lambert : 30% (2h24)');
+    expect(text).toContain('  Répartition de PROJET-ETA par Employé :\n  • Sam Dubois : 100% (7h00)');
+    expect(text).toContain('  Répartition de project-example par Employé :\n  • Emma Lambert : 100% (5h00)');
+    expect(text).toContain("  Répartition de Projet Theta par Employé :\n  • Sam Dubois : 100% (3h00)");
+    expect(text).toContain('  Répartition de Projet Iota par Employé :\n  • Sam Dubois : 100% (2h00)');
 
     // Closing facts.
     expect(text).toContain('60% du temps total est facturable.');
