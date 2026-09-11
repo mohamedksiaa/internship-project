@@ -61,3 +61,4 @@ TimeEntry = إدخال الوقت
 TimeEntrys = إدخالات الوقت
 ShowTimeEntry = عرض إدخال الوقت
 DeleteTimeEntry = حذف إدخال الوقت
+TimeFlowExtrafieldsDisabled = هذه الصفحة معطلة: لا يدير TimeEntry الحقول الإضافية (isextrafieldmanaged معطل)، لذا فإن أي حقل يتم تعريفه هنا لن يظهر أبدًا في إدخال الوقت ولن تُحفظ قيمته أبدًا.

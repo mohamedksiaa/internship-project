@@ -61,3 +61,4 @@ TimeEntry = Time entry
 TimeEntrys = Time entries
 ShowTimeEntry = Show time entry
 DeleteTimeEntry = Delete time entry
+TimeFlowExtrafieldsDisabled = This page is disabled: TimeEntry does not manage extra fields (isextrafieldmanaged is off), so any field defined here would never appear on a time entry and its value would never be saved.

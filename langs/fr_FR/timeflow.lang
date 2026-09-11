@@ -61,3 +61,4 @@ TimeEntry = Entrée de temps
 TimeEntrys = Entrées de temps
 ShowTimeEntry = Voir l'entrée de temps
 DeleteTimeEntry = Supprimer l'entrée de temps
+TimeFlowExtrafieldsDisabled = Cette page est désactivée : TimeEntry ne gère pas les champs personnalisés (isextrafieldmanaged désactivé), donc tout champ défini ici n'apparaîtrait jamais sur une entrée de temps et sa valeur ne serait jamais sauvegardée.

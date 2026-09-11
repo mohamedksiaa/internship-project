@@ -359,9 +359,6 @@ class modTimeFlow extends DolibarrModules
 
 		// Main menu entries to add
 		$this->menu = array();
-		$r = 0;
-		// Add here entries to declare new menus
-		$this->menu = array();
         $r = 0;
         // Add here entries to declare new menus
 		/* BEGIN MODULEBUILDER TOPMENU */
@@ -393,125 +390,44 @@ class modTimeFlow extends DolibarrModules
         /* BEGIN MODULEBUILDER LEFTMENU NEW TIMEENTRY */
         // Removed: New TimeEntry menu entry. Creation is handled via the React frontend (TimerWidget).
         /* END MODULEBUILDER LEFTMENU NEW TIMEENTRY */
-		/* END MODULEBUILDER LEFTMENU TIMEENTRY */
 
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */
-		/*
-		$this->menu[$r++]=array(
-			'fk_menu' => 'fk_mainmenu=timeflow',      // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
-			'type' => 'left',                          // This is a Left menu entry
-			'titre' => 'TimeEntry',
-			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle paddingright"'),
-			'mainmenu' => 'timeflow',
-			'leftmenu' => 'timeentry',
-			'url' => '/timeflow/timeflowindex.php',
-			'langs' => 'timeflow@timeflow',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-			'position' => 1000 + $r,
-			'enabled' => "isModEnabled('timeflow')", // Define condition to show or hide menu entry. Use isModEnabled("timeflow") if entry must be visible if module is enabled.
-			'perms' => '$user->hasRight("timeflow", "timeentry", "read")',
-			'target' => '',
-			'user' => 2,				                // 0=Menu for internal users, 1=external users, 2=both
-			'object' => 'TimeEntry'
-		);
-		$this->menu[$r++]=array(
-			'fk_menu' => 'fk_mainmenu=timeflow,fk_leftmenu=timeentry',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
-			'type' => 'left',			                // This is a Left menu entry
-			'titre' => 'New_TimeEntry',
-			'mainmenu' => 'timeflow',
-			'leftmenu' => 'timeflow_timeentry_new',
-			'url' => '/timeflow/timeentry_card.php?action=create',
-			'langs' => 'timeflow@timeflow',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-			'position' => 1000 + $r,
-			'enabled' => "isModEnabled('timeflow')", // Define condition to show or hide menu entry. Use isModEnabled("timeflow") if entry must be visible if module is enabled. Use '$leftmenu==\'system\'' to show if leftmenu system is selected.
-			'perms' => '$user->hasRight("timeflow", "timeentry", "write")'
-			'target' => '',
-			'user' => 2,				                // 0=Menu for internal users, 1=external users, 2=both
-			'object' => 'TimeEntry'
-		);
-		$this->menu[$r++]=array(
-			'fk_menu' => 'fk_mainmenu=timeflow,fk_leftmenu=timeentry',	    // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
-			'type' => 'left',			                // This is a Left menu entry
-			'titre' => 'List_TimeEntry',
-			'mainmenu' => 'timeflow',
-			'leftmenu' => 'timeflow_timeentry_list',
-			'url' => '/timeflow/timeentry_list.php',
-			'langs' => 'timeflow@timeflow',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-			'position' => 1000 + $r,
-			'enabled' => "isModEnabled('timeflow')", // Define condition to show or hide menu entry. Use isModEnabled("timeflow") if entry must be visible if module is enabled.
-			'perms' => '$user->hasRight("timeflow", "timeentry", "read")'
-			'target' => '',
-			'user' => 2,				                // 0=Menu for internal users, 1=external users, 2=both
-			'object' => 'TimeEntry'
-		);
-		*/
+		// Removed: unmodified ModuleBuilder scaffold for a "MyObject" left
+		// menu (three entries: root/new/list), never adapted to TimeEntry —
+		// it duplicated the real TimeEntry navigation already removed above
+		// (see "LEFTMENU TIMEENTRY"/"LEFTMENU LIST TIMEENTRY"/"LEFTMENU NEW
+		// TIMEENTRY") in favor of the React frontend, and even contained a
+		// syntax error (missing comma after 'perms' in two of the three
+		// array literals) that would have been a fatal parse error had this
+		// ever been uncommented as-is.
 		/* END MODULEBUILDER LEFTMENU MYOBJECT */
 
 
 		// Exports profiles provided by this module
 		$r = 0;
 		/* BEGIN MODULEBUILDER EXPORT MYOBJECT */
-		/*
-		$langs->load("timeflow@timeflow");
-		$this->export_code[$r] = $this->rights_class.'_'.$r;
-		$this->export_label[$r] = 'TimeEntryLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
-		$this->export_icon[$r] = $this->picto;
-		// Define $this->export_fields_array, $this->export_TypeFields_array and $this->export_entities_array
-		$keyforclass = 'TimeEntry'; $keyforclassfile='/timeflow/class/timeentry.class.php'; $keyforelement='timeentry@timeflow';
-		include DOL_DOCUMENT_ROOT.'/core/commonfieldsinexport.inc.php';
-		//$this->export_fields_array[$r]['t.fieldtoadd']='FieldToAdd'; $this->export_TypeFields_array[$r]['t.fieldtoadd']='Text';
-		//unset($this->export_fields_array[$r]['t.fieldtoremove']);
-		//$keyforclass = 'TimeEntryLine'; $keyforclassfile='/timeflow/class/timeentry.class.php'; $keyforelement='timeentryline@timeflow'; $keyforalias='tl';
-		//include DOL_DOCUMENT_ROOT.'/core/commonfieldsinexport.inc.php';
-		$keyforselect='timeentry'; $keyforaliasextra='extra'; $keyforelement='timeentry@timeflow';
-		include DOL_DOCUMENT_ROOT.'/core/extrafieldsinexport.inc.php';
-		//$keyforselect='timeentryline'; $keyforaliasextra='extraline'; $keyforelement='timeentryline@timeflow';
-		//include DOL_DOCUMENT_ROOT.'/core/extrafieldsinexport.inc.php';
-		//$this->export_dependencies_array[$r] = array('timeentryline' => array('tl.rowid','tl.ref')); // To force to activate one or several fields if we select some fields that need same (like to select a unique key if we ask a field of a child to avoid the DISTINCT to discard them, or for computed field than need several other fields)
-		//$this->export_special_array[$r] = array('t.field' => '...');
-		//$this->export_examplevalues_array[$r] = array('t.field' => 'Example');
-		//$this->export_help_array[$r] = array('t.field' => 'FieldDescHelp');
-		$this->export_sql_start[$r]='SELECT DISTINCT ';
-		$this->export_sql_end[$r]  =' FROM '.$this->db->prefix().'timeflow_timeentry as t';
-		//$this->export_sql_end[$r]  .=' LEFT JOIN '.$this->db->prefix().'timeflow_timeentry_line as tl ON tl.fk_timeentry = t.rowid';
-		$this->export_sql_end[$r] .=' WHERE 1 = 1';
-		$this->export_sql_end[$r] .=' AND t.entity IN ('.getEntity('timeentry').')';
-		$r++; */
+		// Removed: unmodified ModuleBuilder scaffold for a "MyObject" export
+		// profile, never adapted to TimeEntry (still references a
+		// nonexistent 'timeflow_timeentry_line' companion table and the
+		// placeholder class name 'MyObject' nowhere used in this module).
+		// $this->export_code/export_label/export_icon/etc. all stay unset,
+		// so no export profile is registered — exporting TimeEntry data is
+		// not a feature this module offers today.
 		/* END MODULEBUILDER EXPORT MYOBJECT */
 
 		// Imports profiles provided by this module
 		$r = 0;
 		/* BEGIN MODULEBUILDER IMPORT MYOBJECT */
-		/*
-		$langs->load("timeflow@timeflow");
-		$this->import_code[$r] = $this->rights_class.'_'.$r;
-		$this->import_label[$r] = 'TimeEntryLines';	// Translation key (used only if key ExportDataset_xxx_z not found)
-		$this->import_icon[$r] = $this->picto;
-		$this->import_tables_array[$r] = array('t' => $this->db->prefix().'timeflow_timeentry', 'extra' => $this->db->prefix().'timeflow_timeentry_extrafields');
-		$this->import_tables_creator_array[$r] = array('t' => 'fk_user_author'); // Fields to store import user id
-		$import_sample = array();
-		$keyforclass = 'TimeEntry'; $keyforclassfile='/timeflow/class/timeentry.class.php'; $keyforelement='timeentry@timeflow';
-		include DOL_DOCUMENT_ROOT.'/core/commonfieldsinimport.inc.php';
-		$import_extrafield_sample = array();
-		$keyforselect='timeentry'; $keyforaliasextra='extra'; $keyforelement='timeentry@timeflow';
-		include DOL_DOCUMENT_ROOT.'/core/extrafieldsinimport.inc.php';
-		$this->import_fieldshidden_array[$r] = array('extra.fk_object' => 'lastrowid-'.$this->db->prefix().'timeflow_timeentry');
-		$this->import_regex_array[$r] = array();
-		$this->import_examplevalues_array[$r] = array_merge($import_sample, $import_extrafield_sample);
-		$this->import_updatekeys_array[$r] = array('t.ref' => 'Ref');
-		$this->import_convertvalue_array[$r] = array(
-			't.ref' => array(
-				'rule'=>'getrefifauto',
-				'class'=>(!getDolGlobalString('TIMEFLOW_MYOBJECT_ADDON') ? 'mod_timeentry_standard' : getDolGlobalString('TIMEFLOW_MYOBJECT_ADDON')),
-				'path'=>"/core/modules/timeflow/".(!getDolGlobalString('TIMEFLOW_MYOBJECT_ADDON') ? 'mod_timeentry_standard' : getDolGlobalString('TIMEFLOW_MYOBJECT_ADDON')).'.php',
-				'classobject'=>'TimeEntry',
-				'pathobject'=>'/timeflow/class/timeentry.class.php',
-			),
-			't.fk_soc' => array('rule' => 'fetchidfromref', 'file' => '/societe/class/societe.class.php', 'class' => 'Societe', 'method' => 'fetch', 'element' => 'ThirdParty'),
-			't.fk_user_valid' => array('rule' => 'fetchidfromref', 'file' => '/user/class/user.class.php', 'class' => 'User', 'method' => 'fetch', 'element' => 'user'),
-			't.fk_mode_reglement' => array('rule' => 'fetchidfromcodeorlabel', 'file' => '/compta/paiement/class/cpaiement.class.php', 'class' => 'Cpaiement', 'method' => 'fetch', 'element' => 'cpayment'),
-		);
-		$this->import_run_sql_after_array[$r] = array();
-		$r++; */
+		// Removed: unmodified ModuleBuilder scaffold for a "MyObject" import
+		// profile, never adapted to TimeEntry (references a never-defined
+		// TIMEFLOW_MYOBJECT_ADDON constant and a mod_timeentry_standard ref
+		// generator class that does not exist in this module, plus a
+		// 'cpayment'/fk_mode_reglement mapping that has no TimeEntry
+		// column to match). $this->import_code/import_label/etc. all stay
+		// unset, so no import profile is registered here — the module's
+		// real import feature is the separate Clockify CSV importer
+		// (class/timeimport.class.php), unrelated to this ModuleBuilder
+		// mechanism.
 		/* END MODULEBUILDER IMPORT MYOBJECT */
 	}
 
