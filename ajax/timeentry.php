@@ -2729,6 +2729,16 @@ function timeflowResolveOrCreateProjectByLabel($db, $user, $projectLabel, $fkSoc
     return timeflowCreateProject($db, $user, $label, $fkSoc);
 }
 
+// NOTE (audit finding, not yet acted on): the rows this function inserts
+// into llx_timeflow_task are, as of this writing, never read back anywhere
+// in this codebase — no SELECT against that table exists outside this
+// INSERT and its own CREATE TABLE. This is a write-only audit trail today:
+// every free-text task label a user types (instead of picking a native
+// project/task) is recorded here but there is no screen, export, or report
+// that surfaces it. Before relying on this table for anything, or before
+// assuming it is safe to drop, confirm whether that is still true and
+// whether a consultation screen is planned — don't build on the
+// assumption that this data is currently consumed by anything.
 function timeflowStoreTaskText($db, $user, $fkTimeentry, $label, $description = '')
 {
     $label = trim((string) $label);
@@ -2752,6 +2762,14 @@ function timeflowStoreTaskText($db, $user, $fkTimeentry, $label, $description = 
     return $resql ? true : false;
 }
 
+// NOTE (audit finding, not yet acted on): same situation as
+// timeflowStoreTaskText() just above — the rows this function inserts into
+// llx_timeflow_project_text are, as of this writing, never read back
+// anywhere in this codebase (no SELECT against that table exists outside
+// this INSERT and its own CREATE TABLE). Every free-text project label a
+// user types (instead of picking a native project) is recorded here but
+// nothing currently surfaces it. Confirm whether that is still true before
+// relying on this data or assuming it is safe to drop.
 function timeflowStoreProjectText($db, $user, $fkTimeentry, $projectLabel, $description = '')
 {
     $projectLabel = trim((string) $projectLabel);

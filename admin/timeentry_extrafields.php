@@ -87,6 +87,18 @@ if (!$user->admin) {
 	accessforbidden();
 }
 
+// Disabled: TimeEntry::$isextrafieldmanaged = 0 (class/timeentry.class.php)
+// means the standard fetchCommon()/createCommon()/updateCommon() extrafields
+// wiring never runs for TimeEntry. Defining a field here still writes real
+// schema (core/actions_extrafields.inc.php below adds a genuine column to
+// llx_timeflow_timeentry_extrafields), but that field would never be shown
+// on a TimeEntry card and its value would never be read or saved anywhere —
+// this page would let an admin configure a feature that silently does
+// nothing rather than fail loudly. Disabled with a clear message instead of
+// leaving it to half-work. Re-enable only together with actually turning
+// $isextrafieldmanaged on and wiring the corresponding card-page templates.
+accessforbidden($langs->trans('TimeFlowExtrafieldsDisabled'), 1, 1, 1);
+
 
 /*
  * Actions
