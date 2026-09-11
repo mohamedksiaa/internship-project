@@ -92,6 +92,7 @@ include_once DOL_DOCUMENT_ROOT.'/core/lib/date.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 // load module libraries
 include_once __DIR__.'/class/timeentry.class.php';
+dol_include_once('/timeflow/lib/timeflow.lib.php');
 // for other modules
 //dol_include_once('/othermodule/class/otherobject.class.php');
 
@@ -208,18 +209,13 @@ $sql .= $hookmanager->resPrint;
 $object->fields = dol_sort_array($object->fields, 'position');
 $arrayfields = dol_sort_array($arrayfields, 'position');
 
-// There is several ways to check permission.
-// Set $enablepermissioncheck to 1 to enable a minimum low level of checks
-$enablepermissioncheck = getDolGlobalInt('TIMEFLOW_ENABLE_PERMISSION_CHECK');
-if ($enablepermissioncheck) {
-	$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
-	$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write');
-	$permissiontodelete = $user->hasRight('timeflow', 'timeentry', 'delete');
-} else {
-	$permissiontoread = 1;
-	$permissiontoadd = 1;
-	$permissiontodelete = 1;
-}
+// Permissions are always checked (TIMEFLOW_ENABLE_PERMISSION_CHECK, a
+// never-defined constant, used to gate this behind a bypass that
+// defaulted every permission to 1 for any authenticated user — removed
+// as a real access-control fix, not a style cleanup).
+$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
+$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write');
+$permissiontodelete = $user->hasRight('timeflow', 'timeentry', 'delete');
 
 // Security check (enable the most restrictive one)
 if ($user->socid > 0) {
@@ -346,7 +342,7 @@ if (!empty($object->ismultientitymanaged) && (int) $object->ismultientitymanaged
 
 // An employee may only list their own time entries. Admins and users granted
 // the dedicated TimeFlow "readall" right retain the global list.
-if (empty($user->admin) && !$user->hasRight('timeflow', 'timeentry', 'readall')) {
+if (!timeflowCanReadAllTimeEntries($user)) {
 	$sql .= " AND t.fk_user = ".((int) $user->id);
 }
 foreach ($search as $key => $val) {

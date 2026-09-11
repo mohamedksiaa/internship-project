@@ -94,6 +94,7 @@ include_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
 include_once DOL_DOCUMENT_ROOT.'/core/class/html.formprojet.class.php';
 dol_include_once('/timeflow/class/timeentry.class.php');
 dol_include_once('/timeflow/lib/timeflow_timeentry.lib.php');
+dol_include_once('/timeflow/lib/timeflow.lib.php');
 
 // Load translation files required by the page
 $langs->loadLangs(array("timeflow@timeflow", "other"));
@@ -142,24 +143,17 @@ if (empty($action) && empty($id) && empty($ref)) {
 // Load object
 include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be 'include', not 'include_once'.
 
-// There is several ways to check permission.
-// Set $enablepermissioncheck to 1 to enable a minimum low level of checks
-$enablepermissioncheck = getDolGlobalInt('TIMEFLOW_ENABLE_PERMISSION_CHECK');
-if ($enablepermissioncheck) {
-	$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
-	$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_addupdatedelete.inc.php and actions_lineupdown.inc.php
-	$permissiontodelete = $user->hasRight('timeflow', 'timeentry', 'delete') || ($permissiontoadd && isset($object->status) && $object->status == $object::STATUS_DRAFT);
-	$permissionnote = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_setnotes.inc.php
-	$permissiondellink = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_dellink.inc.php
-} else {
-	$permissiontoread = 1;
-	$permissiontoadd = 1; // Used by the include of actions_addupdatedelete.inc.php and actions_lineupdown.inc.php
-	$permissiontodelete = 1;
-	$permissionnote = 1;
-	$permissiondellink = 1;
-}
+// Permissions are always checked (TIMEFLOW_ENABLE_PERMISSION_CHECK, a
+// never-defined constant, used to gate this behind a bypass that
+// defaulted every permission to 1 for any authenticated user — removed
+// as a real access-control fix, not a style cleanup).
+$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
+$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_addupdatedelete.inc.php and actions_lineupdown.inc.php
+$permissiontodelete = $user->hasRight('timeflow', 'timeentry', 'delete') || ($permissiontoadd && isset($object->status) && $object->status == $object::STATUS_DRAFT);
+$permissionnote = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_setnotes.inc.php
+$permissiondellink = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_dellink.inc.php
 
-$permissiontovalidate = !empty($user->rights->timeflow->timeentry->validate) || $user->hasRight('timeflow', 'timeentry', 'validate') || !empty($user->admin);
+$permissiontovalidate = $user->hasRight('timeflow', 'timeentry', 'validate') || !empty($user->admin);
 
 $upload_dir = $conf->timeflow->multidir_output[isset($object->entity) ? $object->entity : 1].'/timeentry';
 
@@ -172,6 +166,15 @@ if (!isModEnabled($object->module)) {
 	accessforbidden("Module ".$object->module." not enabled");
 }
 if (!$permissiontoread) {
+	accessforbidden();
+}
+// Object-level ownership check: reading/editing/deleting a specific
+// entry by id requires being its owner, or having the module-wide
+// readall right (or admin) — a real TimeFlow "read"/"write" right alone
+// is not enough, since that only grants access to one's OWN entries.
+// Skipped when there is no object yet (id/ref both empty — e.g.
+// action=create on a brand-new entry).
+if ($object->id > 0 && !timeflowCanAccessTimeEntry($user, $object)) {
 	accessforbidden();
 }
 

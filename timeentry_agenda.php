@@ -89,6 +89,7 @@ include_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 dol_include_once('/timeflow/class/timeentry.class.php');
 dol_include_once('/timeflow/lib/timeflow_timeentry.lib.php');
+dol_include_once('/timeflow/lib/timeflow.lib.php');
 
 // Load translation files required by the page
 $langs->loadLangs(array("timeflow@timeflow", "other"));
@@ -148,16 +149,12 @@ if ($id > 0 || !empty($ref)) {
 	$upload_dir = $conf->timeflow->multidir_output[!empty($object->entity) ? $object->entity : $conf->entity]."/".$object->id;
 }
 
-// There is several ways to check permission.
-// Set $enablepermissioncheck to 1 to enable a minimum low level of checks
-$enablepermissioncheck = getDolGlobalInt('TIMEFLOW_ENABLE_PERMISSION_CHECK');
-if ($enablepermissioncheck) {
-	$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
-	$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write');
-} else {
-	$permissiontoread = 1;
-	$permissiontoadd = 1;
-}
+// Permissions are always checked (TIMEFLOW_ENABLE_PERMISSION_CHECK, a
+// never-defined constant, used to gate this behind a bypass that
+// defaulted every permission to 1 for any authenticated user — removed
+// as a real access-control fix, not a style cleanup).
+$permissiontoread = $user->hasRight('timeflow', 'timeentry', 'read');
+$permissiontoadd = $user->hasRight('timeflow', 'timeentry', 'write');
 
 // Security check (enable the most restrictive one)
 //if ($user->socid > 0) accessforbidden();
@@ -168,6 +165,11 @@ if (!isModEnabled("timeflow")) {
 	accessforbidden();
 }
 if (!$permissiontoread) {
+	accessforbidden();
+}
+// Object-level ownership check: see timeentry_card.php for why a plain
+// TimeFlow "read" right is not enough on its own.
+if ($object->id > 0 && !timeflowCanAccessTimeEntry($user, $object)) {
 	accessforbidden();
 }
 
