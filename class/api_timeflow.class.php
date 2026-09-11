@@ -17,24 +17,6 @@ require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
 class TimeFlow extends DolibarrApi
 {
     /**
-     * @var array   $FIELDS     Fields references
-     */
-    public static $FIELDS = array(
-        'rowid',
-        'entity',
-        'fk_user',
-        'fk_project',
-        'fk_task',
-        'date_start',
-        'date_end',
-        'duration',
-        'note',
-        'tags',
-        'billable',
-        'status'
-    );
-
-    /**
      * Constructor
      */
     public function __construct()
