@@ -44,13 +44,13 @@ function timeflowAdminPrepareHead()
 	$h = 0;
 	$head = array();
 
-	$head[$h][0] = dolBuildUrl(dol_buildpath("/timeflow/admin/setup.php", 1));
+	$head[$h][0] = dol_buildpath("/timeflow/admin/setup.php", 1);
 	$head[$h][1] = $langs->trans("Settings");
 	$head[$h][2] = 'settings';
 	$h++;
 
 	/*
-	$head[$h][0] = dolBuildUrl(dol_buildpath("/timeflow/admin/myobject_extrafields.php", 1));
+	$head[$h][0] = dol_buildpath("/timeflow/admin/myobject_extrafields.php", 1);
 	$head[$h][1] = $langs->trans("ExtraFields");
 	$nbExtrafields = (isset($extrafields->attributes['myobject']['label']) && is_countable($extrafields->attributes['myobject']['label'])) ? count($extrafields->attributes['myobject']['label']) : 0;
 	if ($nbExtrafields > 0) {
@@ -59,7 +59,7 @@ function timeflowAdminPrepareHead()
 	$head[$h][2] = 'myobject_extrafields';
 	$h++;
 
-	$head[$h][0] = dolBuildUrl(dol_buildpath("/timeflow/admin/myobjectline_extrafields.php", 1));
+	$head[$h][0] = dol_buildpath("/timeflow/admin/myobjectline_extrafields.php", 1);
 	$head[$h][1] = $langs->trans("ExtraFieldsLines");
 	$nbExtrafields = (isset($extrafields->attributes['myobjectline']['label']) && is_countable($extrafields->attributes['myobjectline']['label'])) ? count($extrafields->attributes['myobject']['label']) : 0;
 	if ($nbExtrafields > 0) {
@@ -69,7 +69,7 @@ function timeflowAdminPrepareHead()
 	$h++;
 	*/
 
-	$head[$h][0] = dolBuildUrl(dol_buildpath("/timeflow/admin/about.php", 1));
+	$head[$h][0] = dol_buildpath("/timeflow/admin/about.php", 1);
 	$head[$h][1] = $langs->trans("About");
 	$head[$h][2] = 'about';
 	$h++;
