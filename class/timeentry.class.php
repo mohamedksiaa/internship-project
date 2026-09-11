@@ -1546,7 +1546,9 @@ class TimeEntry extends CommonObject
 	 * If the elapsed time exceeds the max-duration cap (a timer forgotten
 	 * overnight or over a weekend), the session is instead split into one
 	 * entry per calendar day it crossed — the same "never rewrite, always
-	 * create a new row" approach already used by restartTimer(). Each
+	 * create a new row" approach already used by the 'restartTimer' ajax
+	 * action (ajax/timeentry.php), which resumes a stopped entry by
+	 * calling startTimer() again rather than reopening the old row. Each
 	 * resulting segment keeps its own accurate date_start/date_end/duration,
 	 * so per-day totals stay correct with no extra aggregation logic (see
 	 * $splitSegments for how the ajax layer learns about the extra rows).
