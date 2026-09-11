@@ -400,14 +400,13 @@ class ActionsTimeFlow extends CommonHookActions
 	 */
 	public function showLinkToObjectBlock($parameters, &$object, &$action, $hookmanager)
 	{
-		$myobject = new MyObject($object->db);
-		$this->results = array('myobject@timeflow' => array(
-			'enabled' => isModEnabled('timeflow'),
-			'perms' => 1,
-			'label' => 'LinkToMyObject',
-			'sql' => "SELECT t.rowid, t.ref, t.ref as 'name' FROM " . $this->db->prefix() . $myobject->table_element. " as t "),);
-
-		return 1;
+		// Never adapted from the ModuleBuilder template: MyObject does not
+		// exist in this module (TimeEntry is the real business object), and
+		// even TimeEntry has no real 'ref' column the SQL below could select
+		// (see the PHP-only fallback in TimeEntry::create()/fetch()) — so
+		// there is no safe substitution to make without redesigning what
+		// this hook should actually link. Neutralized rather than guessed.
+		return 0;
 	}
 	/* Add other hook methods here... */
 }
