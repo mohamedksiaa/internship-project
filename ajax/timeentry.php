@@ -200,20 +200,6 @@ function timeflowProjectIsClosed($db, $fkProject)
     return $obj ? ((int) $obj->fk_statut === Project::STATUS_CLOSED) : false;
 }
 
-/**
- * The validation screen is a manager view. A user who can validate must see
- * the team entries in that view and in the manager's time-tracking view, even
- * when the separate "read all" permission was not assigned.
- *
- * Keep this deliberately separate from timeflowCanReadAllTimeEntries(): the
- * latter is also used by invoice operations, where validation rights alone
- * must not expose all billable entries.
- */
-function timeflowCanViewTeamTimeEntries($user)
-{
-    return timeflowCanReadAllTimeEntries($user) || timeflowCanValidate($user);
-}
-
 /** Employee policy: draft entries from today; yesterday only to correct a missed stop. */
 function timeflowEmployeeManualEditPolicy($entry)
 {
