@@ -165,9 +165,12 @@ $setupnotempty += count($formSetup->items);
 $dirmodels = array_merge(array('/'), (array) $conf->modules_parts['models']);
 
 $moduledir = 'timeflow';
+// TimeEntry uses neither a numbering module nor PDF document generation
+// (no core/modules/timeflow/mod_timeentry_*.php, no core/modules/timeflow/doc/
+// pdf_*.modules.php exist), so this stays empty — the generic numbering/
+// PDF-model sections below (gated on includerefgeneration/includedocgeneration)
+// and the 'specimen' action correctly no-op with nothing registered here.
 $myTmpObjects = array();
-// TODO Scan list of objects to fill this array
-$myTmpObjects['myobject'] = array('label' => 'MyObject', 'includerefgeneration' => 0, 'includedocgeneration' => 0, 'class' => 'MyObject');
 
 $tmpobjectkey = GETPOST('object', 'aZ09');
 if ($tmpobjectkey && !array_key_exists($tmpobjectkey, $myTmpObjects)) {
