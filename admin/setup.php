@@ -87,19 +87,10 @@ if (!$user->admin) {
 	accessforbidden();
 }
 
-
-// Set this to 1 to use the factory to manage constants. Warning, the generated module will be compatible with version v15+ only
-$useFormSetup = 1;
-
 if (!class_exists('FormSetup')) {
 	require_once DOL_DOCUMENT_ROOT.'/core/class/html.formsetup.class.php';
 }
 $formSetup = new FormSetup($db);
-
-// Access control
-if (!$user->admin) {
-	accessforbidden();
-}
 
 
 // Enter here all parameters in your setup page
@@ -205,17 +196,6 @@ print dol_get_fiche_head($head, 'settings', $langs->trans($title), -1, "timeflow
 // Setup page goes here
 echo '<span class="opacitymedium">'.$langs->trans("TimeFlowSetupPage").'</span><br><br>';
 
-
-/*if ($action == 'edit') {
- print $formSetup->generateOutput(true);
- print '<br>';
- } elseif (!empty($formSetup->items)) {
- print $formSetup->generateOutput();
- print '<div class="tabsAction">';
- print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?action=edit&token='.newToken().'">'.$langs->trans("Modify").'</a>';
- print '</div>';
- }
- */
 if (!empty($formSetup->items)) {
 	print $formSetup->generateOutput(true);
 	print '<br>';
