@@ -127,11 +127,25 @@ class TimeFlow extends DolibarrApi
             throw new RestException(401, 'Unauthorized');
         }
 
+        $id = (int) $id;
         $timeentry = new TimeEntry($this->db);
-        $res = $timeentry->stopTimer((int) $id, DolibarrApiAccess::$user);
+        if ($timeentry->fetch($id) <= 0) {
+            throw new RestException(404, 'TimeEntry not found');
+        }
+        if ((int) $timeentry->fk_user !== (int) DolibarrApiAccess::$user->id) {
+            throw new RestException(403, 'Forbidden');
+        }
+
+        // Not pre-checked here: whether the entry already has a date_end.
+        // TimeEntry::stopTimer() resolves a stale id to its real active
+        // successor after a midnight split (findActiveSuccessorId()) before
+        // ever treating "already stopped" as a hard failure — a pre-check
+        // on date_end here would short-circuit that self-healing path.
+        $res = $timeentry->stopTimer($id, DolibarrApiAccess::$user);
 
         if ($res <= 0) {
-            throw new RestException(500, $timeentry->error ? $timeentry->error : 'Error stopping timer');
+            $code = ($timeentry->error === 'Ce chrono est déjà arrêté') ? 409 : 500;
+            throw new RestException($code, $timeentry->error ? $timeentry->error : 'Error stopping timer');
         }
 
         return $this->_cleanObjectDatas($timeentry);
@@ -154,8 +168,13 @@ class TimeFlow extends DolibarrApi
             throw new RestException(403, 'Forbidden');
         }
 
+        $id = (int) $id;
         $timeentry = new TimeEntry($this->db);
-        $res = $timeentry->validateEntry((int) $id, DolibarrApiAccess::$user, TimeEntry::STATUS_VALIDATED);
+        if ($timeentry->fetch($id) <= 0) {
+            throw new RestException(404, 'TimeEntry not found');
+        }
+
+        $res = $timeentry->validateEntry($id, DolibarrApiAccess::$user, TimeEntry::STATUS_VALIDATED);
 
         if ($res <= 0) {
             throw new RestException(500, $timeentry->error ? $timeentry->error : 'Error validating timer');
@@ -181,8 +200,13 @@ class TimeFlow extends DolibarrApi
             throw new RestException(403, 'Forbidden');
         }
 
+        $id = (int) $id;
         $timeentry = new TimeEntry($this->db);
-        $res = $timeentry->validateEntry((int) $id, DolibarrApiAccess::$user, TimeEntry::STATUS_CANCELED);
+        if ($timeentry->fetch($id) <= 0) {
+            throw new RestException(404, 'TimeEntry not found');
+        }
+
+        $res = $timeentry->validateEntry($id, DolibarrApiAccess::$user, TimeEntry::STATUS_CANCELED);
 
         if ($res <= 0) {
             throw new RestException(500, $timeentry->error ? $timeentry->error : 'Error rejecting timer');
