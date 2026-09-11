@@ -97,7 +97,7 @@ $title = "TimeFlowAbout";
 llxHeader('', $langs->trans($title), $help_url, '', 0, 0, '', '', '', 'mod-timeflow page-admin_about');
 
 // Subheader
-$linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1').'">'.img_picto($langs->trans("BackToModuleList"), 'back', 'class="pictofixedwidth"').'<span class="hideonsmartphone">'.$langs->trans("BackToModuleList").'</span></a>';
+$linkback = '<a href="'.($backtopage ? dol_escape_htmltag($backtopage) : DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1').'">'.img_picto($langs->trans("BackToModuleList"), 'back', 'class="pictofixedwidth"').'<span class="hideonsmartphone">'.$langs->trans("BackToModuleList").'</span></a>';
 
 print load_fiche_titre($langs->trans($title), $linkback, 'title_setup');
 
