@@ -1658,16 +1658,20 @@ switch ($action) {
         $tags = '';
         $billable = !empty($postData['billable']) ? 1 : (int) GETPOST('billable', 'int');
 
-        dol_syslog('timeflow.startTimer received '.json_encode(array(
-            'user_id' => (int) $user->id,
-            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
-            'content_type' => $_SERVER['CONTENT_TYPE'] ?? '',
-            'json_keys' => array_keys($postData),
-            'fk_project' => $fk_project,
-            'fk_task' => $fk_task,
-            'project_label' => $projectLabel,
-            'note_length' => mb_strlen(trim((string) $note)),
-        )), LOG_INFO);
+        // Same admin-only debug gate as timeflowFetchWeeklyTimesheet(): this
+        // request-shape trace is not needed on every call in production.
+        if (!empty($user->admin) && GETPOST('debug', 'int')) {
+            dol_syslog('timeflow.startTimer received '.json_encode(array(
+                'user_id' => (int) $user->id,
+                'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+                'content_type' => $_SERVER['CONTENT_TYPE'] ?? '',
+                'json_keys' => array_keys($postData),
+                'fk_project' => $fk_project,
+                'fk_task' => $fk_task,
+                'project_label' => $projectLabel,
+                'note_length' => mb_strlen(trim((string) $note)),
+            )), LOG_INFO);
+        }
 
         // Validation métier : une description (3 caractères minimum) est obligatoire.
         // Le démarrage sans projet est autorisé (cas où aucun projet n'est disponible),
@@ -2281,8 +2285,11 @@ switch ($action) {
     case 'getWeeklyTimesheet':
         $weekStart = $postData['weekStart'] ?? GETPOST('weekStart', 'alphanohtml');
         $timesheet = timeflowFetchWeeklyTimesheet($timeentry, $user, $weekStart);
-            // Log whether the caller is allowed to read all entries (diagnostic)
+        // Same admin-only debug gate as timeflowFetchWeeklyTimesheet()'s own
+        // instrumentation: not needed on every call in production.
+        if (!empty($user->admin) && GETPOST('debug', 'int')) {
             dol_syslog('timeflow.getWeeklyTimesheet user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' weekStart='.(string)$weekStart, LOG_DEBUG);
+        }
         timeflowJsonResponse(array('status' => 'success', 'data' => $timesheet));
         break;
 
@@ -2319,8 +2326,11 @@ switch ($action) {
             $filters[] = '(t.status:=:'.TimeEntry::STATUS_VALIDATED.')';
         }
         $filter = implode(' AND ', $filters);
-        // Diagnostic log: record whether summary is being computed for team or single user
-        dol_syslog('timeflow.getSummaryReports user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' dateFrom='.(string)$dateFrom.' dateTo='.(string)$dateTo, LOG_DEBUG);
+        // Same admin-only debug gate as timeflowFetchWeeklyTimesheet()'s own
+        // instrumentation: not needed on every call in production.
+        if (!empty($user->admin) && GETPOST('debug', 'int')) {
+            dol_syslog('timeflow.getSummaryReports user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' dateFrom='.(string)$dateFrom.' dateTo='.(string)$dateTo, LOG_DEBUG);
+        }
         $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
         $rows = array();
         if (is_array($result)) {
