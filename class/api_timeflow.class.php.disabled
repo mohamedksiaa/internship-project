@@ -1,6 +1,40 @@
 <?php
 /* Copyright (C) 2026 SuperAdmin - TimeFlow Module API */
 
+/*
+ * DISABLED — this file is intentionally named api_timeflow.class.php.disabled
+ * rather than api_timeflow.class.php, so it no longer matches the
+ * api_*.class.php glob Dolibarr's Restler-based REST API layer scans to
+ * auto-discover API classes.
+ *
+ * Why: core/modules/modTimeFlow.class.php declares module_parts['api'] => 0
+ * (this module does not opt into the API feature), yet the 6 endpoints
+ * below (getActiveTimer, startTimer, stopTimer, validateEntry, rejectEntry,
+ * index — GET/POST /timeentrys/...) were confirmed reachable over HTTP
+ * regardless, and visible in Swagger: Dolibarr's API auto-discovery scans
+ * every module's class/api_*.class.php file by naming convention alone,
+ * independent of that flag. That left an undocumented, untested REST
+ * surface exposed to any authenticated (Dolibarr API key) caller, on
+ * endpoints the bundled React frontend never uses itself (it talks
+ * exclusively to ajax/timeentry.php) — an unused, unreviewed attack
+ * surface rather than a deliberate, documented integration point.
+ *
+ * The code below is otherwise complete and was verified correct in an
+ * audit pass (startTimer()'s project-access check, stopTimer()'s ownership
+ * check and 409 handling, validateEntry()/rejectEntry()'s 'validate' right
+ * check, index()'s readall-scoped filter, _cleanObjectDatas()'s field
+ * whitelist) — kept intact rather than deleted so it can be re-enabled
+ * easily if an external integration needs this API one day.
+ *
+ * TO RE-ENABLE: rename this file back to api_timeflow.class.php (drop the
+ * .disabled suffix — e.g. `git mv class/api_timeflow.class.php.disabled
+ * class/api_timeflow.class.php`), remove this comment block, and decide
+ * deliberately whether module_parts['api'] in modTimeFlow.class.php should
+ * also be turned on (it does not gate discovery in practice, as this
+ * comment explains, but leaving it at 0 while the endpoints are live is
+ * itself misleading and worth fixing at the same time).
+ */
+
 use Luracast\Restler\RestException;
 
 require_once DOL_DOCUMENT_ROOT.'/api/class/api.class.php';
