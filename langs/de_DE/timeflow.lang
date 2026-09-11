@@ -61,3 +61,4 @@ TimeEntry = Zeiteintrag
 TimeEntrys = Zeiteinträge
 ShowTimeEntry = Zeiteintrag anzeigen
 DeleteTimeEntry = Zeiteintrag löschen
+TimeFlowExtrafieldsDisabled = Diese Seite ist deaktiviert: TimeEntry verwaltet keine benutzerdefinierten Felder (isextrafieldmanaged ist deaktiviert), daher würde ein hier definiertes Feld niemals auf einem Zeiteintrag erscheinen und sein Wert würde nie gespeichert.
