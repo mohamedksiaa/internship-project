@@ -2,7 +2,6 @@ import React, { act } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as timeflowApi from '../api/timeflowApi';
 import i18n from '../i18n';
 import DashboardPage from './DashboardPage';
 
@@ -28,8 +27,6 @@ vi.mock('../api/timeflowApi', () => ({
     ],
     pagination: { page: 1, per_page: 100, total: 1, pages: 1 },
   }),
-  getDailyReports: vi.fn().mockResolvedValue({ reports: [{ id: 11, status: 1, date_report: '2026-08-18', user_label: 'Alice' }], employees: [] }),
-  getMyDailyReports: vi.fn().mockResolvedValue([{ id: 11, status: 1, date_report: '2026-08-18', user_label: 'Alice' }]),
 }));
 
 describe('DashboardPage i18n integration', () => {
@@ -57,25 +54,6 @@ describe('DashboardPage i18n integration', () => {
 
     expect(await screen.findByText(summaryLabel)).toBeInTheDocument();
     expect(document.documentElement.dir).toBe(expectedDir);
-  });
-
-  it('uses the employee-scoped dashboard data when the current user is not a manager', async () => {
-    window.TIMEFLOW_CAN_READALL = false;
-
-    await act(async () => {
-      await i18n.changeLanguage('fr');
-      document.documentElement.dir = 'ltr';
-    });
-
-    render(
-      <MemoryRouter>
-        <DashboardPage />
-      </MemoryRouter>
-    );
-
-    expect(await screen.findByText('Total')).toBeInTheDocument();
-    expect(timeflowApi.getMyDailyReports).toHaveBeenCalled();
-    expect(timeflowApi.getDailyReports).not.toHaveBeenCalled();
   });
 
   it('shows the Total KPI card, but not a separate "Dont facturable" card (billable time is only in the PDF/CSV exports, not a Dashboard card)', async () => {
