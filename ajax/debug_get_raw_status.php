@@ -49,5 +49,3 @@ foreach ($refs as $ref) {
 }
 
 echo json_encode($out, JSON_PRETTY_PRINT) . "\n";
-
-?>
