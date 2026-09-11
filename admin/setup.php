@@ -250,10 +250,10 @@ if ($action == 'updateMask') {
 		$constforval = 'TIMEFLOW_'.strtoupper($tmpobjectkey)."_ADDON";
 		dolibarr_set_const($db, $constforval, $value, 'chaine', 0, '', $conf->entity);
 	}
-} elseif ($action == 'set') {
+} elseif ($action == 'set' && !empty($tmpobjectkey)) {
 	// Activate a model
 	$ret = addDocumentModel($value, $type, $label, $scandir);
-} elseif ($action == 'del') {
+} elseif ($action == 'del' && !empty($tmpobjectkey)) {
 	$ret = delDocumentModel($value, $type);
 	if ($ret > 0) {
 		if (!empty($tmpobjectkey)) {
