@@ -15,30 +15,17 @@ ModuleTimeFlowDesc = Beschreibung von TimeFlow
 TimeFlowSetup = TimeFlow-Einstellungen
 Settings = Einstellungen
 TimeFlowSetupPage = TimeFlow-Einstellungsseite
-NewSection=Neuer Abschnitt
-TIMEFLOW_MYPARAM1 = Mein Parameter 1
-TIMEFLOW_MYPARAM1Tooltip = Tooltip für meinen Parameter 1
-TIMEFLOW_MYPARAM2=Mein Parameter 2
-TIMEFLOW_MYPARAM2Tooltip=Tooltip für meinen Parameter 2
 
 #
 # About page
 #
 About = Über uns
 TimeFlowAbout = Über TimeFlow
-TimeFlowAboutPage = Seite „Über TimeFlow“
 
 #
 # Sample page
 #
 TimeFlowArea = Startseite TimeFlow
-MyPageName = Name meiner Seite
-
-#
-# Sample widget
-#
-MyWidget = Mein Widget
-MyWidgetDescription = Beschreibung meines Widgets
 
 TIMEFLOW_WEEKLY_WORK_HOURS = Wöchentliche Arbeitsstunden
 TIMEFLOW_WEEKLY_WORK_HOURS_TOOLTIP = Standardanzahl der pro Woche erwarteten Arbeitsstunden.
@@ -69,18 +56,8 @@ Status = Status
 SubmittedBy = Eingereicht von
 ValidatedBy = Validiert von
 Draft = Entwurf
-Submitted = Eingereicht
-Validated = Validiert
 Refused = Abgelehnt
 TimeEntry = Zeiteintrag
 TimeEntrys = Zeiteinträge
-Edit = Bearbeiten
-Reason = Grund
-ReasonForEdit = Grund für die Änderung
-OriginalValue = Ursprünglicher Wert
-NewValue = Neuer Wert
-ModificationDate = Änderungsdatum
-ModifiedBy = Geändert von
-ProjectModeInternal = Interne Projekte
-ProjectModeDolibarr = Nur Dolibarr-Projekte
-ProjectModeBoth = Beide Modi
+ShowTimeEntry = Zeiteintrag anzeigen
+DeleteTimeEntry = Zeiteintrag löschen
