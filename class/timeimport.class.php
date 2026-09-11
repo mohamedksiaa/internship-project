@@ -327,7 +327,6 @@ class TimeImportClockify
             return array(
                 'source' => $this->sourceSystem,
                 'delimiter' => ',',
-                'encoding' => 'UTF-8',
                 'columns' => array(
                     'project' => 'Projet',
                     'client' => 'Client',
