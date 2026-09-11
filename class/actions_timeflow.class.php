@@ -252,10 +252,14 @@ class ActionsTimeFlow extends CommonHookActions
 	
 	public function addMoreActionsButtons($parameters, &$object, &$action, $hookmanager)
 	{
-		if ($parameters['currentcontext'] == 'projectcard') {
-			global $langs;
-			$this->resprints = '<a class="butAction" href="'.dol_buildpath('/timeflow/ajax/timer.php', 1).'?action=start&fk_project='.$object->id.'">Démarrer le chrono</a>';
-		}
+		// Removed: this used to link to ajax/timer.php?action=start, which
+		// does not exist — the real timer endpoint (ajax/timeentry.php,
+		// action startTimer) requires a POST with a JSON body, a CSRF token,
+		// and a non-empty note (3 chars min business rule), none of which a
+		// plain <a href> GET link can provide. Properly wiring a "Start
+		// timer" button here needs real JS (a note prompt + authenticated
+		// fetch()), not a mechanical link fix — left unimplemented rather
+		// than shipping another dead link.
 		return 0;
 	}
 
@@ -400,14 +404,13 @@ class ActionsTimeFlow extends CommonHookActions
 	 */
 	public function showLinkToObjectBlock($parameters, &$object, &$action, $hookmanager)
 	{
-		$myobject = new MyObject($object->db);
-		$this->results = array('myobject@timeflow' => array(
-			'enabled' => isModEnabled('timeflow'),
-			'perms' => 1,
-			'label' => 'LinkToMyObject',
-			'sql' => "SELECT t.rowid, t.ref, t.ref as 'name' FROM " . $this->db->prefix() . $myobject->table_element. " as t "),);
-
-		return 1;
+		// Never adapted from the ModuleBuilder template: MyObject does not
+		// exist in this module (TimeEntry is the real business object), and
+		// even TimeEntry has no real 'ref' column the SQL below could select
+		// (see the PHP-only fallback in TimeEntry::create()/fetch()) — so
+		// there is no safe substitution to make without redesigning what
+		// this hook should actually link. Neutralized rather than guessed.
+		return 0;
 	}
 	/* Add other hook methods here... */
 }

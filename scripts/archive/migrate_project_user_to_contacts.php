@@ -101,7 +101,7 @@ if (substr($sapi_type, 0, 3) == 'cgi') {
 	exit(1);
 }
 
-require_once $path.'../../../master.inc.php';
+require_once $path.'../../../../master.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 

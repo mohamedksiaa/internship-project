@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function Card({ headerLabel, title, headerRight = null, children, className='', variant = 'default', size = 'compact', titleSize = 'lg' }) {
   const bgClass = variant === 'muted' ? 'tw-bg-slate-50 dark:tw-bg-slate-800/60' : 'tw-bg-white dark:tw-bg-slate-900';
   const sizeClasses = size === 'section' ? 'tw-rounded-3xl tw-p-6' : 'tw-rounded-lg tw-p-6';

@@ -28,7 +28,7 @@
  *
  * PREREQUISITES (run manually first, this script does not create schema):
  *   mysql ... < sql/migrate_project_extrafields.sql
- *   mysql ... < sql/migrate_timeflow_migration_map.sql
+ *   mysql ... < scripts/archive/sql/migrate_timeflow_migration_map.sql
  *
  * SAFE BY DEFAULT: runs in dry-run mode unless --execute is passed. Dry-run
  * performs the exact same lookups/decisions and prints them, but never
@@ -80,7 +80,7 @@ if (substr($sapi_type, 0, 3) == 'cgi') {
 	exit(1);
 }
 
-require_once $path.'../../../master.inc.php';
+require_once $path.'../../../../master.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 
@@ -110,7 +110,7 @@ foreach ($requiredTables as $table) {
 	$resql = @$db->query('SELECT 1 FROM '.$table.' LIMIT 1');
 	if (!$resql) {
 		echo "ERROR: table ".$table." does not exist yet.\n";
-		echo "Run: mysql ... < sql/migrate_timeflow_migration_map.sql\n";
+		echo "Run: mysql ... < scripts/archive/sql/migrate_timeflow_migration_map.sql\n";
 		exit(1);
 	}
 }
