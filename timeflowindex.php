@@ -182,7 +182,7 @@ print 'window.TIMEFLOW_AJAX_URL = '.json_encode(dol_buildpath('/custom/timeflow/
 print 'window.TIMEFLOW_USER_ID = '.json_encode((int) $user->id).';';
 $canReadAllFlag = (bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'readall'));
 print 'window.TIMEFLOW_CAN_READALL = '.json_encode($canReadAllFlag).';';
-print 'window.TIMEFLOW_CAN_VALIDATE = '.json_encode((bool) ($user->admin || !empty($user->rights->timeflow->valider) || $user->hasRight('timeflow', 'valider') || $user->hasRight('timeflow', 'timeentry', 'validate'))).';';
+print 'window.TIMEFLOW_CAN_VALIDATE = '.json_encode((bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'validate'))).';';
 // Same gate as every project write/delete action in ajax/timeentry.php
 // (createTimeFlowProject/updateTimeFlowProject/deleteTimeFlowProject) — lets
 // the UI hide controls a request would be refused for anyway. The backend
