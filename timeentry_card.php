@@ -153,8 +153,6 @@ $permissiontodelete = $user->hasRight('timeflow', 'timeentry', 'delete') || ($pe
 $permissionnote = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_setnotes.inc.php
 $permissiondellink = $user->hasRight('timeflow', 'timeentry', 'write'); // Used by the include of actions_dellink.inc.php
 
-$permissiontovalidate = $user->hasRight('timeflow', 'timeentry', 'validate') || !empty($user->admin);
-
 $upload_dir = $conf->timeflow->multidir_output[isset($object->entity) ? $object->entity : 1].'/timeentry';
 
 // Security check (enable at least one, the most restrictive one)
@@ -206,7 +204,22 @@ if (empty($reshook)) {
 
 	$triggermodname = $object->TRIGGER_PREFIX.'_MODIFY'; // Name of trigger action code to execute when we modify record. Used in actions_addupdatedelete.inc.php
 
-	// Actions cancel, add, update, update_extras, confirm_validate, confirm_delete, confirm_deleteline, confirm_clone, confirm_close, confirm_setdraft, confirm_reopen
+	// TimeEntry has no validate()/setDraft()/createFromClone()/deleteLine()
+	// methods (removed as dead ModuleBuilder scaffold, see
+	// class/timeentry.class.php) — core/actions_addupdatedelete.inc.php
+	// below calls exactly these for the confirm_validate/confirm_setdraft/
+	// (confirm_)clone/(confirm_)deleteline actions respectively, which
+	// would fatal ("Call to undefined method"). Blocked here, server-side,
+	// before that include ever runs — not just by removing the buttons
+	// that used to generate these action values (done below), since the
+	// URL itself is forgeable by hand regardless of which buttons exist.
+	$timeflowUnsupportedActions = array('confirm_validate', 'confirm_setdraft', 'clone', 'confirm_clone', 'deleteline', 'confirm_deleteline');
+	if (in_array($action, $timeflowUnsupportedActions, true)) {
+		setEventMessages('Cette action n’est plus disponible.', null, 'errors');
+		$action = 'view';
+	}
+
+	// Actions cancel, add, update, update_extras, confirm_delete
 	include DOL_DOCUMENT_ROOT.'/core/actions_addupdatedelete.inc.php';
 
 	// Actions when linking object each other
@@ -361,17 +374,11 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 	if ($action == 'delete' || ($conf->use_javascript_ajax && empty($conf->dol_use_jmobile))) {
 		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('DeleteTimeEntry'), $langs->trans('ConfirmDeleteObject'), 'confirm_delete', '', 0, 'action-delete');
 	}
-	// Confirmation to delete line
-	if ($action == 'deleteline') {
-		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id.'&lineid='.$lineid, $langs->trans('DeleteLine'), $langs->trans('ConfirmDeleteLine'), 'confirm_deleteline', '', 0, 1);
-	}
-
-	// Clone confirmation
-	if ($action == 'clone') {
-		// Create an array for form
-		$formquestion = array();
-		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$object->id, $langs->trans('ToClone'), $langs->trans('ConfirmCloneAsk', $object->ref), 'confirm_clone', $formquestion, 'yes', 1);
-	}
+	// "Confirmation to delete line" and "Clone confirmation" blocks
+	// removed: $action is now forced back to 'view' before reaching this
+	// point for 'deleteline'/'clone' (see the guard above
+	// actions_addupdatedelete.inc.php) — deleteLine()/createFromClone()
+	// do not exist on TimeEntry, so these can never legitimately apply.
 
 	// Confirmation of action xxxx (You can use it for xxx = 'close', xxx = 'reopen', ...)
 	// if ($action == 'xxx') {
@@ -490,26 +497,17 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 				print dolGetButtonAction('', $langs->trans('SendMail'), 'email', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=presend&token='.newToken().'&mode=init#formmailbeforetitle');
 			}
 
-			// Back to draft
-			if ($object->status == $object::STATUS_VALIDATED) {
-				print dolGetButtonAction('', $langs->trans('SetToDraft'), 'default', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=confirm_setdraft&confirm=yes&token='.newToken(), '', $permissiontoadd);
-			}
-
 			// Modify
 			print dolGetButtonAction('', $langs->trans('Modify'), 'default', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=edit&token='.newToken(), '', $permissiontoadd);
 
-			// Validate
-			if ($object->status == $object::STATUS_DRAFT && $permissiontovalidate) {
-				// TimeEntry has no line subtable (no table_element_line — see
-				// class/timeentry.class.php), so the "add at least one line
-				// first" guard ModuleBuilder generates here never applied.
-				print dolGetButtonAction('', $langs->trans('Validate'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&action=confirm_validate&confirm=yes&token='.newToken(), '', 1);
-			}
-
-			// Clone
-			if ($permissiontoadd) {
-				print dolGetButtonAction('', $langs->trans('ToClone'), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.(!empty($object->socid) ? '&socid='.$object->socid : '').'&action=clone&token='.newToken(), '', $permissiontoadd);
-			}
+			// "Back to draft" (confirm_setdraft -> setDraft()), "Validate"
+			// (confirm_validate -> validate()) and "Clone" (clone ->
+			// createFromClone()) buttons removed: TimeEntry has none of
+			// these three methods (removed as dead ModuleBuilder scaffold,
+			// see class/timeentry.class.php) — clicking any of them would
+			// fatal. The real validate/reject workflow is
+			// TimeEntry::submitEntry()/validateEntry(), used by the React
+			// frontend via ajax/timeentry.php, not this native card.
 
 			/*
 			// Disable / Enable
