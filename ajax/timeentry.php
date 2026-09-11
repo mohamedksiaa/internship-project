@@ -25,7 +25,6 @@ dol_include_once('/timeflow/class/timeimport.class.php');
 dol_include_once('/timeflow/lib/timeflow.lib.php');
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
-require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/cleadstatus.class.php';
 
 top_httphead('application/json');
@@ -2063,17 +2062,6 @@ switch ($action) {
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTasks($db, $projectId, $limit)));
         break;
 
-    case 'getUpdateMarker':
-        $scope = $postData['scope'] ?? GETPOST('scope', 'aZ09');
-        $scope = $scope === 'validation' ? 'validation' : 'entries';
-        if ($scope === 'validation' && !timeflowCanValidate($user)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => array(
-            'marker' => timeflowGetUpdateMarker($db, $user, $scope),
-        )));
-        break;
-
     // The polling endpoint returns the full current view only when its marker
     // changed. This includes changed existing rows as well as new/deleted rows.
     case 'getTimeEntryUpdates':
@@ -2385,19 +2373,6 @@ switch ($action) {
         )));
         break;
 
-    case 'markDailyReportRead':
-        if (!timeflowCanValidate($user)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET read_at = \''.$db->idate(dol_now()).'\',';
-        $sql .= ' fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity).' AND date_delete IS NULL';
-        if (!$db->query($sql)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de marquer le rapport comme lu.'), 500);
-        }
-        timeflowJsonResponse(array('status' => 'success'));
-        break;
-
     case 'validateDailyReport':
         if (!timeflowCanValidate($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
@@ -2482,160 +2457,6 @@ switch ($action) {
         timeflowJsonResponse(array('status' => 'success', 'data' => $summaryData));
         break;
 
-    case 'generateInvoiceLines':
-        $clientId = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        $filter = timeflowCanReadAllTimeEntries($user) ? '' : '(t.fk_user:=:'.((int) $user->id).')';
-        $result = $timeentry->fetchAll('DESC', 't.date_start', 1000, 0, $filter);
-        $lines = array();
-        if (is_array($result)) {
-            foreach ($result as $obj) {
-                if ((int) $obj->billable <= 0 || (int) $obj->duration <= 0 || !empty($obj->fk_facture)) {
-                    continue;
-                }
-                if ($clientId > 0) {
-                    $sql = 'SELECT fk_soc FROM '.$db->prefix().'projet';
-                    $sql .= ' WHERE rowid = '.(int) $obj->fk_project;
-                    $resql = $db->query($sql);
-                    if ($resql && $proj = $db->fetch_object($resql)) {
-                        if ((int) $proj->fk_soc !== (int) $clientId) {
-                            continue;
-                        }
-                    }
-                }
-                $lines[] = array(
-                    'id' => (int) $obj->id,
-                    'description' => trim(($obj->note ?: 'Time entry').(!empty($obj->tags) ? ' ['.$obj->tags.']' : '')),
-                    'qty_hours' => round(((int) $obj->duration) / 3600, 2),
-                    'thm' => (float) $obj->thm,
-                    'amount' => (float) $obj->amount,
-                    'fk_project' => (int) $obj->fk_project,
-                    'fk_task' => (int) $obj->fk_task,
-                    'date_start' => $obj->date_start,
-                    'date_end' => $obj->date_end,
-                );
-            }
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => $lines));
-        break;
-
-    case 'createInvoiceFromTimeEntries':
-        // Actually creates a draft Dolibarr customer invoice from selected billable,
-        // not-yet-invoiced time entries, and marks those entries as invoiced so
-        // they cannot be pulled into a second invoice.
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Droits insuffisants'), 403);
-        }
-
-        $clientId = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        $entryIds = !empty($postData['entry_ids']) && is_array($postData['entry_ids']) ? array_map('intval', $postData['entry_ids']) : array();
-
-        if ($clientId <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Client requis'), 400);
-        }
-        if (empty($entryIds)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucune saisie sélectionnée'), 400);
-        }
-
-        require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
-        $thirdparty = new Societe($db);
-        if ($thirdparty->fetch($clientId) <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Client introuvable'), 404);
-        }
-
-        // Reload full entries and keep only ones that are actually billable and not already invoiced.
-        $entriesToInvoice = array();
-        foreach ($entryIds as $entryId) {
-            $candidate = new TimeEntry($db);
-            if ($candidate->fetch($entryId) <= 0) {
-                continue;
-            }
-            if ((int) $candidate->billable <= 0 || (int) $candidate->duration <= 0 || !empty($candidate->fk_facture)) {
-                continue;
-            }
-            if (!timeflowCanReadAllTimeEntries($user) && (int) $candidate->fk_user !== (int) $user->id) {
-                continue;
-            }
-            $entriesToInvoice[] = $candidate;
-        }
-
-        if (empty($entriesToInvoice)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucune saisie facturable trouvée pour cette sélection'), 400);
-        }
-
-        $db->begin();
-
-        $invoice = new Facture($db);
-        $invoice->socid = $clientId;
-        $invoice->type = Facture::TYPE_STANDARD;
-        $invoice->date = dol_now();
-
-        $invoiceId = $invoice->create($user);
-        if ($invoiceId <= 0) {
-            $db->rollback();
-            timeflowJsonResponse(array('status' => 'error', 'message' => $invoice->error ?: 'Erreur à la création de la facture'), 500);
-        }
-
-        $hasError = false;
-        foreach ($entriesToInvoice as $entry) {
-            $qtyHours = round(((int) $entry->duration) / 3600, 2);
-            $unitPrice = (float) $entry->thm;
-            $description = trim(($entry->note ?: 'Time entry').(!empty($entry->tags) ? ' ['.$entry->tags.']' : ''));
-
-            $lineId = $invoice->addline(
-                $description,
-                $unitPrice,
-                $qtyHours,
-                0,          // txtva: VAT rate left at 0 here — MUST be set to the correct rate for the client/product before validating the invoice, see note below
-                0,          // txlocaltax1
-                0,          // txlocaltax2
-                0,          // fk_product
-                0,          // remise_percent
-                '',         // date_start
-                '',         // date_end
-                0,          // ventil (fk_code_ventilation)
-                0,          // info_bits
-                0,          // fk_remise_except
-                'HT',       // price_base_type
-                0,          // pu_ttc
-                1,          // product_type: 0=product, 1=service (time entries are services)
-                -1          // rang
-            );
-
-            if ($lineId <= 0) {
-                $hasError = true;
-                break;
-            }
-        }
-
-        if ($hasError) {
-            $db->rollback();
-            timeflowJsonResponse(array('status' => 'error', 'message' => $invoice->error ?: 'Erreur à l\'ajout d\'une ligne de facture'), 500);
-        }
-
-        // Mark every invoiced entry so it cannot be picked up by a future invoice run.
-        foreach ($entriesToInvoice as $entry) {
-            $entry->fk_facture = $invoiceId;
-            $entry->date_invoice = dol_now();
-            if ($entry->update($user) <= 0) {
-                $hasError = true;
-                break;
-            }
-        }
-
-        if ($hasError) {
-            $db->rollback();
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Facture créée mais échec du marquage des saisies comme facturées'), 500);
-        }
-
-        $db->commit();
-
-        timeflowJsonResponse(array('status' => 'success', 'data' => array(
-            'fk_facture' => $invoiceId,
-            'ref' => $invoice->ref,
-            'nb_lines' => count($entriesToInvoice),
-        )));
-        break;
-
     case 'validateEntry':
     case 'approveTimeEntry':
         if (!timeflowCanValidate($user)) {
@@ -2647,36 +2468,6 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
         }
         timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à la validation'), 400);
-        break;
-
-    case 'submitWeeklyApproval':
-        if (!timeflowCanValidate($user)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $ids = $postData['ids'] ?? GETPOST('ids', 'array:int');
-        $ids = is_array($ids) ? $ids : array();
-        $updated = array();
-        foreach ($ids as $id) {
-            // An entry whose timer is still running (date_end NULL) has nothing
-            // finished to validate yet: skip it rather than approving a time that
-            // does not exist. The caller sees it missing from $updated, same as
-            // any other entry that failed to fetch.
-            if ($timeentry->fetch((int) $id) > 0 && !empty($timeentry->date_end)) {
-                $timeentry->status = TimeEntry::STATUS_VALIDATED;
-                $timeentry->date_submit = dol_now();
-                $timeentry->fk_user_submit = $user->id;
-                // fk_user_valid must be set here just like in validateEntry(): it is
-                // the permanent marker TimeEntry::delete() relies on to know a manager
-                // has decided on this entry. Leaving it null would let a future
-                // status regression wrongly make an already-approved entry eligible
-                // for physical deletion again.
-                $timeentry->fk_user_valid = $user->id;
-                if ($timeentry->update($user) > 0) {
-                    $updated[] = timeflowExportTimeEntry($timeentry);
-                }
-            }
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => $updated));
         break;
 
     case 'rejectEntry':
@@ -2692,7 +2483,6 @@ switch ($action) {
         timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur au refus'), 400);
         break;
 
-    case 'updateEntry':
     case 'correctTimeEntry':
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
         $reason = trim((string) ($postData['reason'] ?? GETPOST('reason', 'restricthtml')));
