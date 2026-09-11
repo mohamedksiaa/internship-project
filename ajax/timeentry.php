@@ -2047,12 +2047,16 @@ switch ($action) {
         break;
 
     case 'getProcessedHistory':
-        $input = $postData ?: $_REQUEST;
+        // $postData is always an array (parsed JSON body, defaulting to
+        // empty — see top of file), so it is used directly: no fallback to
+        // the raw $_REQUEST superglobal, which would bypass GETPOST-level
+        // validation entirely.
+        $input = $postData;
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($input, $user)));
         break;
 
     case 'exportProcessedHistory':
-        $input = $postData ?: $_REQUEST; $input['page'] = 1; $input['per_page'] = 10000; $input['export'] = true;
+        $input = $postData; $input['page'] = 1; $input['per_page'] = 10000; $input['export'] = true;
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($input, $user)));
         break;
 
@@ -2268,12 +2272,13 @@ switch ($action) {
         break;
 
     case 'getMyDailyReports':
-        $input = is_array($postData) ? $postData : $_REQUEST;
+        // $postData is always an array — see the getProcessedHistory case above.
+        $input = $postData;
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchDailyReports($input, false, (int) $user->id)));
         break;
 
     case 'getDailyReports':
-        $input = is_array($postData) ? $postData : $_REQUEST;
+        $input = $postData;
         $canReadAll = timeflowCanValidate($user) || timeflowCanReadAllTimeEntries($user);
         $result = timeflowFetchDailyReports($input, $canReadAll, $canReadAll ? 0 : (int) $user->id);
         $includeDeleted = $canReadAll && !empty($input['history']) && !empty($input['include_deleted']);
