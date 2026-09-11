@@ -182,11 +182,11 @@ print 'window.TIMEFLOW_AJAX_URL = '.json_encode(dol_buildpath('/custom/timeflow/
 print 'window.TIMEFLOW_USER_ID = '.json_encode((int) $user->id).';';
 $canReadAllFlag = (bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'readall'));
 print 'window.TIMEFLOW_CAN_READALL = '.json_encode($canReadAllFlag).';';
-print 'window.TIMEFLOW_CAN_VALIDATE = '.json_encode((bool) ($user->admin || !empty($user->rights->timeflow->valider) || $user->hasRight('timeflow', 'valider') || $user->hasRight('timeflow', 'timeentry', 'validate'))).';';
-// Same gate as every project write/delete action in ajax/timeentry.php
-// (createTimeFlowProject/updateTimeFlowProject/deleteTimeFlowProject) — lets
-// the UI hide controls a request would be refused for anyway. The backend
-// re-checks this on every call; this flag is a UI convenience only.
+print 'window.TIMEFLOW_CAN_VALIDATE = '.json_encode((bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'validate'))).';';
+// Same gate as every write action in ajax/timeentry.php that requires the
+// 'write' right (e.g. createManualEntry, the Clockify import endpoints) —
+// lets the UI hide controls a request would be refused for anyway. The
+// backend re-checks this on every call; this flag is a UI convenience only.
 print 'window.TIMEFLOW_CAN_WRITE = '.json_encode((bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'write'))).';';
 
 // Dolibarr's dark mode setting (admin/ihm.php "Dark theme mode") is applied

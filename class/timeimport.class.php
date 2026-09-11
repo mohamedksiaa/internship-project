@@ -73,11 +73,28 @@ class TimeImportClockify
     /**
      * Parse a CSV file path and return the import preview summary.
      *
+     * Protected: the only caller is previewFromUploadedFile(), which is
+     * where the upload is validated (is_uploaded_file(), extension, size)
+     * before the path reaches here — this method itself only checks
+     * is_readable(), never a directory allow-list.
+     *
      * @param string $csvPath
      * @return array
      */
-    public function previewFromCsvPath($csvPath)
+    protected function previewFromCsvPath($csvPath)
     {
+        // Same rationale as executeImportFromCsvPath(): resolving user/project/
+        // client/group mappings does several SQL round-trips per CSV row
+        // (lookup, then insert if unresolved) across resolveUserMapping()/
+        // resolveProjectMapping()/resolveClientMapping()/resolveGroupMapping();
+        // on a several-hundred-row export this reliably exceeds PHP's default
+        // 30s max_execution_time and dies mid-run with a fatal error. Nothing
+        // here writes to any table except llx_timeflow_import_mapping/
+        // *_link, so a timeout is never data-unsafe — but it shouldn't happen
+        // on a single normal-sized preview. Raise it for this request only,
+        // regardless of what the server's php.ini otherwise allows.
+        set_time_limit(300);
+
         if (!is_readable($csvPath)) {
             throw new RuntimeException('Le fichier CSV ne peut pas être lu.');
         }
@@ -310,7 +327,6 @@ class TimeImportClockify
             return array(
                 'source' => $this->sourceSystem,
                 'delimiter' => ',',
-                'encoding' => 'UTF-8',
                 'columns' => array(
                     'project' => 'Projet',
                     'client' => 'Client',
@@ -1918,6 +1934,11 @@ class TimeImportClockify
      * into a time entry, is recorded in the report and processing
      * continues — see $report['errors'] and $report['unresolved_rows'].
      *
+     * Protected: the only caller is executeImportFromUploadedFile(), which
+     * is where the upload is validated (is_uploaded_file(), extension,
+     * size) before the path reaches here — this method itself only checks
+     * is_readable(), never a directory allow-list.
+     *
      * @return array{
      *   clients_created: array, projects_created: array, groups_created: array,
      *   group_memberships_created: int, group_memberships_skipped: int,
@@ -1930,7 +1951,7 @@ class TimeImportClockify
      *   unresolved_rows: array, errors: array
      * }
      */
-    public function executeImportFromCsvPath($csvPath, User $user)
+    protected function executeImportFromCsvPath($csvPath, User $user)
     {
         // A full run does several SQL round-trips per CSV row (mapping
         // lookups, overlap check, create) across every pipeline step below;

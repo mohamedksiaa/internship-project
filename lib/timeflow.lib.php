@@ -104,15 +104,6 @@ function timeflowAdminPrepareHead()
  * @param int $entryId
  * @return array{modified:bool,reason:string,modified_at:string,modified_by:int,source:string}
  */
-function timeflowIsManuallyModifiedRecord($dateCreation, $dateLastContentEdit)
-{
-    if (empty($dateCreation) || empty($dateLastContentEdit)) {
-        return false;
-    }
-
-    return (string) $dateLastContentEdit !== (string) $dateCreation;
-}
-
 function timeflowGetManualEditStatus($db, $entryId)
 {
     $entryId = (int) $entryId;
@@ -222,4 +213,55 @@ function timeflowManualEditedSqlPredicate($db, $tableAlias = 't')
     }
 
     return '('.implode(' OR ', $parts).')';
+}
+
+/**
+ * A manager may receive this dedicated permission without becoming a Dolibarr
+ * administrator. Every non-validation list must use this server-side scope.
+ *
+ * Shared between ajax/timeentry.php and class/api_timeflow.class.php — moved
+ * here so both entry points use one definition instead of two copies that
+ * could drift apart.
+ */
+function timeflowCanReadAllTimeEntries($user)
+{
+    return !empty($user->admin) || $user->hasRight('timeflow', 'timeentry', 'readall');
+}
+
+/**
+ * Whether $user may use $fkProject on a time entry. A project with no
+ * internal PROJECTCONTRIBUTOR contact is open to everyone (default,
+ * preserves current behavior for every project that predates this
+ * feature); once at least one user is assigned via the native project
+ * contact mechanism (llx_element_contact/llx_c_type_contact), only admins,
+ * users with the readall right, and assigned users may use it.
+ *
+ * Shared between ajax/timeentry.php and class/api_timeflow.class.php — moved
+ * here so both entry points enforce the same project-access restriction
+ * instead of the REST API silently skipping it.
+ */
+function timeflowCanAccessProject($db, $user, $fkProject)
+{
+    if (!empty($user->admin) || timeflowCanReadAllTimeEntries($user)) {
+        return true;
+    }
+
+    $sql = 'SELECT ec.fk_socpeople AS fk_user';
+    $sql .= ' FROM '.$db->prefix().'element_contact AS ec';
+    $sql .= ' INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
+    $sql .= " WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
+    $sql .= ' AND ec.statut = 4';
+    $sql .= ' AND ec.element_id = '.(int) $fkProject;
+    $resql = $db->query($sql);
+    if (!$resql || $db->num_rows($resql) === 0) {
+        // No assignment row at all (or a query error we don't want to turn
+        // into a hard lockout) => unrestricted.
+        return true;
+    }
+    while ($obj = $db->fetch_object($resql)) {
+        if ((int) $obj->fk_user === (int) $user->id) {
+            return true;
+        }
+    }
+    return false;
 }

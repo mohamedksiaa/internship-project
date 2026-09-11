@@ -25,8 +25,6 @@ dol_include_once('/timeflow/class/timeimport.class.php');
 dol_include_once('/timeflow/lib/timeflow.lib.php');
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
-require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
-require_once DOL_DOCUMENT_ROOT.'/core/class/cleadstatus.class.php';
 
 top_httphead('application/json');
 
@@ -74,9 +72,9 @@ function timeflowJsonResponse($payload, $status = 200)
 }
 
 /**
- * Temporary diagnostic trace for startTimer rejections.  It deliberately
- * records only the fields needed to reproduce the validation, never the CSRF
- * token or the whole request body.
+ * startTimer rejection: logs the full validation context server-side only
+ * (never the CSRF token or the whole request body) — the client response
+ * carries just the user-facing reason.
  */
 function timeflowStartTimerRejected($reason, array $context = array())
 {
@@ -84,20 +82,20 @@ function timeflowStartTimerRejected($reason, array $context = array())
         'reason' => $reason,
         'user_id' => (int) $GLOBALS['user']->id,
     ), $context)), LOG_WARNING);
-    // Include the context in the JSON response to aid debugging (temporary).
-    $payload = array('status' => 'error', 'message' => $reason);
-    if (!empty($context)) {
-        $payload['context'] = $context;
-    }
-    timeflowJsonResponse($payload, 400);
+    timeflowJsonResponse(array('status' => 'error', 'message' => $reason), 400);
 }
 
 /**
  * Temporary diagnostic trace for the controlled time-correction flow.
- * Remove once the investigation is complete.
+ * Remove once the investigation is complete. Never sent to the client —
+ * server-side dol_syslog() only — and, like the other debug instrumentation
+ * in this file, gated to admins with ?debug=1 so it stays opt-in in production.
  */
 function timeflowCorrectionTrace($event, array $context = array())
 {
+    if (empty($GLOBALS['user']->admin) || !GETPOST('debug', 'int')) {
+        return;
+    }
     dol_syslog('timeflow.correctTimeEntry '.$event.' '.json_encode($context), LOG_INFO);
 }
 
@@ -173,24 +171,15 @@ function timeflowFormatOverlapMessage(array $overlaps)
 function timeflowCanValidate($user)
 {
     return !empty($user->admin)
-        || $user->hasRight('timeflow', 'valider')
         || $user->hasRight('timeflow', 'timeentry', 'validate');
 }
 
 /**
- * A manager may receive this dedicated permission without becoming a Dolibarr
- * administrator. Every non-validation list must use this server-side scope.
- */
-function timeflowCanReadAllTimeEntries($user)
-{
-    return !empty($user->admin) || $user->hasRight('timeflow', 'timeentry', 'readall');
-}
-
-/**
  * Whether a native project is in Dolibarr's "Closed" status — TimeFlow's
- * equivalent of "deleted" for a project (see timeflowDeleteProject()).
- * A closed project must never accept a new time entry, exactly like a
- * genuinely deleted project no longer could.
+ * equivalent of "deleted" for a project (no UI-triggered action ever issues
+ * a physical DELETE FROM on llx_projet; "Closed" is the non-destructive
+ * substitute). A closed project must never accept a new time entry, exactly
+ * like a genuinely deleted project no longer could.
  */
 function timeflowProjectIsClosed($db, $fkProject)
 {
@@ -198,20 +187,6 @@ function timeflowProjectIsClosed($db, $fkProject)
     $resql = $db->query($sql);
     $obj = $resql ? $db->fetch_object($resql) : null;
     return $obj ? ((int) $obj->fk_statut === Project::STATUS_CLOSED) : false;
-}
-
-/**
- * The validation screen is a manager view. A user who can validate must see
- * the team entries in that view and in the manager's time-tracking view, even
- * when the separate "read all" permission was not assigned.
- *
- * Keep this deliberately separate from timeflowCanReadAllTimeEntries(): the
- * latter is also used by invoice operations, where validation rights alone
- * must not expose all billable entries.
- */
-function timeflowCanViewTeamTimeEntries($user)
-{
-    return timeflowCanReadAllTimeEntries($user) || timeflowCanValidate($user);
 }
 
 /** Employee policy: draft entries from today; yesterday only to correct a missed stop. */
@@ -458,8 +433,8 @@ function timeflowExportTimeEntry($object)
         'date_start',
         'date_end',
         'duration',
-		'occurrence_count',
-		'date_reprise',
+        'occurrence_count',
+        'date_reprise',
         'note',
         'tags',
         'billable',
@@ -959,60 +934,6 @@ function timeflowBuildGlobalCsvRows($db, $user)
 }
 
 /**
- * Whether llx_timeflow_project_user exists yet. The migration that creates
- * it (sql/migrate_timeflow_project_user.sql) is provided but NOT applied
- * automatically — every function that reads this table must check this
- * first and fail OPEN (behave as "unrestricted") when it's false, so
- * shipping this code ahead of the migration never breaks project listing
- * or timer start for anyone. Memoized per-request: cheap, but no need to
- * repeat the existence probe on every call within the same page load.
- */
-function timeflowProjectUserTableExists($db)
-{
-    static $exists = null;
-    if ($exists !== null) {
-        return $exists;
-    }
-    $resql = @$db->query('SELECT 1 FROM '.$db->prefix().'timeflow_project_user LIMIT 1');
-    $exists = (bool) $resql;
-    return $exists;
-}
-
-/**
- * Whether $user may use $fkProject on a time entry. A project with no
- * internal PROJECTCONTRIBUTOR contact is open to everyone (default,
- * preserves current behavior for every project that predates this
- * feature); once at least one user is assigned via the native project
- * contact mechanism (llx_element_contact/llx_c_type_contact), only admins,
- * users with the readall right, and assigned users may use it.
- */
-function timeflowCanAccessProject($db, $user, $fkProject)
-{
-    if (!empty($user->admin) || timeflowCanReadAllTimeEntries($user)) {
-        return true;
-    }
-
-    $sql = 'SELECT ec.fk_socpeople AS fk_user';
-    $sql .= ' FROM '.$db->prefix().'element_contact AS ec';
-    $sql .= ' INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
-    $sql .= " WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
-    $sql .= ' AND ec.statut = 4';
-    $sql .= ' AND ec.element_id = '.(int) $fkProject;
-    $resql = $db->query($sql);
-    if (!$resql || $db->num_rows($resql) === 0) {
-        // No assignment row at all (or a query error we don't want to turn
-        // into a hard lockout) => unrestricted.
-        return true;
-    }
-    while ($obj = $db->fetch_object($resql)) {
-        if ((int) $obj->fk_user === (int) $user->id) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
  * SQL clause restricting a `projet` query to the projects a given user is
  * allowed to see, via the native project contact mechanism
  * (llx_element_contact/llx_c_type_contact) — same rule as
@@ -1061,8 +982,8 @@ function timeflowFetchProjects($db, $user = null)
     $sql .= ' FROM '.$db->prefix().'projet AS p';
     $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
     $sql .= ' WHERE p.entity IN ('.getEntity('project').')';
-    // A closed project is TimeFlow's "deleted" project (see
-    // timeflowDeleteProject() — setClose() instead of a physical delete):
+    // A closed project is TimeFlow's "deleted" project (no UI-triggered
+    // action issues a physical delete; native setClose() is used instead):
     // it must disappear from every picker, exactly like a real delete would.
     $sql .= ' AND p.fk_statut <> '.Project::STATUS_CLOSED;
     $sql .= timeflowProjectMembershipRestrictionSql($db, $user, 'p');
@@ -1698,16 +1619,20 @@ switch ($action) {
         $tags = '';
         $billable = !empty($postData['billable']) ? 1 : (int) GETPOST('billable', 'int');
 
-        dol_syslog('timeflow.startTimer received '.json_encode(array(
-            'user_id' => (int) $user->id,
-            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
-            'content_type' => $_SERVER['CONTENT_TYPE'] ?? '',
-            'json_keys' => array_keys($postData),
-            'fk_project' => $fk_project,
-            'fk_task' => $fk_task,
-            'project_label' => $projectLabel,
-            'note_length' => mb_strlen(trim((string) $note)),
-        )), LOG_INFO);
+        // Same admin-only debug gate as timeflowFetchWeeklyTimesheet(): this
+        // request-shape trace is not needed on every call in production.
+        if (!empty($user->admin) && GETPOST('debug', 'int')) {
+            dol_syslog('timeflow.startTimer received '.json_encode(array(
+                'user_id' => (int) $user->id,
+                'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+                'content_type' => $_SERVER['CONTENT_TYPE'] ?? '',
+                'json_keys' => array_keys($postData),
+                'fk_project' => $fk_project,
+                'fk_task' => $fk_task,
+                'project_label' => $projectLabel,
+                'note_length' => mb_strlen(trim((string) $note)),
+            )), LOG_INFO);
+        }
 
         // Validation métier : une description (3 caractères minimum) est obligatoire.
         // Le démarrage sans projet est autorisé (cas où aucun projet n'est disponible),
@@ -1899,7 +1824,6 @@ switch ($action) {
         break;
 
     case 'deleteTimeEntry':
-    case 'deleteEntry':
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
         if ($id <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant d’entrée invalide'), 400);
@@ -1911,7 +1835,7 @@ switch ($action) {
         // clear HTTP response and repeat it in TimeEntry::delete() so a
         // caller cannot bypass the endpoint.
         if ((int) $timeentry->status !== TimeEntry::STATUS_DRAFT && !TimeEntry::canDeleteProcessedEntry($user)) {
-			timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer une entrée déjà soumise, validée ou refusée'), 403);
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de supprimer une entrée déjà soumise, validée ou refusée'), 403);
         }
         if (!$timeentry->isDeletionAllowedFor($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
@@ -1964,92 +1888,6 @@ switch ($action) {
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowBuildGlobalCsvRows($db, $user)));
         break;
 
-    case 'createTimeFlowProject':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $title = trim($postData['title'] ?? GETPOST('title', 'alphanohtml'));
-        if ($title === '') {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Le titre du projet est requis'), 400);
-        }
-        $fkSoc = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        $description = trim((string) ($postData['description'] ?? GETPOST('description', 'restricthtml')));
-        $assignedUserIds = $postData['assigned_user_ids'] ?? GETPOST('assigned_user_ids', 'array:int');
-        $res = timeflowCreateProject($db, $user, $title, $fkSoc, $description);
-        if ($res > 0) {
-            timeflowSyncProjectAssignments($db, $user, $res, is_array($assignedUserIds) ? $assignedUserIds : array());
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $res, 'title' => $title)));
-        }
-        timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur à la création du projet'), 400);
-        break;
-
-    case 'updateTimeFlowProject':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $projectId = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        if ($projectId <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant de projet invalide'), 400);
-        }
-        $title = trim($postData['title'] ?? GETPOST('title', 'alphanohtml'));
-        if ($title === '') {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Le titre du projet est requis'), 400);
-        }
-        $fkSoc = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        $description = trim((string) ($postData['description'] ?? GETPOST('description', 'restricthtml')));
-        $assignedUserIds = $postData['assigned_user_ids'] ?? GETPOST('assigned_user_ids', 'array:int');
-        if (timeflowUpdateProject($db, $user, $projectId, $title, $fkSoc, $description)) {
-            timeflowSyncProjectAssignments($db, $user, $projectId, is_array($assignedUserIds) ? $assignedUserIds : array());
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $projectId)));
-        }
-        timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur lors de la mise à jour du projet'), 400);
-        break;
-
-    case 'deleteTimeFlowProject':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $projectId = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        if ($projectId <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant de projet invalide'), 400);
-        }
-        $deleteResult = timeflowDeleteProject($db, $user, $projectId);
-        if ($deleteResult === true) {
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $projectId)));
-        }
-        timeflowJsonResponse(array('status' => 'error', 'message' => is_string($deleteResult) ? $deleteResult : 'Erreur lors de la suppression du projet'), 400);
-        break;
-
-    case 'deleteTimeFlowProjects':
-        // Bulk delete, same permission gate as the single-project action
-        // above — never a looser check just because it's a batch call.
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $projectIds = $postData['ids'] ?? GETPOST('ids', 'array:int');
-        $projectIds = is_array($projectIds) ? array_unique(array_map('intval', $projectIds)) : array();
-        $projectIds = array_values(array_filter($projectIds, function ($candidateId) {
-            return $candidateId > 0;
-        }));
-        if (empty($projectIds)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucun projet sélectionné'), 400);
-        }
-        // Each project is deleted independently — one still holding time
-        // entries (timeflowDeleteProject's own business rule) must not block
-        // the others, so failures are collected rather than aborting the batch.
-        $deletedIds = array();
-        $failed = array();
-        foreach ($projectIds as $bulkProjectId) {
-            $bulkResult = timeflowDeleteProject($db, $user, $bulkProjectId);
-            if ($bulkResult === true) {
-                $deletedIds[] = $bulkProjectId;
-            } else {
-                $failed[] = array('id' => $bulkProjectId, 'message' => is_string($bulkResult) ? $bulkResult : 'Erreur lors de la suppression du projet');
-            }
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => array('deleted' => $deletedIds, 'failed' => $failed)));
-        break;
-
     case 'listActiveThirdParties':
         if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
@@ -2061,17 +1899,6 @@ switch ($action) {
         $projectId = !empty($postData['projectId']) ? (int) $postData['projectId'] : (int) GETPOST('projectId', 'int');
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTasks($db, $projectId, $limit)));
-        break;
-
-    case 'getUpdateMarker':
-        $scope = $postData['scope'] ?? GETPOST('scope', 'aZ09');
-        $scope = $scope === 'validation' ? 'validation' : 'entries';
-        if ($scope === 'validation' && !timeflowCanValidate($user)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => array(
-            'marker' => timeflowGetUpdateMarker($db, $user, $scope),
-        )));
         break;
 
     // The polling endpoint returns the full current view only when its marker
@@ -2143,12 +1970,16 @@ switch ($action) {
         break;
 
     case 'getProcessedHistory':
-        $input = $postData ?: $_REQUEST;
+        // $postData is always an array (parsed JSON body, defaulting to
+        // empty — see top of file), so it is used directly: no fallback to
+        // the raw $_REQUEST superglobal, which would bypass GETPOST-level
+        // validation entirely.
+        $input = $postData;
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($input, $user)));
         break;
 
     case 'exportProcessedHistory':
-        $input = $postData ?: $_REQUEST; $input['page'] = 1; $input['per_page'] = 10000; $input['export'] = true;
+        $input = $postData; $input['page'] = 1; $input['per_page'] = 10000; $input['export'] = true;
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowGetProcessedHistory($input, $user)));
         break;
 
@@ -2364,12 +2195,13 @@ switch ($action) {
         break;
 
     case 'getMyDailyReports':
-        $input = is_array($postData) ? $postData : $_REQUEST;
+        // $postData is always an array — see the getProcessedHistory case above.
+        $input = $postData;
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchDailyReports($input, false, (int) $user->id)));
         break;
 
     case 'getDailyReports':
-        $input = is_array($postData) ? $postData : $_REQUEST;
+        $input = $postData;
         $canReadAll = timeflowCanValidate($user) || timeflowCanReadAllTimeEntries($user);
         $result = timeflowFetchDailyReports($input, $canReadAll, $canReadAll ? 0 : (int) $user->id);
         $includeDeleted = $canReadAll && !empty($input['history']) && !empty($input['include_deleted']);
@@ -2383,19 +2215,6 @@ switch ($action) {
             'pagination' => $result['pagination'],
             'stats' => $result['stats'],
         )));
-        break;
-
-    case 'markDailyReportRead':
-        if (!timeflowCanValidate($user)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        $sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET read_at = \''.$db->idate(dol_now()).'\',';
-        $sql .= ' fk_user_read = '.((int) $user->id).' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity).' AND date_delete IS NULL';
-        if (!$db->query($sql)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Impossible de marquer le rapport comme lu.'), 500);
-        }
-        timeflowJsonResponse(array('status' => 'success'));
         break;
 
     case 'validateDailyReport':
@@ -2427,8 +2246,11 @@ switch ($action) {
     case 'getWeeklyTimesheet':
         $weekStart = $postData['weekStart'] ?? GETPOST('weekStart', 'alphanohtml');
         $timesheet = timeflowFetchWeeklyTimesheet($timeentry, $user, $weekStart);
-            // Log whether the caller is allowed to read all entries (diagnostic)
+        // Same admin-only debug gate as timeflowFetchWeeklyTimesheet()'s own
+        // instrumentation: not needed on every call in production.
+        if (!empty($user->admin) && GETPOST('debug', 'int')) {
             dol_syslog('timeflow.getWeeklyTimesheet user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' weekStart='.(string)$weekStart, LOG_DEBUG);
+        }
         timeflowJsonResponse(array('status' => 'success', 'data' => $timesheet));
         break;
 
@@ -2465,8 +2287,11 @@ switch ($action) {
             $filters[] = '(t.status:=:'.TimeEntry::STATUS_VALIDATED.')';
         }
         $filter = implode(' AND ', $filters);
-        // Diagnostic log: record whether summary is being computed for team or single user
-        dol_syslog('timeflow.getSummaryReports user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' dateFrom='.(string)$dateFrom.' dateTo='.(string)$dateTo, LOG_DEBUG);
+        // Same admin-only debug gate as timeflowFetchWeeklyTimesheet()'s own
+        // instrumentation: not needed on every call in production.
+        if (!empty($user->admin) && GETPOST('debug', 'int')) {
+            dol_syslog('timeflow.getSummaryReports user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' dateFrom='.(string)$dateFrom.' dateTo='.(string)$dateTo, LOG_DEBUG);
+        }
         $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
         $rows = array();
         if (is_array($result)) {
@@ -2482,162 +2307,7 @@ switch ($action) {
         timeflowJsonResponse(array('status' => 'success', 'data' => $summaryData));
         break;
 
-    case 'generateInvoiceLines':
-        $clientId = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        $filter = timeflowCanReadAllTimeEntries($user) ? '' : '(t.fk_user:=:'.((int) $user->id).')';
-        $result = $timeentry->fetchAll('DESC', 't.date_start', 1000, 0, $filter);
-        $lines = array();
-        if (is_array($result)) {
-            foreach ($result as $obj) {
-                if ((int) $obj->billable <= 0 || (int) $obj->duration <= 0 || !empty($obj->fk_facture)) {
-                    continue;
-                }
-                if ($clientId > 0) {
-                    $sql = 'SELECT fk_soc FROM '.$db->prefix().'projet';
-                    $sql .= ' WHERE rowid = '.(int) $obj->fk_project;
-                    $resql = $db->query($sql);
-                    if ($resql && $proj = $db->fetch_object($resql)) {
-                        if ((int) $proj->fk_soc !== (int) $clientId) {
-                            continue;
-                        }
-                    }
-                }
-                $lines[] = array(
-                    'id' => (int) $obj->id,
-                    'description' => trim(($obj->note ?: 'Time entry').(!empty($obj->tags) ? ' ['.$obj->tags.']' : '')),
-                    'qty_hours' => round(((int) $obj->duration) / 3600, 2),
-                    'thm' => (float) $obj->thm,
-                    'amount' => (float) $obj->amount,
-                    'fk_project' => (int) $obj->fk_project,
-                    'fk_task' => (int) $obj->fk_task,
-                    'date_start' => $obj->date_start,
-                    'date_end' => $obj->date_end,
-                );
-            }
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => $lines));
-        break;
-
-    case 'createInvoiceFromTimeEntries':
-        // Actually creates a draft Dolibarr customer invoice from selected billable,
-        // not-yet-invoiced time entries, and marks those entries as invoiced so
-        // they cannot be pulled into a second invoice.
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Droits insuffisants'), 403);
-        }
-
-        $clientId = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        $entryIds = !empty($postData['entry_ids']) && is_array($postData['entry_ids']) ? array_map('intval', $postData['entry_ids']) : array();
-
-        if ($clientId <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Client requis'), 400);
-        }
-        if (empty($entryIds)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucune saisie sélectionnée'), 400);
-        }
-
-        require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
-        $thirdparty = new Societe($db);
-        if ($thirdparty->fetch($clientId) <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Client introuvable'), 404);
-        }
-
-        // Reload full entries and keep only ones that are actually billable and not already invoiced.
-        $entriesToInvoice = array();
-        foreach ($entryIds as $entryId) {
-            $candidate = new TimeEntry($db);
-            if ($candidate->fetch($entryId) <= 0) {
-                continue;
-            }
-            if ((int) $candidate->billable <= 0 || (int) $candidate->duration <= 0 || !empty($candidate->fk_facture)) {
-                continue;
-            }
-            if (!timeflowCanReadAllTimeEntries($user) && (int) $candidate->fk_user !== (int) $user->id) {
-                continue;
-            }
-            $entriesToInvoice[] = $candidate;
-        }
-
-        if (empty($entriesToInvoice)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucune saisie facturable trouvée pour cette sélection'), 400);
-        }
-
-        $db->begin();
-
-        $invoice = new Facture($db);
-        $invoice->socid = $clientId;
-        $invoice->type = Facture::TYPE_STANDARD;
-        $invoice->date = dol_now();
-
-        $invoiceId = $invoice->create($user);
-        if ($invoiceId <= 0) {
-            $db->rollback();
-            timeflowJsonResponse(array('status' => 'error', 'message' => $invoice->error ?: 'Erreur à la création de la facture'), 500);
-        }
-
-        $hasError = false;
-        foreach ($entriesToInvoice as $entry) {
-            $qtyHours = round(((int) $entry->duration) / 3600, 2);
-            $unitPrice = (float) $entry->thm;
-            $description = trim(($entry->note ?: 'Time entry').(!empty($entry->tags) ? ' ['.$entry->tags.']' : ''));
-
-            $lineId = $invoice->addline(
-                $description,
-                $unitPrice,
-                $qtyHours,
-                0,          // txtva: VAT rate left at 0 here — MUST be set to the correct rate for the client/product before validating the invoice, see note below
-                0,          // txlocaltax1
-                0,          // txlocaltax2
-                0,          // fk_product
-                0,          // remise_percent
-                '',         // date_start
-                '',         // date_end
-                0,          // ventil (fk_code_ventilation)
-                0,          // info_bits
-                0,          // fk_remise_except
-                'HT',       // price_base_type
-                0,          // pu_ttc
-                1,          // product_type: 0=product, 1=service (time entries are services)
-                -1          // rang
-            );
-
-            if ($lineId <= 0) {
-                $hasError = true;
-                break;
-            }
-        }
-
-        if ($hasError) {
-            $db->rollback();
-            timeflowJsonResponse(array('status' => 'error', 'message' => $invoice->error ?: 'Erreur à l\'ajout d\'une ligne de facture'), 500);
-        }
-
-        // Mark every invoiced entry so it cannot be picked up by a future invoice run.
-        foreach ($entriesToInvoice as $entry) {
-            $entry->fk_facture = $invoiceId;
-            $entry->date_invoice = dol_now();
-            if ($entry->update($user) <= 0) {
-                $hasError = true;
-                break;
-            }
-        }
-
-        if ($hasError) {
-            $db->rollback();
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Facture créée mais échec du marquage des saisies comme facturées'), 500);
-        }
-
-        $db->commit();
-
-        timeflowJsonResponse(array('status' => 'success', 'data' => array(
-            'fk_facture' => $invoiceId,
-            'ref' => $invoice->ref,
-            'nb_lines' => count($entriesToInvoice),
-        )));
-        break;
-
     case 'validateEntry':
-    case 'approveTimeEntry':
         if (!timeflowCanValidate($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
@@ -2649,38 +2319,7 @@ switch ($action) {
         timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à la validation'), 400);
         break;
 
-    case 'submitWeeklyApproval':
-        if (!timeflowCanValidate($user)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $ids = $postData['ids'] ?? GETPOST('ids', 'array:int');
-        $ids = is_array($ids) ? $ids : array();
-        $updated = array();
-        foreach ($ids as $id) {
-            // An entry whose timer is still running (date_end NULL) has nothing
-            // finished to validate yet: skip it rather than approving a time that
-            // does not exist. The caller sees it missing from $updated, same as
-            // any other entry that failed to fetch.
-            if ($timeentry->fetch((int) $id) > 0 && !empty($timeentry->date_end)) {
-                $timeentry->status = TimeEntry::STATUS_VALIDATED;
-                $timeentry->date_submit = dol_now();
-                $timeentry->fk_user_submit = $user->id;
-                // fk_user_valid must be set here just like in validateEntry(): it is
-                // the permanent marker TimeEntry::delete() relies on to know a manager
-                // has decided on this entry. Leaving it null would let a future
-                // status regression wrongly make an already-approved entry eligible
-                // for physical deletion again.
-                $timeentry->fk_user_valid = $user->id;
-                if ($timeentry->update($user) > 0) {
-                    $updated[] = timeflowExportTimeEntry($timeentry);
-                }
-            }
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => $updated));
-        break;
-
     case 'rejectEntry':
-    case 'rejectTimeEntry':
         if (!timeflowCanValidate($user)) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
@@ -2692,7 +2331,6 @@ switch ($action) {
         timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur au refus'), 400);
         break;
 
-    case 'updateEntry':
     case 'correctTimeEntry':
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
         $reason = trim((string) ($postData['reason'] ?? GETPOST('reason', 'restricthtml')));
@@ -3163,123 +2801,3 @@ function timeflowCreateProject($db, $user, $title, $fkSoc = 0, $description = ''
     return -1;
 }
 
-/**
- * Updates a native project's editable fields (title, description, client)
- * via Dolibarr's Project class. ref/status/usage_task/extrafields are
- * never touched here — only what the TimeFlow project form actually edits.
- *
- * @return bool true on success
- */
-function timeflowUpdateProject($db, $user, $projectId, $title, $fkSoc, $description)
-{
-    $project = new Project($db);
-    if ($project->fetch((int) $projectId) <= 0) {
-        return false;
-    }
-    $project->title = $title;
-    $project->description = trim((string) $description);
-    $project->socid = (int) $fkSoc;
-
-    return $project->update($user) > 0;
-}
-
-/**
- * Replaces the full set of users a project is restricted to, via native
- * project contacts (llx_element_contact, role PROJECTCONTRIBUTOR/internal
- * — see the audit's role mapping). An empty $userIds array removes every
- * such contact, putting the project back to "open to everyone" — matches
- * timeflowCanAccessProject()'s "no assignment = unrestricted" rule exactly.
- * Diffs against the current set rather than blindly delete-then-recreate,
- * so unrelated contact rowids/history aren't churned on every save.
- */
-function timeflowSyncProjectAssignments($db, $user, $projectId, array $userIds)
-{
-    $project = new Project($db);
-    if ($project->fetch((int) $projectId) <= 0) {
-        dol_syslog('timeflow.syncProjectAssignments: could not fetch native project id='.(int) $projectId, LOG_WARNING);
-        return;
-    }
-
-    $desiredUserIds = array_unique(array_filter(array_map('intval', $userIds), function ($id) {
-        return $id > 0;
-    }));
-
-    $currentLinks = $project->liste_contact(4, 'internal', 0, 'PROJECTCONTRIBUTOR');
-    $currentLinks = is_array($currentLinks) ? $currentLinks : array();
-    $currentByUserId = array();
-    foreach ($currentLinks as $link) {
-        $currentByUserId[(int) $link['id']] = (int) $link['rowid'];
-    }
-
-    foreach ($currentByUserId as $existingUserId => $linkRowid) {
-        if (!in_array($existingUserId, $desiredUserIds, true)) {
-            $project->delete_contact($linkRowid);
-        }
-    }
-    foreach ($desiredUserIds as $wantedUserId) {
-        if (!array_key_exists($wantedUserId, $currentByUserId)) {
-            $project->add_contact($wantedUserId, 'PROJECTCONTRIBUTOR', 'internal');
-        }
-    }
-}
-
-/**
- * Hard-deletes a native project. Refuses if any (non-deleted) TimeFlow time
- * entry still references it — deleting the project would silently orphan
- * those entries' fk_project, which is worse than making the user reassign
- * them first. This check is TimeFlow-specific (llx_timeflow_timeentry is
- * not something Project::delete() itself knows about) and stays the
- * primary guard; the actual removal then goes through Project::delete(),
- * which also cleans up native project contacts/tasks/categories — more
- * thorough than the old raw DELETE, and the expected behavior for deleting
- * a project that is now a first-class native one.
- *
- * @return true|string true on success, an error message string otherwise
- */
-function timeflowDeleteProject($db, $user, $projectId)
-{
-    $sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'timeflow_timeentry';
-    $sql .= ' WHERE fk_project = '.(int) $projectId;
-    $sql .= ' AND date_delete IS NULL';
-    $resql = $db->query($sql);
-    if ($resql) {
-        $obj = $db->fetch_object($resql);
-        if ($obj && (int) $obj->nb > 0) {
-            return 'Ce projet a '.((int) $obj->nb).' entrée(s) de temps associée(s) et ne peut pas être supprimé.';
-        }
-    }
-
-    $project = new Project($db);
-    if ($project->fetch((int) $projectId) <= 0) {
-        return 'Projet introuvable.';
-    }
-
-    // Per product rule, no UI-triggered action may ever issue a physical
-    // DELETE FROM on llx_projet. Dolibarr's native project model has no
-    // date_delete column; the closest native non-destructive state is
-    // "Closed" (fk_statut), which we reuse here — the row, its contacts,
-    // its tasks and its history all stay exactly as they are.
-    if ((int) $project->status === Project::STATUS_CLOSED) {
-        // Already in the target state — idempotent, not an error.
-        return true;
-    }
-
-    if ((int) $project->status === Project::STATUS_DRAFT) {
-        // setClose() only acts on a VALIDATED project. Every TimeFlow-created
-        // project already is one, but a project reaching this function
-        // through some other path could still be a draft — validate it
-        // first so "supprimer" always succeeds regardless of how the
-        // project got here.
-        $validateResult = $project->setValid($user);
-        if ($validateResult < 0) {
-            return 'Erreur lors de la suppression : '.($project->error ?: implode(', ', $project->errors));
-        }
-    }
-
-    $result = $project->setClose($user);
-    if ($result >= 0) {
-        // >0: closed now. 0: native "already closed" race — also fine.
-        return true;
-    }
-    return 'Erreur lors de la suppression : '.($project->error ?: implode(', ', $project->errors));
-}
