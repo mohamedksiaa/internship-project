@@ -187,9 +187,10 @@ function timeflowCanReadAllTimeEntries($user)
 
 /**
  * Whether a native project is in Dolibarr's "Closed" status — TimeFlow's
- * equivalent of "deleted" for a project (see timeflowDeleteProject()).
- * A closed project must never accept a new time entry, exactly like a
- * genuinely deleted project no longer could.
+ * equivalent of "deleted" for a project (no UI-triggered action ever issues
+ * a physical DELETE FROM on llx_projet; "Closed" is the non-destructive
+ * substitute). A closed project must never accept a new time entry, exactly
+ * like a genuinely deleted project no longer could.
  */
 function timeflowProjectIsClosed($db, $fkProject)
 {
@@ -1061,8 +1062,8 @@ function timeflowFetchProjects($db, $user = null)
     $sql .= ' FROM '.$db->prefix().'projet AS p';
     $sql .= ' LEFT JOIN '.$db->prefix().'societe AS s ON s.rowid = p.fk_soc';
     $sql .= ' WHERE p.entity IN ('.getEntity('project').')';
-    // A closed project is TimeFlow's "deleted" project (see
-    // timeflowDeleteProject() — setClose() instead of a physical delete):
+    // A closed project is TimeFlow's "deleted" project (no UI-triggered
+    // action issues a physical delete; native setClose() is used instead):
     // it must disappear from every picker, exactly like a real delete would.
     $sql .= ' AND p.fk_statut <> '.Project::STATUS_CLOSED;
     $sql .= timeflowProjectMembershipRestrictionSql($db, $user, 'p');
@@ -1962,92 +1963,6 @@ switch ($action) {
     // expects, so the file round-trips through previewClockifyImport() as-is.
     case 'exportGlobalCsv':
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowBuildGlobalCsvRows($db, $user)));
-        break;
-
-    case 'createTimeFlowProject':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $title = trim($postData['title'] ?? GETPOST('title', 'alphanohtml'));
-        if ($title === '') {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Le titre du projet est requis'), 400);
-        }
-        $fkSoc = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        $description = trim((string) ($postData['description'] ?? GETPOST('description', 'restricthtml')));
-        $assignedUserIds = $postData['assigned_user_ids'] ?? GETPOST('assigned_user_ids', 'array:int');
-        $res = timeflowCreateProject($db, $user, $title, $fkSoc, $description);
-        if ($res > 0) {
-            timeflowSyncProjectAssignments($db, $user, $res, is_array($assignedUserIds) ? $assignedUserIds : array());
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $res, 'title' => $title)));
-        }
-        timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur à la création du projet'), 400);
-        break;
-
-    case 'updateTimeFlowProject':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $projectId = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        if ($projectId <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant de projet invalide'), 400);
-        }
-        $title = trim($postData['title'] ?? GETPOST('title', 'alphanohtml'));
-        if ($title === '') {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Le titre du projet est requis'), 400);
-        }
-        $fkSoc = !empty($postData['fk_soc']) ? (int) $postData['fk_soc'] : (int) GETPOST('fk_soc', 'int');
-        $description = trim((string) ($postData['description'] ?? GETPOST('description', 'restricthtml')));
-        $assignedUserIds = $postData['assigned_user_ids'] ?? GETPOST('assigned_user_ids', 'array:int');
-        if (timeflowUpdateProject($db, $user, $projectId, $title, $fkSoc, $description)) {
-            timeflowSyncProjectAssignments($db, $user, $projectId, is_array($assignedUserIds) ? $assignedUserIds : array());
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $projectId)));
-        }
-        timeflowJsonResponse(array('status' => 'error', 'message' => 'Erreur lors de la mise à jour du projet'), 400);
-        break;
-
-    case 'deleteTimeFlowProject':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $projectId = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        if ($projectId <= 0) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant de projet invalide'), 400);
-        }
-        $deleteResult = timeflowDeleteProject($db, $user, $projectId);
-        if ($deleteResult === true) {
-            timeflowJsonResponse(array('status' => 'success', 'data' => array('id' => $projectId)));
-        }
-        timeflowJsonResponse(array('status' => 'error', 'message' => is_string($deleteResult) ? $deleteResult : 'Erreur lors de la suppression du projet'), 400);
-        break;
-
-    case 'deleteTimeFlowProjects':
-        // Bulk delete, same permission gate as the single-project action
-        // above — never a looser check just because it's a batch call.
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        $projectIds = $postData['ids'] ?? GETPOST('ids', 'array:int');
-        $projectIds = is_array($projectIds) ? array_unique(array_map('intval', $projectIds)) : array();
-        $projectIds = array_values(array_filter($projectIds, function ($candidateId) {
-            return $candidateId > 0;
-        }));
-        if (empty($projectIds)) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Aucun projet sélectionné'), 400);
-        }
-        // Each project is deleted independently — one still holding time
-        // entries (timeflowDeleteProject's own business rule) must not block
-        // the others, so failures are collected rather than aborting the batch.
-        $deletedIds = array();
-        $failed = array();
-        foreach ($projectIds as $bulkProjectId) {
-            $bulkResult = timeflowDeleteProject($db, $user, $bulkProjectId);
-            if ($bulkResult === true) {
-                $deletedIds[] = $bulkProjectId;
-            } else {
-                $failed[] = array('id' => $bulkProjectId, 'message' => is_string($bulkResult) ? $bulkResult : 'Erreur lors de la suppression du projet');
-            }
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => array('deleted' => $deletedIds, 'failed' => $failed)));
         break;
 
     case 'listActiveThirdParties':
@@ -2954,123 +2869,3 @@ function timeflowCreateProject($db, $user, $title, $fkSoc = 0, $description = ''
     return -1;
 }
 
-/**
- * Updates a native project's editable fields (title, description, client)
- * via Dolibarr's Project class. ref/status/usage_task/extrafields are
- * never touched here — only what the TimeFlow project form actually edits.
- *
- * @return bool true on success
- */
-function timeflowUpdateProject($db, $user, $projectId, $title, $fkSoc, $description)
-{
-    $project = new Project($db);
-    if ($project->fetch((int) $projectId) <= 0) {
-        return false;
-    }
-    $project->title = $title;
-    $project->description = trim((string) $description);
-    $project->socid = (int) $fkSoc;
-
-    return $project->update($user) > 0;
-}
-
-/**
- * Replaces the full set of users a project is restricted to, via native
- * project contacts (llx_element_contact, role PROJECTCONTRIBUTOR/internal
- * — see the audit's role mapping). An empty $userIds array removes every
- * such contact, putting the project back to "open to everyone" — matches
- * timeflowCanAccessProject()'s "no assignment = unrestricted" rule exactly.
- * Diffs against the current set rather than blindly delete-then-recreate,
- * so unrelated contact rowids/history aren't churned on every save.
- */
-function timeflowSyncProjectAssignments($db, $user, $projectId, array $userIds)
-{
-    $project = new Project($db);
-    if ($project->fetch((int) $projectId) <= 0) {
-        dol_syslog('timeflow.syncProjectAssignments: could not fetch native project id='.(int) $projectId, LOG_WARNING);
-        return;
-    }
-
-    $desiredUserIds = array_unique(array_filter(array_map('intval', $userIds), function ($id) {
-        return $id > 0;
-    }));
-
-    $currentLinks = $project->liste_contact(4, 'internal', 0, 'PROJECTCONTRIBUTOR');
-    $currentLinks = is_array($currentLinks) ? $currentLinks : array();
-    $currentByUserId = array();
-    foreach ($currentLinks as $link) {
-        $currentByUserId[(int) $link['id']] = (int) $link['rowid'];
-    }
-
-    foreach ($currentByUserId as $existingUserId => $linkRowid) {
-        if (!in_array($existingUserId, $desiredUserIds, true)) {
-            $project->delete_contact($linkRowid);
-        }
-    }
-    foreach ($desiredUserIds as $wantedUserId) {
-        if (!array_key_exists($wantedUserId, $currentByUserId)) {
-            $project->add_contact($wantedUserId, 'PROJECTCONTRIBUTOR', 'internal');
-        }
-    }
-}
-
-/**
- * Hard-deletes a native project. Refuses if any (non-deleted) TimeFlow time
- * entry still references it — deleting the project would silently orphan
- * those entries' fk_project, which is worse than making the user reassign
- * them first. This check is TimeFlow-specific (llx_timeflow_timeentry is
- * not something Project::delete() itself knows about) and stays the
- * primary guard; the actual removal then goes through Project::delete(),
- * which also cleans up native project contacts/tasks/categories — more
- * thorough than the old raw DELETE, and the expected behavior for deleting
- * a project that is now a first-class native one.
- *
- * @return true|string true on success, an error message string otherwise
- */
-function timeflowDeleteProject($db, $user, $projectId)
-{
-    $sql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'timeflow_timeentry';
-    $sql .= ' WHERE fk_project = '.(int) $projectId;
-    $sql .= ' AND date_delete IS NULL';
-    $resql = $db->query($sql);
-    if ($resql) {
-        $obj = $db->fetch_object($resql);
-        if ($obj && (int) $obj->nb > 0) {
-            return 'Ce projet a '.((int) $obj->nb).' entrée(s) de temps associée(s) et ne peut pas être supprimé.';
-        }
-    }
-
-    $project = new Project($db);
-    if ($project->fetch((int) $projectId) <= 0) {
-        return 'Projet introuvable.';
-    }
-
-    // Per product rule, no UI-triggered action may ever issue a physical
-    // DELETE FROM on llx_projet. Dolibarr's native project model has no
-    // date_delete column; the closest native non-destructive state is
-    // "Closed" (fk_statut), which we reuse here — the row, its contacts,
-    // its tasks and its history all stay exactly as they are.
-    if ((int) $project->status === Project::STATUS_CLOSED) {
-        // Already in the target state — idempotent, not an error.
-        return true;
-    }
-
-    if ((int) $project->status === Project::STATUS_DRAFT) {
-        // setClose() only acts on a VALIDATED project. Every TimeFlow-created
-        // project already is one, but a project reaching this function
-        // through some other path could still be a draft — validate it
-        // first so "supprimer" always succeeds regardless of how the
-        // project got here.
-        $validateResult = $project->setValid($user);
-        if ($validateResult < 0) {
-            return 'Erreur lors de la suppression : '.($project->error ?: implode(', ', $project->errors));
-        }
-    }
-
-    $result = $project->setClose($user);
-    if ($result >= 0) {
-        // >0: closed now. 0: native "already closed" race — also fine.
-        return true;
-    }
-    return 'Erreur lors de la suppression : '.($project->error ?: implode(', ', $project->errors));
-}
