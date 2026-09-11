@@ -282,7 +282,7 @@ class TimeImportClockify
     }
 
     /**
-     * Splits a CSV "Groupe" cell such as "HRM, PROJET-DELTA, TBEE, PROJET-ETA" into
+     * Splits a CSV "Groupe" cell such as "HRM, Administration, TBEE, CMS" into
      * trimmed, non-empty group names. Unlike user_email/project, a single
      * row can carry several group names at once.
      *
@@ -1591,7 +1591,7 @@ class TimeImportClockify
      *     native email uses a different domain than the CSV export).
      *   - firstname/lastname: split from the "Utilisateur" display name
      *     ONLY if that value contains a space (so a bare login like
-     *     "Julien Petit" is never mistaken for "Prénom Nom") AND firstname AND
+     *     "jdupont" is never mistaken for "Prénom Nom") AND firstname AND
      *     lastname are BOTH currently empty — a single already-filled
      *     field is enough to skip, since we can't know which of the two
      *     it corresponds to. Split on the first space: everything before

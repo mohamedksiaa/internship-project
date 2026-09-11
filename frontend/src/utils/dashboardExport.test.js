@@ -275,7 +275,7 @@ describe('buildChartAnalysisText', () => {
       chartData: [],
       crossedData: {
         segments: [
-          { dataKey: 'p5', label: 'Mohamed' },
+          { dataKey: 'p5', label: 'Sam Dubois' },
           { dataKey: 'p6', label: 'Emma Lambert' },
         ],
         rows: [
@@ -291,12 +291,12 @@ describe('buildChartAnalysisText', () => {
     expect(text).toBe(
       'ACME-CORE représente 89% du temps total sur cette période, avec 8h00.\n\n' +
       'Répartition de ACME-CORE par Employé :\n' +
-      '• Mohamed : 88% (7h00)\n' +
+      '• Sam Dubois : 88% (7h00)\n' +
       '• Emma Lambert : 13% (1h00)\n\n' +
       'Autres catégories principales :\n\n' +
       '▸ project-example : 11% (1h00)\n' +
       '  Répartition de project-example par Employé :\n' +
-      '  • Mohamed : 100% (1h00)'
+      '  • Sam Dubois : 100% (1h00)'
     );
   });
 
@@ -348,19 +348,19 @@ describe('buildChartAnalysisText', () => {
       chartData: [],
       crossedData: {
         segments: [
-          { dataKey: 'seg_mohamed', label: 'Mohamed' },
-          { dataKey: 'seg_soumeya', label: 'Emma Lambert' },
+          { dataKey: 'seg_sam', label: 'Sam Dubois' },
+          { dataKey: 'seg_emma', label: 'Emma Lambert' },
           { dataKey: 'seg___other_secondary__', label: 'Autres' },
         ],
         rows: [
-          { key: '1', label: 'ACME-CORE', seg_mohamed: 108000, seg_soumeya: 45000, seg___other_secondary__: 27000 }, // 180000 = 50h, 50%
-          { key: '2', label: 'PROJET-DELTA', seg_mohamed: 54000, seg_soumeya: 0, seg___other_secondary__: 0 }, // 15h, 15%
-          { key: '3', label: 'PROJET-EPSILON', seg_mohamed: 0, seg_soumeya: 36000, seg___other_secondary__: 0 }, // 10h, 10%
-          { key: '4', label: 'PROJET-ZETA', seg_mohamed: 20160, seg_soumeya: 8640, seg___other_secondary__: 0 }, // 8h, 8%
-          { key: '5', label: 'PROJET-ETA', seg_mohamed: 25200, seg_soumeya: 0, seg___other_secondary__: 0 }, // 7h, 7%
-          { key: '6', label: 'project-example', seg_mohamed: 0, seg_soumeya: 18000, seg___other_secondary__: 0 }, // 5h, 5%
-          { key: '7', label: "Projet Theta", seg_mohamed: 10800, seg_soumeya: 0, seg___other_secondary__: 0 }, // 3h, 3%
-          { key: '8', label: 'Projet Iota', seg_mohamed: 7200, seg_soumeya: 0, seg___other_secondary__: 0 }, // 2h, 2%
+          { key: '1', label: 'ACME-CORE', seg_sam: 108000, seg_emma: 45000, seg___other_secondary__: 27000 }, // 180000 = 50h, 50%
+          { key: '2', label: 'PROJET-DELTA', seg_sam: 54000, seg_emma: 0, seg___other_secondary__: 0 }, // 15h, 15%
+          { key: '3', label: 'PROJET-EPSILON', seg_sam: 0, seg_emma: 36000, seg___other_secondary__: 0 }, // 10h, 10%
+          { key: '4', label: 'PROJET-ZETA', seg_sam: 20160, seg_emma: 8640, seg___other_secondary__: 0 }, // 8h, 8%
+          { key: '5', label: 'PROJET-ETA', seg_sam: 25200, seg_emma: 0, seg___other_secondary__: 0 }, // 7h, 7%
+          { key: '6', label: 'project-example', seg_sam: 0, seg_emma: 18000, seg___other_secondary__: 0 }, // 5h, 5%
+          { key: '7', label: "Projet Theta", seg_sam: 10800, seg_emma: 0, seg___other_secondary__: 0 }, // 3h, 3%
+          { key: '8', label: 'Projet Iota', seg_sam: 7200, seg_emma: 0, seg___other_secondary__: 0 }, // 2h, 2%
         ],
       },
       totalSeconds,
@@ -375,7 +375,7 @@ describe('buildChartAnalysisText', () => {
 
     // Headline + its own full breakdown, unchanged from before.
     expect(text).toContain('ACME-CORE représente 50% du temps total sur cette période, avec 50h00.');
-    expect(text).toContain('Répartition de ACME-CORE par Employé :\n• Mohamed : 60% (30h00)\n• Emma Lambert : 25% (12h30)\n• Autres : 15% (7h30)');
+    expect(text).toContain('Répartition de ACME-CORE par Employé :\n• Sam Dubois : 60% (30h00)\n• Emma Lambert : 25% (12h30)\n• Autres : 15% (7h30)');
 
     // Every other named category gets its own '▸' line...
     expect(text).toContain('▸ PROJET-DELTA : 15% (15h00)');
@@ -388,13 +388,13 @@ describe('buildChartAnalysisText', () => {
 
     // ...AND its own nested, indented "Répartition de X par Employé" —
     // the actual point of this change: not just the dominant category.
-    expect(text).toContain('  Répartition de PROJET-DELTA par Employé :\n  • Mohamed : 100% (15h00)');
+    expect(text).toContain('  Répartition de PROJET-DELTA par Employé :\n  • Sam Dubois : 100% (15h00)');
     expect(text).toContain('  Répartition de PROJET-EPSILON par Employé :\n  • Emma Lambert : 100% (10h00)');
-    expect(text).toContain('  Répartition de PROJET-ZETA par Employé :\n  • Mohamed : 70% (5h36)\n  • Emma Lambert : 30% (2h24)');
-    expect(text).toContain('  Répartition de PROJET-ETA par Employé :\n  • Mohamed : 100% (7h00)');
+    expect(text).toContain('  Répartition de PROJET-ZETA par Employé :\n  • Sam Dubois : 70% (5h36)\n  • Emma Lambert : 30% (2h24)');
+    expect(text).toContain('  Répartition de PROJET-ETA par Employé :\n  • Sam Dubois : 100% (7h00)');
     expect(text).toContain('  Répartition de project-example par Employé :\n  • Emma Lambert : 100% (5h00)');
-    expect(text).toContain("  Répartition de Projet Theta par Employé :\n  • Mohamed : 100% (3h00)");
-    expect(text).toContain('  Répartition de Projet Iota par Employé :\n  • Mohamed : 100% (2h00)');
+    expect(text).toContain("  Répartition de Projet Theta par Employé :\n  • Sam Dubois : 100% (3h00)");
+    expect(text).toContain('  Répartition de Projet Iota par Employé :\n  • Sam Dubois : 100% (2h00)');
 
     // Closing facts.
     expect(text).toContain('60% du temps total est facturable.');
