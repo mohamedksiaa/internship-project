@@ -199,7 +199,15 @@ include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_list_array_fields.tpl.php';
 // Add hook to complete $arrayfield
 $parameters = array('arrayfields' => &$arrayfields);
 $reshook = $hookmanager->executeHooks('completeArrayFields', $parameters, $object, $action); // Note that $action and $object may have been modified by hook
-$sql .= $hookmanager->resPrint;
+// No "$sql .= $hookmanager->resPrint;" here (removed): $sql is not declared
+// until the "Build and execute select" section below (first assignment is
+// "$sql = "SELECT";"), so appending to it at this point only wrote into an
+// undefined variable that the real $sql assignment then silently discarded
+// -- this hook's purpose is to let a hook add columns to $arrayfields (via
+// the $parameters reference above), not to contribute SQL. The hook point
+// for SQL contributed by hooks already exists correctly further down,
+// where $sql actually exists: see the "printFieldListSelect" hook right
+// after "$sql = "SELECT";".
 
 // Complete arrayfields with special fields
 /*$arrayfields = array_merge($arrayfields, array(
