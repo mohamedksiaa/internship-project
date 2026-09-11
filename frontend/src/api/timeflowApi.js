@@ -511,11 +511,6 @@ export async function exportProcessedHistory(filters = {}) {
   return normalizeEntries(payload.rows);
 }
 
-export async function getUpdateMarker(scope = 'entries') {
-  const data = await moduleTimerRequest('getUpdateMarker', { scope });
-  return String(data?.data?.marker ?? data?.marker ?? '');
-}
-
 // page/perPage tell the backend which page to re-fetch if something in
 // scope changed — otherwise a background poll would silently replace
 // whatever the caller is currently paginated to with page 1's content.
@@ -602,11 +597,6 @@ export async function getSummaryReports(limit = 1000, dateFrom = '', dateTo = ''
   return data?.data ?? data;
 }
 
-export async function generateInvoiceLines(fkSoc = 0) {
-  const data = await moduleTimerRequest('generateInvoiceLines', { fk_soc: fkSoc });
-  return data?.data ?? data;
-}
-
 export async function saveDailyReport(dateReport, content, status = 1) {
   const data = await moduleTimerRequest('saveDailyReport', { date_report: dateReport, content, status });
   return data?.data ?? data;
@@ -634,21 +624,12 @@ export async function getDailyReports(filters = {}) {
   return data?.data ?? { reports: [], employees: [], pagination: {} };
 }
 
-export async function markDailyReportRead(id) {
-  return moduleTimerRequest('markDailyReportRead', { id });
-}
-
 export async function validateDailyReport(id) {
   return moduleTimerRequest('validateDailyReport', { id });
 }
 
 export async function rejectDailyReport(id) {
   return moduleTimerRequest('rejectDailyReport', { id });
-}
-
-export async function updateEntry(id, updates) {
-  const data = await moduleTimerRequest('updateEntry', { id, ...updates });
-  return normalizeEntry(data?.data ?? data);
 }
 
 /**
@@ -663,11 +644,6 @@ export async function correctTimeEntry(id, updates) {
 export async function getModificationHistory(entryId) {
   const data = await moduleTimerRequest('getModificationHistory', { entryId });
   return data?.data ?? [];
-}
-
-export async function submitWeeklyApproval(ids = []) {
-  const data = await moduleTimerRequest('submitWeeklyApproval', { ids });
-  return data?.data ?? data;
 }
 
 export async function listActiveUsers() {
