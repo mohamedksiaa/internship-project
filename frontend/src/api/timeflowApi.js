@@ -182,8 +182,6 @@ function handleMockRequest(action, body) {
       const validationEntries = mockEntries.filter((entry) => Number(entry.status) === 1);
       return Promise.resolve({ status: 'success', data: { entries: validationEntries, pagination: { page: 1, per_page: 20, total: validationEntries.length, pages: 1 } } });
     }
-    case 'getUpdateMarker':
-      return Promise.resolve({ status: 'success', data: { marker: mockEntries.map((entry) => `${entry.id}:${entry.status}`).join('|') } });
     case 'getTimeEntryUpdates': {
       const marker = mockEntries.map((entry) => `${entry.id}:${entry.date_end || ''}:${entry.duration}:${entry.status}`).join('|');
       const scope = body?.scope === 'validation' ? 'validation' : 'entries';
@@ -264,9 +262,6 @@ function handleMockRequest(action, body) {
       const mockTotal = mockEntries.reduce((sum, entry) => sum + Number(entry.duration || 0), 0);
       return Promise.resolve({ status: 'success', data: { total_seconds: mockTotal, billable_seconds: 0, non_billable_seconds: 0, by_project: {}, project_labels: {}, by_client: {}, client_labels: {}, by_user: {}, user_labels: {}, by_group: {}, group_labels: {}, by_tag: {}, by_status: {}, by_project_employee: {}, by_project_client: {}, by_project_billable: {}, by_employee_client: {}, by_employee_billable: {}, by_client_billable: {}, entries_returned: mockEntries.length, entries_total_in_period: mockEntries.length } });
     }
-    case 'generateInvoiceLines':
-      return Promise.resolve({ status: 'success', data: [] });
-
     case 'saveDailyReport': {
       const requestedStatus = Number(body?.status ?? 1);
       const report = {
@@ -315,9 +310,6 @@ function handleMockRequest(action, body) {
         : mockDailyReports.filter((report) => !report.is_deleted && !report.date_delete);
       return Promise.resolve({ status: 'success', data: { reports, employees: [], pagination: { page: 1, per_page: 20, total: reports.length, pages: 1 } } });
     }
-    case 'markDailyReportRead':
-      mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, is_read: true, read_at: new Date().toISOString() } : report);
-      return Promise.resolve({ status: 'success' });
     case 'validateDailyReport': {
       mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, status: 2, is_read: true, read_at: new Date().toISOString() } : report);
       return Promise.resolve({ status: 'success', data: { id: Number(body?.id), status: 2 } });
@@ -326,9 +318,6 @@ function handleMockRequest(action, body) {
       mockDailyReports = mockDailyReports.map((report) => report.id === Number(body?.id) ? { ...report, status: 9, is_read: true, read_at: new Date().toISOString() } : report);
       return Promise.resolve({ status: 'success', data: { id: Number(body?.id), status: 9 } });
     }
-
-    case 'submitWeeklyApproval':
-      return Promise.resolve({ status: 'success', data: [] });
 
     case 'listActiveUsers':
       return Promise.resolve({
