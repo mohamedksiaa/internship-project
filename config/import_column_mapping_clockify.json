@@ -1,7 +1,6 @@
 {
   "source": "clockify",
   "delimiter": ",",
-  "encoding": "UTF-8",
   "columns": {
     "project": "Projet",
     "client": "Client",
