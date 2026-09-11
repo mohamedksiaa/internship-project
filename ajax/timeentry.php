@@ -176,15 +176,6 @@ function timeflowCanValidate($user)
 }
 
 /**
- * A manager may receive this dedicated permission without becoming a Dolibarr
- * administrator. Every non-validation list must use this server-side scope.
- */
-function timeflowCanReadAllTimeEntries($user)
-{
-    return !empty($user->admin) || $user->hasRight('timeflow', 'timeentry', 'readall');
-}
-
-/**
  * Whether a native project is in Dolibarr's "Closed" status — TimeFlow's
  * equivalent of "deleted" for a project (no UI-triggered action ever issues
  * a physical DELETE FROM on llx_projet; "Closed" is the non-destructive
@@ -941,40 +932,6 @@ function timeflowBuildGlobalCsvRows($db, $user)
     }
 
     return $rows;
-}
-
-/**
- * Whether $user may use $fkProject on a time entry. A project with no
- * internal PROJECTCONTRIBUTOR contact is open to everyone (default,
- * preserves current behavior for every project that predates this
- * feature); once at least one user is assigned via the native project
- * contact mechanism (llx_element_contact/llx_c_type_contact), only admins,
- * users with the readall right, and assigned users may use it.
- */
-function timeflowCanAccessProject($db, $user, $fkProject)
-{
-    if (!empty($user->admin) || timeflowCanReadAllTimeEntries($user)) {
-        return true;
-    }
-
-    $sql = 'SELECT ec.fk_socpeople AS fk_user';
-    $sql .= ' FROM '.$db->prefix().'element_contact AS ec';
-    $sql .= ' INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
-    $sql .= " WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
-    $sql .= ' AND ec.statut = 4';
-    $sql .= ' AND ec.element_id = '.(int) $fkProject;
-    $resql = $db->query($sql);
-    if (!$resql || $db->num_rows($resql) === 0) {
-        // No assignment row at all (or a query error we don't want to turn
-        // into a hard lockout) => unrestricted.
-        return true;
-    }
-    while ($obj = $db->fetch_object($resql)) {
-        if ((int) $obj->fk_user === (int) $user->id) {
-            return true;
-        }
-    }
-    return false;
 }
 
 /**

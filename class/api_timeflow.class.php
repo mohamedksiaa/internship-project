@@ -5,6 +5,7 @@ use Luracast\Restler\RestException;
 
 require_once DOL_DOCUMENT_ROOT.'/api/class/api.class.php';
 dol_include_once('/timeflow/class/timeentry.class.php');
+dol_include_once('/timeflow/lib/timeflow.lib.php');
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
 
@@ -96,6 +97,12 @@ class TimeFlow extends DolibarrApi
             $project = new Project($this->db);
             if ($project->fetch($fk_project) <= 0) {
                 throw new RestException(400, 'Selected project was not found');
+            }
+            // Same restriction ajax/timeentry.php's startTimer action already
+            // enforces: a project with at least one PROJECTCONTRIBUTOR contact
+            // is closed to everyone else, admins/readall aside.
+            if (!timeflowCanAccessProject($this->db, DolibarrApiAccess::$user, $fk_project)) {
+                throw new RestException(403, 'Selected project is restricted to specific users');
             }
         }
 
