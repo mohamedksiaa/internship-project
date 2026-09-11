@@ -200,6 +200,8 @@
     "edit": "Bearbeiten",
     "delete": "Löschen",
     "read": "Gelesen",
+    "read_report": "Bericht lesen",
+    "send_report": "Bericht senden",
     "sent": "Gesendet",
     "mark_read": "Neu — als gelesen markieren",
     "close": "Schließen"
