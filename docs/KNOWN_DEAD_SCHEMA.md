@@ -63,8 +63,8 @@ ne le laissez pas mentir.
   > pre-migration backup, no longer written to."*
 
   Confirmé par grep exhaustif : aucun `INSERT`/`UPDATE` vers cette table
-  dans tout le dépôt (hors `scripts/archive/`, des scripts de migration
-  historiques déjà archivés). Le seul `SELECT` restant est dans
+  dans tout le dépôt (hors les scripts de migration historiques, retirés
+  du dépôt depuis — voir note ci-dessous). Le seul `SELECT` restant est dans
   `test/phpunit/timeentryTest.php`, dont le commentaire précise lui-même
   qu'il s'agit d'une "pre-migration backup that is empty". La colonne
   `fk_dolibarr_project` n'apparaît ailleurs que dans des commentaires la
@@ -78,9 +78,11 @@ ne le laissez pas mentir.
   1. Sur une base de production réelle, confirmer que la migration
      TimeFlow → projets natifs a bien été appliquée et validée depuis
      suffisamment longtemps pour exclure un besoin de rollback.
-     `scripts/archive/migrate_projects_to_native.php` est le script de
-     cette migration ; comprendre son historique d'exécution sur la base
-     concernée avant toute décision.
+     Le script de cette migration (`migrate_projects_to_native.php`) a
+     été retiré du dépôt (confirmé jamais auto-exécuté ni référencé,
+     migration one-shot déjà effectuée) — consulter l'historique git
+     d'avant sa suppression si besoin de comprendre son fonctionnement
+     exact.
   2. `SELECT COUNT(*) FROM llx_timeflow_project;` sur la base réelle — si
      non vide, comprendre pourquoi avant de supprimer quoi que ce soit
      (donnée historique à archiver ailleurs avant suppression, ou signe

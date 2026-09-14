@@ -70,25 +70,6 @@ export function useUrlState(key, defaultValue, options = {}) {
 }
 
 /**
- * getStateFromURL — one-shot, read-only snapshot of every current query
- * param as a plain object. Safe to call anywhere (no react-router context
- * needed) since reading never risks desyncing the router. Useful for the
- * rare one-off read outside a component (logging, building a "copy link").
- *
- * There is deliberately no imperative `setStateInURL(partialState)` sibling:
- * with a HashRouter, writing to the URL from outside react-router's own
- * setSearchParams (e.g. a raw history.replaceState call) is not guaranteed
- * to be picked up by the router and risks a silent desync between what the
- * address bar shows and what react-router thinks the current params are.
- * Every write in this app goes through useUrlState()/useUrlDateRange() below
- * instead, which call the hook's setSearchParams and are guaranteed in sync.
- */
-export function getStateFromURL() {
-  const hashQuery = window.location.hash.split('?')[1] || '';
-  return Object.fromEntries(new URLSearchParams(hashQuery));
-}
-
-/**
  * useUrlDateRange — convenience for the "dateFrom/dateTo" pair that shows up
  * on every filtered page. Keeps the two params independent in the URL (so
  * either can be shared/bookmarked/changed on its own) while giving callers

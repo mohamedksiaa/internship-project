@@ -217,26 +217,6 @@ function handleMockRequest(action, body) {
           { id: 2, title: 'Tâche corrective' },
         ],
       });
-    case 'createManualEntry':
-      {
-        const startMs = new Date(body?.date_start).getTime();
-        const endMs = new Date(body?.date_end).getTime();
-        return Promise.resolve({
-          status: 'success',
-          data: normalizeEntry({
-            id: Date.now(),
-            fk_project: body?.fk_project ?? 0,
-            fk_task: body?.fk_task ?? 0,
-            note: body?.note ?? '',
-            tags: body?.tags ?? '',
-            billable: body?.billable ? 1 : 0,
-            duration: Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(0, (endMs - startMs) / 1000) : 0,
-            status: 2,
-            date_start: body?.date_start,
-            date_end: body?.date_end,
-          }),
-        });
-      }
     case 'submitEntry':
       return Promise.resolve({ status: 'success', data: { ...(body || {}), status: 1 } });
     case 'correctTimeEntry': {
@@ -426,11 +406,6 @@ export async function startTimer(fkProject = 0, fkTask = 0, note = '', billable 
     throw new Error('Le serveur n’a pas renvoyé l’identifiant du chrono créé.');
   }
   return entry;
-}
-
-export async function createManualEntry(payload) {
-  const data = await moduleTimerRequest('createManualEntry', payload);
-  return normalizeEntry(data?.data ?? data);
 }
 
 export async function submitEntry(id) {
