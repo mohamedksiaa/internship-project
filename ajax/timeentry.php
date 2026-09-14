@@ -28,6 +28,17 @@ require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
 
 top_httphead('application/json');
 
+// Vérification module actif — même garde que les autres pages du module
+// (timeentry_list.php, timeentry_card.php, etc.), adaptée en réponse JSON
+// puisque ce fichier est un endpoint AJAX et non une page HTML : sans
+// cette vérification, désactiver le module timeflow dans Dolibarr ne
+// bloquait pas cet endpoint, qui continuait à servir des données.
+if (!isModEnabled("timeflow")) {
+    http_response_code(403);
+    echo json_encode(array('error' => 'Module timeflow not enabled'));
+    exit;
+}
+
 // Vérification authentification
 if (empty($user->id)) {
     http_response_code(401);
