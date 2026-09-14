@@ -4,3 +4,4 @@ frontend/dist/
 backup_*.sql
 .git.backup-*/
 vendor/
+git-history-cleanup/history-cleanup-workspace/
