@@ -79,12 +79,12 @@ du -sh .
 #    dumps, the accidentally-committed nested .git backup directory, and
 #    every historical copy of this folder's own operational rules file
 #    (git-history-cleanup/replacements.txt / terms.sh, if ever committed).
-#    That last removal matters because the rules file's own notation
-#    (e.g. the literal text "Acme Corp") can defeat its own word-boundary
-#    regex when the file's raw bytes are scanned by that same rule — the
-#    "b" right before the search word blocks the boundary match — so
-#    text-replace alone can't reliably self-clean a rules file that was
-#    ever accidentally committed; removing it by path sidesteps that.
+#    That last removal matters because the rules file's own notation for
+#    a word-boundary regex can defeat that same regex when the file's raw
+#    bytes are scanned by it — the boundary-marker character right before
+#    the search word blocks the match — so text-replace alone can't
+#    reliably self-clean a rules file that was ever accidentally
+#    committed; removing it by path sidesteps that.
 echo ">>> Running git filter-repo ..."
 git filter-repo \
   --replace-text "$REPLACEMENTS_FILE" \
@@ -121,6 +121,21 @@ for term in "${VERIFY_TERMS[@]}"; do
 done
 echo ">>> Verifying the two removed paths are gone from every commit"
 git log --all --oneline -- backup_avant_fix_20260818_1140.sql backup_avant_softdelete_20260818_1537.sql backup_avant_suppression_clockify_20260901_1317.sql .git.backup-20260828-1020 2>/dev/null | grep -vc "not a valid attribute" || true
+
+# 5. Anti-corruption check — added after a prior run's replacements file
+#    had a line that accidentally matched a single bare character and got
+#    replaced with git-filter-repo's default "***REMOVED***" marker
+#    everywhere (hex colors, the #root DOM id, comment markers, ...). This
+#    must be 0 on every branch, every time, regardless of what the
+#    replace-text rules are meant to do — it's what actually caught that
+#    incident (git log --all -G'\*\*\*REMOVED\*\*\*').
+echo ">>> Verifying no git-filter-repo default-replacement corruption (must be 0 on every branch)"
+for b in $(git for-each-ref --format='%(refname)' refs/heads/); do
+  n=$(git grep -c -F '***REMOVED***' "$b" 2>/dev/null | grep -vc "not a valid attribute" || true)
+  echo "  $b -> $n files with '***REMOVED***'"
+done
+echo ">>> Same check via commit-diff history (git log --all -G), not just current tips"
+git log --all -G'\*\*\*REMOVED\*\*\*' --oneline 2>/dev/null | grep -vc "not a valid attribute" || true
 
 echo ""
 echo "If every count above is 0, the mirror is clean."
