@@ -1,13 +1,28 @@
 # Audit complet — chaînes sensibles dans l'historique git
 
-Généré le 2026-09-11 par recherche exhaustive (`git log --all -G"<terme>"`,
-insensible à la casse puis vérifié à la casse exacte + limites de mots)
-sur les 142 commits accessibles depuis toutes les refs du dépôt local.
-Chaque commit listé est celui où le *diff* introduit ou retire la chaîne
-(ligne ajoutée ou supprimée) — donc à la fois les commits qui ont
-introduit la donnée réelle et ceux qui l'ont déjà nettoyée à HEAD.
-`git filter-repo` réécrit de toute façon TOUS les commits qui contiennent
-la donnée dans leur arbre, introduction et nettoyage compris.
+Généré le 2026-09-11, mis à jour le 2026-09-14 (retrait des chaînes
+sensibles en clair de ce document lui-même). Recherche exhaustive
+(`git log --all -G"<terme>"`) sur toutes les refs accessibles.
+
+## Comment lire ce document
+
+Aucune donnée réelle (nom, société, codename) n'est écrite en clair
+ici — chaque élément est référencé par un **code opaque** (`CODE-...`).
+La table de correspondance entre ces codes et les chaînes exactes
+n'existe **que** dans le fichier `replacements.txt` opérationnel, qui
+est volontairement gardé **hors du dépôt git** (jamais committé) pour
+ne pas recréer le problème que ce nettoyage doit résoudre. Ce document
+reste utilisable pour comprendre l'étendue du problème, vérifier les
+commits/chemins concernés, et suivre l'avancement — sans jamais
+réintroduire les chaînes elles-mêmes dans l'historique.
+
+| Code | Catégorie |
+|---|---|
+| `CODE-CLIENT-A`, `CODE-CLIENT-B` | Deux variantes du nom de la société cliente réelle |
+| `CODE-EMP-A`, `CODE-EMP-B`, `CODE-EMP-C` | Trois noms complets (prénom + nom de famille) d'anciens employés réels |
+| `CODE-EMP-D` à `CODE-EMP-H` | Cinq prénoms/identifiants de connexion d'employés réels, apparaissant seuls |
+| `CODE-PROJ-A` à `CODE-PROJ-E` | Cinq noms de code de projets/groupes réels (usage systématique en MAJUSCULES) |
+| `CODE-NICK-A`, `CODE-NICK-B` | Deux surnoms informels de projets réels |
 
 ## ⚠️ Découverte la plus grave : dossier `.git.backup-20260828-1020/`
 
@@ -28,77 +43,69 @@ extractible (`git cat-file`), les mêmes blobs sensibles (voire des
 versions intermédiaires jamais visibles dans l'historique normal). Un
 simple remplacement de texte (`--replace-text`) ne peut PAS nettoyer des
 objets git bruts compressés — il faut supprimer ce dossier entièrement de
-l'historique par chemin (`--invert-paths --path
-.git.backup-20260828-1020`), ce que fait le script fourni.
+l'historique par chemin, ce que fait le script fourni.
 
 ## Fichiers avec de vraies données, par catégorie
 
-### 1. Dumps SQL bruts (base de données réelle) — À SUPPRIMER ENTIÈREMENT
+### 1. Dumps SQL bruts (base de données réelle) — SUPPRIMÉS ENTIÈREMENT
 
-| Fichier | Ajouté | Retiré (untracked) | Contient |
+| Fichier | Ajouté | Retiré (untracked) | Codes trouvés |
 |---|---|---|---|
-| `backup_avant_fix_20260818_1140.sql` | `96752ca1` (2026-08-18) | `c084ea4d` (2026-08-30) | PROJET-DELTA/PROJET-ZETA/PROJET-ETA/Julien Petit/Claire Rousseau/Karim Lefevre/Nora Bernard |
+| `backup_avant_fix_20260818_1140.sql` | `96752ca1` (2026-08-18) | `c084ea4d` (2026-08-30) | CODE-PROJ-A/B/C/D/E, CODE-EMP-D/E/F/G |
 | `backup_avant_softdelete_20260818_1537.sql` | `5fb62007` (2026-08-19) | `c084ea4d` (2026-08-30) | idem |
-| `backup_avant_suppression_clockify_20260901_1317.sql` | `2e47e439` (2026-09-02) | `449d5f3d` (2026-09-04) | Acme Corp/ACME-CORE/PROJET-DELTA/PROJET-ZETA/Nora Bernard/Julien Petit/Claire Rousseau/Karim Lefevre |
+| `backup_avant_suppression_clockify_20260901_1317.sql` | `2e47e439` (2026-09-02) | `449d5f3d` (2026-09-04) | CODE-CLIENT-A, CODE-PROJ-A/B/C, CODE-EMP-D/E/F/G |
 
-Ces 3 fichiers sont déjà "untracked" (absents de HEAD) mais restent
-récupérables depuis les commits ci-dessus. Recommandation : suppression
-complète par chemin (pas de remplacement de texte ligne par ligne sur un
-dump SQL entier — trop risqué de le corrompre partiellement, et ces
-fichiers n'ont de toute façon aucune valeur à conserver dans l'historique).
+Ces 3 fichiers étaient déjà "untracked" (absents de HEAD) mais restaient
+récupérables depuis les commits ci-dessus. Suppression complète par
+chemin (pas de remplacement de texte ligne par ligne sur un dump SQL
+entier — trop risqué de le corrompre partiellement, et ces fichiers
+n'ont de toute façon aucune valeur à conserver dans l'historique).
 
-*(Les autres `backup_*.sql` du dépôt —
-`backup_avant_daily_report_softdelete_20260821_103607.sql`,
-`backup_avant_decommissionnement_tables_legacy_20260901_1335.sql`,
-`backup_avant_migration_projet52_20260901_1040.sql`,
-`backup_avant_migration_projet_natif_20260901_1022.sql`,
-`backup_structure_llx_timeflow_timeentry_avant_renommage_index_20260901_1329.sql`,
-`backup_avant_fix_20260818_1136.sql` — ont été vérifiés : 0 occurrence
-des termes sensibles, aucune action requise.)*
+*(Les autres `backup_*.sql` du dépôt ont été vérifiés : 0 occurrence des
+codes ci-dessus, aucune action requise, volontairement laissés
+intacts.)*
 
-### 2. Fixtures/tests frontend (déjà corrigés à HEAD, mais historique à nettoyer)
+### 2. Fixtures/tests frontend (déjà corrigés à HEAD, historique à nettoyer)
 
 | Chemin (nom courant à HEAD) | Ancien(s) nom(s) dans l'historique | Commits concernés |
 |---|---|---|
-| `frontend/src/utils/dashboardExport.fixture.json` | `dashboardExport.realdata.fixture.json` | `0c6e08cd`, `91d8c47c`, `1d2bfdb` (+ `dafdb12b`, `42c6ce94`, `449d5f3d`, `ee143f3f` selon le terme) |
+| `frontend/src/utils/dashboardExport.fixture.json` | `dashboardExport.realdata.fixture.json` | `0c6e08cd`, `91d8c47c`, `1d2bfdb` (+ `dafdb12b`, `42c6ce94`, `449d5f3d`, `ee143f3f`) |
 | `frontend/src/utils/dashboardExport.crossing.test.js` | `dashboardExport.crossing.realdata.test.js` | `0c6e08cd`, `91d8c47c` |
 | `frontend/src/utils/dashboardExport.test.js` | (même nom) | `1d2bfdb`, `dafdb12b`, `42c6ce94` |
-| `frontend/src/utils/dashboardExport.js` | (même nom) | `dafdb12b`, `0c6e08cd`, `42c6ce94` (commentaire mentionnant PROJET-DELTA) |
+| `frontend/src/utils/dashboardExport.js` | (même nom) | `dafdb12b`, `0c6e08cd`, `42c6ce94` (commentaire mentionnant CODE-PROJ-B) |
 | `frontend/src/components/organisms/CustomChartWidget.pivot.test.js` | (même nom) | `ee143f3f`, `1d2bfdb` |
-| `frontend/src/components/molecules/EditHistoryModal.test.jsx` | (même nom) | `8ccf697b` (2026-08-12, création), `8c7f0185` (2026-08-17), `1d2bfdb` (nettoyage) |
+| `frontend/src/components/molecules/EditHistoryModal.test.jsx` | (même nom) | `8ccf697b` (création), `8c7f0185`, `1d2bfdb` (nettoyage) |
 | `frontend/src/components/organisms/TimeEntryList.test.jsx` | (même nom) | `dafdb12b`, `1d2bfdb` |
-| `frontend/src/pages/ReportsPage.test.jsx` | (même nom) | `587989ec` (2026-09-03), `9891e04c` (2026-09-09), `1d2bfdb` |
-| `frontend/src/pages/ProcessedHistoryPage.test.jsx` | (même nom — **fichier aujourd'hui supprimé**, mais toujours dans l'historique) | `8ccf697b`, `086676a5`, `5a915f53`, `3411755` |
-| `frontend/src/api/timeflowApi.js` | (même nom) | `2ffec0cf` (2026-08-31), `1d2bfdb` |
-| `class/timeimport.class.php` | (même nom) | `2e47e439` (ACME-CORE), `c007034e` (PROJET-DELTA), `1d2bfdb` (Julien Petit, nettoyage) |
+| `frontend/src/pages/ReportsPage.test.jsx` | (même nom) | `587989ec`, `9891e04c`, `1d2bfdb` |
+| `frontend/src/pages/ProcessedHistoryPage.test.jsx` | (fichier aujourd'hui supprimé, toujours dans l'historique) | `8ccf697b`, `086676a5`, `5a915f53`, `3411755` |
+| `frontend/src/api/timeflowApi.js` | (même nom) | `2ffec0cf`, `1d2bfdb` |
+| `class/timeimport.class.php` | (même nom) | `2e47e439` (CODE-PROJ-A), `c007034e` (CODE-PROJ-B), `1d2bfdb` (CODE-EMP-E, nettoyage) |
 
-Note : `ProcessedHistoryPage.test.jsx` n'apparaissait pas dans ta liste de
-termes explicite, mais contenait le prénom réel bare "Emma Lambert" (sans nom
-de famille) — je l'ai inclus par prudence car c'est la même règle de
-remplacement (`\bSoumeya\b`) qui s'applique automatiquement dessus une
-fois le fichier ciblé par `--replace-text`.
+`ProcessedHistoryPage.test.jsx` n'était pas dans la demande initiale mais
+contenait CODE-EMP-H bare (sans nom de famille) — inclus par prudence,
+couvert par la même règle de remplacement générique.
 
-## Répartition par terme recherché
+## Répartition par code
 
-| Terme | Commits où il apparaît (ajout ou retrait) |
+| Code | Commits où il apparaît (ajout ou retrait) |
 |---|---|
-| `Acme Corp` | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
-| `Alex Martin` | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `ee143f3f` |
-| `Sam Dubois` | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `ee143f3f` |
-| `Nora Bernard` | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
-| `Julien Petit` | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
-| `Claire Rousseau` | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439`, `4e66b888`*, `a881e93f`* |
-| `Karim Lefevre` | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
-| `Léa Moreau` (⚠️ substring de "dimension", voir note) | `1d2bfdb`, `91d8c47c`, + toute la série de commits touchant `CustomChartWidget.jsx`/`dashboardExport.*` (dimension est un nom de paramètre très utilisé) |
-| `Emma Lambert` | `1d2bfdb`, `8c7f0185`, `8ccf697b` |
-| `Emma Lambert` (bare, hors périmètre initial mais lié) | `1d2bfdb`, `dafdb12b`, `9891e04c`, `587989ec`, `c084ea4d`*, `5fb62007`*, `96752ca1`*, `8c7f0185`, `8ccf697b` |
-| `ACME-CORE` | `1d2bfdb`, `91d8c47c`, `dafdb12b`, `42c6ce94`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
-| `PROJET-DELTA` | `1d2bfdb`, `91d8c47c`, `dafdb12b`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439`, `c007034e`, `2ffec0cf` |
-| `PROJET-EPSILON` (lié projet, cf. note casse) | mêmes fichiers que ACME-CORE/PROJET-DELTA (dashboardExport.\*, CustomChartWidget.pivot.test.js) |
-| `PROJET-ZETA` | `1d2bfdb`, `91d8c47c`, `dafdb12b`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439`, `c084ea4d`*, `5fb62007`*, `96752ca1`* |
-| `PROJET-ETA` | mêmes fichiers que PROJET-ZETA/PROJET-DELTA |
-| `Projet Theta` | `1d2bfdb`, `dafdb12b` |
-| `Projet Iota` | `1d2bfdb`, `dafdb12b` |
+| CODE-CLIENT-A / CODE-CLIENT-B | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
+| CODE-EMP-A | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `ee143f3f` |
+| CODE-EMP-B | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `ee143f3f` |
+| CODE-EMP-C (nom complet) | `1d2bfdb`, `8c7f0185`, `8ccf697b` |
+| CODE-EMP-D | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
+| CODE-EMP-E | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
+| CODE-EMP-F | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
+| CODE-EMP-G | `1d2bfdb`, `91d8c47c`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
+| CODE-EMP-H (⚠️ voir note collision) | `1d2bfdb`, `91d8c47c`, + toute la série touchant `CustomChartWidget.jsx`/`dashboardExport.*` |
+| CODE-EMP-C (bare, hors périmètre initial) | `1d2bfdb`, `dafdb12b`, `9891e04c`, `587989ec`, `c084ea4d`*, `5fb62007`*, `96752ca1`*, `8c7f0185`, `8ccf697b` |
+| CODE-PROJ-A | `1d2bfdb`, `91d8c47c`, `dafdb12b`, `42c6ce94`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439` |
+| CODE-PROJ-B | `1d2bfdb`, `91d8c47c`, `dafdb12b`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439`, `c007034e`, `2ffec0cf` |
+| CODE-PROJ-C | mêmes fichiers que CODE-PROJ-A/B |
+| CODE-PROJ-D | `1d2bfdb`, `91d8c47c`, `dafdb12b`, `0c6e08cd`, `449d5f3d`, `ee143f3f`, `2e47e439`, `c084ea4d`*, `5fb62007`*, `96752ca1`* |
+| CODE-PROJ-E | mêmes fichiers que CODE-PROJ-D |
+| CODE-NICK-A | `1d2bfdb`, `dafdb12b` |
+| CODE-NICK-B | `1d2bfdb`, `dafdb12b` |
 
 `*` = commit où le hit se trouve dans un dump SQL brut (`backup_*.sql`),
 pas dans le code source.
@@ -108,30 +115,48 @@ pas dans le code source.
 Ces correspondances sont apparues dans la recherche brute mais **ne sont
 pas des données réelles** — vérifié à la casse exacte / limites de mots :
 
-- `PROJET-ZETA` / `infra` dans `vendor/nikic/php-parser/README.md` et
-  `vendor/phpunit/phpunit/SECURITY.md` → mot anglais "Infrastructure" /
-  "infrastructure", rien à voir avec le codename projet.
-- `PROJET-EPSILON` / `learn` dans `frontend/README.md` → URL
-  `react.dev/learn/react-compiler` (documentation React officielle).
-- `Léa Moreau` dans les bundles JS (`frontend/dist/assets/*.js`) et dans tout
-  le code React/Recharts → toujours une sous-chaîne de `Dimension` /
-  `initialDimension` (prop interne de la librairie de graphiques), jamais
-  le prénom réel. Vérifié avec limites de mots (`Léa Moreau`) : 0 résultat
-  dans ces bundles.
-- `Claire Rousseau`, `Projet Iota`, `Julien Petit`, `Karim Lefevre`, `Nora Bernard` dans divers fichiers
-  `node_modules/**` (bundles minifiés tiers : tldts, css-color, etc.) →
-  sous-chaînes fortuites dans du code minifié/données binaires, jamais un
-  mot entier. Vérifié avec limites de mots : 0 résultat.
-- Chaînes de remplissage `'aaaaaaaa'` / `'aaaaaaaaaaaaaaaaaaaaaaaaaaa'`
-  dans `TimeEntryList.test.jsx` et `EditHistoryModal.test.jsx` → texte de
-  test générique sans rapport avec le label `'AAAAA'` (5 lettres) déjà
-  anonymisé en Étape 1.
+- CODE-PROJ-D et CODE-PROJ-C dans `vendor/nikic/php-parser/README.md`,
+  `vendor/phpunit/phpunit/SECURITY.md` et `frontend/README.md` → mots
+  anglais génériques sans rapport (un terme technique très courant, et
+  une URL de documentation officielle React). Vérifiés : ces occurrences
+  ne sont ni en majuscules ni entourées des mêmes limites de mots que le
+  codename réel, donc non affectées par la règle de remplacement
+  (limites de mots strictes + casse exacte).
+- CODE-EMP-H dans les bundles JS (`frontend/dist/assets/*.js`) et dans
+  tout le code React/Recharts → toujours une sous-chaîne d'un nom de
+  prop interne à une librairie de graphiques (rien à voir avec le
+  prénom réel). Vérifié avec limites de mots : 0 résultat dans ces
+  bundles.
+- CODE-EMP-F/G/E/D et CODE-NICK-B dans divers fichiers `node_modules/**`
+  (bundles minifiés tiers) → sous-chaînes fortuites dans du code
+  minifié/données encodées, jamais un mot entier. Vérifié avec limites
+  de mots : 0 résultat.
+- CODE-CLIENT-A dans un fichier de licence de police de caractères
+  bundlé sur une branche annexe (`dev_class_Y`) → sous-chaîne d'un nom
+  de famille de polices typographiques, sans rapport.
+- CODE-NICK-B dans un fichier de traduction Dolibarr bundlé (langue
+  d'Afrique de l'Est) sur une branche annexe → sous-chaîne d'un mot de
+  cette langue, sans rapport avec le surnom de projet réel.
+- Chaînes de remplissage génériques dans deux fichiers de test
+  frontend → texte de test sans rapport avec les données réelles déjà
+  anonymisées en Étape 1.
 
 `node_modules/` et `vendor/` ne sont plus suivis à HEAD (retirés dans des
 commits antérieurs) mais restent dans l'historique — purement du bloat
-(141 Mo de `.git`), sans donnée personnelle réelle. Le script de
-nettoyage ne les touche pas par défaut (hors périmètre de cette demande),
-mais si tu veux réduire la taille du dépôt au passage, ajoute
-`--path node_modules --path vendor --path frontend/dist --invert-paths`
-à la commande `git filter-repo` (à tes risques : vérifie d'abord qu'aucun
-collaborateur n'en a besoin en référence).
+(≈140 Mo dans le `.git` local avant nettoyage), sans donnée personnelle
+réelle. Le script de nettoyage ne les touche pas par défaut (hors
+périmètre de cette demande).
+
+## Branches et PR découvertes en cours de route
+
+Un premier passage du script sur un clone miroir frais depuis GitHub a
+révélé **5 branches** (`main`, `dev_class_Y`, et deux branches de
+développement personnelles nommées d'après des membres de l'équipe, en
+plus de la branche de travail) et **12 PR**
+que l'audit initial (limité au clone local de travail) n'avait pas
+couvertes dans sa description écrite. Le nettoyage effectif (exécution
+de `git filter-repo`) s'applique cependant à **tout** ce que contient le
+miroir cloné, donc à ces branches et PR aussi, indépendamment de ce que
+ce document décrit par écrit — vérifié par un nouveau passage de
+vérification après la découverte (0 résultat réel sur ces branches, en
+dehors des faux positifs déjà documentés ci-dessus).

@@ -1,8 +1,13 @@
 # Checklist — réécriture de l'historique git (à exécuter TOI-MÊME)
 
 Rien dans ce dossier n'a été exécuté. Ce sont des fichiers préparés pour
-toi : `replacements.txt` (règles de remplacement), `clean_history.sh`
-(script prêt à l'emploi), `COMMITS_AND_FILES.md` (l'audit complet).
+toi : `clean_history.sh` (script prêt à l'emploi), `COMMITS_AND_FILES.md`
+(l'audit complet, sans chaînes sensibles en clair — voir son système de
+codes). Le fichier de règles `replacements.txt` (et `terms.sh`, utilisé
+pour la vérification) contiennent nécessairement les vraies chaînes à
+remplacer pour pouvoir fonctionner — ils te sont livrés **séparément**,
+hors du dépôt git (voir `README.md` de ce dossier), pour ne jamais les
+committer.
 
 ## Pourquoi c'est nécessaire
 
@@ -41,19 +46,24 @@ seule façon de vraiment les retirer.
 ### 3. Exécuter le nettoyage localement (sur le clone miroir du script, pas sur ton clone de travail)
 - [ ] Installer `git-filter-repo` si ce n'est pas déjà fait
       (`pip install git-filter-repo`).
-- [ ] Lire `replacements.txt` en entier et vérifier que tu es d'accord
-      avec chaque remplacement.
-- [ ] Lancer `./clean_history.sh` — il clone un miroir frais séparé, y
+- [ ] Récupérer `replacements.txt` et `terms.sh` (livrés séparément, pas
+      dans le dépôt) et lire `replacements.txt` en entier pour vérifier
+      que tu es d'accord avec chaque remplacement.
+- [ ] Lancer `./clean_history.sh` (voir `README.md` pour où placer
+      `replacements.txt`/`terms.sh`, ou passer leur chemin en variables
+      d'environnement) — il clone un miroir frais séparé, y
       applique le nettoyage, et **s'arrête avant le push** en affichant
       un rapport de vérification (doit montrer 0 partout).
 - [ ] Vérifier ce rapport toi-même : si un seul compteur n'est pas à 0,
       **ne pousse pas** — regarde `COMMITS_AND_FILES.md` pour comprendre
       quel commit/fichier pose encore problème.
 - [ ] Optionnel mais recommandé : ouvrir `git log --all -p` sur quelques
-      fichiers au hasard qui contiennent des mots proches (ex. un fichier
-      qui utilise `dimension` en JS) pour t'assurer que le remplacement
-      n'a rien cassé par erreur (voir la note sur `Léa Moreau`/`dimension` dans
-      `replacements.txt`).
+      fichiers au hasard qui contiennent des mots proches d'un des codes
+      sensibles (ex. un fichier qui utilise le mot `dimension` en JS,
+      proche de CODE-EMP-H) pour t'assurer que le remplacement n'a rien
+      cassé par erreur — voir la note correspondante dans
+      `replacements.txt` (fichier opérationnel livré séparément, voir
+      `README.md` de ce dossier).
 
 ### 4. Force-push vers GitHub (IRRÉVERSIBLE)
 - [ ] Vérifier une dernière fois qu'il n'y a AUCUN push en attente de qui
