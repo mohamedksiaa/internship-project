@@ -1211,28 +1211,143 @@ class TimeImportClockify
 
     /**
      * Project/group/client mapping rows that are still waiting on a user
-     * decision. The caller must refuse to run the import while this is
-     * non-empty — running anyway would mean guessing what the user wants
-     * for elements they were never asked to confirm.
+     * decision, scoped to the values actually referenced by the CSV file
+     * currently being imported. The caller must refuse to run the import
+     * while this is non-empty — running anyway would mean guessing what the
+     * user wants for elements they were never asked to confirm.
      *
+     * Deliberately scoped by $scopedValues rather than checking every
+     * 'create_pending' row for this source_system: llx_timeflow_import_mapping
+     * accumulates across every import ever previewed, by any user, so an
+     * unscoped check would let a leftover unresolved row from a completely
+     * unrelated earlier import (this user's or anyone else's) block a new
+     * import that never mentions it.
+     *
+     * @param array{project?: string[], group?: string[], client?: string[]} $scopedValues
+     *        Distinct source values found in the current CSV, as returned by
+     *        extractDistinctSourceValuesFromCsv().
      * @return string[] e.g. ["project:ACME-CORE", "group:HRM", "client:ACME"]
      */
-    protected function findPendingProjectAndGroupMappings()
+    protected function findPendingProjectAndGroupMappings(array $scopedValues)
     {
-        $sql = 'SELECT mapping_type, source_value FROM '.$this->db->prefix().'timeflow_import_mapping';
-        $sql .= " WHERE source_system = '".$this->db->escape($this->sourceSystem)."'";
-        $sql .= " AND mapping_type IN ('project', 'group', 'client')";
-        $sql .= " AND target_action = 'create_pending'";
-        $sql .= ' ORDER BY mapping_type, source_value';
-
         $pending = array();
-        $resql = $this->db->query($sql);
-        if ($resql) {
-            while ($obj = $this->db->fetch_object($resql)) {
-                $pending[] = $obj->mapping_type.':'.$obj->source_value;
+
+        // Alphabetical by mapping_type, matching the previous single-query
+        // ORDER BY mapping_type, source_value.
+        foreach (array('client', 'group', 'project') as $mappingType) {
+            $inList = $this->sqlStringInList($scopedValues[$mappingType] ?? array());
+            if ($inList === null) {
+                continue;
+            }
+
+            $sql = 'SELECT mapping_type, source_value FROM '.$this->db->prefix().'timeflow_import_mapping';
+            $sql .= " WHERE source_system = '".$this->db->escape($this->sourceSystem)."'";
+            $sql .= " AND mapping_type = '".$this->db->escape($mappingType)."'";
+            $sql .= " AND target_action = 'create_pending'";
+            $sql .= ' AND source_value IN ('.$inList.')';
+            $sql .= ' ORDER BY source_value';
+
+            $resql = $this->db->query($sql);
+            if ($resql) {
+                while ($obj = $this->db->fetch_object($resql)) {
+                    $pending[] = $obj->mapping_type.':'.$obj->source_value;
+                }
             }
         }
+
         return $pending;
+    }
+
+    /**
+     * Builds a safe SQL "IN (...)" list of escaped string literals.
+     *
+     * Returns null when $values is empty — callers must treat that as "this
+     * type has nothing to scope to, so match nothing" and skip the query
+     * entirely, never fall back to an unfiltered one.
+     *
+     * @param string[] $values
+     * @return string|null
+     */
+    protected function sqlStringInList(array $values)
+    {
+        $values = array_values(array_unique(array_filter($values, function ($v) {
+            return $v !== '';
+        })));
+        if (empty($values)) {
+            return null;
+        }
+
+        $escaped = array();
+        foreach ($values as $value) {
+            $escaped[] = '\''.$this->db->escape((string) $value).'\'';
+        }
+        return implode(', ', $escaped);
+    }
+
+    /**
+     * Distinct, trimmed user/project/group/client values found in this CSV
+     * — the scope every execution-time mapping query below is filtered to,
+     * so a llx_timeflow_import_mapping (or *_link) row left over from an
+     * unrelated earlier import is never read, created from, blocked on, or
+     * acted on by a run that never mentioned it. Mirrors the same cell
+     * extraction as previewFromCsvPath(), minus the mapping resolution —
+     * nothing is persisted here.
+     *
+     * @param string $csvPath
+     * @return array{user: string[], project: string[], group: string[], client: string[]}
+     */
+    protected function extractDistinctSourceValuesFromCsv($csvPath)
+    {
+        $config = $this->loadConfig();
+        $delimiter = $config['delimiter'] ?? ',';
+        $headerNames = $this->readCsvHeader($csvPath, $delimiter);
+        if (empty($headerNames)) {
+            throw new RuntimeException('Le fichier CSV est vide ou sans en-tête.');
+        }
+        $columnIndexes = $this->mapHeadersToIndexes($headerNames, $config['columns'] ?? array());
+
+        $values = array('user' => array(), 'project' => array(), 'group' => array(), 'client' => array());
+
+        $handle = fopen($csvPath, 'r');
+        if ($handle === false) {
+            throw new RuntimeException('Impossible d’ouvrir le fichier CSV.');
+        }
+
+        $firstLine = true;
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+            if ($firstLine) {
+                $firstLine = false;
+                continue;
+            }
+
+            $normalizedRow = array_pad($row, max(count($headerNames), 1), '');
+
+            $email = $this->normalizeString($this->readCell($normalizedRow, $columnIndexes['user_email'] ?? null));
+            $projectLabel = $this->normalizeString($this->readCell($normalizedRow, $columnIndexes['project'] ?? null));
+            $clientLabel = $this->normalizeString($this->readCell($normalizedRow, $columnIndexes['client'] ?? null));
+            $groupsCell = $this->readCell($normalizedRow, $columnIndexes['groups'] ?? null);
+
+            if ($email !== '') {
+                $values['user'][$email] = true;
+            }
+            if ($projectLabel !== '') {
+                $values['project'][$projectLabel] = true;
+            }
+            if ($clientLabel !== '') {
+                $values['client'][$clientLabel] = true;
+            }
+            foreach ($this->splitGroupNames($groupsCell) as $groupName) {
+                $values['group'][$groupName] = true;
+            }
+        }
+        fclose($handle);
+
+        return array(
+            'user' => array_keys($values['user']),
+            'project' => array_keys($values['project']),
+            'group' => array_keys($values['group']),
+            'client' => array_keys($values['client']),
+        );
     }
 
     /**
@@ -1286,18 +1401,29 @@ class TimeImportClockify
      * llx_timeflow_import_project_client_link + this method's freshly
      * 'created' mapping rows.
      *
-     * @param User  $user   Acting user — becomes fk_user_creat on the
-     *                      created llx_societe rows.
-     * @param array $report Accumulator, mutated in place: 'clients_created',
-     *                      'errors'.
+     * @param User   $user         Acting user — becomes fk_user_creat on the
+     *                             created llx_societe rows.
+     * @param array  $report       Accumulator, mutated in place:
+     *                             'clients_created', 'errors'.
+     * @param string[] $clientValues Client values from the current CSV
+     *                             (extractDistinctSourceValuesFromCsv()['client'])
+     *                             — scopes creation to this import, so a
+     *                             client confirmed by a different, unrelated
+     *                             earlier import is never created here.
      */
-    protected function createConfirmedClients(User $user, array &$report)
+    protected function createConfirmedClients(User $user, array &$report, array $clientValues)
     {
+        $inList = $this->sqlStringInList($clientValues);
+        if ($inList === null) {
+            return;
+        }
+
         $sql = 'SELECT rowid, source_value, new_label';
         $sql .= ' FROM '.$this->db->prefix().'timeflow_import_mapping';
         $sql .= " WHERE source_system = '".$this->db->escape($this->sourceSystem)."'";
         $sql .= " AND mapping_type = 'client'";
         $sql .= " AND target_action = 'create_confirmed'";
+        $sql .= ' AND source_value IN ('.$inList.')';
         $sql .= ' ORDER BY rowid ASC';
 
         $resql = $this->db->query($sql);
@@ -1374,20 +1500,42 @@ class TimeImportClockify
      * 'user' row in the first place — this is defense in depth on top of
      * that, not the only guard).
      *
-     * @param User  $user   Acting user (importing admin) — becomes fk_user_creat
-     *                      on the created llx_projet/llx_usergroup rows.
-     * @param array $report Accumulator, mutated in place: 'projects_created',
-     *                      'groups_created', 'errors'.
+     * @param User     $user          Acting user (importing admin) — becomes
+     *                                fk_user_creat on the created
+     *                                llx_projet/llx_usergroup rows.
+     * @param array    $report        Accumulator, mutated in place:
+     *                                'projects_created', 'groups_created',
+     *                                'errors'.
+     * @param string[] $projectValues Project values from the current CSV.
+     * @param string[] $groupValues   Group values from the current CSV —
+     *                                together with $projectValues, scopes
+     *                                creation to this import, so a
+     *                                project/group confirmed by a
+     *                                different, unrelated earlier import is
+     *                                never created here.
      */
-    protected function createConfirmedProjectsAndGroups(User $user, array &$report)
+    protected function createConfirmedProjectsAndGroups(User $user, array &$report, array $projectValues, array $groupValues)
     {
         global $conf;
+
+        $conditions = array();
+        $projectInList = $this->sqlStringInList($projectValues);
+        if ($projectInList !== null) {
+            $conditions[] = "(mapping_type = 'project' AND source_value IN (".$projectInList."))";
+        }
+        $groupInList = $this->sqlStringInList($groupValues);
+        if ($groupInList !== null) {
+            $conditions[] = "(mapping_type = 'group' AND source_value IN (".$groupInList."))";
+        }
+        if (empty($conditions)) {
+            return;
+        }
 
         $sql = 'SELECT rowid, mapping_type, source_value, new_label';
         $sql .= ' FROM '.$this->db->prefix().'timeflow_import_mapping';
         $sql .= " WHERE source_system = '".$this->db->escape($this->sourceSystem)."'";
-        $sql .= " AND mapping_type IN ('project', 'group')";
         $sql .= " AND target_action = 'create_confirmed'";
+        $sql .= ' AND ('.implode(' OR ', $conditions).')';
         $sql .= ' ORDER BY rowid ASC';
 
         $resql = $this->db->query($sql);
@@ -1461,14 +1609,30 @@ class TimeImportClockify
      * User::SetInGroup() does its own DELETE-then-INSERT on
      * llx_usergroup_user, so calling it twice for the same pair (e.g. a
      * re-run of the import) is a safe no-op, not a duplicate.
+     *
+     * @param array    $report      Accumulator, mutated in place.
+     * @param string[] $userValues  User (email) values from the current CSV.
+     * @param string[] $groupValues Group values from the current CSV —
+     *                              together with $userValues, scopes this to
+     *                              pairs recorded by this import, so a pair
+     *                              left over by a different, unrelated
+     *                              earlier import is never re-applied here.
      */
-    protected function applyGroupMemberships(array &$report)
+    protected function applyGroupMemberships(array &$report, array $userValues, array $groupValues)
     {
         global $conf;
+
+        $userInList = $this->sqlStringInList($userValues);
+        $groupInList = $this->sqlStringInList($groupValues);
+        if ($userInList === null || $groupInList === null) {
+            return;
+        }
 
         $sql = 'SELECT user_source_value, group_source_value';
         $sql .= ' FROM '.$this->db->prefix().'timeflow_import_user_group_link';
         $sql .= " WHERE source_system = '".$this->db->escape($this->sourceSystem)."'";
+        $sql .= ' AND user_source_value IN ('.$userInList.')';
+        $sql .= ' AND group_source_value IN ('.$groupInList.')';
 
         $resql = $this->db->query($sql);
         if (!$resql) {
@@ -1524,12 +1688,29 @@ class TimeImportClockify
      * a negative code on error — so calling it twice for the same pair
      * (e.g. a re-run of the import, or a user already added manually) is a
      * safe no-op, never a duplicate.
+     *
+     * @param array    $report        Accumulator, mutated in place.
+     * @param string[] $projectValues Project values from the current CSV.
+     * @param string[] $userValues    User (email) values from the current
+     *                                CSV — together with $projectValues,
+     *                                scopes this to pairs recorded by this
+     *                                import, so a pair left over by a
+     *                                different, unrelated earlier import is
+     *                                never re-applied here.
      */
-    protected function applyProjectContributors(array &$report)
+    protected function applyProjectContributors(array &$report, array $projectValues, array $userValues)
     {
+        $projectInList = $this->sqlStringInList($projectValues);
+        $userInList = $this->sqlStringInList($userValues);
+        if ($projectInList === null || $userInList === null) {
+            return;
+        }
+
         $sql = 'SELECT project_source_value, user_source_value';
         $sql .= ' FROM '.$this->db->prefix().'timeflow_import_project_user_link';
         $sql .= " WHERE source_system = '".$this->db->escape($this->sourceSystem)."'";
+        $sql .= ' AND project_source_value IN ('.$projectInList.')';
+        $sql .= ' AND user_source_value IN ('.$userInList.')';
 
         $resql = $this->db->query($sql);
         if (!$resql) {
@@ -1613,6 +1794,11 @@ class TimeImportClockify
         $columnIndexes = $this->mapHeadersToIndexes($headerNames, $config['columns'] ?? array());
 
         $displayNameByEmail = array();
+        // Every email seen in this CSV, regardless of whether that row also
+        // carried a display name — scopes the enrichment query below to
+        // this import, so a 'matched' user only ever mentioned by a
+        // different, unrelated earlier import is never touched here.
+        $emailsSeen = array();
         $handle = fopen($csvPath, 'r');
         if ($handle === false) {
             throw new RuntimeException('Impossible d’ouvrir le fichier CSV.');
@@ -1626,17 +1812,26 @@ class TimeImportClockify
             $normalizedRow = array_pad($row, max(count($headerNames), 1), '');
             $email = $this->normalizeString($this->readCell($normalizedRow, $columnIndexes['user_email'] ?? null));
             $displayName = $this->normalizeString($this->readCell($normalizedRow, $columnIndexes['user_display'] ?? null));
+            if ($email !== '') {
+                $emailsSeen[$email] = true;
+            }
             if ($email !== '' && $displayName !== '' && !isset($displayNameByEmail[$email])) {
                 $displayNameByEmail[$email] = $displayName;
             }
         }
         fclose($handle);
 
+        $inList = $this->sqlStringInList(array_keys($emailsSeen));
+        if ($inList === null) {
+            return;
+        }
+
         $sql = 'SELECT DISTINCT source_value, target_id';
         $sql .= ' FROM '.$this->db->prefix().'timeflow_import_mapping';
         $sql .= " WHERE source_system = '".$this->db->escape($this->sourceSystem)."'";
         $sql .= " AND mapping_type = 'user'";
         $sql .= " AND target_action = 'matched'";
+        $sql .= ' AND source_value IN ('.$inList.')';
 
         $resql = $this->db->query($sql);
         if (!$resql) {
@@ -1968,7 +2163,9 @@ class TimeImportClockify
             throw new RuntimeException('Le fichier CSV ne peut pas être lu.');
         }
 
-        $pending = $this->findPendingProjectAndGroupMappings();
+        $scopedValues = $this->extractDistinctSourceValuesFromCsv($csvPath);
+
+        $pending = $this->findPendingProjectAndGroupMappings($scopedValues);
         if (!empty($pending)) {
             throw new InvalidArgumentException('Des éléments restent à résoudre avant de lancer l’import : '.implode(', ', $pending));
         }
@@ -1992,11 +2189,11 @@ class TimeImportClockify
             'errors' => array(),
         );
 
-        $this->createConfirmedClients($user, $report);
-        $this->createConfirmedProjectsAndGroups($user, $report);
+        $this->createConfirmedClients($user, $report, $scopedValues['client']);
+        $this->createConfirmedProjectsAndGroups($user, $report, $scopedValues['project'], $scopedValues['group']);
         $this->enrichMatchedUsersFromCsv($csvPath, $user, $report);
-        $this->applyGroupMemberships($report);
-        $this->applyProjectContributors($report);
+        $this->applyGroupMemberships($report, $scopedValues['user'], $scopedValues['group']);
+        $this->applyProjectContributors($report, $scopedValues['project'], $scopedValues['user']);
         $this->importTimeEntriesFromCsv($csvPath, $user, $report);
 
         // Keep the response payload bounded regardless of CSV size — the
