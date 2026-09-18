@@ -47,7 +47,7 @@ class InterfaceTimeFlowTriggers extends DolibarrTriggers
 		parent::__construct($db);
 		$this->family = "demo";
 		$this->description = "TimeFlow triggers.";
-		$this->version = self::VERSIONS['dev'];
+		$this->version = self::VERSION_DEVELOPMENT;
 		$this->picto = 'timeflow@timeflow';
 	}
 
