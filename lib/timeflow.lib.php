@@ -229,6 +229,41 @@ function timeflowCanReadAllTimeEntries($user)
 }
 
 /**
+ * One raw, escaped SQL date/time comparison (" AND <column> <op> '<value>'"),
+ * for the callers that filter on a full "YYYY-MM-DD HH:MM:SS" value.
+ *
+ * Why not the Universal Search string ("(t.date_start:>=:'2026-09-14 00:00:00')")
+ * like the other criteria: Dolibarr 19.x's dolForgeCriteriaCallback() does
+ * explode(':', $criterion) with no limit, so the colons inside the time part
+ * split the value apart; the truncated value fails its quoted-string test and
+ * is cast to (float) 0, giving "t.date_start >= 0 AND t.date_start < 0" — always
+ * false — so every date-ranged view (Calendar, Dashboard) came back empty.
+ * Newer cores pass a limit of 3 and are fine, which is why this only showed up
+ * on 19.x. A plain SQL comparison behaves identically on every version.
+ *
+ * Fails closed: an unrecognised column, operator or value yields
+ * " AND 1 = 0" (matches nothing) rather than silently dropping the bound and
+ * widening the result.
+ *
+ * @param DoliDB $db
+ * @param string $column   Column, optionally table-qualified, e.g. 't.date_start'.
+ * @param string $operator One of >=, >, <=, <, =.
+ * @param string $value    "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS".
+ * @return string          A fragment starting with " AND ", ready to append.
+ */
+function timeflowSqlDateTimeCondition($db, $column, $operator, $value)
+{
+    $valid = preg_match('/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/', (string) $column)
+        && in_array($operator, array('>=', '>', '<=', '<', '='), true)
+        && preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/', (string) $value);
+    if (!$valid) {
+        return ' AND 1 = 0';
+    }
+
+    return ' AND '.$column.' '.$operator." '".$db->escape((string) $value)."'";
+}
+
+/**
  * The projects $user may see/use, per Dolibarr's own native visibility rule —
  * delegated to Project::getProjectsAuthorizedForUser() (mode 0, the same call
  * the native Projects list makes) rather than re-implemented here: a project

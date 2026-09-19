@@ -1074,16 +1074,18 @@ function timeflowFetchWeeklyTimesheet($timeentry, $user, $weekStart = null)
         $filterParts[] = '(t.fk_user:=:' . (int) $user->id . ')';
     }
 
-    // Dolibarr universal filter syntax expects quoted date literals.
-    $filterParts[] = "(t.date_start:>=:'" . date('Y-m-d 00:00:00', $weekStartTs) . "')";
-    $filterParts[] = "(t.date_start:<:'" . date('Y-m-d 00:00:00', $weekEndTs) . "')";
     $filter = implode(' AND ', $filterParts);
+    // The week bounds carry a "00:00:00" time part, which Dolibarr 19.x's
+    // Universal Search parser mangles (see timeflowSqlDateTimeCondition()),
+    // so they are appended as plain SQL instead of going through $filter.
+    $dateRangeSql = timeflowSqlDateTimeCondition($timeentry->db, 't.date_start', '>=', date('Y-m-d 00:00:00', $weekStartTs))
+        . timeflowSqlDateTimeCondition($timeentry->db, 't.date_start', '<', date('Y-m-d 00:00:00', $weekEndTs));
 
     if ($debugMode) {
         $t0 = microtime(true);
     }
 
-    $result = $timeentry->fetchAll('ASC', 't.date_start', 1000, 0, $filter);
+    $result = $timeentry->fetchAll('ASC', 't.date_start', 1000, 0, $filter, 'AND', $dateRangeSql);
 
     if ($debugMode) {
         $t1 = microtime(true);
@@ -1336,16 +1338,23 @@ function timeflowBuildSummary($entries, $db)
  * @param string $filter Universal Search string, same format as fetchAll()'s $filter
  * @return int<-1,max> Row count, or -1 on query error
  */
-function timeflowCountEntriesMatchingFilter($db, $filter)
+function timeflowCountEntriesMatchingFilter($db, $filter, $extraWhereSql = '')
 {
     $sql = 'SELECT COUNT(*) as nb FROM '.$db->prefix().'timeflow_timeentry as t';
     $sql .= ' WHERE 1 = 1 AND t.date_delete IS NULL';
     $errormessage = '';
-    $sql .= forgeSQLFromUniversalSearchCriteria($filter, $errormessage);
+    // Skipped when empty, same reason as TimeEntry::fetchAll(): Dolibarr 19.x
+    // turns '' into an invalid " AND ()".
+    if ($filter !== '') {
+        $sql .= forgeSQLFromUniversalSearchCriteria($filter, $errormessage);
+    }
     if ($errormessage) {
         dol_syslog('timeflowCountEntriesMatchingFilter: '.$errormessage, LOG_ERR);
         return -1;
     }
+    // Already-escaped raw conditions (see timeflowSqlDateTimeCondition()),
+    // so the count uses exactly the same predicate as the paired fetchAll().
+    $sql .= $extraWhereSql;
     $resql = $db->query($sql);
     if (!$resql) {
         return -1;
@@ -2295,22 +2304,26 @@ switch ($action) {
         if (!timeflowCanReadAllTimeEntries($user)) {
             $filters[] = '(t.fk_user:=:'.((int) $user->id).')';
         }
-        if ($dateFrom !== '') {
-            $filters[] = "(t.date_start:>=:'".$dateFrom." 00:00:00')";
-        }
-        if ($dateTo !== '') {
-            $filters[] = "(t.date_start:<=:'".$dateTo." 23:59:59')";
-        }
         if ($onlyValidated) {
             $filters[] = '(t.status:=:'.TimeEntry::STATUS_VALIDATED.')';
         }
         $filter = implode(' AND ', $filters);
+        // The period bounds carry an "HH:MM:SS" part, which Dolibarr 19.x's
+        // Universal Search parser mangles (see timeflowSqlDateTimeCondition()),
+        // so they are appended as plain SQL instead of going through $filter.
+        $dateRangeSql = '';
+        if ($dateFrom !== '') {
+            $dateRangeSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $dateFrom.' 00:00:00');
+        }
+        if ($dateTo !== '') {
+            $dateRangeSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $dateTo.' 23:59:59');
+        }
         // Same admin-only debug gate as timeflowFetchWeeklyTimesheet()'s own
         // instrumentation: not needed on every call in production.
         if (!empty($user->admin) && GETPOST('debug', 'int')) {
             dol_syslog('timeflow.getSummaryReports user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' dateFrom='.(string)$dateFrom.' dateTo='.(string)$dateTo, LOG_DEBUG);
         }
-        $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter);
+        $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter, 'AND', $dateRangeSql);
         $rows = array();
         if (is_array($result)) {
             foreach ($result as $obj) {
@@ -2321,7 +2334,7 @@ switch ($action) {
         // Lets the frontend warn when the period holds more rows than $limit
         // fetched above, instead of silently charting an incomplete sample.
         $summaryData['entries_returned'] = count($rows);
-        $summaryData['entries_total_in_period'] = timeflowCountEntriesMatchingFilter($db, $filter);
+        $summaryData['entries_total_in_period'] = timeflowCountEntriesMatchingFilter($db, $filter, $dateRangeSql);
         timeflowJsonResponse(array('status' => 'success', 'data' => $summaryData));
         break;
 
