@@ -265,6 +265,98 @@ function timeflowSqlDateTimeCondition($db, $column, $operator, $value)
     return ' AND '.$column.' '.$operator." '".$db->escape((string) $value)."'";
 }
 
+if (!class_exists('TimeflowSqlException')) {
+    /**
+     * A SQL failure on a read that feeds the frontend. Caught once by the
+     * dispatcher in ajax/timeentry.php and turned into an HTTP 500 error
+     * response (see timeflowSqlErrorPayload()), instead of being flattened
+     * into an empty list that the UI shows as "no data".
+     */
+    class TimeflowSqlException extends RuntimeException
+    {
+        /** @var string Raw driver error: server log and admins only, never other users. */
+        public $dbError = '';
+    }
+}
+
+/**
+ * Runs a query whose failure must not be mistaken for "no rows".
+ *
+ * $db->query() returns false on failure, and the module's readers used to test
+ * it as "if ($resql) { ...fill the list... }" with no else — so a schema
+ * drift (a column present on one install and not another) came out as an
+ * empty list with status "success". This throws instead.
+ *
+ * Only for reads whose result is returned as data. Schema probes and
+ * fallback chains that treat failure as "absent" (timeflowHasDateDeleteColumn,
+ * the optional legacy audit table, label fallbacks) stay on plain
+ * $db->query() on purpose.
+ *
+ * @param DoliDB $db
+ * @param string $sql
+ * @param string $context Short developer label, shown in the error message
+ *                        (e.g. 'getTimeFlowProjects:page') — never user input.
+ * @return resource|object The successful query result.
+ * @throws TimeflowSqlException
+ */
+function timeflowQuery($db, $sql, $context = 'query')
+{
+    $res = $db->query($sql);
+    if ($res) {
+        return $res;
+    }
+
+    $e = new TimeflowSqlException((string) $context);
+    $e->dbError = (string) $db->lasterror();
+    dol_syslog('TimeFlow SQL failure ['.$context.']: '.$e->dbError, LOG_ERR);
+    throw $e;
+}
+
+/**
+ * Same guarantee for the Dolibarr CRUD convention used by TimeEntry::fetchAll():
+ * it returns an array on success and -1 (with ->errors filled) on failure.
+ *
+ * @param array|int $result   What fetchAll() returned.
+ * @param object    $object   The object it was called on (for ->errors).
+ * @param string    $context  See timeflowQuery().
+ * @return array
+ * @throws TimeflowSqlException
+ */
+function timeflowRequireRows($result, $object, $context = 'fetchAll')
+{
+    if (is_array($result)) {
+        return $result;
+    }
+
+    $e = new TimeflowSqlException((string) $context);
+    $e->dbError = is_array($object->errors ?? null) ? implode(' ', $object->errors) : (string) ($object->error ?? '');
+    dol_syslog('TimeFlow SQL failure ['.$context.']: '.$e->dbError, LOG_ERR);
+    throw $e;
+}
+
+/**
+ * The JSON error payload for a TimeflowSqlException. The raw driver text is
+ * included only for an admin; everyone else gets the context label, not the
+ * table/column names.
+ *
+ * @param TimeflowSqlException $e
+ * @param User|null            $user
+ * @return array
+ */
+function timeflowSqlErrorPayload(TimeflowSqlException $e, $user = null)
+{
+    $payload = array(
+        'status' => 'error',
+        'code' => 'sql_error',
+        'message' => 'Erreur de base de données ('.$e->getMessage().'). Contactez un administrateur.',
+    );
+    if ($user && !empty($user->admin) && $e->dbError !== '') {
+        $payload['detail'] = $e->dbError;
+    }
+
+    return $payload;
+}
+
 /**
  * The projects $user may see/use, per Dolibarr's own native visibility rule —
  * delegated to Project::getProjectsAuthorizedForUser() (mode 0, the same call

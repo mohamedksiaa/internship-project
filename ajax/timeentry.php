@@ -195,7 +195,9 @@ function timeflowCanValidate($user)
 function timeflowProjectIsClosed($db, $fkProject)
 {
     $sql = 'SELECT fk_statut FROM '.$db->prefix().'projet WHERE rowid = '.((int) $fkProject);
-    $resql = $db->query($sql);
+    // A failed lookup must not read as "not closed": this guards new time
+    // entries, so it fails closed (500) rather than open.
+    $resql = timeflowQuery($db, $sql, 'timeflowProjectIsClosed');
     $obj = $resql ? $db->fetch_object($resql) : null;
     return $obj ? ((int) $obj->fk_statut === Project::STATUS_CLOSED) : false;
 }
@@ -394,10 +396,11 @@ function timeflowFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', 
     $perPage = min(100, max(1, (int) $perPage));
     $offset = ($page - 1) * $perPage;
 
+    // Both throw TimeflowSqlException on failure (a failed count used to be
+    // clamped to 0 and a failed fetchAll() to an empty page).
     $total = timeflowCountEntriesMatchingFilter($db, $filter);
-    $total = $total >= 0 ? $total : 0;
 
-    $result = $timeentry->fetchAll('DESC', 't.date_start', $perPage, $offset, $filter);
+    $result = timeflowRequireRows($timeentry->fetchAll('DESC', 't.date_start', $perPage, $offset, $filter), $timeentry, 'timeflowFetchVisibleTimeEntries:rows');
     $rows = array();
     if (is_array($result)) {
         foreach ($result as $obj) {
@@ -419,7 +422,7 @@ function timeflowValidationEmployees()
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS u ON u.rowid = t.fk_user';
     $sql .= ' WHERE t.entity IN ('.getEntity('timeentry').') AND t.status = '.TimeEntry::STATUS_SUBMITTED;
     $sql .= ' ORDER BY u.lastname, u.firstname, u.login';
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowValidationEmployees');
     $employees = array();
     while ($resql && ($obj = $db->fetch_object($resql))) {
         $employees[] = array('id' => (int) $obj->fk_user, 'label' => trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));
@@ -671,7 +674,7 @@ function timeflowFetchUserGroups($db)
     $sql .= ' WHERE entity IN ('.getEntity('usergroup').')';
     $sql .= ' ORDER BY nom ASC';
 
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchUserGroups');
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
             $groups[] = array(
@@ -696,7 +699,7 @@ function timeflowFetchActiveUsers($db)
     $sql .= ' AND entity IN ('.getEntity('user').')';
     $sql .= ' ORDER BY lastname ASC, firstname ASC, login ASC';
 
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveUsers');
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
             $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
@@ -763,7 +766,7 @@ function timeflowFetchTimeFlowUsers($db, $page = 1, $perPage = 20)
     $offset = ($page - 1) * $perPage;
     $countSql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'user AS u WHERE u.rowid IN '.$membershipSubquery;
     $total = 0;
-    $countRes = $db->query($countSql);
+    $countRes = timeflowQuery($db, $countSql, 'timeflowFetchTimeFlowUsers:count');
     if ($countRes) {
         $countObj = $db->fetch_object($countRes);
         $total = $countObj ? (int) $countObj->nb : 0;
@@ -777,7 +780,7 @@ function timeflowFetchTimeFlowUsers($db, $page = 1, $perPage = 20)
     $sql .= $db->plimit($perPage, $offset);
 
     $userIds = array();
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchTimeFlowUsers:page');
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
             $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
@@ -804,7 +807,7 @@ function timeflowFetchTimeFlowUsers($db, $page = 1, $perPage = 20)
         $sql = 'SELECT ug.fk_user, g.nom FROM '.$db->prefix().'usergroup_user AS ug';
         $sql .= ' INNER JOIN '.$db->prefix().'usergroup AS g ON g.rowid = ug.fk_usergroup';
         $sql .= ' WHERE ug.fk_user IN ('.implode(',', $userIds).')';
-        $resql = $db->query($sql);
+        $resql = timeflowQuery($db, $sql, 'timeflowFetchTimeFlowUsers:groups');
         if ($resql) {
             while ($obj = $db->fetch_object($resql)) {
                 $userId = (int) $obj->fk_user;
@@ -866,7 +869,7 @@ function timeflowBuildGlobalCsvRows($db, $user)
     // pathological unbounded query rather than an expected data size.
     $sql .= ' LIMIT 50000';
 
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowBuildGlobalCsvRows:entries');
     if (!$resql) {
         return $rows;
     }
@@ -888,7 +891,7 @@ function timeflowBuildGlobalCsvRows($db, $user)
     if (!empty($clientIds)) {
         $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
         $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', array_keys($clientIds))).')';
-        $resql = $db->query($sql);
+        $resql = timeflowQuery($db, $sql, 'timeflowBuildGlobalCsvRows:clients');
         if ($resql) {
             while ($obj = $db->fetch_object($resql)) {
                 $clientLabelMap[(int) $obj->rowid] = (string) $obj->nom;
@@ -904,7 +907,7 @@ function timeflowBuildGlobalCsvRows($db, $user)
         $sql = 'SELECT ug.fk_user, g.nom FROM '.$db->prefix().'usergroup_user AS ug';
         $sql .= ' INNER JOIN '.$db->prefix().'usergroup AS g ON g.rowid = ug.fk_usergroup';
         $sql .= ' WHERE ug.fk_user IN ('.implode(',', array_map('intval', array_keys($userIds))).')';
-        $resql = $db->query($sql);
+        $resql = timeflowQuery($db, $sql, 'timeflowBuildGlobalCsvRows:groups');
         if ($resql) {
             while ($obj = $db->fetch_object($resql)) {
                 $userGroupsMap[(int) $obj->fk_user][] = (string) $obj->nom;
@@ -987,7 +990,7 @@ function timeflowFetchProjects($db, $user = null)
     $sql .= timeflowProjectVisibilityRestrictionSql($db, $user, 'p');
     $sql .= ' ORDER BY p.title ASC, p.ref ASC, p.rowid DESC';
 
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchProjects');
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
             // Normal flow: build lightweight project metadata for listing
@@ -1043,7 +1046,7 @@ function timeflowFetchTasks($db, $projectId = 0, $limit = 100, $user = null)
     $sql .= ' ORDER BY rowid DESC';
     $sql .= $db->plimit((int) $limit > 0 ? (int) $limit : 100);
 
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchTasks');
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
             $tasks[] = array(
@@ -1083,7 +1086,7 @@ function timeflowFetchWeeklyTimesheet($timeentry, $user, $weekStart = null)
         $t0 = microtime(true);
     }
 
-    $result = $timeentry->fetchAll('ASC', 't.date_start', 1000, 0, $filter, 'AND', $dateRangeSql);
+    $result = timeflowRequireRows($timeentry->fetchAll('ASC', 't.date_start', 1000, 0, $filter, 'AND', $dateRangeSql), $timeentry, 'timeflowFetchWeeklyTimesheet:rows');
 
     if ($debugMode) {
         $t1 = microtime(true);
@@ -1192,7 +1195,7 @@ function timeflowBuildSummary($entries, $db)
     if (!empty($projectIds)) {
         $sql = 'SELECT rowid, fk_soc FROM '.$db->prefix().'projet';
         $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', array_keys($projectIds))).')';
-        $resql = $db->query($sql);
+        $resql = timeflowQuery($db, $sql, 'timeflowBuildSummary:projectClients');
         if ($resql) {
             while ($obj = $db->fetch_object($resql)) {
                 $projectClientMap[(int) $obj->rowid] = (int) $obj->fk_soc;
@@ -1206,7 +1209,7 @@ function timeflowBuildSummary($entries, $db)
     if (!empty($clientIds)) {
         $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
         $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', $clientIds)).')';
-        $resql = $db->query($sql);
+        $resql = timeflowQuery($db, $sql, 'timeflowBuildSummary:clientLabels');
         if ($resql) {
             while ($obj = $db->fetch_object($resql)) {
                 $clientLabelMap[(int) $obj->rowid] = (string) $obj->nom;
@@ -1221,7 +1224,7 @@ function timeflowBuildSummary($entries, $db)
     $groupLabelMap = array();
     $sql = 'SELECT ug.fk_user, ug.fk_usergroup, g.nom FROM '.$db->prefix().'usergroup_user AS ug';
     $sql .= ' INNER JOIN '.$db->prefix().'usergroup AS g ON g.rowid = ug.fk_usergroup';
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowBuildSummary:userGroups');
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
             $userGroupsMap[(int) $obj->fk_user][] = (int) $obj->fk_usergroup;
@@ -1334,7 +1337,9 @@ function timeflowBuildSummary($entries, $db)
  *
  * @param DoliDB $db
  * @param string $filter Universal Search string, same format as fetchAll()'s $filter
- * @return int<-1,max> Row count, or -1 on query error
+ * @return int<0,max> Row count
+ * @throws TimeflowSqlException On a filter syntax error or a failed query — the
+ *         callers used to clamp the old -1 to 0 and report "no rows".
  */
 function timeflowCountEntriesMatchingFilter($db, $filter, $extraWhereSql = '')
 {
@@ -1348,17 +1353,19 @@ function timeflowCountEntriesMatchingFilter($db, $filter, $extraWhereSql = '')
     }
     if ($errormessage) {
         dol_syslog('timeflowCountEntriesMatchingFilter: '.$errormessage, LOG_ERR);
-        return -1;
+        $e = new TimeflowSqlException('timeflowCountEntriesMatchingFilter:filter');
+        $e->dbError = $errormessage;
+        throw $e;
     }
     // Already-escaped raw conditions (see timeflowSqlDateTimeCondition()),
     // so the count uses exactly the same predicate as the paired fetchAll().
     $sql .= $extraWhereSql;
-    $resql = $db->query($sql);
-    if (!$resql) {
-        return -1;
-    }
+    $resql = timeflowQuery($db, $sql, 'timeflowCountEntriesMatchingFilter');
     $obj = $db->fetch_object($resql);
-    return $obj ? (int) $obj->nb : -1;
+    if (!$obj) {
+        throw new TimeflowSqlException('timeflowCountEntriesMatchingFilter:noresult');
+    }
+    return (int) $obj->nb;
 }
 
 /** Build the shared, server-side WHERE clause for the manager read-only history. */
@@ -1401,20 +1408,20 @@ function timeflowGetProcessedHistory($input, $user = null)
     $perPage = min(!empty($input['export']) ? 10000 : 100, max(1, (int) ($input['per_page'] ?? 50)));
     $offset = ($page - 1) * $perPage;
     $countSql = 'SELECT COUNT(*) AS total FROM '.$db->prefix().'timeflow_timeentry t WHERE '.$where;
-    $countRes = $db->query($countSql); $countObj = $countRes ? $db->fetch_object($countRes) : null;
+    $countRes = timeflowQuery($db, $countSql, 'timeflowGetProcessedHistory:count'); $countObj = $countRes ? $db->fetch_object($countRes) : null;
     $total = $countObj ? (int) $countObj->total : 0;
     $statsSql = 'SELECT COALESCE(SUM(CASE WHEN t.status = '.TimeEntry::STATUS_VALIDATED.' THEN 1 ELSE 0 END),0) AS validated_count,'
         .' SUM(CASE WHEN t.status = '.TimeEntry::STATUS_CANCELED.' THEN 1 ELSE 0 END) AS refused_count,'
         .' SUM(CASE WHEN '.timeflowManualEditedSqlPredicate($db, 't').' THEN 1 ELSE 0 END) AS manual_count'
         .' FROM '.$db->prefix().'timeflow_timeentry t WHERE '.$where;
-    $statsRes = $db->query($statsSql); $statsObj = $statsRes ? $db->fetch_object($statsRes) : null;
+    $statsRes = timeflowQuery($db, $statsSql, 'timeflowGetProcessedHistory:stats'); $statsObj = $statsRes ? $db->fetch_object($statsRes) : null;
     $sql = 'SELECT t.rowid, t.fk_user, t.fk_project, t.fk_task, t.date_start, t.date_end, t.duration, t.note, t.status, t.fk_user_valid, t.tms, t.date_delete, t.fk_user_delete,'
         .' u.login, u.firstname, u.lastname, validator.login AS validator_login, validator.firstname AS validator_firstname, validator.lastname AS validator_lastname'
         .' FROM '.$db->prefix().'timeflow_timeentry t'
         .' LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user'
         .' LEFT JOIN '.$db->prefix().'user validator ON validator.rowid=t.fk_user_valid'
         .' WHERE '.$where.' ORDER BY t.date_start DESC, t.rowid DESC'.$db->plimit($perPage, $offset);
-    $resql = $db->query($sql); $rows = array();
+    $resql = timeflowQuery($db, $sql, 'timeflowGetProcessedHistory:rows'); $rows = array();
     while ($resql && ($obj = $db->fetch_object($resql))) {
         $entry = new TimeEntry($db); $entry->fetch((int) $obj->rowid);
         $row = timeflowExportTimeEntry($entry);
@@ -1426,7 +1433,7 @@ function timeflowGetProcessedHistory($input, $user = null)
     if ($isManagerView) {
         $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.date_delete IS NULL AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')';
         $employeeSql .= ' ORDER BY u.lastname, u.firstname, u.login';
-        $employeeRes = $db->query($employeeSql);
+        $employeeRes = timeflowQuery($db, $employeeSql, 'timeflowGetProcessedHistory:employees');
         while ($employeeRes && ($obj = $db->fetch_object($employeeRes))) $employees[] = array('id'=>(int) $obj->fk_user, 'label'=>trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));
     } elseif ($user && !empty($user->id)) {
         $employees[] = array('id' => (int) $user->id, 'label' => timeflowResolveUserLabel((int) $user->id));
@@ -1540,7 +1547,7 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
     $perPage = min(100, max(1, (int) ($input['per_page'] ?? 20)));
     $offset = ($page - 1) * $perPage;
     $countSql = 'SELECT COUNT(*) AS total FROM '.$db->prefix().'timeflow_daily_report AS r WHERE '.$whereSql;
-    $countRes = $db->query($countSql);
+    $countRes = timeflowQuery($db, $countSql, 'timeflowFetchDailyReports:count');
     $countObj = $countRes ? $db->fetch_object($countRes) : null;
     $total = $countObj ? (int) $countObj->total : 0;
 
@@ -1555,7 +1562,7 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
         .' SUM(CASE WHEN r.status = 9 THEN 1 ELSE 0 END) AS refused_count,'
         .' SUM(CASE WHEN r.date_last_content_edit IS NOT NULL AND r.date_last_content_edit <> r.date_creation THEN 1 ELSE 0 END) AS manual_count'
         .' FROM '.$db->prefix().'timeflow_daily_report AS r WHERE '.$whereSql;
-    $statsRes = $db->query($statsSql);
+    $statsRes = timeflowQuery($db, $statsSql, 'timeflowFetchDailyReports:stats');
     $statsObj = $statsRes ? $db->fetch_object($statsRes) : null;
 
     $sql = 'SELECT r.rowid, r.fk_user, r.date_report, r.content, r.date_creation, r.tms, r.status, r.read_at, r.date_validated_at, r.fk_user_read, r.date_delete, r.date_last_content_edit, r.fk_user_last_content_edit,';
@@ -1565,7 +1572,7 @@ function timeflowFetchDailyReports($input, $allUsers = false, $userId = 0)
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS reader ON reader.rowid = r.fk_user_read';
     $sql .= ' LEFT JOIN '.$db->prefix().'user AS editor ON editor.rowid = r.fk_user_last_content_edit';
     $sql .= ' WHERE '.$whereSql.' ORDER BY r.date_report DESC, r.tms DESC, r.rowid DESC'.$db->plimit($perPage, $offset);
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchDailyReports:rows');
     $reports = array();
     while ($resql && ($obj = $db->fetch_object($resql))) {
         $label = trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user));
@@ -1614,7 +1621,7 @@ function timeflowDailyReportEmployees($includeDeleted = false)
         $sql .= ' AND r.date_delete IS NULL';
     }
     $sql .= ' ORDER BY u.lastname, u.firstname, u.login';
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowDailyReportEmployees');
     $employees = array();
     while ($resql && ($obj = $db->fetch_object($resql))) {
         $employees[] = array('id' => (int) $obj->fk_user, 'label' => trim($obj->firstname.' '.$obj->lastname) ?: ($obj->login ?: 'Utilisateur #'.((int) $obj->fk_user)));
@@ -1622,6 +1629,12 @@ function timeflowDailyReportEmployees($includeDeleted = false)
     return $employees;
 }
 
+// A SQL failure in any reader that uses timeflowQuery()/timeflowRequireRows()
+// throws TimeflowSqlException; it is answered once, below, as an HTTP 500 error
+// (the frontend already turns that into a visible error), instead of each
+// reader flattening it into an empty list with status "success".
+// The switch body is deliberately not re-indented to keep this change reviewable.
+try {
 switch ($action) {
     case 'getActiveTimer':
         $id = $timeentry->hasActiveTimer($user->id);
@@ -2321,7 +2334,7 @@ switch ($action) {
         if (!empty($user->admin) && GETPOST('debug', 'int')) {
             dol_syslog('timeflow.getSummaryReports user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' dateFrom='.(string)$dateFrom.' dateTo='.(string)$dateTo, LOG_DEBUG);
         }
-        $result = $timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter, 'AND', $dateRangeSql);
+        $result = timeflowRequireRows($timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter, 'AND', $dateRangeSql), $timeentry, 'getSummaryReports:rows');
         $rows = array();
         if (is_array($result)) {
             foreach ($result as $obj) {
@@ -2482,7 +2495,7 @@ switch ($action) {
             $sql .= ' AND t.fk_user = ' . ((int) $user->id);
         }
         $sql .= ' ORDER BY m.date_creation DESC';
-        $resql = $db->query($sql);
+        $resql = timeflowQuery($db, $sql, 'getModificationHistory');
         if ($resql) {
             while ($obj = $db->fetch_object($resql)) {
                 $history[] = array(
@@ -2527,6 +2540,9 @@ switch ($action) {
         http_response_code(404);
         echo json_encode(array('error' => 'Action non reconnue'));
         break;
+}
+} catch (TimeflowSqlException $e) {
+    timeflowJsonResponse(timeflowSqlErrorPayload($e, $user), 500);
 }
 
 /**
@@ -2592,15 +2608,18 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1
     $countSql .= ' LEFT JOIN '.$db->prefix().'projet_extrafields AS ef ON ef.fk_object = p.rowid';
     $countSql .= ' WHERE '.$whereSql;
     $total = 0;
-    $countRes = $db->query($countSql);
+    $countRes = timeflowQuery($db, $countSql, 'getTimeFlowProjects:count');
     if ($countRes) {
         $countObj = $db->fetch_object($countRes);
         $total = $countObj ? (int) $countObj->nb : 0;
         $db->free($countRes);
     }
 
+    // No ef.* column is selected: this used to select ef.timeflow_import_key,
+    // which was never read and only exists on databases where the manual
+    // migration sql/migrate_project_extrafields.sql was once run — on any
+    // fresh install the whole query failed and the page showed "Aucun projet".
     $sql = 'SELECT p.rowid, p.ref, p.title, p.description, p.fk_soc, s.nom as soc_name, p.fk_statut, p.fk_opp_status, cls.code as opp_status_code, p.datec,';
-    $sql .= ' ef.timeflow_import_key,';
     $sql .= ' (SELECT COUNT(*) FROM '.$db->prefix().'timeflow_timeentry AS t';
     $sql .= '  WHERE t.fk_project = p.rowid AND t.date_delete IS NULL) AS entry_count';
     $sql .= ' FROM '.$db->prefix().'projet AS p';
@@ -2630,14 +2649,14 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1
     $assignSql .= ' INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
     $assignSql .= " WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
     $assignSql .= ' AND ec.statut = 4';
-    $assignResql = $db->query($assignSql);
+    $assignResql = timeflowQuery($db, $assignSql, 'getTimeFlowProjects:assignments');
     if ($assignResql) {
         while ($assignObj = $db->fetch_object($assignResql)) {
             $assignmentsByProject[(int) $assignObj->fk_project][] = (int) $assignObj->fk_user;
         }
     }
 
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'getTimeFlowProjects:page');
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
             $projectId = (int) $obj->rowid;
@@ -2710,7 +2729,7 @@ function timeflowFetchActiveThirdParties($db)
     $sql .= ' AND client <> 0';
     $sql .= ' ORDER BY nom ASC';
 
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveThirdParties');
     if ($resql) {
         while ($obj = $db->fetch_object($resql)) {
             $thirdParties[] = array(
@@ -2738,7 +2757,7 @@ function timeflowResolveOrCreateProjectByLabel($db, $user, $projectLabel, $fkSoc
     $sql .= " AND title = '".$db->escape($label)."'";
     $sql .= ' ORDER BY rowid DESC';
     $sql .= $db->plimit(1);
-    $resql = $db->query($sql);
+    $resql = timeflowQuery($db, $sql, 'timeflowResolveOrCreateProjectByLabel:lookup');
     if ($resql && $db->num_rows($resql) > 0) {
         $obj = $db->fetch_object($resql);
         $db->free($resql);
