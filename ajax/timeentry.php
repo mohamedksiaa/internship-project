@@ -946,15 +946,16 @@ function timeflowBuildGlobalCsvRows($db, $user)
 
 /**
  * SQL clause restricting a `projet` query to the projects a given user is
- * allowed to see, via the native project contact mechanism
- * (llx_element_contact/llx_c_type_contact) — same rule as
- * timeflowCanAccessProject(): a project with no PROJECTCONTRIBUTOR contact
- * at all is open to everyone; otherwise only assigned users (or
- * admins/readall, via timeflowCanReadAllTimeEntries()) may see it.
+ * allowed to see, using Dolibarr's native visibility rule (public project, or
+ * assigned as a contact under any role) — see
+ * timeflowAuthorizedProjectIdList(), which delegates to
+ * Project::getProjectsAuthorizedForUser(). Same rule as
+ * timeflowCanAccessProject(), so reads and write-guards stay consistent.
  *
- * Returns an empty string (no restriction) for an admin, a readall user, or
- * a null $user. Otherwise returns a ' AND (...)' fragment ready to append
- * to the caller's own WHERE clause.
+ * Returns an empty string (no restriction) for an admin, a readall user, a
+ * projet->all->lire user, or a null $user. Otherwise returns an
+ * ' AND <alias>.rowid IN (...)' fragment ready to append to the caller's own
+ * WHERE clause.
  *
  * @param DoliDB $db
  * @param User|null $user
@@ -962,27 +963,13 @@ function timeflowBuildGlobalCsvRows($db, $user)
  *        caller's FROM clause (its rowid is referenced as "<alias>.rowid").
  * @return string
  */
-function timeflowProjectMembershipRestrictionSql($db, $user, $projectAlias = 'p')
+function timeflowProjectVisibilityRestrictionSql($db, $user, $projectAlias = 'p')
 {
-    $mustRestrict = $user && empty($user->admin) && !timeflowCanReadAllTimeEntries($user);
-    if (!$mustRestrict) {
+    $authorized = timeflowAuthorizedProjectIdList($db, $user);
+    if ($authorized === null) {
         return '';
     }
-    $clause = ' AND (';
-    $clause .= '  NOT EXISTS (';
-    $clause .= '    SELECT 1 FROM '.$db->prefix().'element_contact AS ec';
-    $clause .= '    INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
-    $clause .= "    WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
-    $clause .= '    AND ec.statut = 4 AND ec.element_id = '.$projectAlias.'.rowid';
-    $clause .= '  )';
-    $clause .= '  OR EXISTS (';
-    $clause .= '    SELECT 1 FROM '.$db->prefix().'element_contact AS ec2';
-    $clause .= '    INNER JOIN '.$db->prefix().'c_type_contact AS tc2 ON tc2.rowid = ec2.fk_c_type_contact';
-    $clause .= "    WHERE tc2.element = 'project' AND tc2.source = 'internal' AND tc2.code = 'PROJECTCONTRIBUTOR'";
-    $clause .= '    AND ec2.statut = 4 AND ec2.element_id = '.$projectAlias.'.rowid AND ec2.fk_socpeople = '.(int) $user->id;
-    $clause .= '  )';
-    $clause .= ' )';
-    return $clause;
+    return ' AND '.$projectAlias.'.rowid IN ('.$authorized.')';
 }
 
 function timeflowFetchProjects($db, $user = null)
@@ -997,7 +984,7 @@ function timeflowFetchProjects($db, $user = null)
     // action issues a physical delete; native setClose() is used instead):
     // it must disappear from every picker, exactly like a real delete would.
     $sql .= ' AND p.fk_statut <> '.Project::STATUS_CLOSED;
-    $sql .= timeflowProjectMembershipRestrictionSql($db, $user, 'p');
+    $sql .= timeflowProjectVisibilityRestrictionSql($db, $user, 'p');
     $sql .= ' ORDER BY p.title ASC, p.ref ASC, p.rowid DESC';
 
     $resql = $db->query($sql);
@@ -1019,7 +1006,20 @@ function timeflowFetchProjects($db, $user = null)
     return $projects;
 }
 
-function timeflowFetchTasks($db, $projectId = 0, $limit = 100)
+/**
+ * Tasks for a project (or, with $projectId = 0, across projects), restricted
+ * to the projects $user may see — same native visibility rule as the project
+ * picker. $projectId = 0 never means "every project": for a restricted user it
+ * is narrowed to their authorized projects. A specific $projectId the user
+ * may not access returns nothing (the getTasks handler answers 403 first).
+ *
+ * @param DoliDB    $db
+ * @param int       $projectId
+ * @param int       $limit
+ * @param User|null $user Acting user; null = unrestricted (internal callers).
+ * @return array
+ */
+function timeflowFetchTasks($db, $projectId = 0, $limit = 100, $user = null)
 {
     $tasks = array();
     // $projectId now IS the native llx_projet id directly (TimeFlow ->
@@ -1035,6 +1035,10 @@ function timeflowFetchTasks($db, $projectId = 0, $limit = 100)
     $sql .= ' WHERE entity IN ('.getEntity('project').')';
     if ($dolibarrProjectId > 0) {
         $sql .= ' AND fk_projet = '.$dolibarrProjectId;
+    }
+    $authorizedProjectIds = timeflowAuthorizedProjectIdList($db, $user);
+    if ($authorizedProjectIds !== null) {
+        $sql .= ' AND fk_projet IN ('.$authorizedProjectIds.')';
     }
     $sql .= ' ORDER BY rowid DESC';
     $sql .= $db->plimit((int) $limit > 0 ? (int) $limit : 100);
@@ -1909,7 +1913,10 @@ switch ($action) {
     case 'getTasks':
         $projectId = !empty($postData['projectId']) ? (int) $postData['projectId'] : (int) GETPOST('projectId', 'int');
         $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTasks($db, $projectId, $limit)));
+        if ($projectId > 0 && !timeflowCanAccessProject($db, $user, $projectId)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Ce projet est restreint à certains utilisateurs'), 403);
+        }
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTasks($db, $projectId, $limit, $user)));
         break;
 
     // The polling endpoint returns the full current view only when its marker
@@ -2556,12 +2563,11 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1
         $searchLike = "'%".$db->escape($search)."%'";
         $whereSql .= ' AND (p.title LIKE '.$searchLike.' OR p.ref LIKE '.$searchLike.')';
     }
-    // Same membership restriction as timeflowFetchProjects() (the Timer's
-    // active-project picker): a non-manager (no timeflowCanReadAllTimeEntries)
-    // only sees projects with no PROJECTCONTRIBUTOR assignment at all (open
-    // to everyone) or where they are themselves assigned. A manager/admin
+    // Same native-visibility restriction as timeflowFetchProjects() (the
+    // Timer's active-project picker): a non-manager only sees public projects
+    // or ones they are an assigned contact on (any role). A manager/admin
     // still sees every project, filters unchanged.
-    $whereSql .= timeflowProjectMembershipRestrictionSql($db, $user, 'p');
+    $whereSql .= timeflowProjectVisibilityRestrictionSql($db, $user, 'p');
 
     // Same page/per_page -> {rows, pagination:{page,per_page,total,pages}}
     // contract as timeflowGetProcessedHistory()/timeflowFetchDailyReports().
@@ -2604,9 +2610,9 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1
 
     // Assigned users per project, keyed by project id — a separate query
     // (rather than GROUP_CONCAT) to avoid MySQL's group_concat length limit
-    // and keep string parsing out of it. No PROJECTCONTRIBUTOR contact at
-    // all => every project just gets an empty assignment list
-    // (unrestricted), consistent with timeflowCanAccessProject().
+    // and keep string parsing out of it. Display only (the "assigned users"
+    // column): visibility itself is decided by
+    // timeflowProjectVisibilityRestrictionSql() above, not by this list.
     $assignmentsByProject = array();
     $assignSql = 'SELECT ec.element_id AS fk_project, ec.fk_socpeople AS fk_user';
     $assignSql .= ' FROM '.$db->prefix().'element_contact AS ec';
@@ -2824,6 +2830,13 @@ function timeflowCreateProject($db, $user, $title, $fkSoc = 0, $description = ''
     $project->usage_task = 1;
     $result = $project->create($user);
     if ($result > 0) {
+        // Same as native projet/card.php: the creator becomes project leader.
+        // Under the native visibility rule (public project, or assigned
+        // contact) a non-public project with no contact would otherwise be
+        // invisible to — and unusable by — the very user who just created it.
+        // Failure (e.g. PROJECTLEADER role deactivated) must not undo the
+        // creation, exactly like native.
+        $project->add_contact((int) $user->id, 'PROJECTLEADER', 'internal');
         return (int) $result;
     }
 

@@ -219,6 +219,19 @@ if (empty($reshook)) {
 		$action = 'view';
 	}
 
+	// The generic add/update below writes whatever fk_project is posted. Same
+	// native project-visibility rule as every other write path
+	// (ajax/timeentry.php): refuse a project the user may not use, before
+	// that include ever runs — the POST is forgeable regardless of what the
+	// form's project picker offers.
+	if (in_array($action, array('add', 'update'), true)) {
+		$postedProjectId = GETPOSTINT('fk_project');
+		if ($postedProjectId > 0 && !timeflowCanAccessProject($db, $user, $postedProjectId)) {
+			setEventMessages('Ce projet est restreint à certains utilisateurs', null, 'errors');
+			$action = ($action === 'add') ? 'create' : 'edit';
+		}
+	}
+
 	// Actions cancel, add, update, update_extras, confirm_delete
 	include DOL_DOCUMENT_ROOT.'/core/actions_addupdatedelete.inc.php';
 
