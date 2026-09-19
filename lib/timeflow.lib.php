@@ -217,7 +217,9 @@ function timeflowManualEditedSqlPredicate($db, $tableAlias = 't')
 
 /**
  * A manager may receive this dedicated permission without becoming a Dolibarr
- * administrator. Every non-validation list must use this server-side scope.
+ * administrator. Every non-validation list must use this server-side scope —
+ * except the Calendar (timeflowFetchWeeklyTimesheet() in ajax/timeentry.php),
+ * which is strictly personal on purpose and ignores it.
  *
  * Shared between ajax/timeentry.php and class/api_timeflow.class.php — moved
  * here so both entry points use one definition instead of two copies that
