@@ -353,9 +353,15 @@ class TimeEntry extends CommonObject
 	 * @param	string		$filter		Filter as an Universal Search string.
 	 *                                  Example: '((client:=:1) OR ((client:>=:2) AND (client:<=:3))) AND (client:!=:8) AND (nom:like:'a%')'
 	 * @param	string		$filtermode	No longer used
+	 * @param	string		$extraWhereSql	Already-escaped raw SQL appended after $filter, each condition
+	 *                                  starting with " AND ". For conditions the Universal Search string
+	 *                                  cannot carry safely on every Dolibarr version — notably datetime
+	 *                                  values, whose "HH:MM:SS" colons Dolibarr 19.x's parser splits on
+	 *                                  (see timeflowSqlDateTimeCondition()). Never pass user input here
+	 *                                  unescaped.
 	 * @return	array<int,self>|int<-1,-1>	 <0 if KO, array of pages if OK
 	 */
-	public function fetchAll($sortorder = '', $sortfield = '', $limit = 1000, $offset = 0, string $filter = '', $filtermode = 'AND')
+	public function fetchAll($sortorder = '', $sortfield = '', $limit = 1000, $offset = 0, string $filter = '', $filtermode = 'AND', string $extraWhereSql = '')
 	{
 		dol_syslog(__METHOD__, LOG_DEBUG);
 
@@ -381,14 +387,20 @@ class TimeEntry extends CommonObject
 			$sql .= " AND t.date_delete IS NULL";
 		}
 
-		// Manage filter
+		// Manage filter. Skipped when empty: Dolibarr 19.x turns '' into an
+		// invalid " AND ()" (newer cores return '' up front), which now matters
+		// because a caller can legitimately have no Universal Search criterion
+		// left (e.g. a readall user whose only bounds are $extraWhereSql).
 		$errormessage = '';
-		$sql .= forgeSQLFromUniversalSearchCriteria($filter, $errormessage);
+		if ($filter !== '') {
+			$sql .= forgeSQLFromUniversalSearchCriteria($filter, $errormessage);
+		}
 		if ($errormessage) {
 			$this->errors[] = $errormessage;
 			dol_syslog(__METHOD__.' '.implode(',', $this->errors), LOG_ERR);
 			return -1;
 		}
+		$sql .= $extraWhereSql;
 
 		if (!empty($sortfield)) {
 			$sql .= $this->db->order($sortfield, $sortorder);
