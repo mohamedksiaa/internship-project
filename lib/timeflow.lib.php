@@ -229,12 +229,49 @@ function timeflowCanReadAllTimeEntries($user)
 }
 
 /**
- * Whether $user may use $fkProject on a time entry. A project with no
- * internal PROJECTCONTRIBUTOR contact is open to everyone (default,
- * preserves current behavior for every project that predates this
- * feature); once at least one user is assigned via the native project
- * contact mechanism (llx_element_contact/llx_c_type_contact), only admins,
- * users with the readall right, and assigned users may use it.
+ * The projects $user may see/use, per Dolibarr's own native visibility rule —
+ * delegated to Project::getProjectsAuthorizedForUser() (mode 0, the same call
+ * the native Projects list makes) rather than re-implemented here: a project
+ * is authorized if it is public ("Visibilité : Tout le monde"), or the user is
+ * an assigned internal contact on it under ANY role (PROJECTLEADER,
+ * PROJECTCONTRIBUTOR, ...).
+ *
+ * No restriction (null) for: an admin, a user holding the native
+ * projet->all->lire right (native Dolibarr skips the filter for them too), a
+ * TimeFlow readall user (existing manager bypass, unchanged), or a null $user
+ * (internal callers with no acting user).
+ *
+ * Deliberately not cached across calls: a project created earlier in the same
+ * request (timeflowCreateProject()) must be visible to the check that follows.
+ *
+ * @param DoliDB    $db
+ * @param User|null $user
+ * @return string|null null = unrestricted; otherwise a comma-separated list
+ *                     of project ids, '0' when the user may see none — always
+ *                     safe to embed in "IN (...)".
+ */
+function timeflowAuthorizedProjectIdList($db, $user)
+{
+    if (!$user || !empty($user->admin) || timeflowCanReadAllTimeEntries($user) || $user->hasRight('projet', 'all', 'lire')) {
+        return null;
+    }
+
+    require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
+    $project = new Project($db);
+    // Same external-user scoping the native list applies.
+    $socid = !empty($user->socid) ? (int) $user->socid : 0;
+    $ids = $project->getProjectsAuthorizedForUser($user, 0, 1, $socid);
+
+    return is_string($ids) && preg_match('/^\d+(,\d+)*$/', $ids) ? $ids : '0';
+}
+
+/**
+ * Whether $user may use $fkProject on a time entry or task lookup — the same
+ * native Dolibarr visibility rule as the project picker
+ * (timeflowAuthorizedProjectIdList()), so what a user can see and what they
+ * are allowed to write to can never drift apart.
+ *
+ * A non-positive $fkProject means "no project": nothing to restrict.
  *
  * Shared between ajax/timeentry.php and class/api_timeflow.class.php — moved
  * here so both entry points enforce the same project-access restriction
@@ -242,28 +279,16 @@ function timeflowCanReadAllTimeEntries($user)
  */
 function timeflowCanAccessProject($db, $user, $fkProject)
 {
-    if (!empty($user->admin) || timeflowCanReadAllTimeEntries($user)) {
+    if ((int) $fkProject <= 0) {
         return true;
     }
 
-    $sql = 'SELECT ec.fk_socpeople AS fk_user';
-    $sql .= ' FROM '.$db->prefix().'element_contact AS ec';
-    $sql .= ' INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
-    $sql .= " WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR'";
-    $sql .= ' AND ec.statut = 4';
-    $sql .= ' AND ec.element_id = '.(int) $fkProject;
-    $resql = $db->query($sql);
-    if (!$resql || $db->num_rows($resql) === 0) {
-        // No assignment row at all (or a query error we don't want to turn
-        // into a hard lockout) => unrestricted.
+    $authorized = timeflowAuthorizedProjectIdList($db, $user);
+    if ($authorized === null) {
         return true;
     }
-    while ($obj = $db->fetch_object($resql)) {
-        if ((int) $obj->fk_user === (int) $user->id) {
-            return true;
-        }
-    }
-    return false;
+
+    return in_array((string) (int) $fkProject, explode(',', $authorized), true);
 }
 
 /**
