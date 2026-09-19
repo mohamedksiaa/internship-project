@@ -1068,13 +1068,11 @@ function timeflowFetchWeeklyTimesheet($timeentry, $user, $weekStart = null)
     $weekStartTs = !empty($weekStart) ? strtotime($weekStart) : strtotime('monday this week');
     $weekEndTs = strtotime('+7 days', $weekStartTs);
 
-    $filterParts = array();
-
-    if (!timeflowCanReadAllTimeEntries($user)) {
-        $filterParts[] = '(t.fk_user:=:' . (int) $user->id . ')';
-    }
-
-    $filter = implode(' AND ', $filterParts);
+    // The Calendar is strictly personal, by design: everyone — admin and
+    // readall users included — sees only their own entries here. This is the
+    // one view that deliberately ignores timeflowCanReadAllTimeEntries();
+    // every other page (Dashboard, Validations, Reports...) still honours it.
+    $filter = '(t.fk_user:=:' . (int) $user->id . ')';
     // The week bounds carry a "00:00:00" time part, which Dolibarr 19.x's
     // Universal Search parser mangles (see timeflowSqlDateTimeCondition()),
     // so they are appended as plain SQL instead of going through $filter.
