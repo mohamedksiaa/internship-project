@@ -20,6 +20,7 @@ import StatusBadge from '../components/atoms/StatusBadge';
 import TruncatedText from '../components/atoms/TruncatedText';
 import PresenceBadge from '../components/atoms/PresenceBadge.jsx';
 import ExpectedAbsenceDialog from '../components/molecules/ExpectedAbsenceDialog.jsx';
+import ConfirmRemoveAbsenceDialog from '../components/molecules/ConfirmRemoveAbsenceDialog.jsx';
 import ProjectStatusBadge, { projectStatusLabelKey } from '../components/atoms/ProjectStatusBadge';
 import OpportunityStatusBadge, { opportunityStatusLabelKey } from '../components/atoms/OpportunityStatusBadge';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
@@ -373,7 +374,11 @@ function UsersReportTab() {
   const [dialogUser, setDialogUser] = useState(null);
   const [dialogSaving, setDialogSaving] = useState(false);
   const [dialogError, setDialogError] = useState('');
-  const [actionError, setActionError] = useState('');
+  // Row whose expected absence the manager asked to remove; the request only
+  // leaves after they confirm (see ConfirmRemoveAbsenceDialog).
+  const [absenceToRemove, setAbsenceToRemove] = useState(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeError, setRemoveError] = useState('');
 
   // Same right pair the backend enforces on saveExpectedAbsence /
   // deleteExpectedAbsence; read at render time like the other pages' flags.
@@ -456,7 +461,6 @@ function UsersReportTab() {
     try {
       await saveExpectedAbsence({ userId: dialogUser.id, date, reasonType });
       setDialogUser(null);
-      setActionError('');
       setReloadKey((key) => key + 1);
     } catch (err) {
       setDialogError(err.message || t('users_report.presence.error_generic'));
@@ -464,13 +468,25 @@ function UsersReportTab() {
       setDialogSaving(false);
     }
   };
-  const removeAbsence = async (row) => {
-    setActionError('');
+  const askRemoveAbsence = (row) => {
+    setRemoveError('');
+    setAbsenceToRemove({ id: row.id, name: row.label, date: shownDate, reasonType: row.presence?.reason_type || null });
+  };
+  const cancelRemoveAbsence = () => {
+    if (!removeBusy) setAbsenceToRemove(null);
+  };
+  const confirmRemoveAbsence = async () => {
+    if (!absenceToRemove || removeBusy) return;
+    setRemoveBusy(true);
+    setRemoveError('');
     try {
-      await deleteExpectedAbsence({ userId: row.id, date: shownDate });
+      await deleteExpectedAbsence({ userId: absenceToRemove.id, date: absenceToRemove.date });
+      setAbsenceToRemove(null);
       setReloadKey((key) => key + 1);
     } catch (err) {
-      setActionError(err.message || t('users_report.presence.error_generic'));
+      setRemoveError(err.message || t('users_report.presence.error_generic'));
+    } finally {
+      setRemoveBusy(false);
     }
   };
 
@@ -506,7 +522,6 @@ function UsersReportTab() {
       </div>
       {loading && <p className="tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('loading')}</p>}
       {error && <p className="tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{error}</p>}
-      {actionError && <p role="alert" className="tw-mb-2 tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{actionError}</p>}
       {!loading && !absencesAvailable && (
         <p className="tw-mb-3 tw-rounded-lg tw-bg-amber-50 dark:tw-bg-amber-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-amber-800 dark:tw-text-amber-200">{t('users_report.presence.table_missing')}</p>
       )}
@@ -564,7 +579,7 @@ function UsersReportTab() {
                               <button type="button" className={rowButtonClass} onClick={() => openDialog(row)} aria-label={t('users_report.presence.actions.edit_aria', { name: row.label })}>
                                 {t('users_report.presence.actions.edit')}
                               </button>
-                              <button type="button" className={rowButtonClass} onClick={() => removeAbsence(row)} aria-label={t('users_report.presence.actions.remove_aria', { name: row.label })}>
+                              <button type="button" className={rowButtonClass} onClick={() => askRemoveAbsence(row)} aria-label={t('users_report.presence.actions.remove_aria', { name: row.label })}>
                                 {t('users_report.presence.actions.remove')}
                               </button>
                             </div>
@@ -616,6 +631,13 @@ function UsersReportTab() {
         error={dialogError}
         onSave={saveAbsence}
         onClose={closeDialog}
+      />
+      <ConfirmRemoveAbsenceDialog
+        absence={absenceToRemove}
+        busy={removeBusy}
+        error={removeError}
+        onConfirm={confirmRemoveAbsence}
+        onCancel={cancelRemoveAbsence}
       />
     </section>
   );

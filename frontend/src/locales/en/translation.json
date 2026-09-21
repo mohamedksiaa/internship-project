@@ -307,6 +307,11 @@
         "edit_aria": "Edit the expected absence of {{name}}",
         "remove_aria": "Remove the expected absence of {{name}}"
       },
+      "remove_dialog": {
+        "title": "Remove the expected absence?",
+        "message": "The expected absence of {{name}} on {{date}} ({{reason}}) will be deleted.",
+        "removing": "Removing…"
+      },
       "dialog": {
         "title": "Expected absence",
         "employee": "Employee",

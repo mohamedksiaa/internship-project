@@ -85,13 +85,14 @@ describe('users_report.presence i18n', () => {
       '../pages/ReportsPage.jsx',
       '../components/atoms/PresenceBadge.jsx',
       '../components/molecules/ExpectedAbsenceDialog.jsx',
+      '../components/molecules/ConfirmRemoveAbsenceDialog.jsx',
       './presenceLabels.js',
     ],
     { query: '?raw', import: 'default', eager: true },
   );
 
-  it('reads the four expected source files', () => {
-    expect(Object.keys(sources).length).toBe(4);
+  it('reads the five expected source files', () => {
+    expect(Object.keys(sources).length).toBe(5);
   });
 
   it('every literal users_report.presence.* key used in the source exists in fr', () => {

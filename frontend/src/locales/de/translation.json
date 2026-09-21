@@ -308,6 +308,11 @@
         "edit_aria": "Geplante Abwesenheit von {{name}} bearbeiten",
         "remove_aria": "Geplante Abwesenheit von {{name}} entfernen"
       },
+      "remove_dialog": {
+        "title": "Geplante Abwesenheit entfernen?",
+        "message": "Die geplante Abwesenheit von {{name}} am {{date}} ({{reason}}) wird gelöscht.",
+        "removing": "Wird entfernt…"
+      },
       "dialog": {
         "title": "Geplante Abwesenheit",
         "employee": "Mitarbeiter",

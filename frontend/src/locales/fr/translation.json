@@ -309,6 +309,11 @@
         "edit_aria": "Modifier l’absence prévue de {{name}}",
         "remove_aria": "Retirer l’absence prévue de {{name}}"
       },
+      "remove_dialog": {
+        "title": "Retirer l’absence prévue ?",
+        "message": "L’absence prévue de {{name}} le {{date}} ({{reason}}) sera supprimée.",
+        "removing": "Suppression…"
+      },
       "dialog": {
         "title": "Absence prévue",
         "employee": "Employé",

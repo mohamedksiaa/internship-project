@@ -280,15 +280,165 @@ describe('ReportsPage — Utilisateurs tab: who can record an expected absence',
     expect(within(screen.getByRole('dialog')).getByLabelText('Motif')).toHaveValue('rtt');
   });
 
-  it('removes a recorded absence for the shown day and reloads', async () => {
-    setFlags({ readall: true, validate: true });
-    const user = userEvent.setup();
-    renderUsersTab();
-    await screen.findByText('Alice Martin');
-    getUsersPresence.mockClear();
-    await user.click(within(rowOf('Chloé Petit')).getByRole('button', { name: /Retirer/ }));
-    await waitFor(() => expect(deleteExpectedAbsence).toHaveBeenCalledWith({ userId: 3, date: DAY }));
-    await waitFor(() => expect(getUsersPresence).toHaveBeenCalledTimes(1));
+  describe('removing a recorded absence asks for a confirmation first', () => {
+    const clickRemoveOf = async (user, name) => {
+      await user.click(within(rowOf(name)).getByRole('button', { name: /Retirer/ }));
+    };
+
+    it('clicking "Retirer" opens a confirmation naming the employee, the day and the reason — and deletes nothing yet', async () => {
+      setFlags({ readall: true, validate: true });
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      getUsersPresence.mockClear();
+
+      await clickRemoveOf(user, 'Chloé Petit');
+
+      const confirm = screen.getByRole('alertdialog');
+      expect(confirm).toHaveTextContent('Chloé Petit');
+      expect(confirm).toHaveTextContent(DAY);
+      expect(confirm).toHaveTextContent('RTT');
+      expect(deleteExpectedAbsence).not.toHaveBeenCalled();
+      expect(getUsersPresence).not.toHaveBeenCalled();
+    });
+
+    it('"Annuler" closes it and removes nothing: no request, no reload, the absence is still shown', async () => {
+      setFlags({ readall: true, validate: true });
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      getUsersPresence.mockClear();
+
+      await clickRemoveOf(user, 'Chloé Petit');
+      await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Annuler' }));
+
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(deleteExpectedAbsence).not.toHaveBeenCalled();
+      expect(getUsersPresence).not.toHaveBeenCalled();
+      expect(rowOf('Chloé Petit')).toHaveTextContent('Absence prévue · RTT');
+    });
+
+    it('Escape and the × button cancel too', async () => {
+      setFlags({ readall: true, validate: true });
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+
+      await clickRemoveOf(user, 'Chloé Petit');
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+
+      await clickRemoveOf(user, 'Chloé Petit');
+      await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Fermer' }));
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(deleteExpectedAbsence).not.toHaveBeenCalled();
+    });
+
+    it('"Retirer" in the confirmation deletes that user\'s absence for the shown day, closes it and reloads', async () => {
+      setFlags({ readall: true, validate: true });
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      getUsersPresence.mockClear();
+
+      await clickRemoveOf(user, 'Chloé Petit');
+      await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Retirer' }));
+
+      await waitFor(() => expect(deleteExpectedAbsence).toHaveBeenCalledTimes(1));
+      expect(deleteExpectedAbsence).toHaveBeenCalledWith({ userId: 3, date: DAY });
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+      await waitFor(() => expect(getUsersPresence).toHaveBeenCalledTimes(1));
+    });
+
+    it('the confirmation is about the row that was clicked, not another one', async () => {
+      setFlags({ readall: true, validate: true });
+      getUsersPresence.mockResolvedValue(response([
+        userRow(3, 'Chloé Petit', presence('expected_absence', 'rtt')),
+        userRow(5, 'Émile Roux', presence('expected_absence', 'sick')),
+      ]));
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Émile Roux');
+
+      await clickRemoveOf(user, 'Émile Roux');
+      const confirm = screen.getByRole('alertdialog');
+      expect(confirm).toHaveTextContent('Émile Roux');
+      expect(confirm).not.toHaveTextContent('Chloé Petit');
+      await user.click(within(confirm).getByRole('button', { name: 'Retirer' }));
+      await waitFor(() => expect(deleteExpectedAbsence).toHaveBeenCalledWith({ userId: 5, date: DAY }));
+    });
+
+    it('"Modifier" does not go through the removal confirmation', async () => {
+      setFlags({ readall: true, validate: true });
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      await user.click(within(rowOf('Chloé Petit')).getByRole('button', { name: /Modifier/ }));
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('while the deletion is in flight the buttons are disabled, so a double click sends one request', async () => {
+      setFlags({ readall: true, validate: true });
+      let release;
+      deleteExpectedAbsence.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+
+      await clickRemoveOf(user, 'Chloé Petit');
+      const confirm = screen.getByRole('alertdialog');
+      await user.click(within(confirm).getByRole('button', { name: 'Retirer' }));
+      const busyButton = await within(confirm).findByRole('button', { name: 'Suppression…' });
+      expect(busyButton).toBeDisabled();
+      expect(within(confirm).getByRole('button', { name: 'Annuler' })).toBeDisabled();
+      fireEvent.click(busyButton);
+      await user.keyboard('{Escape}');
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+      expect(deleteExpectedAbsence).toHaveBeenCalledTimes(1);
+
+      release({ deleted: 1 });
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    });
+
+    it('a refused removal keeps the confirmation open with the server message, does not reload, and can be retried', async () => {
+      setFlags({ readall: true, validate: true });
+      deleteExpectedAbsence.mockRejectedValueOnce(new Error('Accès refusé'));
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      getUsersPresence.mockClear();
+
+      await clickRemoveOf(user, 'Chloé Petit');
+      const confirm = screen.getByRole('alertdialog');
+      await user.click(within(confirm).getByRole('button', { name: 'Retirer' }));
+
+      expect(await within(confirm).findByRole('alert')).toHaveTextContent('Accès refusé');
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+      expect(getUsersPresence).not.toHaveBeenCalled();
+
+      // retry works
+      await user.click(within(confirm).getByRole('button', { name: 'Retirer' }));
+      await waitFor(() => expect(deleteExpectedAbsence).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+      await waitFor(() => expect(getUsersPresence).toHaveBeenCalledTimes(1));
+    });
+
+    it('a stale error from a previous attempt is not shown when the confirmation is reopened', async () => {
+      setFlags({ readall: true, validate: true });
+      deleteExpectedAbsence.mockRejectedValueOnce(new Error('Accès refusé'));
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+
+      await clickRemoveOf(user, 'Chloé Petit');
+      await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Retirer' }));
+      await within(screen.getByRole('alertdialog')).findByRole('alert');
+      await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Annuler' }));
+
+      await clickRemoveOf(user, 'Chloé Petit');
+      expect(within(screen.getByRole('alertdialog')).queryByRole('alert')).toBeNull();
+    });
   });
 
   it('a present user with a recorded absence can still have it removed', async () => {
@@ -312,16 +462,6 @@ describe('ReportsPage — Utilisateurs tab: who can record an expected absence',
     expect(getUsersPresence).not.toHaveBeenCalled();
     // and it can be retried
     expect(screen.getByRole('button', { name: 'Enregistrer' })).not.toBeDisabled();
-  });
-
-  it('a refused removal shows the server message on the page', async () => {
-    setFlags({ readall: true, validate: true });
-    deleteExpectedAbsence.mockRejectedValueOnce(new Error('Accès refusé'));
-    const user = userEvent.setup();
-    renderUsersTab();
-    await screen.findByText('Alice Martin');
-    await user.click(within(rowOf('Chloé Petit')).getByRole('button', { name: /Retirer/ }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Accès refusé');
   });
 
   it('when the absences table does not exist yet: a warning, the badges still show, and no action is offered', async () => {

@@ -92,6 +92,9 @@ Ce fichier sert uniquement à conserver une trace des libellés déjà migrés m
 - `users_report.presence.dialog.save`: "Speichern"
 - `users_report.presence.dialog.saving`: "Wird gespeichert…"
 - `users_report.presence.dialog.cancel`: "Abbrechen"
+- `users_report.presence.remove_dialog.title`: "Geplante Abwesenheit entfernen?"
+- `users_report.presence.remove_dialog.message`: "Die geplante Abwesenheit von {{name}} am {{date}} ({{reason}}) wird gelöscht."
+- `users_report.presence.remove_dialog.removing`: "Wird entfernt…"
 
 ## Arabe (ar)
 
@@ -183,6 +186,9 @@ Ce fichier sert uniquement à conserver une trace des libellés déjà migrés m
 - `users_report.presence.dialog.save`: "حفظ"
 - `users_report.presence.dialog.saving`: "جارٍ الحفظ…"
 - `users_report.presence.dialog.cancel`: "إلغاء"
+- `users_report.presence.remove_dialog.title`: "إزالة الغياب المخطط له؟"
+- `users_report.presence.remove_dialog.message`: "سيتم حذف الغياب المخطط له لـ {{name}} بتاريخ {{date}} ({{reason}})."
+- `users_report.presence.remove_dialog.removing`: "جارٍ الإزالة…"
 
 ## Règle de travail
 
