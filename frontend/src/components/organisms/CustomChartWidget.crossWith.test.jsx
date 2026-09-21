@@ -46,9 +46,14 @@ describe('CustomChartWidget — "Croiser avec" depends on the readall right', ()
     expect(crossValues()).toEqual(['none', 'billable']);
   });
 
-  it('without readall and a different primary dimension: "Projet" and "Facturable" remain, never Employé/Client', () => {
-    renderAt('/dashboard?dimension=employee', { canReadAll: false });
-    expect(crossValues()).toEqual(['none', 'project', 'billable']);
+  it('without readall and "Facturable" as primary dimension: "Projet" remains, never Employé/Client', () => {
+    renderAt('/dashboard?dimension=billable', { canReadAll: false });
+    expect(crossValues()).toEqual(['none', 'project']);
+  });
+
+  it('with readall and "Employé" as primary dimension: Employé is left out (no self-crossing), the rest stay', () => {
+    renderAt('/dashboard?dimension=employee', { canReadAll: true });
+    expect(crossValues()).toEqual(['none', 'project', 'client', 'billable']);
   });
 
   it('with readall: all four choices are still available', () => {

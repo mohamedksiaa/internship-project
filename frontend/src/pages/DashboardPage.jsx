@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
 import CustomChartWidget, { buildSingleDimensionChartData, buildStackedChartData, countPrimaryCategories } from '../components/organisms/CustomChartWidget';
-import { effectiveCrossWith } from '../utils/crossDimensions.js';
+import { effectiveCrossWith, effectiveDimension } from '../utils/crossDimensions.js';
 import { getSummaryReports } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
@@ -154,13 +154,16 @@ export default function DashboardPage() {
   // ?crossWith) — read independently here rather than lifting state or
   // adding a callback prop, since useUrlState's contract IS the URL, shared
   // by any component that asks for the same key.
-  const [dimension] = useUrlState('dimension', 'project');
+  const [dimensionFromUrl] = useUrlState('dimension', 'project');
   const [chartType] = useUrlState('chartType', 'bar');
   const [crossWithFromUrl] = useUrlState('crossWith', 'none');
-  // Same resolution as the widget's selector (a crossing this user is not
-  // offered resolves to "none"), so the CSV/PDF export always matches what the
-  // widget itself shows.
-  const crossWith = effectiveCrossWith(crossWithFromUrl, canReadAll);
+  // Same resolution as the widget's selectors (a dimension or crossing this
+  // user is not offered, or a crossing equal to the primary dimension, is
+  // resolved), so the CSV/PDF export always matches what the widget itself
+  // shows. Order matters: the crossing is resolved against the effective
+  // dimension.
+  const dimension = effectiveDimension(dimensionFromUrl, canReadAll);
+  const crossWith = effectiveCrossWith(crossWithFromUrl, canReadAll, dimension);
 
   // Capture target for the PDF export: a dedicated off-screen clone of the
   // configured chart, captured instead of the live on-screen widget above.

@@ -19,7 +19,7 @@ import {
 import Card from '../atoms/Card';
 import useDarkMode from '../../hooks/useDarkMode';
 import { formatDuration } from '../../utils/FormatDuration.js';
-import { crossableDimensionsFor, effectiveCrossWith } from '../../utils/crossDimensions.js';
+import { crossableDimensionsFor, effectiveCrossWith, effectiveDimension, selectableDimensionsFor } from '../../utils/crossDimensions.js';
 
 const CHART_COLORS = ['#5B8FA8', '#4d5fca', '#35a66f', '#f59e0b', '#ef4444', '#9c27b0', '#8a9aa4', '#c084e0', '#6b7fe0', '#2a9d8f'];
 const MAX_SLICES = 9;
@@ -28,7 +28,6 @@ const MAX_SLICES = 9;
 // tighter than the single-dimension MAX_SLICES, or the chart turns into
 // unreadable confetti. 5 named segments + one "Autre" bucket stays legible.
 const MAX_STACK_SEGMENTS = 5;
-const DIMENSIONS = ['project', 'employee', 'client', 'billable'];
 
 // Shared by buildSingleDimensionChartData() and countPrimaryCategories() so
 // both always agree on which summary bucket a dimension reads from.
@@ -257,44 +256,44 @@ export default function CustomChartWidget({ summary, chartRef, forcedSize = null
   // Kept in the URL (?dimension=&chartType=) rather than local state — this
   // widget lives on the dashboard, itself a descendant of the app's
   // HashRouter, so useUrlState works here with no prop drilling needed.
-  const [dimension, setDimension] = useUrlState('dimension', 'project');
+  const [dimensionFromUrl, setDimension] = useUrlState('dimension', 'project');
   const [chartType, setChartType] = useUrlState('chartType', 'bar');
   const [crossWithFromUrl, setCrossWith] = useUrlState('crossWith', 'none');
-  const crossWith = effectiveCrossWith(crossWithFromUrl, allowTeamCrossing);
+  // What is actually rendered comes from these two derived values, never
+  // straight from the URL, so the selectors and the chart cannot disagree
+  // whatever a bookmarked or hand-edited URL says. Order matters: "Croiser
+  // avec" is resolved against the EFFECTIVE primary dimension.
+  const dimension = effectiveDimension(dimensionFromUrl, allowTeamCrossing);
+  const crossWith = effectiveCrossWith(crossWithFromUrl, allowTeamCrossing, dimension);
 
-  // Same self-healing as ?dimension above: a ?crossWith=employee/client left
-  // in a bookmark or typed by hand, for a user who is not offered those
-  // options, would otherwise leave the <select> on "Aucun" while the URL
-  // (and anything else reading it) still says otherwise.
+  // Writes the resolved values back to the URL (so shared links and anything
+  // else reading it agree). Covers: a stale ?dimension=group from before
+  // "Groupe" was removed; ?dimension=employee|client or ?crossWith=employee|
+  // client for a user who is not offered them; and a crossing equal to the
+  // primary dimension (?dimension=x&crossWith=x).
+  //
+  // ONE param per pass, on purpose: react-router applies each
+  // setSearchParams() on top of the URL as of the last render, so two writes
+  // in the same tick overwrite each other and one correction is silently
+  // lost. Fixing the dimension first re-renders, and this effect then runs
+  // again for "Croiser avec".
   useEffect(() => {
+    if (dimensionFromUrl !== dimension) {
+      setDimension(dimension);
+      return;
+    }
     if (crossWithFromUrl !== crossWith) {
       setCrossWith('none');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [crossWithFromUrl, crossWith]);
+  }, [dimensionFromUrl, dimension, crossWithFromUrl, crossWith]);
 
-  // Self-heals a stale ?dimension=group (or any other no-longer-valid value)
-  // left over from a bookmarked/shared URL or browser history from before
-  // "Groupe" was removed from the picker — without this, the <select> would
-  // show no option as selected while the chart silently kept rendering
-  // group data underneath it.
-  useEffect(() => {
-    if (!DIMENSIONS.includes(dimension)) {
-      setDimension('project');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dimension]);
-
-  // "Croiser avec" only makes sense for a stacked BAR chart, or crossed with
-  // itself — reset it the moment the primary selection makes it invalid,
-  // instead of silently ignoring a selector value the user can still see
-  // selected. ("group" used to need its own case here too, back when it was
-  // still a selectable dimension — CROSSABLE_DIMENSIONS never included it.)
+  // A single URL write on purpose (see above): if "Croiser avec" now equals
+  // the new dimension, effectiveCrossWith() already resolves it to "none" and
+  // the effect above clears the stale ?crossWith right after. Writing both
+  // here in the same tick used to make the dimension change get lost.
   const handleDimensionChange = (nextDimension) => {
     setDimension(nextDimension);
-    if (crossWith === nextDimension) {
-      setCrossWith('none');
-    }
   };
   const isCrossing = chartType === 'bar' && crossWith !== 'none';
 
@@ -323,7 +322,7 @@ export default function CustomChartWidget({ summary, chartRef, forcedSize = null
             onChange={(event) => handleDimensionChange(event.target.value)}
             className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100"
           >
-            {DIMENSIONS.map((dim) => <option key={dim} value={dim}>{t(`dashboard.dimension.${dim}`)}</option>)}
+            {selectableDimensionsFor(allowTeamCrossing).map((dim) => <option key={dim} value={dim}>{t(`dashboard.dimension.${dim}`)}</option>)}
           </select>
         </label>
         <label className="tw-flex tw-flex-col tw-gap-1 tw-text-sm tw-font-medium tw-text-slate-700 dark:tw-text-slate-300">
