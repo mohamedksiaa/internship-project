@@ -25,10 +25,13 @@ const summary = {
   group_labels: { 5: 'HRM' },
 };
 
+// canReadAll: true — these tests are about "Groupe" leaving the full picker;
+// which of Employé/Client a user WITHOUT readall is offered is covered in
+// CustomChartWidget.crossWith.test.jsx.
 function renderAt(initialPath) {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
-      <CustomChartWidget summary={summary} />
+      <CustomChartWidget summary={summary} canReadAll />
     </MemoryRouter>
   );
 }

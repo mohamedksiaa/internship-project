@@ -42,6 +42,7 @@ describe('DashboardPage — export buttons', () => {
 
   afterEach(() => {
     cleanup();
+    delete window.TIMEFLOW_CAN_READALL;
   });
 
   it('CSV export downloads a file with the summary block plus the current dimension breakdown', async () => {
@@ -62,6 +63,8 @@ describe('DashboardPage — export buttons', () => {
   });
 
   it('CSV export builds a real pivot table (one column per crossing category) when Dimension=Employé + Croiser avec=Projet is active — the exact reported scenario', async () => {
+    // A team-wide view: "Employé" is only offered to a user with the readall right.
+    window.TIMEFLOW_CAN_READALL = true;
     const user = userEvent.setup();
     renderDashboard(['/?dimension=employee&chartType=bar&crossWith=project']);
     await screen.findByText(i18n.t('dashboard.total'));
@@ -86,6 +89,21 @@ describe('DashboardPage — export buttons', () => {
     expect(aliceRow.length).toBe(headerRow.length);
     const alphaCol = headerRow.indexOf('Projet Alpha');
     expect(aliceRow[alphaCol]).toBe('02:00:00'); // 7200s, from by_project_employee "5|1"
+  });
+
+  it('CSV export of a forged ?dimension=employee URL, without readall, does not pivot by Employé (falls back to the project breakdown)', async () => {
+    const user = userEvent.setup();
+    renderDashboard(['/?dimension=employee&chartType=bar&crossWith=client']);
+    await screen.findByText(i18n.t('dashboard.total'));
+
+    await user.click(screen.getByRole('button', { name: i18n.t('dashboard.export.csv_button') }));
+
+    expect(downloadCsv).toHaveBeenCalledTimes(1);
+    const [, , rows] = downloadCsv.mock.calls[0];
+    // The export follows what the selectors resolve to: project dimension, no crossing.
+    expect(rows.some((row) => row[0] === 'Projet Alpha')).toBe(true);
+    expect(rows.some((row) => row[0] === 'Alice')).toBe(false);
+    expect(rows.some((row) => row[0] === i18n.t('dashboard.export.csv_crossed_with_header', { dimension: i18n.t('dashboard.dimension.client') }))).toBe(false);
   });
 
   it('PDF export calls generateDashboardPdf once, with the configured chart captured and captioned', async () => {
