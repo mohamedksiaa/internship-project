@@ -277,7 +277,46 @@
     "col_email": "Email",
     "col_phone": "Phone",
     "col_groups": "Group(s)",
-    "no_group": "No group"
+    "no_group": "No group",
+    "presence": {
+      "col_presence": "Presence",
+      "date_label": "Date",
+      "today_button": "Today",
+      "status": {
+        "present": "Present",
+        "absent": "Absent",
+        "expected_absence": "Expected absence",
+        "expected_absence_with_reason": "Expected absence · {{reason}}",
+        "none": "Not applicable"
+      },
+      "reason": {
+        "leave": "Leave",
+        "rtt": "RTT",
+        "sick": "Sick leave",
+        "other": "Other"
+      },
+      "recorded_absence": "Expected absence recorded ({{reason}})",
+      "table_missing": "Expected absences are unavailable: the table is missing. Disable then re-enable the TimeFlow module.",
+      "error_generic": "Could not save the expected absence.",
+      "actions": {
+        "col": "Actions",
+        "mark": "Expected absence",
+        "edit": "Edit",
+        "remove": "Remove",
+        "mark_aria": "Mark an expected absence for {{name}}",
+        "edit_aria": "Edit the expected absence of {{name}}",
+        "remove_aria": "Remove the expected absence of {{name}}"
+      },
+      "dialog": {
+        "title": "Expected absence",
+        "employee": "Employee",
+        "date": "Date",
+        "reason": "Reason",
+        "save": "Save",
+        "saving": "Saving…",
+        "cancel": "Cancel"
+      }
+    }
   },
   "timeentry": {
     "date_unknown": "Date unknown",

@@ -12,7 +12,9 @@ const {
   getMyDailyReports,
   exportProcessedHistory,
   getTimeFlowProjects,
-  getTimeFlowUsers,
+  getUsersPresence,
+  saveExpectedAbsence,
+  deleteExpectedAbsence,
   listActiveThirdParties,
   listActiveUsers,
 } = vi.hoisted(() => ({
@@ -26,7 +28,9 @@ const {
   getMyDailyReports: vi.fn().mockResolvedValue({ reports: [], employees: [] }),
   exportProcessedHistory: vi.fn().mockResolvedValue([]),
   getTimeFlowProjects: vi.fn().mockResolvedValue({ rows: [], pagination: { page: 1, per_page: 20, total: 0, pages: 1 } }),
-  getTimeFlowUsers: vi.fn().mockResolvedValue({ rows: [], pagination: { page: 1, per_page: 20, total: 0, pages: 1 } }),
+  getUsersPresence: vi.fn().mockResolvedValue({ rows: [], pagination: { page: 1, per_page: 20, total: 0, pages: 1 }, date: '2026-09-21', today: '2026-09-21', absencesAvailable: true }),
+  saveExpectedAbsence: vi.fn().mockResolvedValue({}),
+  deleteExpectedAbsence: vi.fn().mockResolvedValue({}),
   listActiveThirdParties: vi.fn().mockResolvedValue([]),
   listActiveUsers: vi.fn().mockResolvedValue([]),
 }));
@@ -38,7 +42,9 @@ vi.mock('../api/timeflowApi', () => ({
   getMyDailyReports,
   exportProcessedHistory,
   getTimeFlowProjects,
-  getTimeFlowUsers,
+  getUsersPresence,
+  saveExpectedAbsence,
+  deleteExpectedAbsence,
   listActiveThirdParties,
   listActiveUsers,
 }));
@@ -63,7 +69,9 @@ describe('ReportsPage', () => {
     getMyDailyReports.mockReset().mockResolvedValue({ reports: [], employees: [] });
     exportProcessedHistory.mockReset().mockResolvedValue([]);
     getTimeFlowProjects.mockReset().mockResolvedValue({ rows: [], pagination: { page: 1, per_page: 20, total: 0, pages: 1 } });
-    getTimeFlowUsers.mockReset().mockResolvedValue({ rows: [], pagination: { page: 1, per_page: 20, total: 0, pages: 1 } });
+    getUsersPresence.mockReset().mockResolvedValue({ rows: [], pagination: { page: 1, per_page: 20, total: 0, pages: 1 }, date: '2026-09-21', today: '2026-09-21', absencesAvailable: true });
+    saveExpectedAbsence.mockReset().mockResolvedValue({});
+    deleteExpectedAbsence.mockReset().mockResolvedValue({});
     listActiveThirdParties.mockReset().mockResolvedValue([]);
     listActiveUsers.mockReset().mockResolvedValue([]);
   });
@@ -180,28 +188,34 @@ describe('ReportsPage', () => {
 
   it('paginates the users tab through the backend', async () => {
     window.TIMEFLOW_CAN_READALL = true;
-    getTimeFlowUsers.mockResolvedValue({
+    getUsersPresence.mockResolvedValue({
       rows: [
-        { id: 1, label: 'Alice Martin', email: 'alice@example.com', office_phone: '', user_mobile: '', groups: [] },
+        { id: 1, label: 'Alice Martin', email: 'alice@example.com', office_phone: '', user_mobile: '', groups: [], presence: { status: 'present', reason_type: null, source: null } },
       ],
       pagination: { page: 1, per_page: 20, total: 25, pages: 2 },
+      date: '2026-09-21',
+      today: '2026-09-21',
+      absencesAvailable: true,
     });
     const user = userEvent.setup();
     renderReportsPage();
 
     await user.click(await screen.findByRole('button', { name: i18n.t('users_report.title') }));
     await screen.findByText('Alice Martin');
-    expect(getTimeFlowUsers).toHaveBeenLastCalledWith(1, 20);
+    expect(getUsersPresence).toHaveBeenLastCalledWith('', 1, 20);
 
-    getTimeFlowUsers.mockResolvedValueOnce({
+    getUsersPresence.mockResolvedValueOnce({
       rows: [
-        { id: 2, label: 'Bob Durand', email: 'bob@example.com', office_phone: '', user_mobile: '', groups: [] },
+        { id: 2, label: 'Bob Durand', email: 'bob@example.com', office_phone: '', user_mobile: '', groups: [], presence: { status: 'absent', reason_type: null, source: null } },
       ],
       pagination: { page: 2, per_page: 20, total: 25, pages: 2 },
+      date: '2026-09-21',
+      today: '2026-09-21',
+      absencesAvailable: true,
     });
     await user.click(screen.getByRole('button', { name: i18n.t('processed_history.pagination.next') }));
 
-    await waitFor(() => expect(getTimeFlowUsers).toHaveBeenLastCalledWith(2, 20));
+    await waitFor(() => expect(getUsersPresence).toHaveBeenLastCalledWith('', 2, 20));
     expect(await screen.findByText('Bob Durand')).toBeInTheDocument();
   });
 
@@ -213,16 +227,16 @@ describe('ReportsPage', () => {
     expect(screen.queryByRole('button', { name: i18n.t('users_report.title') })).not.toBeInTheDocument();
   });
 
-  it('never fetches getTimeFlowUsers for a non-manager, even with ?tab=users forced in the URL', async () => {
+  it('never fetches getUsersPresence for a non-manager, even with ?tab=users forced in the URL', async () => {
     window.TIMEFLOW_CAN_READALL = false;
     render(<ReportsPage />, { wrapper: ({ children }) => <MemoryRouter initialEntries={['/?tab=users']}>{children}</MemoryRouter> });
 
     // The "tasks" tab's own content loads instead — proof the forced
     // ?tab=users never mounts UsersReportTab (which would otherwise call
-    // getTimeFlowUsers, refused by the backend anyway, but never attempted).
+    // getUsersPresence, refused by the backend anyway, but never attempted).
     await screen.findByRole('button', { name: i18n.t('history.task_history') });
     expect(screen.queryByRole('button', { name: i18n.t('users_report.title') })).not.toBeInTheDocument();
-    expect(getTimeFlowUsers).not.toHaveBeenCalled();
+    expect(getUsersPresence).not.toHaveBeenCalled();
   });
 
   // Excluding submitted (status=1) reports from this tab used to be a

@@ -278,7 +278,46 @@
     "col_email": "E-Mail",
     "col_phone": "Telefon",
     "col_groups": "Gruppe(n)",
-    "no_group": "Keine Gruppe"
+    "no_group": "Keine Gruppe",
+    "presence": {
+      "col_presence": "Anwesenheit",
+      "date_label": "Datum",
+      "today_button": "Heute",
+      "status": {
+        "present": "Anwesend",
+        "absent": "Abwesend",
+        "expected_absence": "Geplante Abwesenheit",
+        "expected_absence_with_reason": "Geplante Abwesenheit · {{reason}}",
+        "none": "Nicht zutreffend"
+      },
+      "reason": {
+        "leave": "Urlaub",
+        "rtt": "RTT",
+        "sick": "Krankheit",
+        "other": "Sonstiges"
+      },
+      "recorded_absence": "Geplante Abwesenheit erfasst ({{reason}})",
+      "table_missing": "Geplante Abwesenheiten sind nicht verfügbar: Die Tabelle fehlt. Deaktivieren und aktivieren Sie das TimeFlow-Modul erneut.",
+      "error_generic": "Die geplante Abwesenheit konnte nicht gespeichert werden.",
+      "actions": {
+        "col": "Aktionen",
+        "mark": "Geplante Abwesenheit",
+        "edit": "Bearbeiten",
+        "remove": "Entfernen",
+        "mark_aria": "Geplante Abwesenheit für {{name}} erfassen",
+        "edit_aria": "Geplante Abwesenheit von {{name}} bearbeiten",
+        "remove_aria": "Geplante Abwesenheit von {{name}} entfernen"
+      },
+      "dialog": {
+        "title": "Geplante Abwesenheit",
+        "employee": "Mitarbeiter",
+        "date": "Datum",
+        "reason": "Grund",
+        "save": "Speichern",
+        "saving": "Wird gespeichert…",
+        "cancel": "Abbrechen"
+      }
+    }
   },
   "timeentry": {
     "date_unknown": "Datum nicht angegeben",
