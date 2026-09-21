@@ -826,6 +826,255 @@ function timeflowFetchTimeFlowUsers($db, $page = 1, $perPage = 20)
 }
 
 /**
+ * Reasons a manager can attach to an expected absence, stored as a short code.
+ */
+function timeflowExpectedAbsenceReasons()
+{
+    return array('leave', 'rtt', 'sick', 'other');
+}
+
+/**
+ * Strict "YYYY-MM-DD": the same string when it is a real calendar date
+ * (no "2026-02-30", no trailing time), null otherwise.
+ */
+function timeflowNormalizeIsoDate($value)
+{
+    if (!is_string($value) || !preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m)) {
+        return null;
+    }
+
+    return checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $value : null;
+}
+
+/**
+ * Whether the optional llx_timeflow_timeentry.fk_split_previous column exists
+ * (same defensive check as timeflowHasDateDeleteColumn(), for installs whose
+ * table predates the column).
+ */
+function timeflowHasSplitPreviousColumn($db)
+{
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
+    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'fk_split_previous' LIMIT 1";
+    $res = $db->query($sql);
+    $cached = ($res && $db->num_rows($res) > 0);
+    return $cached;
+}
+
+/**
+ * Whether llx_timeflow_expected_absence exists. Tables are created when the
+ * module is activated, so an install that was already active when this table
+ * was introduced does not have it until the module is disabled and enabled
+ * again. Reads degrade (presence still works, no expected absences) and report
+ * it; writes refuse with an actionable message.
+ *
+ * Not cached across calls: the answer must flip as soon as the module is
+ * re-activated.
+ */
+function timeflowExpectedAbsenceTableExists($db)
+{
+    $tableName = $db->escape($db->prefix().'timeflow_expected_absence');
+    $res = $db->query("SELECT 1 FROM information_schema.tables WHERE table_name = '".$tableName."' LIMIT 1");
+
+    return (bool) ($res && $db->num_rows($res) > 0);
+}
+
+/**
+ * Presence of each user of the Users report for one calendar day.
+ *
+ * Same user list and paging as timeflowFetchTimeFlowUsers() (this only adds a
+ * "presence" object to each row), so the report keeps a single source of
+ * truth for who is listed. Statuses for the whole page are computed with one
+ * query each (time entries, expected absences, account status), never one per
+ * user.
+ *
+ * presence.status, in order of precedence:
+ *   present           - at least one time entry STARTED on that day (any hour,
+ *                       any status, incl. a running timer; entries that are
+ *                       soft-deleted or are the continuation of a timer split
+ *                       at midnight do not count: the user did not start those)
+ *   expected_absence  - a manager recorded an absence for that day
+ *   none              - nothing to say: a future day, or a disabled account
+ *   absent            - otherwise
+ * presence.reason_type is the recorded reason whenever an expected absence
+ * exists, even when the user is present anyway (present wins the status, but
+ * the manager must still be able to see and remove the record).
+ *
+ * @param DoliDB $db
+ * @param string $date "YYYY-MM-DD", already validated by the caller.
+ */
+function timeflowFetchUsersPresence($db, $date, $page = 1, $perPage = 20)
+{
+    $result = timeflowFetchTimeFlowUsers($db, $page, $perPage);
+
+    $userIds = array();
+    foreach ($result['rows'] as $row) {
+        $userIds[] = (int) $row['id'];
+    }
+
+    $today = dol_print_date(dol_now(), '%Y-%m-%d');
+    $isFuture = $date > $today;
+
+    $presentIds = array();
+    $absenceByUser = array();
+    $inactiveIds = array();
+    $absencesAvailable = timeflowExpectedAbsenceTableExists($db);
+
+    if (!empty($userIds)) {
+        $idList = implode(',', $userIds);
+
+        if (!$isFuture) {
+            $dayStart = new DateTimeImmutable($date.' 00:00:00', new DateTimeZone('UTC'));
+            $nextDay = $dayStart->modify('+1 day')->format('Y-m-d');
+
+            $sql = 'SELECT DISTINCT t.fk_user FROM '.$db->prefix().'timeflow_timeentry AS t';
+            $sql .= ' WHERE t.fk_user IN ('.$idList.') AND t.entity IN ('.getEntity('timeentry').')';
+            if (timeflowHasDateDeleteColumn($db)) {
+                $sql .= ' AND t.date_delete IS NULL';
+            }
+            if (timeflowHasSplitPreviousColumn($db)) {
+                $sql .= ' AND t.fk_split_previous IS NULL';
+            }
+            $sql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $date.' 00:00:00');
+            $sql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<', $nextDay.' 00:00:00');
+            $resql = timeflowQuery($db, $sql, 'timeflowFetchUsersPresence:entries');
+            while ($obj = $db->fetch_object($resql)) {
+                $presentIds[(int) $obj->fk_user] = true;
+            }
+            $db->free($resql);
+        }
+
+        if ($absencesAvailable) {
+            $sql = 'SELECT a.fk_user, a.reason_type FROM '.$db->prefix().'timeflow_expected_absence AS a';
+            $sql .= ' WHERE a.fk_user IN ('.$idList.') AND a.entity IN ('.getEntity('timeentry').')';
+            $sql .= " AND a.date_absence = '".$db->escape($date)."'";
+            $resql = timeflowQuery($db, $sql, 'timeflowFetchUsersPresence:absences');
+            while ($obj = $db->fetch_object($resql)) {
+                $absenceByUser[(int) $obj->fk_user] = (string) $obj->reason_type;
+            }
+            $db->free($resql);
+        }
+
+        $sql = 'SELECT u.rowid FROM '.$db->prefix().'user AS u WHERE u.rowid IN ('.$idList.') AND u.statut <> 1';
+        $resql = timeflowQuery($db, $sql, 'timeflowFetchUsersPresence:accounts');
+        while ($obj = $db->fetch_object($resql)) {
+            $inactiveIds[(int) $obj->rowid] = true;
+        }
+        $db->free($resql);
+    }
+
+    foreach ($result['rows'] as $i => $row) {
+        $userId = (int) $row['id'];
+        $hasAbsence = isset($absenceByUser[$userId]);
+        if (!empty($presentIds[$userId])) {
+            $status = 'present';
+        } elseif ($hasAbsence) {
+            $status = 'expected_absence';
+        } elseif ($isFuture || !empty($inactiveIds[$userId])) {
+            $status = 'none';
+        } else {
+            $status = 'absent';
+        }
+        $result['rows'][$i]['presence'] = array(
+            'status' => $status,
+            'reason_type' => $hasAbsence ? $absenceByUser[$userId] : null,
+            'source' => $hasAbsence ? 'manual' : null,
+        );
+    }
+
+    $result['date'] = $date;
+    $result['today'] = $today;
+    $result['absences_available'] = $absencesAvailable;
+
+    return $result;
+}
+
+/**
+ * Validation shared by the expected-absence writes. Returns an error message,
+ * or null when the input is acceptable.
+ *
+ * $checkTargetUser is false for deletions: a manager must still be able to
+ * remove the record of a user whose account was disabled since.
+ */
+function timeflowValidateExpectedAbsenceInput($db, $targetUserId, $date, $reasonType, $checkTargetUser)
+{
+    global $conf;
+
+    if ($targetUserId <= 0) {
+        return 'Utilisateur invalide';
+    }
+    if ($date === null) {
+        return 'Date invalide (format attendu : AAAA-MM-JJ)';
+    }
+    if ($reasonType !== null && !in_array($reasonType, timeflowExpectedAbsenceReasons(), true)) {
+        return 'Motif invalide';
+    }
+    if ($checkTargetUser) {
+        // entity 0 = the super-admin account, valid in every entity.
+        $sql = 'SELECT u.statut FROM '.$db->prefix().'user AS u';
+        $sql .= ' WHERE u.rowid = '.((int) $targetUserId).' AND u.entity IN (0, '.((int) $conf->entity).')';
+        $resql = timeflowQuery($db, $sql, 'timeflowValidateExpectedAbsenceInput:user');
+        $obj = $db->fetch_object($resql);
+        $db->free($resql);
+        if (!$obj) {
+            return 'Utilisateur introuvable';
+        }
+        if ((int) $obj->statut !== 1) {
+            return 'Utilisateur désactivé';
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Records (or updates the reason of) the expected absence of a user for a day.
+ * Idempotent: saving the same user and day twice keeps a single row.
+ *
+ * @return array{id:int, created:bool}
+ */
+function timeflowSaveExpectedAbsence($db, $actor, $targetUserId, $date, $reasonType)
+{
+    global $conf;
+
+    $sql = 'SELECT a.rowid FROM '.$db->prefix().'timeflow_expected_absence AS a';
+    $sql .= ' WHERE a.entity IN ('.getEntity('timeentry').') AND a.fk_user = '.((int) $targetUserId);
+    $sql .= " AND a.date_absence = '".$db->escape($date)."'";
+    $resql = timeflowQuery($db, $sql, 'timeflowSaveExpectedAbsence:find');
+    $existing = $db->fetch_object($resql);
+    $db->free($resql);
+
+    if ($existing) {
+        $sql = 'UPDATE '.$db->prefix()."timeflow_expected_absence SET reason_type = '".$db->escape($reasonType)."'";
+        $sql .= ' WHERE rowid = '.((int) $existing->rowid);
+        timeflowQuery($db, $sql, 'timeflowSaveExpectedAbsence:update');
+
+        return array('id' => (int) $existing->rowid, 'created' => false);
+    }
+
+    $sql = 'INSERT INTO '.$db->prefix().'timeflow_expected_absence (entity, fk_user, date_absence, reason_type, fk_user_creat, date_creation)';
+    $sql .= ' VALUES ('.((int) $conf->entity).', '.((int) $targetUserId).", '".$db->escape($date)."', '".$db->escape($reasonType)."', ".((int) $actor->id).", '".$db->idate(dol_now())."')";
+    timeflowQuery($db, $sql, 'timeflowSaveExpectedAbsence:insert');
+
+    return array('id' => (int) $db->last_insert_id($db->prefix().'timeflow_expected_absence'), 'created' => true);
+}
+
+/**
+ * Removes the expected absence of a user for a day. Idempotent: returns how
+ * many rows were removed (0 when there was none).
+ */
+function timeflowDeleteExpectedAbsence($db, $targetUserId, $date)
+{
+    $sql = 'DELETE FROM '.$db->prefix().'timeflow_expected_absence';
+    $sql .= ' WHERE entity IN ('.getEntity('timeentry').') AND fk_user = '.((int) $targetUserId);
+    $sql .= " AND date_absence = '".$db->escape($date)."'";
+    $resql = timeflowQuery($db, $sql, 'timeflowDeleteExpectedAbsence');
+
+    return (int) $db->affected_rows($resql);
+}
+
+/**
  * Builds one row per real time entry (any status — this is meant as a full
  * consolidated dump, and the Clockify CSV format has no status column to
  * preserve it through a round-trip anyway) for Rapports' global "Export"
@@ -1914,6 +2163,68 @@ switch ($action) {
         $usersPerPage = !empty($postData['per_page']) ? (int) $postData['per_page'] : (int) GETPOST('per_page', 'int');
         $usersPerPage = $usersPerPage > 0 ? $usersPerPage : 20;
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchTimeFlowUsers($db, $usersPage, $usersPerPage)));
+        break;
+
+    case 'getUsersPresence':
+        // Same audience as getTimeFlowUsers (the team-wide Users report).
+        if (!timeflowCanReadAllTimeEntries($user)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $presenceDateRaw = isset($postData['date']) ? (string) $postData['date'] : (string) GETPOST('date', 'alphanohtml');
+        $presenceDate = $presenceDateRaw === '' ? dol_print_date(dol_now(), '%Y-%m-%d') : timeflowNormalizeIsoDate($presenceDateRaw);
+        if ($presenceDate === null) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Date invalide (format attendu : AAAA-MM-JJ)'), 400);
+        }
+        $presencePage = !empty($postData['page']) ? (int) $postData['page'] : (int) GETPOST('page', 'int');
+        $presencePage = $presencePage > 0 ? $presencePage : 1;
+        $presencePerPage = !empty($postData['per_page']) ? (int) $postData['per_page'] : (int) GETPOST('per_page', 'int');
+        $presencePerPage = $presencePerPage > 0 ? $presencePerPage : 20;
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchUsersPresence($db, $presenceDate, $presencePage, $presencePerPage)));
+        break;
+
+    case 'saveExpectedAbsence':
+    case 'deleteExpectedAbsence':
+        // Writing needs the manager right AND the team-wide read right: the
+        // target user is picked from the Users report, which is readall-only.
+        if (!timeflowCanReadAllTimeEntries($user) || !timeflowCanValidate($user)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        $absenceUserId = isset($postData['user_id']) ? (int) $postData['user_id'] : (int) GETPOST('user_id', 'int');
+        $absenceDate = timeflowNormalizeIsoDate(isset($postData['date']) ? (string) $postData['date'] : (string) GETPOST('date', 'alphanohtml'));
+        $isSaveAbsence = ($action === 'saveExpectedAbsence');
+        $absenceReason = null;
+        if ($isSaveAbsence) {
+            $absenceReason = isset($postData['reason_type']) ? (string) $postData['reason_type'] : (string) GETPOST('reason_type', 'aZ09');
+            if ($absenceReason === '') {
+                $absenceReason = 'other'; // the reason is optional for the caller
+            }
+        }
+        $absenceError = timeflowValidateExpectedAbsenceInput($db, $absenceUserId, $absenceDate, $absenceReason, $isSaveAbsence);
+        if ($absenceError !== null) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => $absenceError), 400);
+        }
+        if (!timeflowExpectedAbsenceTableExists($db)) {
+            timeflowJsonResponse(array(
+                'status' => 'error',
+                'code' => 'expected_absence_table_missing',
+                'message' => 'La table des absences prévues est absente : désactivez puis réactivez le module TimeFlow.',
+            ), 500);
+        }
+        if ($isSaveAbsence) {
+            $saved = timeflowSaveExpectedAbsence($db, $user, $absenceUserId, $absenceDate, $absenceReason);
+            timeflowJsonResponse(array('status' => 'success', 'data' => array(
+                'id' => $saved['id'],
+                'created' => $saved['created'],
+                'user_id' => $absenceUserId,
+                'date' => $absenceDate,
+                'reason_type' => $absenceReason,
+            )));
+        }
+        timeflowJsonResponse(array('status' => 'success', 'data' => array(
+            'deleted' => timeflowDeleteExpectedAbsence($db, $absenceUserId, $absenceDate),
+            'user_id' => $absenceUserId,
+            'date' => $absenceDate,
+        )));
         break;
 
     // Rapports' global "Export" button (above the tab bar, not per sub-page):
