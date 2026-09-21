@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
 import CustomChartWidget, { buildSingleDimensionChartData, buildStackedChartData, countPrimaryCategories } from '../components/organisms/CustomChartWidget';
+import { effectiveCrossWith } from '../utils/crossDimensions.js';
 import { getSummaryReports } from '../api/timeflowApi';
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
@@ -155,7 +156,11 @@ export default function DashboardPage() {
   // by any component that asks for the same key.
   const [dimension] = useUrlState('dimension', 'project');
   const [chartType] = useUrlState('chartType', 'bar');
-  const [crossWith] = useUrlState('crossWith', 'none');
+  const [crossWithFromUrl] = useUrlState('crossWith', 'none');
+  // Same resolution as the widget's selector (a crossing this user is not
+  // offered resolves to "none"), so the CSV/PDF export always matches what the
+  // widget itself shows.
+  const crossWith = effectiveCrossWith(crossWithFromUrl, canReadAll);
 
   // Capture target for the PDF export: a dedicated off-screen clone of the
   // configured chart, captured instead of the live on-screen widget above.
@@ -359,7 +364,7 @@ export default function DashboardPage() {
         {!summaryLoading && !summaryError && (
           <>
 
-            <CustomChartWidget summary={summary} />
+            <CustomChartWidget summary={summary} canReadAll={canReadAll} />
           </>
         )}
         {!summaryLoading && !summaryError && (
@@ -387,6 +392,7 @@ export default function DashboardPage() {
                 summary={summary}
                 chartRef={exportConfiguredChartRef}
                 forcedSize={{ width: EXPORT_CHART_WIDTH, height: 320 }}
+                canReadAll={canReadAll}
               />
             </div>
           </>

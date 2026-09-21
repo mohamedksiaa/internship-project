@@ -19,6 +19,7 @@ import {
 import Card from '../atoms/Card';
 import useDarkMode from '../../hooks/useDarkMode';
 import { formatDuration } from '../../utils/FormatDuration.js';
+import { crossableDimensionsFor, effectiveCrossWith } from '../../utils/crossDimensions.js';
 
 const CHART_COLORS = ['#5B8FA8', '#4d5fca', '#35a66f', '#f59e0b', '#ef4444', '#9c27b0', '#8a9aa4', '#c084e0', '#6b7fe0', '#2a9d8f'];
 const MAX_SLICES = 9;
@@ -34,11 +35,14 @@ const DIMENSIONS = ['project', 'employee', 'client', 'billable'];
 const SUMMARY_KEY_BY_DIMENSION = { client: 'by_client', employee: 'by_user', project: 'by_project', group: 'by_group' };
 const CHART_TYPES = ['bar', 'pie', 'line'];
 
-// "group" is deliberately never part of this list: an employee can belong to
-// several groups at once, so a duration can land in more than one group
-// bucket — stacking it (as either axis) would make a bar's segments sum to
-// more than its real total. It stays available only as a single dimension.
-const CROSSABLE_DIMENSIONS = ['project', 'employee', 'client', 'billable'];
+// Which "Croiser avec" choices exist (and which of them a user without the
+// readall right is offered) lives in utils/crossDimensions.js, shared with
+// DashboardPage's export.
+
+// Same flag the other pages read (set by timeflowindex.php).
+function readAllFromWindow() {
+  return typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
+}
 
 // Fixed priority order matching the composite dictionary keys the backend
 // builds in timeflowBuildSummary() (by_project_employee, by_project_client,
@@ -246,15 +250,28 @@ export function formatHoursTick(seconds) {
 // session: box was 954x320, recharts still warned "width(0) height(0)").
 // Passing a NUMBER (not a percentage) to ResponsiveContainer makes it skip
 // the observer entirely and render synchronously at that exact size.
-export default function CustomChartWidget({ summary, chartRef, forcedSize = null }) {
+export default function CustomChartWidget({ summary, chartRef, forcedSize = null, canReadAll }) {
   const { t } = useTranslation();
   const isDark = useDarkMode();
+  const allowTeamCrossing = canReadAll !== undefined ? canReadAll === true : readAllFromWindow();
   // Kept in the URL (?dimension=&chartType=) rather than local state — this
   // widget lives on the dashboard, itself a descendant of the app's
   // HashRouter, so useUrlState works here with no prop drilling needed.
   const [dimension, setDimension] = useUrlState('dimension', 'project');
   const [chartType, setChartType] = useUrlState('chartType', 'bar');
-  const [crossWith, setCrossWith] = useUrlState('crossWith', 'none');
+  const [crossWithFromUrl, setCrossWith] = useUrlState('crossWith', 'none');
+  const crossWith = effectiveCrossWith(crossWithFromUrl, allowTeamCrossing);
+
+  // Same self-healing as ?dimension above: a ?crossWith=employee/client left
+  // in a bookmark or typed by hand, for a user who is not offered those
+  // options, would otherwise leave the <select> on "Aucun" while the URL
+  // (and anything else reading it) still says otherwise.
+  useEffect(() => {
+    if (crossWithFromUrl !== crossWith) {
+      setCrossWith('none');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crossWithFromUrl, crossWith]);
 
   // Self-heals a stale ?dimension=group (or any other no-longer-valid value)
   // left over from a bookmarked/shared URL or browser history from before
@@ -328,7 +345,7 @@ export default function CustomChartWidget({ summary, chartRef, forcedSize = null
               className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100"
             >
               <option value="none">{t('dashboard.cross_with_none')}</option>
-              {CROSSABLE_DIMENSIONS.filter((dim) => dim !== dimension).map((dim) => (
+              {crossableDimensionsFor(allowTeamCrossing).filter((dim) => dim !== dimension).map((dim) => (
                 <option key={dim} value={dim}>{t(`dashboard.dimension.${dim}`)}</option>
               ))}
             </select>
