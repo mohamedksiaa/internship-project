@@ -74,3 +74,7 @@ TIMEFLOW_LATE_MAX_DELAY_HOURS = Maximum detection delay (hours)
 TIMEFLOW_LATE_MAX_DELAY_HOURS_TOOLTIP = If the first run of the day happens more than this many hours after the cut-off (server down, cron not running), no alert is sent that day. Default 3.
 TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS = Recent activity window (days)
 TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS_TOOLTIP = Only active accounts that started at least one timer during this period are monitored (an old account that was never disabled is not "late" every morning). Default 30.
+TimeFlowLateMailSubject = [TimeFlow] %s employee(s) late this morning (%s)
+TimeFlowLateMailIntro = The following employees had not started any timer by %s on %s:
+TimeFlowLateMailOpen = See today's presence in TimeFlow
+TimeFlowLateMailFooter = You receive this email because you have the "Read all time entries" right in TimeFlow. You can stop receiving it from the notification bell in TimeFlow (the in-app notification stays on).

@@ -74,3 +74,7 @@ TIMEFLOW_LATE_MAX_DELAY_HOURS = Délai maximal de détection (heures)
 TIMEFLOW_LATE_MAX_DELAY_HOURS_TOOLTIP = Si la première exécution du jour a lieu plus de ce nombre d'heures après l'heure limite (serveur arrêté, cron en panne), aucune alerte n'est envoyée ce jour-là. Par défaut 3.
 TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS = Fenêtre d'activité récente (jours)
 TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS_TOOLTIP = Seuls les comptes actifs ayant démarré au moins un chronomètre pendant cette période sont surveillés (un ancien compte jamais désactivé n'est pas « en retard » chaque matin). Par défaut 30.
+TimeFlowLateMailSubject = [TimeFlow] %s employé(s) en retard ce matin (%s)
+TimeFlowLateMailIntro = Les employés suivants n'avaient démarré aucun chronomètre à %s le %s :
+TimeFlowLateMailOpen = Voir la présence du jour dans TimeFlow
+TimeFlowLateMailFooter = Vous recevez cet email parce que vous avez le droit « Lire toutes les entrées de temps » dans TimeFlow. Vous pouvez ne plus le recevoir depuis la cloche de notification de TimeFlow (la notification interne reste active).

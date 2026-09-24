@@ -74,3 +74,7 @@ TIMEFLOW_LATE_MAX_DELAY_HOURS = Maximale Erkennungsverzögerung (Stunden)
 TIMEFLOW_LATE_MAX_DELAY_HOURS_TOOLTIP = Findet der erste Lauf des Tages mehr als so viele Stunden nach der Grenzzeit statt (Server aus, Cron nicht aktiv), wird an diesem Tag kein Alarm gesendet. Standard 3.
 TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS = Zeitraum der jüngsten Aktivität (Tage)
 TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS_TOOLTIP = Nur aktive Konten, die in diesem Zeitraum mindestens einen Timer gestartet haben, werden überwacht (ein altes, nie deaktiviertes Konto ist nicht jeden Morgen „verspätet“). Standard 30.
+TimeFlowLateMailSubject = [TimeFlow] %s Mitarbeiter heute Morgen verspätet (%s)
+TimeFlowLateMailIntro = Die folgenden Mitarbeiter hatten bis %s am %s keinen Timer gestartet:
+TimeFlowLateMailOpen = Anwesenheit des Tages in TimeFlow ansehen
+TimeFlowLateMailFooter = Sie erhalten diese E-Mail, weil Sie in TimeFlow das Recht „Alle Zeiteinträge lesen“ haben. Sie können sie über die Benachrichtigungsglocke in TimeFlow abbestellen (die interne Benachrichtigung bleibt aktiv).

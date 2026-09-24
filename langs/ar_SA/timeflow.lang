@@ -74,3 +74,7 @@ TIMEFLOW_LATE_MAX_DELAY_HOURS = أقصى تأخير للكشف (بالساعات
 TIMEFLOW_LATE_MAX_DELAY_HOURS_TOOLTIP = إذا حدث أول تشغيل في اليوم بعد الوقت النهائي بأكثر من هذا العدد من الساعات (توقف الخادم أو cron)، لا يُرسل أي تنبيه في ذلك اليوم. الافتراضي 3.
 TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS = نافذة النشاط الأخير (بالأيام)
 TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS_TOOLTIP = تتم مراقبة الحسابات النشطة التي بدأت مؤقتًا واحدًا على الأقل خلال هذه الفترة فقط (الحساب القديم الذي لم يُعطَّل لا يكون «متأخرًا» كل صباح). الافتراضي 30.
+TimeFlowLateMailSubject = [TimeFlow] %s موظف(ين) متأخر(ون) هذا الصباح (%s)
+TimeFlowLateMailIntro = لم يبدأ الموظفون التالية أسماؤهم أي مؤقت قبل %s بتاريخ %s:
+TimeFlowLateMailOpen = عرض حضور اليوم في TimeFlow
+TimeFlowLateMailFooter = تتلقى هذا البريد لأن لديك صلاحية «قراءة جميع سجلات الوقت» في TimeFlow. يمكنك إيقافه من جرس الإشعارات في TimeFlow (يبقى الإشعار الداخلي مفعّلاً).

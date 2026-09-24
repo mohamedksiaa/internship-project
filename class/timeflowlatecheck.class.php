@@ -43,6 +43,24 @@ class TimeFlowLateCheck
 	/** A 'running' claim older than this many seconds is considered abandoned (a crashed run) and taken over. */
 	const STALE_CLAIM_SECONDS = 900;
 
+	/** In-app notification type written by this job. */
+	const NOTIF_TYPE = 'late_arrivals';
+
+	/** Per-user preference (llx_user_param): '0' = "do not email me"; absent = emails on. */
+	const PARAM_EMAIL = 'TIMEFLOW_LATE_ALERT_EMAIL';
+
+	/** An email is attempted at most this many times per notification. */
+	const EMAIL_MAX_ATTEMPTS = 3;
+
+	/** A failed email is retried no sooner than this many seconds later (so one attempt per cron tick). */
+	const EMAIL_RETRY_SECONDS = 240;
+
+	/** An email left 'sending' longer than this (crashed mid-send) becomes eligible for another attempt. */
+	const EMAIL_STALE_SENDING_SECONDS = 900;
+
+	/** Notifications older than this many days are purged. */
+	const NOTIF_RETENTION_DAYS = 90;
+
 	/** @var DoliDB */
 	public $db;
 
@@ -202,7 +220,18 @@ class TimeFlowLateCheck
 	{
 		$existing = $this->getMarker($entity, $day);
 		if ($existing && $existing['status'] !== self::STATUS_RUNNING) {
-			return $this->finishWithoutWork('already_processed', $day.' already processed ('.$existing['status'].').');
+			$note = '';
+			if ($existing['status'] === self::STATUS_DONE) {
+				// The detection is never redone, but an email that failed earlier is retried.
+				$retry = $this->sendPendingEmails($entity, $day, $now);
+				if ($retry['attempted'] > 0) {
+					$this->updateEmailCount($existing['rowid'], $this->countEmailsSent($entity, $day));
+					$note = ' '.$retry['attempted'].' pending email(s) retried, '.$retry['sent'].' sent.';
+				}
+				$this->result['retried_emails'] = $retry;
+			}
+
+			return $this->finishWithoutWork('already_processed', $day.' already processed ('.$existing['status'].').'.$note);
 		}
 		if ($existing && strtotime($existing['date_run']) > $now - self::STALE_CLAIM_SECONDS) {
 			return $this->finishWithoutWork('in_progress', $day.' is being processed by another run.');
@@ -244,7 +273,9 @@ class TimeFlowLateCheck
 		$this->closeDay($markerId, self::STATUS_DONE, $now, $detection, $delivery['recipients'], $delivery['emails']);
 		$this->result['status'] = self::STATUS_DONE;
 		$this->output = $day.': '.count($detection['expected']).' expected, '.count($detection['late']).' late, '
-			.$delivery['recipients'].' manager(s) to notify.';
+			.$delivery['recipients'].' manager(s) notified, '.$delivery['emails'].' email(s) sent'
+			.($delivery['emails_skipped'] > 0 ? ', '.$delivery['emails_skipped'].' skipped' : '')
+			.($delivery['emails_failed'] > 0 ? ', '.$delivery['emails_failed'].' failed' : '').'.';
 
 		return 0;
 	}
@@ -296,26 +327,354 @@ class TimeFlowLateCheck
 	}
 
 	/**
-	 * What to do with the result. Step A only works out who would be notified;
-	 * writing the notifications and sending the emails is the next step.
+	 * Tells the managers. For each manager who has at least one OTHER late
+	 * person to hear about (a late manager is not told about themselves) one
+	 * in-app notification (a digest of the day) is inserted, then the emails
+	 * are sent to those who want them.
 	 *
-	 * @return array{recipients:int,emails:int,manager_ids:int[],recipient_ids:int[]}
+	 * The notification row is inserted BEFORE any email: its unique key
+	 * (entity, manager, type, day) is what makes a second run, or a run resumed
+	 * after a crash, unable to alert twice.
+	 *
+	 * @return array{recipients:int,emails:int,emails_skipped:int,emails_failed:int,notifications:int,manager_ids:int[],recipient_ids:int[]}
 	 */
 	protected function deliver($entity, $day, $now, array $detection, array $settings)
 	{
 		$managerIds = array();
 		$recipientIds = array();
+		$created = 0;
+
 		if (!empty($detection['late'])) {
+			$labels = $this->fetchUserLabels($detection['late']);
+			$cutoffTime = date('H:i', self::cutoffTimestamp($now, $settings));
 			foreach ($this->findManagers($entity) as $manager) {
 				$managerIds[] = (int) $manager->id;
-				// A manager who is late is not told about themselves; the others are.
-				if (count(array_diff($detection['late'], array((int) $manager->id))) > 0) {
-					$recipientIds[] = (int) $manager->id;
+				$others = array_values(array_diff($detection['late'], array((int) $manager->id)));
+				if (empty($others)) {
+					continue;
+				}
+				$recipientIds[] = (int) $manager->id;
+
+				$late = array();
+				foreach ($others as $userId) {
+					$late[] = array('id' => $userId, 'label' => isset($labels[$userId]) ? $labels[$userId] : ('#'.$userId));
+				}
+				$payload = json_encode(array(
+					'day' => $day,
+					'threshold' => $settings['threshold'],
+					'grace' => $settings['grace'],
+					'cutoff' => $cutoffTime,
+					'late' => $late,
+				), JSON_UNESCAPED_UNICODE);
+				if ($this->insertNotification($entity, (int) $manager->id, $day, $payload, $now)) {
+					$created++;
 				}
 			}
 		}
+		$this->purgeOldNotifications($entity, $now);
 
-		return array('recipients' => count($recipientIds), 'emails' => 0, 'manager_ids' => $managerIds, 'recipient_ids' => $recipientIds);
+		// Sends what is pending for the day: this run's new notifications and, when
+		// this run resumes a crashed one, whatever the crashed run had not sent yet.
+		$mail = $this->sendPendingEmails($entity, $day, $now);
+
+		return array(
+			'recipients' => count($recipientIds),
+			'emails' => $this->countEmailsSent($entity, $day),
+			'emails_skipped' => $mail['skipped'],
+			'emails_failed' => $mail['failed'],
+			'notifications' => $created,
+			'manager_ids' => $managerIds,
+			'recipient_ids' => $recipientIds,
+		);
+	}
+
+	/**
+	 * @return bool True when inserted, false when the manager already has this day's digest.
+	 */
+	private function insertNotification($entity, $userId, $day, $payload, $now)
+	{
+		$sql = 'INSERT INTO '.$this->db->prefix().'timeflow_notification (entity, fk_user, notif_type, date_ref, payload, date_creation)';
+		$sql .= ' VALUES ('.((int) $entity).', '.((int) $userId).", '".$this->db->escape(self::NOTIF_TYPE)."', '".$this->db->escape($day)."', '".$this->db->escape($payload)."', '".date('Y-m-d H:i:s', $now)."')";
+		if ($this->db->query($sql)) {
+			return true;
+		}
+		if ($this->db->lasterrno() === 'DB_ERROR_RECORD_ALREADY_EXISTS') {
+			return false;
+		}
+		$exception = new TimeflowSqlException('TimeFlowLateCheck::insertNotification');
+		$exception->dbError = (string) $this->db->lasterror();
+		throw $exception;
+	}
+
+	/**
+	 * @return void
+	 */
+	private function purgeOldNotifications($entity, $now)
+	{
+		$limit = date('Y-m-d', $now - self::NOTIF_RETENTION_DAYS * 86400);
+		$sql = 'DELETE FROM '.$this->db->prefix().'timeflow_notification WHERE entity = '.((int) $entity)." AND date_ref < '".$this->db->escape($limit)."'";
+		timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::purgeOldNotifications');
+	}
+
+	/**
+	 * @param int[] $userIds
+	 * @return array<int,string> Display names, "Firstname Lastname" (login when both are empty).
+	 */
+	private function fetchUserLabels(array $userIds)
+	{
+		$labels = array();
+		if (empty($userIds)) {
+			return $labels;
+		}
+		$sql = 'SELECT rowid, firstname, lastname, login FROM '.$this->db->prefix().'user WHERE rowid IN ('.implode(',', array_map('intval', $userIds)).')';
+		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::fetchUserLabels');
+		while ($obj = $this->db->fetch_object($resql)) {
+			$name = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+			$labels[(int) $obj->rowid] = $name !== '' ? $name : (string) $obj->login;
+		}
+		$this->db->free($resql);
+
+		return $labels;
+	}
+
+	/**
+	 * @return int How many of the day's notifications had their email sent.
+	 */
+	private function countEmailsSent($entity, $day)
+	{
+		$sql = 'SELECT COUNT(*) AS nb FROM '.$this->db->prefix().'timeflow_notification WHERE entity = '.((int) $entity);
+		$sql .= " AND notif_type = '".$this->db->escape(self::NOTIF_TYPE)."' AND date_ref = '".$this->db->escape($day)."' AND email_status = 'sent'";
+		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::countEmailsSent');
+		$obj = $this->db->fetch_object($resql);
+		$this->db->free($resql);
+
+		return $obj ? (int) $obj->nb : 0;
+	}
+
+	/**
+	 * @return void
+	 */
+	private function updateEmailCount($markerId, $count)
+	{
+		timeflowQuery($this->db, 'UPDATE '.$this->db->prefix().'timeflow_late_check SET nb_emails = '.((int) $count).' WHERE rowid = '.((int) $markerId), 'TimeFlowLateCheck::updateEmailCount');
+	}
+
+	/**
+	 * Managers who opted out of the emails (preference '0' in llx_user_param).
+	 *
+	 * @return array<int,bool>
+	 */
+	private function fetchEmailOptOut($entity)
+	{
+		$set = array();
+		$sql = 'SELECT fk_user FROM '.$this->db->prefix().'user_param WHERE entity = '.((int) $entity)." AND param = '".$this->db->escape(self::PARAM_EMAIL)."' AND value = '0'";
+		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::fetchEmailOptOut');
+		while ($obj = $this->db->fetch_object($resql)) {
+			$set[(int) $obj->fk_user] = true;
+		}
+		$this->db->free($resql);
+
+		return $set;
+	}
+
+	/**
+	 * Decides and sends the emails of the day's notifications that are not
+	 * settled yet. A notification is settled when its email was sent, or when it
+	 * will never be sent: the manager opted out ('skipped_pref'), has no valid
+	 * address ('skipped_no_address') or mail sending is off on this instance
+	 * ('skipped_disabled'). A failure is retried (one attempt per cron tick,
+	 * EMAIL_MAX_ATTEMPTS in all).
+	 *
+	 * Each email is CLAIMED by an UPDATE that only matches while it is still
+	 * pending, so two processes can never both send the same one.
+	 *
+	 * @return array{attempted:int,sent:int,failed:int,skipped:int}
+	 */
+	protected function sendPendingEmails($entity, $day, $now)
+	{
+		$out = array('attempted' => 0, 'sent' => 0, 'failed' => 0, 'skipped' => 0);
+		$prefix = $this->db->prefix();
+
+		$sql = 'SELECT n.rowid, n.fk_user, n.payload, n.email_attempts, n.email_status, n.email_date, u.email, u.lang FROM '.$prefix.'timeflow_notification AS n';
+		$sql .= ' INNER JOIN '.$prefix.'user AS u ON u.rowid = n.fk_user';
+		$sql .= ' WHERE n.entity = '.((int) $entity)." AND n.notif_type = '".$this->db->escape(self::NOTIF_TYPE)."' AND n.date_ref = '".$this->db->escape($day)."'";
+		$sql .= ' AND n.email_attempts < '.self::EMAIL_MAX_ATTEMPTS;
+		$sql .= " AND (n.email_status IS NULL OR n.email_status = 'failed' OR n.email_status = 'sending')";
+		$sql .= ' ORDER BY n.rowid';
+		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::sendPendingEmails');
+		$rows = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$rows[] = $obj;
+		}
+		$this->db->free($resql);
+		if (empty($rows)) {
+			return $out;
+		}
+
+		$optOut = $this->fetchEmailOptOut($entity);
+		foreach ($rows as $row) {
+			$notificationId = (int) $row->rowid;
+			$attempts = (int) $row->email_attempts;
+			$status = $row->email_status;
+
+			// Not yet due for another attempt (a failure earlier this same tick or minutes ago, or a send still in progress).
+			if ($status === 'failed' && $row->email_date !== null && strtotime($row->email_date) > $now - self::EMAIL_RETRY_SECONDS) {
+				continue;
+			}
+			if ($status === 'sending' && $row->email_date !== null && strtotime($row->email_date) > $now - self::EMAIL_STALE_SENDING_SECONDS) {
+				continue;
+			}
+
+			$skip = null;
+			if (getDolGlobalString('MAIN_DISABLE_ALL_MAILS')) {
+				$skip = 'skipped_disabled';
+			} elseif (isset($optOut[(int) $row->fk_user])) {
+				$skip = 'skipped_pref';
+			} elseif (empty($row->email) || !isValidEmail((string) $row->email)) {
+				$skip = 'skipped_no_address';
+			}
+			if ($skip !== null) {
+				$this->setEmailStatus($notificationId, $skip, $attempts, null, $now, $status);
+				$out['skipped']++;
+				continue;
+			}
+
+			// Claim: only one process gets to send this one.
+			if (!$this->claimEmail($notificationId, $attempts, $status, $now)) {
+				continue;
+			}
+			$out['attempted']++;
+
+			$payload = json_decode((string) $row->payload, true);
+			list($subject, $html) = $this->buildEmail((string) $row->lang, $day, is_array($payload) ? $payload : array());
+			list($ok, $error) = $this->sendEmail((string) $row->email, $subject, $html, self::NOTIF_TYPE.'-'.str_replace('-', '', $day));
+			if ($ok) {
+				$this->setEmailStatus($notificationId, 'sent', $attempts + 1, null, $now, 'sending');
+				$out['sent']++;
+			} else {
+				$this->setEmailStatus($notificationId, 'failed', $attempts + 1, $error, $now, 'sending');
+				$this->errors[] = 'Email to user '.(int) $row->fk_user.' failed: '.$error;
+				dol_syslog('TimeFlow late email failed for user '.(int) $row->fk_user.': '.$error, LOG_WARNING);
+				$out['failed']++;
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * @return bool True when this process got the email.
+	 */
+	private function claimEmail($notificationId, $attempts, $status, $now)
+	{
+		$sql = 'UPDATE '.$this->db->prefix()."timeflow_notification SET email_status = 'sending', email_attempts = ".($attempts + 1).", email_date = '".date('Y-m-d H:i:s', $now)."'";
+		$sql .= ' WHERE rowid = '.((int) $notificationId).' AND email_attempts = '.((int) $attempts);
+		$sql .= $status === null ? ' AND email_status IS NULL' : " AND email_status = '".$this->db->escape($status)."'";
+		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::claimEmail');
+
+		return (int) $this->db->affected_rows($resql) === 1;
+	}
+
+	/**
+	 * @return void
+	 */
+	private function setEmailStatus($notificationId, $status, $attempts, $error, $now, $expectedCurrent)
+	{
+		$sql = 'UPDATE '.$this->db->prefix()."timeflow_notification SET email_status = '".$this->db->escape($status)."', email_attempts = ".((int) $attempts);
+		$sql .= ', email_error = '.($error === null ? 'NULL' : "'".$this->db->escape(dol_substr((string) $error, 0, 250, 'UTF-8', 1))."'");
+		$sql .= ", email_date = '".date('Y-m-d H:i:s', $now)."' WHERE rowid = ".((int) $notificationId);
+		timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::setEmailStatus');
+	}
+
+	/**
+	 * The subject and HTML body, in the manager's language (the module has
+	 * fr, en, de and ar; anything else gets English).
+	 *
+	 * @param string $lang    users.lang, e.g. 'fr_FR'.
+	 * @param string $day     'YYYY-MM-DD'.
+	 * @param array  $payload The notification payload.
+	 * @return array{0:string,1:string} [subject, html]
+	 */
+	protected function buildEmail($lang, $day, array $payload)
+	{
+		global $conf;
+
+		$lang = self::supportedLang($lang);
+		$outputlangs = new Translate('', $conf);
+		$outputlangs->setDefaultLang($lang);
+		$outputlangs->loadLangs(array('main', 'timeflow@timeflow'));
+
+		$late = isset($payload['late']) && is_array($payload['late']) ? $payload['late'] : array();
+		$dayLabel = dol_print_date(strtotime($day.' 12:00:00'), 'day', 'tzserver', $outputlangs);
+		$cutoff = isset($payload['cutoff']) ? (string) $payload['cutoff'] : '';
+
+		// The values go to the translation call itself: Translate applies its own sprintf()
+		// (with empty arguments when none are given), so a %s left in the returned text
+		// would already have been blanked.
+		$subject = $outputlangs->transnoentitiesnoconv('TimeFlowLateMailSubject', count($late), $dayLabel);
+
+		$items = '';
+		foreach ($late as $person) {
+			$items .= '<li>'.dol_escape_htmltag(isset($person['label']) ? (string) $person['label'] : '').'</li>';
+		}
+		$url = dol_buildpath('/timeflow/timeflowindex.php', 2).'#/reports?tab=users&presenceDate='.$day;
+
+		$html = '<div'.($lang === 'ar_SA' ? ' dir="rtl"' : '').'>';
+		$html .= '<p>'.dol_escape_htmltag($outputlangs->transnoentitiesnoconv('TimeFlowLateMailIntro', $cutoff, $dayLabel)).'</p>';
+		$html .= '<ul>'.$items.'</ul>';
+		$html .= '<p><a href="'.dol_escape_htmltag($url).'">'.dol_escape_htmltag($outputlangs->transnoentitiesnoconv('TimeFlowLateMailOpen')).'</a></p>';
+		$html .= '<p style="color:#666;font-size:12px">'.dol_escape_htmltag($outputlangs->transnoentitiesnoconv('TimeFlowLateMailFooter')).'</p>';
+		$html .= '</div>';
+
+		return array($subject, $html);
+	}
+
+	/**
+	 * @param string $lang users.lang
+	 * @return string One of the module's languages.
+	 */
+	public static function supportedLang($lang)
+	{
+		$lang = (string) $lang;
+		foreach (array('fr_FR', 'en_US', 'de_DE', 'ar_SA') as $supported) {
+			if ($lang === $supported) {
+				return $supported;
+			}
+		}
+		$prefix = strtolower(substr($lang, 0, 2));
+		foreach (array('fr' => 'fr_FR', 'de' => 'de_DE', 'ar' => 'ar_SA') as $p => $supported) {
+			if ($prefix === $p) {
+				return $supported;
+			}
+		}
+
+		return 'en_US';
+	}
+
+	/**
+	 * Sends one email through Dolibarr's CMailFile (which itself honours
+	 * MAIN_DISABLE_ALL_MAILS and MAIN_MAIL_FORCE_SENDTO). A method of its own so
+	 * a test can capture, or fail, the sending.
+	 *
+	 * @return array{0:bool,1:string} [sent, error]
+	 */
+	protected function sendEmail($to, $subject, $html, $trackid)
+	{
+		require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
+
+		$from = getDolGlobalString('MAIN_MAIL_EMAIL_FROM');
+		if ($from === '') {
+			return array(false, 'No sender address (MAIN_MAIL_EMAIL_FROM is empty).');
+		}
+		$mail = new CMailFile($subject, $to, $from, $html, array(), array(), array(), '', '', 0, 1, '', '', $trackid);
+		if (!empty($mail->error)) {
+			return array(false, (string) $mail->error);
+		}
+		if (!$mail->sendfile()) {
+			return array(false, (string) ($mail->error ?: 'Unknown error while sending.'));
+		}
+
+		return array(true, '');
 	}
 
 	/**
