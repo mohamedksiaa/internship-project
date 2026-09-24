@@ -272,24 +272,6 @@ function timeflowTimeEntryScopeFilter($user, $scope = 'entries')
 }
 
 /**
- * Helper: return true when the `date_delete` column exists on the timeentry table.
- * Uses a simple information_schema probe and caches result per-request.
- *
- * @param DoliDB $db
- * @return bool
- */
-function timeflowHasDateDeleteColumn($db)
-{
-    static $cached = null;
-    if ($cached !== null) return $cached;
-    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
-    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'date_delete' LIMIT 1";
-    $res = $db->query($sql);
-    $cached = ($res && $db->num_rows($res) > 0);
-    return $cached;
-}
-
-/**
  * Return a fingerprint of every value rendered by a time-entry table row.
  *
  * COUNT/MAX(tms) is insufficient: an update to an existing row can leave
@@ -874,22 +856,6 @@ function timeflowNormalizeIsoDate($value)
 }
 
 /**
- * Whether the optional llx_timeflow_timeentry.fk_split_previous column exists
- * (same defensive check as timeflowHasDateDeleteColumn(), for installs whose
- * table predates the column).
- */
-function timeflowHasSplitPreviousColumn($db)
-{
-    static $cached = null;
-    if ($cached !== null) return $cached;
-    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
-    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'fk_split_previous' LIMIT 1";
-    $res = $db->query($sql);
-    $cached = ($res && $db->num_rows($res) > 0);
-    return $cached;
-}
-
-/**
  * Whether the DB connection can carry 4-byte UTF-8 characters (emoji...).
  * Dolibarr's default connection charset is "utf8" (MySQL's 3-byte utf8mb3):
  * through it such a character makes the INSERT fail even on a utf8mb4 table.
@@ -897,41 +863,6 @@ function timeflowHasSplitPreviousColumn($db)
 function timeflowDbStoresFourByteChars($db)
 {
     return stripos((string) ($db->forcecharset ?? ''), 'utf8mb4') !== false;
-}
-
-/**
- * Whether llx_timeflow_expected_absence exists. Tables are created when the
- * module is activated, so an install that was already active when this table
- * was introduced does not have it until the module is disabled and enabled
- * again. Reads degrade (presence still works, no expected absences) and report
- * it; writes refuse with an actionable message.
- *
- * Not cached across calls: the answer must flip as soon as the module is
- * re-activated.
- */
-function timeflowExpectedAbsenceTableExists($db)
-{
-    $tableName = $db->escape($db->prefix().'timeflow_expected_absence');
-    $res = $db->query("SELECT 1 FROM information_schema.tables WHERE table_name = '".$tableName."' LIMIT 1");
-
-    return (bool) ($res && $db->num_rows($res) > 0);
-}
-
-/**
- * 'ok', 'table_missing', or 'schema_outdated' (the table exists but predates
- * the reason_note column). Re-activating the module cannot fix the last one —
- * its CREATE TABLE finds the table already there — so it is reported apart,
- * with its own instruction, instead of letting every query fail with an SQL error.
- */
-function timeflowExpectedAbsenceSchemaState($db)
-{
-    if (!timeflowExpectedAbsenceTableExists($db)) {
-        return 'table_missing';
-    }
-    $tableName = $db->escape($db->prefix().'timeflow_expected_absence');
-    $res = $db->query("SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'reason_note' LIMIT 1");
-
-    return ($res && $db->num_rows($res) > 0) ? 'ok' : 'schema_outdated';
 }
 
 /**
@@ -986,21 +917,7 @@ function timeflowFetchUsersPresence($db, $date, $page = 1, $perPage = 20)
             $dayStart = new DateTimeImmutable($date.' 00:00:00', new DateTimeZone('UTC'));
             $nextDay = $dayStart->modify('+1 day')->format('Y-m-d');
 
-            $sql = 'SELECT DISTINCT t.fk_user FROM '.$db->prefix().'timeflow_timeentry AS t';
-            $sql .= ' WHERE t.fk_user IN ('.$idList.') AND t.entity IN ('.getEntity('timeentry').')';
-            if (timeflowHasDateDeleteColumn($db)) {
-                $sql .= ' AND t.date_delete IS NULL';
-            }
-            if (timeflowHasSplitPreviousColumn($db)) {
-                $sql .= ' AND t.fk_split_previous IS NULL';
-            }
-            $sql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $date.' 00:00:00');
-            $sql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<', $nextDay.' 00:00:00');
-            $resql = timeflowQuery($db, $sql, 'timeflowFetchUsersPresence:entries');
-            while ($obj = $db->fetch_object($resql)) {
-                $presentIds[(int) $obj->fk_user] = true;
-            }
-            $db->free($resql);
+            $presentIds = timeflowUserIdsWithEntryStartedBetween($db, $date.' 00:00:00', $nextDay.' 00:00:00', false, $userIds);
         }
 
         if ($absencesAvailable) {

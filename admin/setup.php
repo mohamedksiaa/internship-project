@@ -141,6 +141,59 @@ $item->setAsSelect($validationRights);
 $item->defaultFieldValue = 'validate';
 $item->helpText = $langs->transnoentities('TIMEFLOW_VALIDATE_RIGHT_TOOLTIP');
 
+// Morning late-arrival alerts (class/timeflowlatecheck.class.php). Off by default:
+// the cron job is registered at activation, and without this switch an install
+// would start emailing managers before anyone chose the threshold.
+$item = $formSetup->newItem('TIMEFLOW_LATE_ALERT_ENABLED');
+$item->setAsYesNo();
+$item->helpText = $langs->transnoentities('TIMEFLOW_LATE_ALERT_ENABLED_TOOLTIP');
+
+$item = $formSetup->newItem('TIMEFLOW_LATE_THRESHOLD_TIME');
+$item->defaultFieldValue = '09:00';
+$item->fieldAttr['type'] = 'time';
+$item->cssClass = 'minwidth100';
+$item->helpText = $langs->transnoentities('TIMEFLOW_LATE_THRESHOLD_TIME_TOOLTIP');
+
+$item = $formSetup->newItem('TIMEFLOW_LATE_GRACE_MINUTES');
+$item->defaultFieldValue = 10;
+$item->fieldAttr['type'] = 'number';
+$item->fieldAttr['min'] = 0;
+$item->fieldAttr['max'] = 120;
+$item->fieldAttr['step'] = 1;
+$item->cssClass = 'minwidth100';
+$item->helpText = $langs->transnoentities('TIMEFLOW_LATE_GRACE_MINUTES_TOOLTIP');
+
+$item = $formSetup->newItem('TIMEFLOW_LATE_WORKDAYS');
+$item->setAsMultiSelect(array(
+	'1' => $langs->trans('Monday'),
+	'2' => $langs->trans('Tuesday'),
+	'3' => $langs->trans('Wednesday'),
+	'4' => $langs->trans('Thursday'),
+	'5' => $langs->trans('Friday'),
+	'6' => $langs->trans('Saturday'),
+	'7' => $langs->trans('Sunday'),
+));
+$item->defaultFieldValue = '1,2,3,4,5';
+$item->helpText = $langs->transnoentities('TIMEFLOW_LATE_WORKDAYS_TOOLTIP');
+
+$item = $formSetup->newItem('TIMEFLOW_LATE_MAX_DELAY_HOURS');
+$item->defaultFieldValue = 3;
+$item->fieldAttr['type'] = 'number';
+$item->fieldAttr['min'] = 1;
+$item->fieldAttr['max'] = 12;
+$item->fieldAttr['step'] = 1;
+$item->cssClass = 'minwidth100';
+$item->helpText = $langs->transnoentities('TIMEFLOW_LATE_MAX_DELAY_HOURS_TOOLTIP');
+
+$item = $formSetup->newItem('TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS');
+$item->defaultFieldValue = 30;
+$item->fieldAttr['type'] = 'number';
+$item->fieldAttr['min'] = 1;
+$item->fieldAttr['max'] = 365;
+$item->fieldAttr['step'] = 1;
+$item->cssClass = 'minwidth100';
+$item->helpText = $langs->transnoentities('TIMEFLOW_LATE_ACTIVE_WINDOW_DAYS_TOOLTIP');
+
 // End of definition of parameters
 
 

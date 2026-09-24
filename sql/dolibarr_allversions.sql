@@ -159,3 +159,37 @@ CREATE TABLE IF NOT EXISTS llx_timeflow_expected_absence(
     INDEX idx_timeflow_expected_absence_date (entity, date_absence),
     UNIQUE INDEX uk_timeflow_expected_absence_user_day (entity, fk_user, date_absence)
 ) ENGINE=innodb;
+
+-- Morning late-arrival job: one row per entity and day (lock + audit).
+CREATE TABLE IF NOT EXISTS llx_timeflow_late_check(
+    rowid          integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
+    entity         integer DEFAULT 1 NOT NULL,
+    date_check     date NOT NULL,
+    cutoff         datetime NOT NULL,
+    status         varchar(24) NOT NULL,
+    date_run       datetime NOT NULL,
+    date_end       datetime DEFAULT NULL,
+    nb_expected    integer DEFAULT 0 NOT NULL,
+    nb_late        integer DEFAULT 0 NOT NULL,
+    nb_recipients  integer DEFAULT 0 NOT NULL,
+    nb_emails      integer DEFAULT 0 NOT NULL,
+    UNIQUE INDEX uk_timeflow_late_check_day (entity, date_check)
+) ENGINE=innodb;
+
+-- In-app notifications (the bell), one late-arrival digest per manager and day.
+CREATE TABLE IF NOT EXISTS llx_timeflow_notification(
+    rowid           integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
+    entity          integer DEFAULT 1 NOT NULL,
+    fk_user         integer NOT NULL,
+    notif_type      varchar(32) NOT NULL,
+    date_ref        date NOT NULL,
+    payload         text,
+    date_creation   datetime NOT NULL,
+    date_read       datetime DEFAULT NULL,
+    email_status    varchar(24) DEFAULT NULL,
+    email_attempts  smallint DEFAULT 0 NOT NULL,
+    email_error     varchar(255) DEFAULT NULL,
+    email_date      datetime DEFAULT NULL,
+    INDEX idx_timeflow_notification_user (entity, fk_user, date_read),
+    UNIQUE INDEX uk_timeflow_notification_once (entity, fk_user, notif_type, date_ref)
+) ENGINE=innodb;
