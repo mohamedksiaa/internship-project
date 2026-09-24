@@ -292,12 +292,13 @@
       },
       "reason": {
         "leave": "Urlaub",
-        "rtt": "RTT",
         "sick": "Krankheit",
-        "other": "Sonstiges"
+        "other": "Sonstiges",
+        "other_with_note": "Sonstiges: {{note}}"
       },
       "recorded_absence": "Geplante Abwesenheit erfasst ({{reason}})",
       "table_missing": "Geplante Abwesenheiten sind nicht verfügbar: Die Tabelle fehlt. Deaktivieren und aktivieren Sie das TimeFlow-Modul erneut.",
+      "table_outdated": "Geplante Abwesenheiten sind nicht verfügbar: Die Tabelle hat ein veraltetes Schema (Spalte reason_note fehlt). Wenden Sie sich an einen Administrator.",
       "error_generic": "Die geplante Abwesenheit konnte nicht gespeichert werden.",
       "actions": {
         "col": "Aktionen",
@@ -318,6 +319,8 @@
         "employee": "Mitarbeiter",
         "date": "Datum",
         "reason": "Grund",
+        "note_label": "Grund angeben",
+        "note_required": "Grund angeben: Pflichtfeld für den Grund „Sonstiges“.",
         "save": "Speichern",
         "saving": "Wird gespeichert…",
         "cancel": "Abbrechen"

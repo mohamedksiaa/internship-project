@@ -12,7 +12,7 @@ const mockTimeFlowUsers = [
   { id: 1, firstname: 'Alice', lastname: 'Martin', label: 'Alice Martin', email: 'alice.martin@example.com', office_phone: '+33 1 23 45 67 89', user_mobile: '', groups: ['HRM'] },
   { id: 2, firstname: 'Bob', lastname: 'Durand', label: 'Bob Durand', email: 'bob.durand@example.com', office_phone: '', user_mobile: '+33 6 12 34 56 78', groups: ['TBEE', 'PROJET-ETA'] },
 ];
-// "userId|YYYY-MM-DD" -> reason_type, for the mock Users report presence.
+// "userId|YYYY-MM-DD" -> { reason, note }, for the mock Users report presence.
 const mockExpectedAbsences = new Map();
 let mockTimeFlowProjects = [
   { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0, date_creation: '2026-07-01T09:00:00Z' },
@@ -365,14 +365,15 @@ function handleMockRequest(action, body) {
       const page = Number(body?.page) > 0 ? Number(body.page) : 1;
       const start = (page - 1) * perPage;
       const rows = mockTimeFlowUsers.slice(start, start + perPage).map((mockUser) => {
-        const reason = mockExpectedAbsences.get(`${mockUser.id}|${date}`) || null;
+        const recorded = mockExpectedAbsences.get(`${mockUser.id}|${date}`) || null;
+        const reason = recorded ? recorded.reason : null;
         // Alice "works" every past/today day in the mock, Bob never does.
         const present = mockUser.id === 1 && date <= today;
         let status = 'absent';
         if (present) status = 'present';
         else if (reason) status = 'expected_absence';
         else if (date > today) status = 'none';
-        return { ...mockUser, presence: { status, reason_type: reason, source: reason ? 'manual' : null } };
+        return { ...mockUser, presence: { status, reason_type: reason, reason_note: recorded ? recorded.note : null, source: reason ? 'manual' : null } };
       });
       return Promise.resolve({
         status: 'success',
@@ -382,14 +383,20 @@ function handleMockRequest(action, body) {
           date,
           today,
           absences_available: true,
+          absences_state: 'ok',
         },
       });
     }
     case 'saveExpectedAbsence': {
       const key = `${body.user_id}|${body.date}`;
       const created = !mockExpectedAbsences.has(key);
-      mockExpectedAbsences.set(key, body.reason_type || 'other');
-      return Promise.resolve({ status: 'success', data: { id: 1, created, user_id: body.user_id, date: body.date, reason_type: body.reason_type || 'other' } });
+      const reason = body.reason_type || 'other';
+      const note = reason === 'other' ? String(body.reason_note || '').trim() : '';
+      if (reason === 'other' && note === '') {
+        return Promise.reject(new Error('Précisez la raison (obligatoire pour le motif « Autre »)'));
+      }
+      mockExpectedAbsences.set(key, { reason, note: note || null });
+      return Promise.resolve({ status: 'success', data: { id: 1, created, user_id: body.user_id, date: body.date, reason_type: reason, reason_note: note || null } });
     }
     case 'deleteExpectedAbsence': {
       const deleted = mockExpectedAbsences.delete(`${body.user_id}|${body.date}`) ? 1 : 0;
@@ -596,14 +603,22 @@ export async function getUsersPresence(date = '', page = 1, perPage = 20) {
     pagination: payload.pagination || {},
     date: payload.date || date || '',
     today: payload.today || '',
-    // Only an explicit false (table missing on this install) turns it off.
+    // Only an explicit false (table missing / outdated on this install) turns it off.
     absencesAvailable: payload.absences_available !== false,
+    // 'ok' | 'table_missing' | 'schema_outdated' (the last one needs a manual fix, not a module re-activation)
+    absencesState: payload.absences_state || (payload.absences_available === false ? 'table_missing' : 'ok'),
   };
 }
 
-/** Records (or updates the reason of) a user's expected absence for one day. */
-export async function saveExpectedAbsence({ userId, date, reasonType }) {
-  const data = await moduleTimerRequest('saveExpectedAbsence', { user_id: userId, date, reason_type: reasonType });
+/**
+ * Records (or updates the reason of) a user's expected absence for one day.
+ * `reasonNote` is the mandatory free-text precision of the "other" reason; it
+ * is only sent for that reason (the server ignores it for the others anyway).
+ */
+export async function saveExpectedAbsence({ userId, date, reasonType, reasonNote }) {
+  const body = { user_id: userId, date, reason_type: reasonType };
+  if (reasonType === 'other') body.reason_note = reasonNote ?? '';
+  const data = await moduleTimerRequest('saveExpectedAbsence', body);
   return data?.data ?? {};
 }
 

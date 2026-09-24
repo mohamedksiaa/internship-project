@@ -293,12 +293,13 @@
       },
       "reason": {
         "leave": "Congé",
-        "rtt": "RTT",
         "sick": "Maladie",
-        "other": "Autre"
+        "other": "Autre",
+        "other_with_note": "Autre : {{note}}"
       },
       "recorded_absence": "Absence prévue enregistrée ({{reason}})",
       "table_missing": "Les absences prévues ne sont pas disponibles : la table est absente. Désactivez puis réactivez le module TimeFlow.",
+      "table_outdated": "Les absences prévues sont indisponibles : le schéma de leur table est obsolète (colonne reason_note absente). Contactez un administrateur.",
       "error_generic": "Impossible d’enregistrer l’absence prévue.",
       "actions": {
         "col": "Actions",
@@ -319,6 +320,8 @@
         "employee": "Employé",
         "date": "Date",
         "reason": "Motif",
+        "note_label": "Précisez la raison",
+        "note_required": "Précisez la raison : obligatoire pour le motif « Autre ».",
         "save": "Enregistrer",
         "saving": "Enregistrement…",
         "cancel": "Annuler"

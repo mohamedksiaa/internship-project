@@ -72,7 +72,6 @@ Ce fichier sert uniquement à conserver une trace des libellés déjà migrés m
 - `users_report.presence.status.expected_absence_with_reason`: "Geplante Abwesenheit · {{reason}}"
 - `users_report.presence.status.none`: "Nicht zutreffend"
 - `users_report.presence.reason.leave`: "Urlaub"
-- `users_report.presence.reason.rtt`: "RTT"
 - `users_report.presence.reason.sick`: "Krankheit"
 - `users_report.presence.reason.other`: "Sonstiges"
 - `users_report.presence.recorded_absence`: "Geplante Abwesenheit erfasst ({{reason}})"
@@ -95,6 +94,10 @@ Ce fichier sert uniquement à conserver une trace des libellés déjà migrés m
 - `users_report.presence.remove_dialog.title`: "Geplante Abwesenheit entfernen?"
 - `users_report.presence.remove_dialog.message`: "Die geplante Abwesenheit von {{name}} am {{date}} ({{reason}}) wird gelöscht."
 - `users_report.presence.remove_dialog.removing`: "Wird entfernt…"
+- `users_report.presence.reason.other_with_note`: "Sonstiges: {{note}}"
+- `users_report.presence.dialog.note_label`: "Grund angeben"
+- `users_report.presence.dialog.note_required`: "Grund angeben: Pflichtfeld für den Grund „Sonstiges“."
+- `users_report.presence.table_outdated`: "Geplante Abwesenheiten sind nicht verfügbar: Die Tabelle hat ein veraltetes Schema (Spalte reason_note fehlt). Wenden Sie sich an einen Administrator."
 
 ## Arabe (ar)
 
@@ -166,7 +169,6 @@ Ce fichier sert uniquement à conserver une trace des libellés déjà migrés m
 - `users_report.presence.status.expected_absence_with_reason`: "غياب مخطط له · {{reason}}"
 - `users_report.presence.status.none`: "غير منطبق"
 - `users_report.presence.reason.leave`: "إجازة"
-- `users_report.presence.reason.rtt`: "RTT"
 - `users_report.presence.reason.sick`: "مرض"
 - `users_report.presence.reason.other`: "أخرى"
 - `users_report.presence.recorded_absence`: "غياب مخطط له مسجّل ({{reason}})"
@@ -189,6 +191,10 @@ Ce fichier sert uniquement à conserver une trace des libellés déjà migrés m
 - `users_report.presence.remove_dialog.title`: "إزالة الغياب المخطط له؟"
 - `users_report.presence.remove_dialog.message`: "سيتم حذف الغياب المخطط له لـ {{name}} بتاريخ {{date}} ({{reason}})."
 - `users_report.presence.remove_dialog.removing`: "جارٍ الإزالة…"
+- `users_report.presence.reason.other_with_note`: "أخرى: {{note}}"
+- `users_report.presence.dialog.note_label`: "حدّد السبب"
+- `users_report.presence.dialog.note_required`: "حدّد السبب: حقل إلزامي عند اختيار «أخرى»."
+- `users_report.presence.table_outdated`: "الغيابات المخطط لها غير متاحة: مخطط الجدول قديم (العمود reason_note مفقود). اتصل بالمسؤول."
 
 ## Règle de travail
 

@@ -54,19 +54,20 @@ const DAY = '2026-09-19';
 const userRow = (id, label, presence) => ({
   id, label, email: `${label.toLowerCase().replace(/\s/g, '.')}@example.com`, office_phone: '', user_mobile: '', groups: [], presence,
 });
-const presence = (status, reason_type = null) => ({ status, reason_type, source: reason_type ? 'manual' : null });
+const presence = (status, reason_type = null, reason_note = null) => ({ status, reason_type, reason_note, source: reason_type ? 'manual' : null });
 const response = (rows, overrides = {}) => ({
   rows,
   pagination: { page: 1, per_page: 20, total: rows.length, pages: 1 },
   date: DAY,
   today: '2026-09-21',
   absencesAvailable: true,
+  absencesState: 'ok',
   ...overrides,
 });
 const team = () => [
   userRow(1, 'Alice Martin', presence('present')),
   userRow(2, 'Bob Durand', presence('absent')),
-  userRow(3, 'Chloé Petit', presence('expected_absence', 'rtt')),
+  userRow(3, 'Chloé Petit', presence('expected_absence', 'other', 'rachat pool client')),
   userRow(4, 'Dan Vidal', presence('none')),
 ];
 
@@ -123,7 +124,7 @@ describe('ReportsPage — Utilisateurs tab: presence', () => {
     expect(statusIn('Alice Martin').className).toContain('tw-bg-emerald-50');
     expect(statusIn('Bob Durand')).toHaveTextContent('Absent');
     expect(statusIn('Bob Durand').className).toContain('tw-bg-rose-50');
-    expect(statusIn('Chloé Petit')).toHaveTextContent('Absence prévue · RTT');
+    expect(statusIn('Chloé Petit')).toHaveTextContent('Absence prévue · Autre : rachat pool client');
     expect(statusIn('Chloé Petit').className).toContain('tw-bg-sky-50');
     expect(statusIn('Dan Vidal')).toHaveAttribute('aria-label', 'Non applicable');
     expect(statusIn('Dan Vidal').textContent).toBe('—');
@@ -190,7 +191,7 @@ describe('ReportsPage — Utilisateurs tab: presence', () => {
     renderUsersTab();
     await screen.findByText('Alice Martin');
     expect(screen.getByRole('columnheader', { name: 'Presence' })).toBeInTheDocument();
-    expect(rowOf('Chloé Petit')).toHaveTextContent('Expected absence · RTT');
+    expect(rowOf('Chloé Petit')).toHaveTextContent('Expected absence · Other: rachat pool client');
   });
 });
 
@@ -254,7 +255,7 @@ describe('ReportsPage — Utilisateurs tab: who can record an expected absence',
     getUsersPresence.mockResolvedValue(response([userRow(2, 'Bob Durand', presence('expected_absence', 'sick'))]));
     await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }));
 
-    await waitFor(() => expect(saveExpectedAbsence).toHaveBeenCalledWith({ userId: 2, date: DAY, reasonType: 'sick' }));
+    await waitFor(() => expect(saveExpectedAbsence).toHaveBeenCalledWith({ userId: 2, date: DAY, reasonType: 'sick', reasonNote: '' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(getUsersPresence).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Absence prévue · Maladie')).toBeInTheDocument();
@@ -268,7 +269,7 @@ describe('ReportsPage — Utilisateurs tab: who can record an expected absence',
     await user.click(within(rowOf('Bob Durand')).getByRole('button', { name: /Marquer une absence prévue/ }));
     fireEvent.change(within(screen.getByRole('dialog')).getByLabelText('Date'), { target: { value: '2026-10-02' } });
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
-    await waitFor(() => expect(saveExpectedAbsence).toHaveBeenCalledWith({ userId: 2, date: '2026-10-02', reasonType: 'leave' }));
+    await waitFor(() => expect(saveExpectedAbsence).toHaveBeenCalledWith({ userId: 2, date: '2026-10-02', reasonType: 'leave', reasonNote: '' }));
   });
 
   it('editing a recorded absence opens the dialog on its current reason', async () => {
@@ -277,7 +278,9 @@ describe('ReportsPage — Utilisateurs tab: who can record an expected absence',
     renderUsersTab();
     await screen.findByText('Alice Martin');
     await user.click(within(rowOf('Chloé Petit')).getByRole('button', { name: /Modifier/ }));
-    expect(within(screen.getByRole('dialog')).getByLabelText('Motif')).toHaveValue('rtt');
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByLabelText('Motif')).toHaveValue('other');
+    expect(dialog.getByLabelText('Précisez la raison')).toHaveValue('rachat pool client');
   });
 
   describe('removing a recorded absence asks for a confirmation first', () => {
@@ -297,7 +300,7 @@ describe('ReportsPage — Utilisateurs tab: who can record an expected absence',
       const confirm = screen.getByRole('alertdialog');
       expect(confirm).toHaveTextContent('Chloé Petit');
       expect(confirm).toHaveTextContent(DAY);
-      expect(confirm).toHaveTextContent('RTT');
+      expect(confirm).toHaveTextContent('Autre : rachat pool client');
       expect(deleteExpectedAbsence).not.toHaveBeenCalled();
       expect(getUsersPresence).not.toHaveBeenCalled();
     });
@@ -315,7 +318,7 @@ describe('ReportsPage — Utilisateurs tab: who can record an expected absence',
       expect(screen.queryByRole('alertdialog')).toBeNull();
       expect(deleteExpectedAbsence).not.toHaveBeenCalled();
       expect(getUsersPresence).not.toHaveBeenCalled();
-      expect(rowOf('Chloé Petit')).toHaveTextContent('Absence prévue · RTT');
+      expect(rowOf('Chloé Petit')).toHaveTextContent('Absence prévue · Autre : rachat pool client');
     });
 
     it('Escape and the × button cancel too', async () => {
@@ -353,7 +356,7 @@ describe('ReportsPage — Utilisateurs tab: who can record an expected absence',
     it('the confirmation is about the row that was clicked, not another one', async () => {
       setFlags({ readall: true, validate: true });
       getUsersPresence.mockResolvedValue(response([
-        userRow(3, 'Chloé Petit', presence('expected_absence', 'rtt')),
+        userRow(3, 'Chloé Petit', presence('expected_absence', 'leave')),
         userRow(5, 'Émile Roux', presence('expected_absence', 'sick')),
       ]));
       const user = userEvent.setup();
@@ -449,6 +452,114 @@ describe('ReportsPage — Utilisateurs tab: who can record an expected absence',
     expect(within(rowOf('Alice Martin')).getByRole('button', { name: /Retirer/ })).toBeInTheDocument();
   });
 
+  describe('the reason "Autre" comes with a mandatory free text', () => {
+    it('the reason picker offers Congé / Maladie / Autre — no RTT', async () => {
+      setFlags({ readall: true, validate: true });
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      await user.click(within(rowOf('Bob Durand')).getByRole('button', { name: /Marquer une absence prévue/ }));
+      const options = Array.from(within(screen.getByRole('dialog')).getByLabelText('Motif').options).map((o) => o.textContent);
+      expect(options).toEqual(['Congé', 'Maladie', 'Autre']);
+    });
+
+    it('choosing Autre reveals the field, Save waits for a reason, then the text is sent and shown in the badge', async () => {
+      setFlags({ readall: true, validate: true });
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      await user.click(within(rowOf('Bob Durand')).getByRole('button', { name: /Marquer une absence prévue/ }));
+      const dialog = within(screen.getByRole('dialog'));
+
+      await user.selectOptions(dialog.getByLabelText('Motif'), 'other');
+      expect(dialog.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+      await user.type(dialog.getByLabelText('Précisez la raison'), 'formation externe');
+      expect(dialog.getByRole('button', { name: 'Enregistrer' })).toBeEnabled();
+
+      getUsersPresence.mockClear();
+      getUsersPresence.mockResolvedValue(response([userRow(2, 'Bob Durand', presence('expected_absence', 'other', 'formation externe'))]));
+      await user.click(dialog.getByRole('button', { name: 'Enregistrer' }));
+
+      await waitFor(() => expect(saveExpectedAbsence).toHaveBeenCalledWith({ userId: 2, date: DAY, reasonType: 'other', reasonNote: 'formation externe' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(await screen.findByText('Absence prévue · Autre : formation externe')).toBeInTheDocument();
+    });
+
+    it('nothing is sent while the reason is missing, even by pressing Enter', async () => {
+      setFlags({ readall: true, validate: true });
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      await user.click(within(rowOf('Bob Durand')).getByRole('button', { name: /Marquer une absence prévue/ }));
+      const dialog = within(screen.getByRole('dialog'));
+      await user.selectOptions(dialog.getByLabelText('Motif'), 'other');
+      await user.click(dialog.getByLabelText('Précisez la raison'));
+      await user.keyboard('{Enter}');
+      expect(saveExpectedAbsence).not.toHaveBeenCalled();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('Congé and Maladie are sent without any text', async () => {
+      setFlags({ readall: true, validate: true });
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      await user.click(within(rowOf('Bob Durand')).getByRole('button', { name: /Marquer une absence prévue/ }));
+      await user.selectOptions(screen.getByLabelText('Motif'), 'sick');
+      await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+      await waitFor(() => expect(saveExpectedAbsence).toHaveBeenCalledWith({ userId: 2, date: DAY, reasonType: 'sick', reasonNote: '' }));
+    });
+
+    it('a server refusal about the text is shown in the dialog and what was typed is kept', async () => {
+      setFlags({ readall: true, validate: true });
+      saveExpectedAbsence.mockRejectedValueOnce(new Error('La précision contient des caractères non pris en charge (emoji, symboles rares) : retirez-les'));
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      await user.click(within(rowOf('Bob Durand')).getByRole('button', { name: /Marquer une absence prévue/ }));
+      const dialog = within(screen.getByRole('dialog'));
+      await user.selectOptions(dialog.getByLabelText('Motif'), 'other');
+      await user.type(dialog.getByLabelText('Précisez la raison'), 'déplacement 🚗');
+      await user.click(dialog.getByRole('button', { name: 'Enregistrer' }));
+      expect(await dialog.findByRole('alert')).toHaveTextContent('caractères non pris en charge');
+      expect(dialog.getByLabelText('Précisez la raison')).toHaveValue('déplacement 🚗');
+    });
+
+    it('a present user whose recorded absence is an "Autre" keeps the note in the discreet hint', async () => {
+      setFlags({ readall: true, validate: true });
+      getUsersPresence.mockResolvedValue(response([userRow(1, 'Alice Martin', presence('present', 'other', 'rachat pool client'))]));
+      renderUsersTab();
+      await screen.findByText('Alice Martin');
+      expect(within(rowOf('Alice Martin')).getByText('Absence prévue enregistrée (Autre : rachat pool client)')).toBeInTheDocument();
+    });
+
+    it('a row that still carries the retired "rtt" code is shown generically ("Autre"), can be removed, and the confirmation says so', async () => {
+      setFlags({ readall: true, validate: true });
+      getUsersPresence.mockResolvedValue(response([userRow(9, 'Léa Ancienne', presence('expected_absence', 'rtt'))]));
+      const user = userEvent.setup();
+      renderUsersTab();
+      await screen.findByText('Léa Ancienne');
+      expect(rowOf('Léa Ancienne').querySelector('[data-presence-status]')).toHaveTextContent('Absence prévue · Autre');
+      expect(rowOf('Léa Ancienne')).not.toHaveTextContent('RTT');
+
+      await user.click(within(rowOf('Léa Ancienne')).getByRole('button', { name: /Retirer/ }));
+      expect(screen.getByRole('alertdialog')).toHaveTextContent('(Autre)');
+      await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Retirer' }));
+      await waitFor(() => expect(deleteExpectedAbsence).toHaveBeenCalledWith({ userId: 9, date: DAY }));
+    });
+  });
+
+  it('a table with an outdated schema: its own warning, the badges still show, no action offered', async () => {
+    setFlags({ readall: true, validate: true });
+    getUsersPresence.mockResolvedValue(response(team().slice(0, 2), { absencesAvailable: false, absencesState: 'schema_outdated' }));
+    renderUsersTab();
+    await screen.findByText('Alice Martin');
+    expect(screen.getByText(i18n.t('users_report.presence.table_outdated'))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t('users_report.presence.table_missing'))).toBeNull();
+    expect(rowOf('Bob Durand').querySelector('[data-presence-status]')).toHaveTextContent('Absent');
+    expect(screen.queryByRole('columnheader', { name: 'Actions' })).toBeNull();
+  });
+
   it('a refused save keeps the dialog open with the server message, and does not reload', async () => {
     setFlags({ readall: true, validate: true });
     saveExpectedAbsence.mockRejectedValueOnce(new Error('Utilisateur désactivé'));
@@ -526,7 +637,7 @@ describe('ReportsPage — Utilisateurs tab: CSV export', () => {
     expect(rows.map((r) => [r[0], r[1]])).toEqual([
       ['Alice Martin', 'Présent'],
       ['Bob Durand', 'Absent'],
-      ['Chloé Petit', 'Absence prévue · RTT'],
+      ['Chloé Petit', 'Absence prévue · Autre : rachat pool client'],
       ['Dan Vidal', 'Non applicable'],
     ]);
     expect(rows.every((r) => r.length === header.length)).toBe(true);
