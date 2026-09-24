@@ -460,6 +460,56 @@ class TimeFlowLateCheck
 	}
 
 	/**
+	 * Whether a user wants the late-arrival emails: yes, unless their preference
+	 * is exactly '0'. Only the refusal is stored, so nobody needs a row to be on.
+	 *
+	 * @param DoliDB $db
+	 * @param int    $userId
+	 * @param int    $entity
+	 * @return bool
+	 */
+	public static function getEmailPreference($db, $userId, $entity)
+	{
+		$sql = 'SELECT value FROM '.$db->prefix().'user_param WHERE fk_user = '.((int) $userId).' AND entity = '.((int) $entity)." AND param = '".$db->escape(self::PARAM_EMAIL)."'";
+		$resql = timeflowQuery($db, $sql, 'TimeFlowLateCheck::getEmailPreference');
+		$obj = $db->fetch_object($resql);
+		$db->free($resql);
+
+		return !($obj && (string) $obj->value === '0');
+	}
+
+	/**
+	 * Stores the preference: on = no row, off = a row with '0'.
+	 *
+	 * Written with plain SQL on purpose. Dolibarr's own dol_set_user_param() tests
+	 * "if ($value)" before inserting, and '0' is false in PHP: through it the
+	 * refusal would silently never be stored (checked on 19.0.2, where its
+	 * "forcevalue" form does not exist either and stores the text "Array").
+	 *
+	 * @param DoliDB $db
+	 * @param int    $userId
+	 * @param int    $entity
+	 * @param bool   $enabled
+	 * @return void
+	 */
+	public static function setEmailPreference($db, $userId, $entity, $enabled)
+	{
+		$prefix = $db->prefix();
+		$where = ' WHERE fk_user = '.((int) $userId).' AND entity = '.((int) $entity)." AND param = '".$db->escape(self::PARAM_EMAIL)."'";
+		$db->begin();
+		try {
+			timeflowQuery($db, 'DELETE FROM '.$prefix.'user_param'.$where, 'TimeFlowLateCheck::setEmailPreference:delete');
+			if (!$enabled) {
+				timeflowQuery($db, 'INSERT INTO '.$prefix.'user_param (fk_user, entity, param, value) VALUES ('.((int) $userId).', '.((int) $entity).", '".$db->escape(self::PARAM_EMAIL)."', '0')", 'TimeFlowLateCheck::setEmailPreference:insert');
+			}
+			$db->commit();
+		} catch (TimeflowSqlException $e) {
+			$db->rollback();
+			throw $e;
+		}
+	}
+
+	/**
 	 * Managers who opted out of the emails (preference '0' in llx_user_param).
 	 *
 	 * @return array<int,bool>

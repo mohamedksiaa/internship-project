@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import timeflowLogo from '../../assets/timeflow-logo.png';
 import LanguageSelector from '../molecules/LanguageSelector';
+import NotificationBell from '../organisms/NotificationBell';
 import useDarkMode from '../../hooks/useDarkMode';
 
 function classNames(...classes) { return classes.filter(Boolean).join(' '); }
@@ -22,6 +23,8 @@ export default function AppLayout() {
     { path: '/validation', label: t('nav.validations'), icon: '✓', section: t('app.section_manage') },
   ];
   const canValidate = typeof window !== 'undefined' && window.TIMEFLOW_CAN_VALIDATE === true;
+  // The bell holds the managers' late-arrival alerts: only the team-wide readers (readall) get one.
+  const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
   const visibleNavigation = navigation.filter((item) => {
     if (item.path === '/validation') return canValidate;
     return true;
@@ -36,6 +39,7 @@ export default function AppLayout() {
           <span className="tw-text-[23px] tw-font-semibold tw-tracking-tight tw-text-[#111827] dark:tw-text-[#f1f5f9]">{t('app.brand')}</span>
         </div>
         <div className="tw-ml-auto tw-flex tw-items-center tw-gap-5 tw-text-[#78909c] dark:tw-text-[#94a3b8]">
+          {canReadAll && <NotificationBell />}
           <LanguageSelector />
           <span className="tw-hidden tw-text-lg sm:tw-block">♧</span><span className="tw-hidden tw-text-lg sm:tw-block">♧</span>
         </div>
