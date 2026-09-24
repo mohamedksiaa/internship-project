@@ -9,13 +9,18 @@ import {
   getProcessedHistory,
   getProjects,
   getTimeFlowProjects,
-  getTimeFlowUsers,
+  getUsersPresence,
+  deleteExpectedAbsence,
+  saveExpectedAbsence,
   listActiveThirdParties,
   listActiveUsers,
   previewClockifyImport,
 } from '../api/timeflowApi';
 import StatusBadge from '../components/atoms/StatusBadge';
 import TruncatedText from '../components/atoms/TruncatedText';
+import PresenceBadge from '../components/atoms/PresenceBadge.jsx';
+import ExpectedAbsenceDialog from '../components/molecules/ExpectedAbsenceDialog.jsx';
+import ConfirmRemoveAbsenceDialog from '../components/molecules/ConfirmRemoveAbsenceDialog.jsx';
 import ProjectStatusBadge, { projectStatusLabelKey } from '../components/atoms/ProjectStatusBadge';
 import OpportunityStatusBadge, { opportunityStatusLabelKey } from '../components/atoms/OpportunityStatusBadge';
 import ReadDailyReportModal from '../components/molecules/ReadDailyReportModal.jsx';
@@ -23,7 +28,10 @@ import ImportPreviewModal from '../components/molecules/ImportPreviewModal.jsx';
 import { BillableBadge, ModifiedManuallyBadge, isManuallyModifiedRecord, taskClusterKey } from '../components/organisms/TimeEntryList.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
+import { usePresenceLabel, useReasonLabel } from '../utils/presenceLabels.js';
 import { useUrlDateRange, useUrlState } from '../hooks/useUrlState.js';
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const initialFilters = {
   status: 'all',
@@ -341,14 +349,44 @@ function ProjectsReportTab() {
  * info and TimeFlow group membership. No filters, unlike ProjectsReportTab
  * above — the source list is already small (one row per person, not per
  * entry) and there is no obvious axis to filter it by.
+ *
+ * It also shows, for ONE day (the "Date" picker, kept in ?presenceDate=), a
+ * "Présence" badge per user — present / absent / expected absence — computed
+ * by the backend (getUsersPresence). A manager (readall + validate) can record
+ * or remove an expected absence from the row; everyone else who can open this
+ * tab (readall only) sees the badges but no action.
  */
 function UsersReportTab() {
   const { t } = useTranslation();
+  const presenceLabel = usePresenceLabel();
+  const reasonLabel = useReasonLabel();
   const [userRows, setUserRows] = useState([]);
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
+  // '' = "today" as the server sees it; the response says which day it was.
+  const [dateParam, setDateParam] = useUrlState('presenceDate', '');
+  const requestedDate = ISO_DATE_PATTERN.test(dateParam) ? dateParam : '';
+  const [shownDate, setShownDate] = useState('');
+  const [absencesAvailable, setAbsencesAvailable] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [dialogUser, setDialogUser] = useState(null);
+  const [dialogSaving, setDialogSaving] = useState(false);
+  const [dialogError, setDialogError] = useState('');
+  // Row whose expected absence the manager asked to remove; the request only
+  // leaves after they confirm (see ConfirmRemoveAbsenceDialog).
+  const [absenceToRemove, setAbsenceToRemove] = useState(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeError, setRemoveError] = useState('');
+
+  // Same right pair the backend enforces on saveExpectedAbsence /
+  // deleteExpectedAbsence; read at render time like the other pages' flags.
+  // Hiding the buttons is only a courtesy — the server is what refuses.
+  const canManageAbsences = typeof window !== 'undefined'
+    && window.TIMEFLOW_CAN_READALL === true
+    && window.TIMEFLOW_CAN_VALIDATE === true
+    && absencesAvailable;
 
   // Backend pagination (page/per_page=20, same {rows, pagination} contract
   // as the rest of the module) — same "consistency over necessity" rationale
@@ -358,28 +396,33 @@ function UsersReportTab() {
     let active = true;
     setLoading(true);
     setError('');
-    getTimeFlowUsers(page, 20)
+    getUsersPresence(requestedDate, page, 20)
       .then((res) => {
         if (!active) return;
         setUserRows(res.rows);
         setPagination(res.pagination);
+        setShownDate(res.date);
+        setAbsencesAvailable(res.absencesAvailable);
       })
       .catch((err) => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [page]);
+  }, [page, requestedDate, reloadKey]);
 
   // The on-screen table is paginated (page/per_page), so the export
   // re-fetches every page (per_page=100, the backend's own max) instead of
   // just serializing the current page — same reasoning as ProjectsReportTab
-  // above. Same 4 columns as the on-screen table, in the same order —
-  // groups joined with ", " in a single cell exactly like the table already
-  // renders them.
+  // above. Same columns as the on-screen table (minus the actions), in the
+  // same order — groups joined with ", " in a single cell exactly like the
+  // table already renders them. Pinned to the day currently on screen so the
+  // file always matches what the manager was looking at.
   const exportCsv = async () => {
     let allRows = [];
     let fetchPage = 1;
+    let exportDate = shownDate || requestedDate;
     for (;;) {
-      const res = await getTimeFlowUsers(fetchPage, 100);
+      const res = await getUsersPresence(exportDate, fetchPage, 100);
+      exportDate = res.date || exportDate;
       allRows = allRows.concat(res.rows);
       const pages = res.pagination?.pages || 1;
       if (fetchPage >= pages || res.rows.length === 0) break;
@@ -387,7 +430,9 @@ function UsersReportTab() {
     }
 
     const header = [
-      t('users_report.col_name'), t('users_report.col_email'),
+      t('users_report.col_name'),
+      exportDate ? `${t('users_report.presence.col_presence')} (${exportDate})` : t('users_report.presence.col_presence'),
+      t('users_report.col_email'),
       t('users_report.col_phone'), t('users_report.col_groups'),
     ];
     downloadCsv('utilisateurs', header, allRows.map((row) => {
@@ -395,6 +440,7 @@ function UsersReportTab() {
       const groups = Array.isArray(row.groups) ? row.groups.filter(Boolean) : [];
       return [
         row.label,
+        presenceLabel(row.presence?.status, row.presence?.reason_type),
         row.email || '',
         phones.join(' · '),
         groups.length > 0 ? groups.join(', ') : t('users_report.no_group'),
@@ -402,9 +448,69 @@ function UsersReportTab() {
     }));
   };
 
+  const openDialog = (row) => {
+    setDialogError('');
+    setDialogUser(row);
+  };
+  const closeDialog = () => {
+    if (!dialogSaving) setDialogUser(null);
+  };
+  const saveAbsence = async ({ date, reasonType }) => {
+    setDialogSaving(true);
+    setDialogError('');
+    try {
+      await saveExpectedAbsence({ userId: dialogUser.id, date, reasonType });
+      setDialogUser(null);
+      setReloadKey((key) => key + 1);
+    } catch (err) {
+      setDialogError(err.message || t('users_report.presence.error_generic'));
+    } finally {
+      setDialogSaving(false);
+    }
+  };
+  const askRemoveAbsence = (row) => {
+    setRemoveError('');
+    setAbsenceToRemove({ id: row.id, name: row.label, date: shownDate, reasonType: row.presence?.reason_type || null });
+  };
+  const cancelRemoveAbsence = () => {
+    if (!removeBusy) setAbsenceToRemove(null);
+  };
+  const confirmRemoveAbsence = async () => {
+    if (!absenceToRemove || removeBusy) return;
+    setRemoveBusy(true);
+    setRemoveError('');
+    try {
+      await deleteExpectedAbsence({ userId: absenceToRemove.id, date: absenceToRemove.date });
+      setAbsenceToRemove(null);
+      setReloadKey((key) => key + 1);
+    } catch (err) {
+      setRemoveError(err.message || t('users_report.presence.error_generic'));
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
+
+  const rowButtonClass = 'tw-rounded tw-bg-slate-100 dark:tw-bg-slate-700 tw-px-2 tw-py-1 tw-text-xs tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600';
+
   return (
     <section className="tw-rounded-3xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-p-5 tw-shadow-sm dark:tw-shadow-none">
-      <div className="tw-mb-4 tw-flex tw-items-center tw-justify-end">
+      <div className="tw-mb-4 tw-flex tw-flex-wrap tw-items-end tw-justify-between tw-gap-3">
+        <div className="tw-flex tw-items-end tw-gap-2">
+          <label className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-slate-500 dark:tw-text-slate-400">
+            <span className="tw-mb-1 tw-block">{t('users_report.presence.date_label')}</span>
+            <input
+              type="date"
+              value={requestedDate || shownDate}
+              onChange={(event) => setDateParam(event.target.value)}
+              className="tw-rounded-lg tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-bg-white dark:tw-bg-slate-800 tw-px-3 tw-py-2 tw-text-sm tw-normal-case tw-text-slate-900 dark:tw-text-slate-100"
+            />
+          </label>
+          {requestedDate !== '' && (
+            <button type="button" onClick={() => setDateParam('')} className="tw-rounded-lg tw-bg-slate-100 dark:tw-bg-slate-700 tw-px-3 tw-py-2 tw-text-sm tw-text-slate-700 dark:tw-text-slate-200 hover:tw-bg-slate-200 dark:hover:tw-bg-slate-600">
+              {t('users_report.presence.today_button')}
+            </button>
+          )}
+        </div>
         <button
           type="button"
           onClick={exportCsv}
@@ -416,6 +522,9 @@ function UsersReportTab() {
       </div>
       {loading && <p className="tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('loading')}</p>}
       {error && <p className="tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{error}</p>}
+      {!loading && !absencesAvailable && (
+        <p className="tw-mb-3 tw-rounded-lg tw-bg-amber-50 dark:tw-bg-amber-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-amber-800 dark:tw-text-amber-200">{t('users_report.presence.table_missing')}</p>
+      )}
 
       {!loading && (
         userRows.length === 0 ? (
@@ -426,19 +535,33 @@ function UsersReportTab() {
               <thead>
                 <tr className="tw-border-b tw-border-slate-200 dark:tw-border-slate-700 tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-slate-500 dark:tw-text-slate-400">
                   <th className="tw-px-3 tw-py-2">{t('users_report.col_name')}</th>
+                  <th className="tw-px-3 tw-py-2">{t('users_report.presence.col_presence')}</th>
                   <th className="tw-px-3 tw-py-2">{t('users_report.col_email')}</th>
                   <th className="tw-px-3 tw-py-2">{t('users_report.col_phone')}</th>
                   <th className="tw-px-3 tw-py-2">{t('users_report.col_groups')}</th>
+                  {canManageAbsences && <th className="tw-px-3 tw-py-2">{t('users_report.presence.actions.col')}</th>}
                 </tr>
               </thead>
               <tbody>
                 {userRows.map((row) => {
                   const phones = [row.office_phone, row.user_mobile].filter(Boolean);
                   const groups = Array.isArray(row.groups) ? row.groups.filter(Boolean) : [];
+                  const presence = row.presence || {};
+                  const recordedReason = presence.reason_type || null;
                   return (
                     <tr key={row.id} className="tw-border-b tw-border-slate-100 dark:tw-border-slate-800">
                       <td className="tw-px-3 tw-py-3 tw-max-w-[220px] tw-font-medium tw-text-slate-900 dark:tw-text-slate-100">
                         <TruncatedText text={row.label} />
+                      </td>
+                      <td className="tw-px-3 tw-py-3">
+                        <PresenceBadge status={presence.status} reasonType={recordedReason} />
+                        {presence.status === 'present' && recordedReason && (
+                          // "Présent" wins the badge, but a recorded absence is
+                          // still there and the manager must be able to see it.
+                          <div className="tw-mt-1 tw-text-xs tw-text-slate-500 dark:tw-text-slate-400">
+                            {t('users_report.presence.recorded_absence', { reason: reasonLabel(recordedReason) })}
+                          </div>
+                        )}
                       </td>
                       <td className="tw-px-3 tw-py-3 tw-max-w-[240px] tw-text-slate-600 dark:tw-text-slate-300">
                         <TruncatedText text={row.email || '—'} />
@@ -449,6 +572,24 @@ function UsersReportTab() {
                       <td className="tw-px-3 tw-py-3 tw-max-w-[240px] tw-text-slate-600 dark:tw-text-slate-300">
                         <TruncatedText text={groups.length > 0 ? groups.join(', ') : t('users_report.no_group')} />
                       </td>
+                      {canManageAbsences && (
+                        <td className="tw-px-3 tw-py-3 tw-whitespace-nowrap">
+                          {recordedReason ? (
+                            <div className="tw-flex tw-gap-2">
+                              <button type="button" className={rowButtonClass} onClick={() => openDialog(row)} aria-label={t('users_report.presence.actions.edit_aria', { name: row.label })}>
+                                {t('users_report.presence.actions.edit')}
+                              </button>
+                              <button type="button" className={rowButtonClass} onClick={() => askRemoveAbsence(row)} aria-label={t('users_report.presence.actions.remove_aria', { name: row.label })}>
+                                {t('users_report.presence.actions.remove')}
+                              </button>
+                            </div>
+                          ) : (
+                            <button type="button" className={rowButtonClass} onClick={() => openDialog(row)} aria-label={t('users_report.presence.actions.mark_aria', { name: row.label })}>
+                              {t('users_report.presence.actions.mark')}
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -480,6 +621,24 @@ function UsersReportTab() {
           </button>
         </div>
       )}
+      <ExpectedAbsenceDialog
+        // Remounted per opening so its date/reason start from the row's values.
+        key={dialogUser ? `${dialogUser.id}|${shownDate}` : 'closed'}
+        user={dialogUser}
+        initialDate={shownDate}
+        initialReason={dialogUser?.presence?.reason_type}
+        saving={dialogSaving}
+        error={dialogError}
+        onSave={saveAbsence}
+        onClose={closeDialog}
+      />
+      <ConfirmRemoveAbsenceDialog
+        absence={absenceToRemove}
+        busy={removeBusy}
+        error={removeError}
+        onConfirm={confirmRemoveAbsence}
+        onCancel={cancelRemoveAbsence}
+      />
     </section>
   );
 }
@@ -953,7 +1112,7 @@ export default function ReportsPage() {
 
         {/* Guarded on canReadAll too, not just the hidden tab button above —
             a normal employee crafting ?tab=users directly must never reach
-            a component that would call getTimeFlowUsers() (backend refuses
+            a component that would call getUsersPresence() (backend refuses
             it anyway, but there is no reason to even attempt the request). */}
         {activeTab === 'users' && canReadAll && <UsersReportTab />}
 

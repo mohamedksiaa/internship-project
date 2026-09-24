@@ -8,6 +8,12 @@ const API_MODE = import.meta.env.VITE_API_MODE || 'real';
 
 let mockActiveTimer = null;
 let mockDailyReports = [];
+const mockTimeFlowUsers = [
+  { id: 1, firstname: 'Alice', lastname: 'Martin', label: 'Alice Martin', email: 'alice.martin@example.com', office_phone: '+33 1 23 45 67 89', user_mobile: '', groups: ['HRM'] },
+  { id: 2, firstname: 'Bob', lastname: 'Durand', label: 'Bob Durand', email: 'bob.durand@example.com', office_phone: '', user_mobile: '+33 6 12 34 56 78', groups: ['TBEE', 'PROJET-ETA'] },
+];
+// "userId|YYYY-MM-DD" -> reason_type, for the mock Users report presence.
+const mockExpectedAbsences = new Map();
 let mockTimeFlowProjects = [
   { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0, date_creation: '2026-07-01T09:00:00Z' },
 ];
@@ -340,10 +346,7 @@ function handleMockRequest(action, body) {
     }
 
     case 'getTimeFlowUsers': {
-      const mockUsers = [
-        { id: 1, firstname: 'Alice', lastname: 'Martin', label: 'Alice Martin', email: 'alice.martin@example.com', office_phone: '+33 1 23 45 67 89', user_mobile: '', groups: ['HRM'] },
-        { id: 2, firstname: 'Bob', lastname: 'Durand', label: 'Bob Durand', email: 'bob.durand@example.com', office_phone: '', user_mobile: '+33 6 12 34 56 78', groups: ['TBEE', 'PROJET-ETA'] },
-      ];
+      const mockUsers = mockTimeFlowUsers;
       const perPage = Number(body?.per_page) > 0 ? Number(body.per_page) : 20;
       const page = Number(body?.page) > 0 ? Number(body.page) : 1;
       const start = (page - 1) * perPage;
@@ -354,6 +357,43 @@ function handleMockRequest(action, body) {
           pagination: { page, per_page: perPage, total: mockUsers.length, pages: Math.max(1, Math.ceil(mockUsers.length / perPage)) },
         },
       });
+    }
+    case 'getUsersPresence': {
+      const today = new Date().toISOString().slice(0, 10);
+      const date = body?.date || today;
+      const perPage = Number(body?.per_page) > 0 ? Number(body.per_page) : 20;
+      const page = Number(body?.page) > 0 ? Number(body.page) : 1;
+      const start = (page - 1) * perPage;
+      const rows = mockTimeFlowUsers.slice(start, start + perPage).map((mockUser) => {
+        const reason = mockExpectedAbsences.get(`${mockUser.id}|${date}`) || null;
+        // Alice "works" every past/today day in the mock, Bob never does.
+        const present = mockUser.id === 1 && date <= today;
+        let status = 'absent';
+        if (present) status = 'present';
+        else if (reason) status = 'expected_absence';
+        else if (date > today) status = 'none';
+        return { ...mockUser, presence: { status, reason_type: reason, source: reason ? 'manual' : null } };
+      });
+      return Promise.resolve({
+        status: 'success',
+        data: {
+          rows,
+          pagination: { page, per_page: perPage, total: mockTimeFlowUsers.length, pages: Math.max(1, Math.ceil(mockTimeFlowUsers.length / perPage)) },
+          date,
+          today,
+          absences_available: true,
+        },
+      });
+    }
+    case 'saveExpectedAbsence': {
+      const key = `${body.user_id}|${body.date}`;
+      const created = !mockExpectedAbsences.has(key);
+      mockExpectedAbsences.set(key, body.reason_type || 'other');
+      return Promise.resolve({ status: 'success', data: { id: 1, created, user_id: body.user_id, date: body.date, reason_type: body.reason_type || 'other' } });
+    }
+    case 'deleteExpectedAbsence': {
+      const deleted = mockExpectedAbsences.delete(`${body.user_id}|${body.date}`) ? 1 : 0;
+      return Promise.resolve({ status: 'success', data: { deleted, user_id: body.user_id, date: body.date } });
     }
     case 'exportGlobalCsv':
       return Promise.resolve({
@@ -539,6 +579,38 @@ export async function getTimeFlowUsers(page = 1, perPage = 20) {
   const data = await moduleTimerRequest('getTimeFlowUsers', { page, per_page: perPage });
   const payload = data?.data ?? data ?? {};
   return { rows: Array.isArray(payload.rows) ? payload.rows : [], pagination: payload.pagination || {} };
+}
+
+/**
+ * Users report with the presence of each user for one calendar day.
+ * `date` is 'YYYY-MM-DD', or '' for "today" as the server sees it (the
+ * response's `date` then tells which day was actually computed).
+ */
+export async function getUsersPresence(date = '', page = 1, perPage = 20) {
+  const body = { page, per_page: perPage };
+  if (date) body.date = date;
+  const data = await moduleTimerRequest('getUsersPresence', body);
+  const payload = data?.data ?? data ?? {};
+  return {
+    rows: Array.isArray(payload.rows) ? payload.rows : [],
+    pagination: payload.pagination || {},
+    date: payload.date || date || '',
+    today: payload.today || '',
+    // Only an explicit false (table missing on this install) turns it off.
+    absencesAvailable: payload.absences_available !== false,
+  };
+}
+
+/** Records (or updates the reason of) a user's expected absence for one day. */
+export async function saveExpectedAbsence({ userId, date, reasonType }) {
+  const data = await moduleTimerRequest('saveExpectedAbsence', { user_id: userId, date, reason_type: reasonType });
+  return data?.data ?? {};
+}
+
+/** Removes a user's expected absence for one day (idempotent). */
+export async function deleteExpectedAbsence({ userId, date }) {
+  const data = await moduleTimerRequest('deleteExpectedAbsence', { user_id: userId, date });
+  return data?.data ?? {};
 }
 
 export async function exportGlobalCsv() {

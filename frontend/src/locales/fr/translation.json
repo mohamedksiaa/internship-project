@@ -279,7 +279,51 @@
     "col_email": "Email",
     "col_phone": "Téléphone",
     "col_groups": "Groupe(s)",
-    "no_group": "Sans groupe"
+    "no_group": "Sans groupe",
+    "presence": {
+      "col_presence": "Présence",
+      "date_label": "Date",
+      "today_button": "Aujourd’hui",
+      "status": {
+        "present": "Présent",
+        "absent": "Absent",
+        "expected_absence": "Absence prévue",
+        "expected_absence_with_reason": "Absence prévue · {{reason}}",
+        "none": "Non applicable"
+      },
+      "reason": {
+        "leave": "Congé",
+        "rtt": "RTT",
+        "sick": "Maladie",
+        "other": "Autre"
+      },
+      "recorded_absence": "Absence prévue enregistrée ({{reason}})",
+      "table_missing": "Les absences prévues ne sont pas disponibles : la table est absente. Désactivez puis réactivez le module TimeFlow.",
+      "error_generic": "Impossible d’enregistrer l’absence prévue.",
+      "actions": {
+        "col": "Actions",
+        "mark": "Absence prévue",
+        "edit": "Modifier",
+        "remove": "Retirer",
+        "mark_aria": "Marquer une absence prévue pour {{name}}",
+        "edit_aria": "Modifier l’absence prévue de {{name}}",
+        "remove_aria": "Retirer l’absence prévue de {{name}}"
+      },
+      "remove_dialog": {
+        "title": "Retirer l’absence prévue ?",
+        "message": "L’absence prévue de {{name}} le {{date}} ({{reason}}) sera supprimée.",
+        "removing": "Suppression…"
+      },
+      "dialog": {
+        "title": "Absence prévue",
+        "employee": "Employé",
+        "date": "Date",
+        "reason": "Motif",
+        "save": "Enregistrer",
+        "saving": "Enregistrement…",
+        "cancel": "Annuler"
+      }
+    }
   },
   "timeentry": {
     "date_unknown": "Date non renseignée",

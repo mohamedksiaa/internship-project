@@ -286,7 +286,51 @@
     "col_email": "البريد الإلكتروني",
     "col_phone": "الهاتف",
     "col_groups": "المجموعة (المجموعات)",
-    "no_group": "بدون مجموعة"
+    "no_group": "بدون مجموعة",
+    "presence": {
+      "col_presence": "الحضور",
+      "date_label": "التاريخ",
+      "today_button": "اليوم",
+      "status": {
+        "present": "حاضر",
+        "absent": "غائب",
+        "expected_absence": "غياب مخطط له",
+        "expected_absence_with_reason": "غياب مخطط له · {{reason}}",
+        "none": "غير منطبق"
+      },
+      "reason": {
+        "leave": "إجازة",
+        "rtt": "RTT",
+        "sick": "مرض",
+        "other": "أخرى"
+      },
+      "recorded_absence": "غياب مخطط له مسجّل ({{reason}})",
+      "table_missing": "الغيابات المخطط لها غير متاحة: الجدول مفقود. عطّل وحدة TimeFlow ثم أعد تفعيلها.",
+      "error_generic": "تعذّر حفظ الغياب المخطط له.",
+      "actions": {
+        "col": "الإجراءات",
+        "mark": "غياب مخطط له",
+        "edit": "تعديل",
+        "remove": "إزالة",
+        "mark_aria": "تسجيل غياب مخطط له لـ {{name}}",
+        "edit_aria": "تعديل الغياب المخطط له لـ {{name}}",
+        "remove_aria": "إزالة الغياب المخطط له لـ {{name}}"
+      },
+      "remove_dialog": {
+        "title": "إزالة الغياب المخطط له؟",
+        "message": "سيتم حذف الغياب المخطط له لـ {{name}} بتاريخ {{date}} ({{reason}}).",
+        "removing": "جارٍ الإزالة…"
+      },
+      "dialog": {
+        "title": "غياب مخطط له",
+        "employee": "الموظف",
+        "date": "التاريخ",
+        "reason": "السبب",
+        "save": "حفظ",
+        "saving": "جارٍ الحفظ…",
+        "cancel": "إلغاء"
+      }
+    }
   },
   "timeentry": {
     "date_unknown": "تاريخ غير محدد",

@@ -145,3 +145,16 @@ CREATE TABLE IF NOT EXISTS llx_timeflow_task(
     INDEX idx_cct_fk_timeentry (fk_timeentry),
     INDEX idx_cct_date_creation (date_creation)
 ) ENGINE=innodb;
+
+-- Expected absences recorded by a manager (Reports > Users "Absence prévue").
+CREATE TABLE IF NOT EXISTS llx_timeflow_expected_absence(
+    rowid          integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
+    entity         integer DEFAULT 1 NOT NULL,
+    fk_user        integer NOT NULL,
+    date_absence   date NOT NULL,
+    reason_type    varchar(16) DEFAULT 'other' NOT NULL,
+    fk_user_creat  integer NOT NULL,
+    date_creation  datetime NOT NULL,
+    INDEX idx_timeflow_expected_absence_date (entity, date_absence),
+    UNIQUE INDEX uk_timeflow_expected_absence_user_day (entity, fk_user, date_absence)
+) ENGINE=innodb;
