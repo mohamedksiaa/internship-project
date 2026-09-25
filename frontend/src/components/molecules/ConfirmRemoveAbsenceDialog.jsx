@@ -1,18 +1,18 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useReasonLabel } from '../../utils/presenceLabels.js';
+import { useReasonText } from '../../utils/presenceLabels.js';
 
 /**
  * "Are you sure?" before an expected absence is removed, so a stray click on
  * "Retirer" cannot silently delete a record. Same modal look as the delete
  * confirmation in TimeEntryList (red confirm button); Cancel has the focus.
  *
- * `absence` is { name, date, reasonType }, or null when closed. The caller does
- * the request and reports the outcome through `busy` / `error`.
+ * `absence` is { name, date, reasonType, reasonNote }, or null when closed. The
+ * caller does the request and reports the outcome through `busy` / `error`.
  */
 export default function ConfirmRemoveAbsenceDialog({ absence, busy = false, error = '', onConfirm, onCancel }) {
   const { t } = useTranslation();
-  const reasonLabel = useReasonLabel();
+  const reasonText = useReasonText();
 
   useEffect(() => {
     if (!absence) return undefined;
@@ -41,8 +41,8 @@ export default function ConfirmRemoveAbsenceDialog({ absence, busy = false, erro
           </button>
         </div>
 
-        <p id="remove-absence-message" className="tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">
-          {t('users_report.presence.remove_dialog.message', { name: absence.name, date: absence.date, reason: reasonLabel(absence.reasonType) })}
+        <p id="remove-absence-message" className="tw-break-words tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">
+          {t('users_report.presence.remove_dialog.message', { name: absence.name, date: absence.date, reason: reasonText(absence.reasonType, absence.reasonNote) })}
         </p>
 
         {error && <p role="alert" className="tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{error}</p>}

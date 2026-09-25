@@ -35,13 +35,71 @@ describe('PresenceBadge', () => {
 
   it.each([
     ['leave', 'Congé'],
-    ['rtt', 'RTT'],
     ['sick', 'Maladie'],
     ['other', 'Autre'],
+    // "rtt" was retired: an old row that still carries it, or any unknown code, is shown generically
+    ['rtt', 'Autre'],
     ['something-unknown', 'Autre'],
   ])('reason "%s" -> "%s"', (reason, label) => {
     render(<PresenceBadge status="expected_absence" reasonType={reason} />);
     expect(screen.getByText(`Absence prévue · ${label}`)).toBeInTheDocument();
+  });
+
+  describe('the free-text precision of "Autre"', () => {
+    it('is shown in the badge: "Absence prévue · Autre : <texte>"', () => {
+      render(<PresenceBadge status="expected_absence" reasonType="other" reasonNote="rachat pool client" />);
+      expect(screen.getByText('Absence prévue · Autre : rachat pool client')).toBeInTheDocument();
+    });
+
+    it('is trimmed, and a blank one is the same as none', () => {
+      const { unmount } = render(<PresenceBadge status="expected_absence" reasonType="other" reasonNote="   rachat pool   " />);
+      expect(screen.getByText('Absence prévue · Autre : rachat pool')).toBeInTheDocument();
+      unmount();
+      render(<PresenceBadge status="expected_absence" reasonType="other" reasonNote="    " />);
+      expect(screen.getByText('Absence prévue · Autre')).toBeInTheDocument();
+    });
+
+    it.each(['leave', 'sick'])('is ignored for "%s"', (reason) => {
+      const { container } = render(<PresenceBadge status="expected_absence" reasonType={reason} reasonNote="ne doit pas apparaître" />);
+      expect(container).not.toHaveTextContent('ne doit pas apparaître');
+    });
+
+    it('is only used for an expected absence (never leaks into another status)', () => {
+      const { container } = render(<PresenceBadge status="absent" reasonType="other" reasonNote="secret" />);
+      expect(container).toHaveTextContent('Absent');
+      expect(container).not.toHaveTextContent('secret');
+    });
+
+    it('is rendered as plain text, never as HTML', () => {
+      const { container } = render(<PresenceBadge status="expected_absence" reasonType="other" reasonNote={'<b>gras</b> <img src=x onerror=alert(1)>'} />);
+      expect(container.querySelector('b')).toBeNull();
+      expect(container.querySelector('img')).toBeNull();
+      expect(container).toHaveTextContent('Autre : <b>gras</b> <img src=x onerror=alert(1)>');
+    });
+
+    it('a long text wraps inside the badge instead of stretching the table, and the full text is in the tooltip', () => {
+      const long = 'x'.repeat(255);
+      const { container } = render(<PresenceBadge status="expected_absence" reasonType="other" reasonNote={long} />);
+      const el = container.querySelector('[data-presence-status]');
+      expect(el.className).toContain('tw-break-words');
+      expect(el.className).toContain('tw-max-w-');
+      expect(el.className).not.toContain('tw-whitespace-nowrap');
+      expect(el).toHaveAttribute('title', `Absence prévue · Autre : ${long}`);
+    });
+
+    it('follows the language', async () => {
+      await i18n.changeLanguage('en');
+      const { unmount } = render(<PresenceBadge status="expected_absence" reasonType="other" reasonNote="client buy-back" />);
+      expect(screen.getByText('Expected absence · Other: client buy-back')).toBeInTheDocument();
+      unmount();
+      await i18n.changeLanguage('de');
+      const second = render(<PresenceBadge status="expected_absence" reasonType="other" reasonNote="Kundenrückkauf" />);
+      expect(second.container).toHaveTextContent('Geplante Abwesenheit · Sonstiges: Kundenrückkauf');
+      second.unmount();
+      await i18n.changeLanguage('ar');
+      const third = render(<PresenceBadge status="expected_absence" reasonType="other" reasonNote="سبب" />);
+      expect(third.container).toHaveTextContent('غياب مخطط له · أخرى: سبب');
+    });
   });
 
   it('"none" (future day / disabled account) is a neutral dash that still carries its label for screen readers', () => {

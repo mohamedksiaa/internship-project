@@ -28,7 +28,7 @@ import ImportPreviewModal from '../components/molecules/ImportPreviewModal.jsx';
 import { BillableBadge, ModifiedManuallyBadge, isManuallyModifiedRecord, taskClusterKey } from '../components/organisms/TimeEntryList.jsx';
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
-import { usePresenceLabel, useReasonLabel } from '../utils/presenceLabels.js';
+import { usePresenceLabel, useReasonText } from '../utils/presenceLabels.js';
 import { useUrlDateRange, useUrlState } from '../hooks/useUrlState.js';
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -359,7 +359,7 @@ function ProjectsReportTab() {
 function UsersReportTab() {
   const { t } = useTranslation();
   const presenceLabel = usePresenceLabel();
-  const reasonLabel = useReasonLabel();
+  const reasonText = useReasonText();
   const [userRows, setUserRows] = useState([]);
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(true);
@@ -370,6 +370,7 @@ function UsersReportTab() {
   const requestedDate = ISO_DATE_PATTERN.test(dateParam) ? dateParam : '';
   const [shownDate, setShownDate] = useState('');
   const [absencesAvailable, setAbsencesAvailable] = useState(true);
+  const [absencesState, setAbsencesState] = useState('ok');
   const [reloadKey, setReloadKey] = useState(0);
   const [dialogUser, setDialogUser] = useState(null);
   const [dialogSaving, setDialogSaving] = useState(false);
@@ -403,6 +404,7 @@ function UsersReportTab() {
         setPagination(res.pagination);
         setShownDate(res.date);
         setAbsencesAvailable(res.absencesAvailable);
+        setAbsencesState(res.absencesState);
       })
       .catch((err) => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
@@ -440,7 +442,7 @@ function UsersReportTab() {
       const groups = Array.isArray(row.groups) ? row.groups.filter(Boolean) : [];
       return [
         row.label,
-        presenceLabel(row.presence?.status, row.presence?.reason_type),
+        presenceLabel(row.presence?.status, row.presence?.reason_type, row.presence?.reason_note),
         row.email || '',
         phones.join(' · '),
         groups.length > 0 ? groups.join(', ') : t('users_report.no_group'),
@@ -455,11 +457,11 @@ function UsersReportTab() {
   const closeDialog = () => {
     if (!dialogSaving) setDialogUser(null);
   };
-  const saveAbsence = async ({ date, reasonType }) => {
+  const saveAbsence = async ({ date, reasonType, reasonNote }) => {
     setDialogSaving(true);
     setDialogError('');
     try {
-      await saveExpectedAbsence({ userId: dialogUser.id, date, reasonType });
+      await saveExpectedAbsence({ userId: dialogUser.id, date, reasonType, reasonNote });
       setDialogUser(null);
       setReloadKey((key) => key + 1);
     } catch (err) {
@@ -470,7 +472,7 @@ function UsersReportTab() {
   };
   const askRemoveAbsence = (row) => {
     setRemoveError('');
-    setAbsenceToRemove({ id: row.id, name: row.label, date: shownDate, reasonType: row.presence?.reason_type || null });
+    setAbsenceToRemove({ id: row.id, name: row.label, date: shownDate, reasonType: row.presence?.reason_type || null, reasonNote: row.presence?.reason_note || null });
   };
   const cancelRemoveAbsence = () => {
     if (!removeBusy) setAbsenceToRemove(null);
@@ -523,7 +525,9 @@ function UsersReportTab() {
       {loading && <p className="tw-text-sm tw-text-slate-600 dark:tw-text-slate-400">{t('loading')}</p>}
       {error && <p className="tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{error}</p>}
       {!loading && !absencesAvailable && (
-        <p className="tw-mb-3 tw-rounded-lg tw-bg-amber-50 dark:tw-bg-amber-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-amber-800 dark:tw-text-amber-200">{t('users_report.presence.table_missing')}</p>
+        <p className="tw-mb-3 tw-rounded-lg tw-bg-amber-50 dark:tw-bg-amber-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-amber-800 dark:tw-text-amber-200">
+          {absencesState === 'schema_outdated' ? t('users_report.presence.table_outdated') : t('users_report.presence.table_missing')}
+        </p>
       )}
 
       {!loading && (
@@ -554,12 +558,12 @@ function UsersReportTab() {
                         <TruncatedText text={row.label} />
                       </td>
                       <td className="tw-px-3 tw-py-3">
-                        <PresenceBadge status={presence.status} reasonType={recordedReason} />
+                        <PresenceBadge status={presence.status} reasonType={recordedReason} reasonNote={presence.reason_note} />
                         {presence.status === 'present' && recordedReason && (
                           // "Présent" wins the badge, but a recorded absence is
                           // still there and the manager must be able to see it.
                           <div className="tw-mt-1 tw-text-xs tw-text-slate-500 dark:tw-text-slate-400">
-                            {t('users_report.presence.recorded_absence', { reason: reasonLabel(recordedReason) })}
+                            {t('users_report.presence.recorded_absence', { reason: reasonText(recordedReason, presence.reason_note) })}
                           </div>
                         )}
                       </td>
@@ -627,6 +631,7 @@ function UsersReportTab() {
         user={dialogUser}
         initialDate={shownDate}
         initialReason={dialogUser?.presence?.reason_type}
+        initialNote={dialogUser?.presence?.reason_note || ''}
         saving={dialogSaving}
         error={dialogError}
         onSave={saveAbsence}

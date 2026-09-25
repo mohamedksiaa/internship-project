@@ -47,7 +47,17 @@ describe('timeflowApi — presence & expected absences', () => {
         date: '2026-09-19',
         today: '2026-09-21',
         absencesAvailable: false,
+        absencesState: 'table_missing',
       });
+    });
+
+    it('carries the state of the absences table: ok by default, schema_outdated when the server says so', async () => {
+      fetchMock.mockResolvedValueOnce(fakeResponse({ status: 'success', data: { rows: [], pagination: {} } }));
+      expect((await getUsersPresence('', 1, 20)).absencesState).toBe('ok');
+      fetchMock.mockResolvedValueOnce(fakeResponse({ status: 'success', data: { rows: [], pagination: {}, absences_available: false, absences_state: 'schema_outdated' } }));
+      const outdated = await getUsersPresence('', 1, 20);
+      expect(outdated.absencesState).toBe('schema_outdated');
+      expect(outdated.absencesAvailable).toBe(false);
     });
 
     it('treats a missing absences_available as available (only an explicit false turns it off)', async () => {
@@ -74,12 +84,30 @@ describe('timeflowApi — presence & expected absences', () => {
 
   describe('saveExpectedAbsence', () => {
     it('posts user_id, date and reason_type (snake_case, as the PHP reads them)', async () => {
-      fetchMock.mockResolvedValue(fakeResponse({ status: 'success', data: { id: 7, created: true, user_id: 4, date: '2026-09-17', reason_type: 'rtt' } }));
-      const result = await saveExpectedAbsence({ userId: 4, date: '2026-09-17', reasonType: 'rtt' });
+      fetchMock.mockResolvedValue(fakeResponse({ status: 'success', data: { id: 7, created: true, user_id: 4, date: '2026-09-17', reason_type: 'sick', reason_note: null } }));
+      const result = await saveExpectedAbsence({ userId: 4, date: '2026-09-17', reasonType: 'sick' });
       const { url, body } = sent();
       expect(url).toContain('action=saveExpectedAbsence');
-      expect(body).toEqual({ user_id: 4, date: '2026-09-17', reason_type: 'rtt' });
+      expect(body).toEqual({ user_id: 4, date: '2026-09-17', reason_type: 'sick' });
       expect(result).toMatchObject({ id: 7, created: true });
+    });
+
+    it('sends the free-text reason as reason_note for "other"', async () => {
+      fetchMock.mockResolvedValue(fakeResponse({ status: 'success', data: { id: 8, created: true, reason_type: 'other', reason_note: 'rachat pool client' } }));
+      const result = await saveExpectedAbsence({ userId: 4, date: '2026-09-17', reasonType: 'other', reasonNote: 'rachat pool client' });
+      expect(sent().body).toEqual({ user_id: 4, date: '2026-09-17', reason_type: 'other', reason_note: 'rachat pool client' });
+      expect(result.reason_note).toBe('rachat pool client');
+    });
+
+    it.each(['leave', 'sick'])('never sends a reason_note for "%s", even if one is passed', async (reason) => {
+      fetchMock.mockResolvedValue(fakeResponse({ status: 'success', data: {} }));
+      await saveExpectedAbsence({ userId: 4, date: '2026-09-17', reasonType: reason, reasonNote: 'stale text' });
+      expect(sent().body).toEqual({ user_id: 4, date: '2026-09-17', reason_type: reason });
+    });
+
+    it('surfaces the server refusal when "other" comes without a reason', async () => {
+      fetchMock.mockResolvedValue(fakeResponse({ status: 'error', message: 'Précisez la raison (obligatoire pour le motif « Autre »)' }, { ok: false, status: 400 }));
+      await expect(saveExpectedAbsence({ userId: 4, date: '2026-09-17', reasonType: 'other', reasonNote: '' })).rejects.toThrow('Précisez la raison');
     });
 
     it('surfaces the "table missing" 500 with its actionable message', async () => {
@@ -87,12 +115,12 @@ describe('timeflowApi — presence & expected absences', () => {
         { status: 'error', code: 'expected_absence_table_missing', message: 'La table des absences prévues est absente : désactivez puis réactivez le module TimeFlow.' },
         { ok: false, status: 500 },
       ));
-      await expect(saveExpectedAbsence({ userId: 4, date: '2026-09-17', reasonType: 'rtt' })).rejects.toThrow('réactivez le module TimeFlow');
+      await expect(saveExpectedAbsence({ userId: 4, date: '2026-09-17', reasonType: 'sick' })).rejects.toThrow('réactivez le module TimeFlow');
     });
 
     it('surfaces a validation refusal', async () => {
       fetchMock.mockResolvedValue(fakeResponse({ status: 'error', message: 'Utilisateur désactivé' }, { ok: false, status: 400 }));
-      await expect(saveExpectedAbsence({ userId: 4, date: '2026-09-17', reasonType: 'rtt' })).rejects.toThrow('Utilisateur désactivé');
+      await expect(saveExpectedAbsence({ userId: 4, date: '2026-09-17', reasonType: 'sick' })).rejects.toThrow('Utilisateur désactivé');
     });
   });
 

@@ -70,6 +70,22 @@ describe('users_report.presence i18n', () => {
     }
   });
 
+  it('the retired "rtt" reason has no label left in any language, and the reasons are exactly leave / sick / other', () => {
+    expect(EXPECTED_ABSENCE_REASONS).toEqual(['leave', 'sick', 'other']);
+    for (const lang of Object.keys(locales)) {
+      expect(presenceOf(locales[lang])['users_report.presence.reason.rtt'], lang).toBeUndefined();
+      expect(JSON.stringify(locales[lang].users_report.presence), lang).not.toMatch(/RTT/);
+    }
+  });
+
+  it.each(Object.keys(locales))('%s: the free-text reason has its label, its hint and a {{note}} slot', (lang) => {
+    const flat = presenceOf(locales[lang]);
+    expect(flat['users_report.presence.dialog.note_label'], lang).toBeTruthy();
+    expect(flat['users_report.presence.dialog.note_required'], lang).toBeTruthy();
+    expect(flat['users_report.presence.reason.other_with_note'], lang).toContain('{{note}}');
+    expect(flat['users_report.presence.table_outdated'], lang).toBeTruthy();
+  });
+
   it('the four languages are actually different for the visible labels (no fr copy-paste)', () => {
     // ("Absent" is legitimately the same word in French and English.)
     for (const key of ['status.present', 'status.expected_absence', 'col_presence', 'dialog.save']) {

@@ -291,12 +291,13 @@
       },
       "reason": {
         "leave": "Leave",
-        "rtt": "RTT",
         "sick": "Sick leave",
-        "other": "Other"
+        "other": "Other",
+        "other_with_note": "Other: {{note}}"
       },
       "recorded_absence": "Expected absence recorded ({{reason}})",
       "table_missing": "Expected absences are unavailable: the table is missing. Disable then re-enable the TimeFlow module.",
+      "table_outdated": "Expected absences are unavailable: their table has an outdated schema (reason_note column missing). Contact an administrator.",
       "error_generic": "Could not save the expected absence.",
       "actions": {
         "col": "Actions",
@@ -317,6 +318,8 @@
         "employee": "Employee",
         "date": "Date",
         "reason": "Reason",
+        "note_label": "Specify the reason",
+        "note_required": "Specify the reason: required for the “Other” reason.",
         "save": "Save",
         "saving": "Saving…",
         "cancel": "Cancel"

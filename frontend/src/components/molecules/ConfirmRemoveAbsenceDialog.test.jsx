@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '../../i18n';
 import ConfirmRemoveAbsenceDialog from './ConfirmRemoveAbsenceDialog';
 
-const absence = { name: 'Chloé Petit', date: '2026-09-19', reasonType: 'rtt' };
+const absence = { name: 'Chloé Petit', date: '2026-09-19', reasonType: 'sick' };
 
 function renderDialog(props = {}) {
   const onConfirm = vi.fn();
@@ -29,7 +29,7 @@ describe('ConfirmRemoveAbsenceDialog', () => {
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveAccessibleName('Retirer l’absence prévue ?');
-    expect(dialog).toHaveAccessibleDescription('L’absence prévue de Chloé Petit le 2026-09-19 (RTT) sera supprimée.');
+    expect(dialog).toHaveAccessibleDescription('L’absence prévue de Chloé Petit le 2026-09-19 (Maladie) sera supprimée.');
   });
 
   it('puts the focus on Cancel (the safe choice), and confirming is a distinct red button', () => {
@@ -75,15 +75,28 @@ describe('ConfirmRemoveAbsenceDialog', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('an unknown reason falls back to "Autre" instead of printing a raw code or nothing', () => {
-    renderDialog({ absence: { ...absence, reasonType: 'made-up' } });
+  it('an unknown or retired reason ("rtt") falls back to "Autre" instead of printing a raw code or nothing', () => {
+    const { unmount } = renderDialog({ absence: { ...absence, reasonType: 'made-up' } });
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('(Autre)');
+    unmount();
+    renderDialog({ absence: { ...absence, reasonType: 'rtt' } });
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('(Autre)');
+  });
+
+  it('for "Autre" it names the free-text precision too', () => {
+    renderDialog({ absence: { ...absence, reasonType: 'other', reasonNote: 'rachat pool client' } });
+    expect(screen.getByRole('alertdialog')).toHaveAccessibleDescription('L’absence prévue de Chloé Petit le 2026-09-19 (Autre : rachat pool client) sera supprimée.');
+  });
+
+  it('"Autre" without a precision (old row) shows just "Autre"', () => {
+    renderDialog({ absence: { ...absence, reasonType: 'other', reasonNote: null } });
     expect(screen.getByRole('alertdialog')).toHaveTextContent('(Autre)');
   });
 
   it.each([
-    ['en', 'Remove the expected absence?', 'The expected absence of Chloé Petit on 2026-09-19 (RTT) will be deleted.', 'Remove'],
-    ['de', 'Geplante Abwesenheit entfernen?', 'Die geplante Abwesenheit von Chloé Petit am 2026-09-19 (RTT) wird gelöscht.', 'Entfernen'],
-    ['ar', 'إزالة الغياب المخطط له؟', 'سيتم حذف الغياب المخطط له لـ Chloé Petit بتاريخ 2026-09-19 (RTT).', 'إزالة'],
+    ['en', 'Remove the expected absence?', 'The expected absence of Chloé Petit on 2026-09-19 (Sick leave) will be deleted.', 'Remove'],
+    ['de', 'Geplante Abwesenheit entfernen?', 'Die geplante Abwesenheit von Chloé Petit am 2026-09-19 (Krankheit) wird gelöscht.', 'Entfernen'],
+    ['ar', 'إزالة الغياب المخطط له؟', 'سيتم حذف الغياب المخطط له لـ Chloé Petit بتاريخ 2026-09-19 (مرض).', 'إزالة'],
   ])('is translated (%s)', async (lang, title, message, confirmLabel) => {
     await i18n.changeLanguage(lang);
     renderDialog();

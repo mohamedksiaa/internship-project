@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS llx_timeflow_expected_absence(
     fk_user        integer NOT NULL,
     date_absence   date NOT NULL,
     reason_type    varchar(16) DEFAULT 'other' NOT NULL,
+    reason_note    varchar(255) DEFAULT NULL,
     fk_user_creat  integer NOT NULL,
     date_creation  datetime NOT NULL,
     INDEX idx_timeflow_expected_absence_date (entity, date_absence),

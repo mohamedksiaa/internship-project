@@ -827,10 +827,37 @@ function timeflowFetchTimeFlowUsers($db, $page = 1, $perPage = 20)
 
 /**
  * Reasons a manager can attach to an expected absence, stored as a short code.
+ * "other" must come with a free-text precision (reason_note). "rtt" used to be
+ * a fifth reason and was retired: rows that still carry it are read as they
+ * are (see timeflowFetchUsersPresence) but it can no longer be written.
  */
 function timeflowExpectedAbsenceReasons()
 {
-    return array('leave', 'rtt', 'sick', 'other');
+    return array('leave', 'sick', 'other');
+}
+
+/** Longest free-text precision for the "other" reason (llx_timeflow_expected_absence.reason_note is varchar(255)). */
+function timeflowExpectedAbsenceNoteMaxLength()
+{
+    return 255;
+}
+
+/**
+ * The free-text precision as it is stored: one line (any run of whitespace or
+ * control characters becomes a single space), trimmed. '' when there is
+ * nothing usable (empty, whitespace only, not a scalar, invalid UTF-8).
+ */
+function timeflowNormalizeReasonNote($value)
+{
+    if (!is_scalar($value)) {
+        return '';
+    }
+    $text = preg_replace('/[\s\p{Cc}]+/u', ' ', (string) $value);
+    if ($text === null) {
+        return '';
+    }
+
+    return trim($text);
 }
 
 /**
@@ -863,6 +890,16 @@ function timeflowHasSplitPreviousColumn($db)
 }
 
 /**
+ * Whether the DB connection can carry 4-byte UTF-8 characters (emoji...).
+ * Dolibarr's default connection charset is "utf8" (MySQL's 3-byte utf8mb3):
+ * through it such a character makes the INSERT fail even on a utf8mb4 table.
+ */
+function timeflowDbStoresFourByteChars($db)
+{
+    return stripos((string) ($db->forcecharset ?? ''), 'utf8mb4') !== false;
+}
+
+/**
  * Whether llx_timeflow_expected_absence exists. Tables are created when the
  * module is activated, so an install that was already active when this table
  * was introduced does not have it until the module is disabled and enabled
@@ -878,6 +915,23 @@ function timeflowExpectedAbsenceTableExists($db)
     $res = $db->query("SELECT 1 FROM information_schema.tables WHERE table_name = '".$tableName."' LIMIT 1");
 
     return (bool) ($res && $db->num_rows($res) > 0);
+}
+
+/**
+ * 'ok', 'table_missing', or 'schema_outdated' (the table exists but predates
+ * the reason_note column). Re-activating the module cannot fix the last one —
+ * its CREATE TABLE finds the table already there — so it is reported apart,
+ * with its own instruction, instead of letting every query fail with an SQL error.
+ */
+function timeflowExpectedAbsenceSchemaState($db)
+{
+    if (!timeflowExpectedAbsenceTableExists($db)) {
+        return 'table_missing';
+    }
+    $tableName = $db->escape($db->prefix().'timeflow_expected_absence');
+    $res = $db->query("SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'reason_note' LIMIT 1");
+
+    return ($res && $db->num_rows($res) > 0) ? 'ok' : 'schema_outdated';
 }
 
 /**
@@ -900,6 +954,9 @@ function timeflowExpectedAbsenceTableExists($db)
  * presence.reason_type is the recorded reason whenever an expected absence
  * exists, even when the user is present anyway (present wins the status, but
  * the manager must still be able to see and remove the record).
+ * presence.reason_note is the free-text precision of an "other" reason, null
+ * otherwise (also for a row carrying the retired "rtt" code, passed through
+ * as stored).
  *
  * @param DoliDB $db
  * @param string $date "YYYY-MM-DD", already validated by the caller.
@@ -919,7 +976,8 @@ function timeflowFetchUsersPresence($db, $date, $page = 1, $perPage = 20)
     $presentIds = array();
     $absenceByUser = array();
     $inactiveIds = array();
-    $absencesAvailable = timeflowExpectedAbsenceTableExists($db);
+    $absencesState = timeflowExpectedAbsenceSchemaState($db);
+    $absencesAvailable = ($absencesState === 'ok');
 
     if (!empty($userIds)) {
         $idList = implode(',', $userIds);
@@ -946,12 +1004,15 @@ function timeflowFetchUsersPresence($db, $date, $page = 1, $perPage = 20)
         }
 
         if ($absencesAvailable) {
-            $sql = 'SELECT a.fk_user, a.reason_type FROM '.$db->prefix().'timeflow_expected_absence AS a';
+            $sql = 'SELECT a.fk_user, a.reason_type, a.reason_note FROM '.$db->prefix().'timeflow_expected_absence AS a';
             $sql .= ' WHERE a.fk_user IN ('.$idList.') AND a.entity IN ('.getEntity('timeentry').')';
             $sql .= " AND a.date_absence = '".$db->escape($date)."'";
             $resql = timeflowQuery($db, $sql, 'timeflowFetchUsersPresence:absences');
             while ($obj = $db->fetch_object($resql)) {
-                $absenceByUser[(int) $obj->fk_user] = (string) $obj->reason_type;
+                $absenceByUser[(int) $obj->fk_user] = array(
+                    'reason_type' => (string) $obj->reason_type,
+                    'reason_note' => ((string) $obj->reason_note) !== '' ? (string) $obj->reason_note : null,
+                );
             }
             $db->free($resql);
         }
@@ -978,7 +1039,8 @@ function timeflowFetchUsersPresence($db, $date, $page = 1, $perPage = 20)
         }
         $result['rows'][$i]['presence'] = array(
             'status' => $status,
-            'reason_type' => $hasAbsence ? $absenceByUser[$userId] : null,
+            'reason_type' => $hasAbsence ? $absenceByUser[$userId]['reason_type'] : null,
+            'reason_note' => $hasAbsence ? $absenceByUser[$userId]['reason_note'] : null,
             'source' => $hasAbsence ? 'manual' : null,
         );
     }
@@ -986,6 +1048,7 @@ function timeflowFetchUsersPresence($db, $date, $page = 1, $perPage = 20)
     $result['date'] = $date;
     $result['today'] = $today;
     $result['absences_available'] = $absencesAvailable;
+    $result['absences_state'] = $absencesState;
 
     return $result;
 }
@@ -996,8 +1059,11 @@ function timeflowFetchUsersPresence($db, $date, $page = 1, $perPage = 20)
  *
  * $checkTargetUser is false for deletions: a manager must still be able to
  * remove the record of a user whose account was disabled since.
+ *
+ * $reasonNote is the free-text precision, required (non-blank once folded to
+ * one line, at most 255 characters) when $reasonType is 'other'.
  */
-function timeflowValidateExpectedAbsenceInput($db, $targetUserId, $date, $reasonType, $checkTargetUser)
+function timeflowValidateExpectedAbsenceInput($db, $targetUserId, $date, $reasonType, $checkTargetUser, $reasonNote = null)
 {
     global $conf;
 
@@ -1007,8 +1073,25 @@ function timeflowValidateExpectedAbsenceInput($db, $targetUserId, $date, $reason
     if ($date === null) {
         return 'Date invalide (format attendu : AAAA-MM-JJ)';
     }
+    if ($reasonType !== null && $reasonType === '') {
+        return 'Motif requis';
+    }
     if ($reasonType !== null && !in_array($reasonType, timeflowExpectedAbsenceReasons(), true)) {
         return 'Motif invalide';
+    }
+    // "Autre" only makes sense with a precision; for the other reasons any
+    // note that was sent is ignored (see timeflowSaveExpectedAbsence).
+    if ($reasonType === 'other') {
+        $note = timeflowNormalizeReasonNote($reasonNote);
+        if ($note === '') {
+            return 'Précisez la raison (obligatoire pour le motif « Autre »)';
+        }
+        if (dol_strlen($note) > timeflowExpectedAbsenceNoteMaxLength()) {
+            return 'Précision trop longue ('.timeflowExpectedAbsenceNoteMaxLength().' caractères maximum)';
+        }
+        if (preg_match('/[\x{10000}-\x{10FFFF}]/u', $note) && !timeflowDbStoresFourByteChars($db)) {
+            return 'La précision contient des caractères non pris en charge (emoji, symboles rares) : retirez-les';
+        }
     }
     if ($checkTargetUser) {
         // entity 0 = the super-admin account, valid in every entity.
@@ -1032,11 +1115,15 @@ function timeflowValidateExpectedAbsenceInput($db, $targetUserId, $date, $reason
  * Records (or updates the reason of) the expected absence of a user for a day.
  * Idempotent: saving the same user and day twice keeps a single row.
  *
- * @return array{id:int, created:bool}
+ * @return array{id:int, created:bool, reason_note:?string}
  */
-function timeflowSaveExpectedAbsence($db, $actor, $targetUserId, $date, $reasonType)
+function timeflowSaveExpectedAbsence($db, $actor, $targetUserId, $date, $reasonType, $reasonNote = null)
 {
     global $conf;
+
+    // Only "other" keeps a note; switching a row to another reason clears it.
+    $note = ($reasonType === 'other') ? timeflowNormalizeReasonNote($reasonNote) : '';
+    $noteSql = ($note === '') ? 'NULL' : "'".$db->escape($note)."'";
 
     $sql = 'SELECT a.rowid FROM '.$db->prefix().'timeflow_expected_absence AS a';
     $sql .= ' WHERE a.entity IN ('.getEntity('timeentry').') AND a.fk_user = '.((int) $targetUserId);
@@ -1046,18 +1133,18 @@ function timeflowSaveExpectedAbsence($db, $actor, $targetUserId, $date, $reasonT
     $db->free($resql);
 
     if ($existing) {
-        $sql = 'UPDATE '.$db->prefix()."timeflow_expected_absence SET reason_type = '".$db->escape($reasonType)."'";
+        $sql = 'UPDATE '.$db->prefix()."timeflow_expected_absence SET reason_type = '".$db->escape($reasonType)."', reason_note = ".$noteSql;
         $sql .= ' WHERE rowid = '.((int) $existing->rowid);
         timeflowQuery($db, $sql, 'timeflowSaveExpectedAbsence:update');
 
-        return array('id' => (int) $existing->rowid, 'created' => false);
+        return array('id' => (int) $existing->rowid, 'created' => false, 'reason_note' => $note === '' ? null : $note);
     }
 
-    $sql = 'INSERT INTO '.$db->prefix().'timeflow_expected_absence (entity, fk_user, date_absence, reason_type, fk_user_creat, date_creation)';
-    $sql .= ' VALUES ('.((int) $conf->entity).', '.((int) $targetUserId).", '".$db->escape($date)."', '".$db->escape($reasonType)."', ".((int) $actor->id).", '".$db->idate(dol_now())."')";
+    $sql = 'INSERT INTO '.$db->prefix().'timeflow_expected_absence (entity, fk_user, date_absence, reason_type, reason_note, fk_user_creat, date_creation)';
+    $sql .= ' VALUES ('.((int) $conf->entity).', '.((int) $targetUserId).", '".$db->escape($date)."', '".$db->escape($reasonType)."', ".$noteSql.', '.((int) $actor->id).", '".$db->idate(dol_now())."')";
     timeflowQuery($db, $sql, 'timeflowSaveExpectedAbsence:insert');
 
-    return array('id' => (int) $db->last_insert_id($db->prefix().'timeflow_expected_absence'), 'created' => true);
+    return array('id' => (int) $db->last_insert_id($db->prefix().'timeflow_expected_absence'), 'created' => true, 'reason_note' => $note === '' ? null : $note);
 }
 
 /**
@@ -2193,31 +2280,42 @@ switch ($action) {
         $absenceDate = timeflowNormalizeIsoDate(isset($postData['date']) ? (string) $postData['date'] : (string) GETPOST('date', 'alphanohtml'));
         $isSaveAbsence = ($action === 'saveExpectedAbsence');
         $absenceReason = null;
+        $absenceReasonNote = null;
         if ($isSaveAbsence) {
+            // The reason is required (no silent default): "other" would then demand a note.
             $absenceReason = isset($postData['reason_type']) ? (string) $postData['reason_type'] : (string) GETPOST('reason_type', 'aZ09');
-            if ($absenceReason === '') {
-                $absenceReason = 'other'; // the reason is optional for the caller
-            }
+            $rawReasonNote = isset($postData['reason_note']) ? $postData['reason_note'] : GETPOST('reason_note', 'alphanohtml');
+            $absenceReasonNote = is_scalar($rawReasonNote) ? (string) $rawReasonNote : '';
         }
-        $absenceError = timeflowValidateExpectedAbsenceInput($db, $absenceUserId, $absenceDate, $absenceReason, $isSaveAbsence);
+        $absenceError = timeflowValidateExpectedAbsenceInput($db, $absenceUserId, $absenceDate, $absenceReason, $isSaveAbsence, $absenceReasonNote);
         if ($absenceError !== null) {
             timeflowJsonResponse(array('status' => 'error', 'message' => $absenceError), 400);
         }
-        if (!timeflowExpectedAbsenceTableExists($db)) {
+        $absenceSchemaState = timeflowExpectedAbsenceSchemaState($db);
+        if ($absenceSchemaState === 'table_missing') {
             timeflowJsonResponse(array(
                 'status' => 'error',
                 'code' => 'expected_absence_table_missing',
                 'message' => 'La table des absences prévues est absente : désactivez puis réactivez le module TimeFlow.',
             ), 500);
         }
+        if ($isSaveAbsence && $absenceSchemaState === 'schema_outdated') {
+            // (a removal only needs the table, so it is still allowed below)
+            timeflowJsonResponse(array(
+                'status' => 'error',
+                'code' => 'expected_absence_schema_outdated',
+                'message' => 'Le schéma de la table des absences prévues est obsolète (colonne reason_note absente) : ajoutez la colonne (ALTER TABLE '.$db->prefix().'timeflow_expected_absence ADD COLUMN reason_note varchar(255) DEFAULT NULL) ou supprimez la table puis désactivez et réactivez le module TimeFlow.',
+            ), 500);
+        }
         if ($isSaveAbsence) {
-            $saved = timeflowSaveExpectedAbsence($db, $user, $absenceUserId, $absenceDate, $absenceReason);
+            $saved = timeflowSaveExpectedAbsence($db, $user, $absenceUserId, $absenceDate, $absenceReason, $absenceReasonNote);
             timeflowJsonResponse(array('status' => 'success', 'data' => array(
                 'id' => $saved['id'],
                 'created' => $saved['created'],
                 'user_id' => $absenceUserId,
                 'date' => $absenceDate,
                 'reason_type' => $absenceReason,
+                'reason_note' => $saved['reason_note'],
             )));
         }
         timeflowJsonResponse(array('status' => 'success', 'data' => array(
