@@ -1403,6 +1403,75 @@ function timeflowFetchProjects($db, $user = null)
 }
 
 /**
+ * What the Dashboard's Project / Client / Employee filters offer.
+ *
+ * - projects: the ones the user may see (same native visibility rule as the project pickers), CLOSED ones
+ *   included and listed last, marked "closed": their time still shows in the charts.
+ * - clients: only the clients of those projects, so nothing is revealed beyond what the user already sees.
+ * - employees: only for a user who may read every entry (admin or readall): active accounts plus inactive
+ *   ones that logged time. Anybody else gets an empty list: the filter is not shown to them and their
+ *   data is limited to their own entries anyway.
+ *
+ * @param DoliDB $db
+ * @param User   $user
+ * @return array{projects:array,clients:array,employees:array}
+ */
+function timeflowFetchDashboardFilterOptions($db, $user)
+{
+    $projects = array();
+    $clientIds = array();
+
+    $sql = 'SELECT p.rowid, p.ref, p.title, p.fk_soc, p.fk_statut';
+    $sql .= ' FROM '.$db->prefix().'projet AS p';
+    $sql .= ' WHERE p.entity IN ('.getEntity('project').')';
+    $sql .= timeflowProjectVisibilityRestrictionSql($db, $user, 'p');
+    $sql .= ' ORDER BY (p.fk_statut = '.((int) Project::STATUS_CLOSED).') ASC, p.title ASC, p.ref ASC, p.rowid DESC';
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchDashboardFilterOptions:projects');
+    while ($obj = $db->fetch_object($resql)) {
+        $projects[] = array(
+            'id' => (int) $obj->rowid,
+            'label' => timeflowProjectLabel($obj),
+            'closed' => (int) $obj->fk_statut === (int) Project::STATUS_CLOSED,
+            'client_id' => (int) $obj->fk_soc,
+        );
+        if ((int) $obj->fk_soc > 0) {
+            $clientIds[(int) $obj->fk_soc] = (int) $obj->fk_soc;
+        }
+    }
+    $db->free($resql);
+
+    $clients = array();
+    if (!empty($clientIds)) {
+        $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe WHERE rowid IN ('.implode(',', array_map('intval', $clientIds)).') ORDER BY nom ASC, rowid ASC';
+        $resql = timeflowQuery($db, $sql, 'timeflowFetchDashboardFilterOptions:clients');
+        while ($obj = $db->fetch_object($resql)) {
+            $clients[] = array('id' => (int) $obj->rowid, 'label' => (string) $obj->nom);
+        }
+        $db->free($resql);
+    }
+
+    $employees = array();
+    if (timeflowCanReadAllTimeEntries($user)) {
+        $sql = 'SELECT u.rowid, u.login, u.firstname, u.lastname, u.statut FROM '.$db->prefix().'user AS u';
+        $sql .= ' WHERE u.entity IN ('.getEntity('user').')';
+        $sql .= ' AND (u.statut = 1 OR u.rowid IN (SELECT DISTINCT te.fk_user FROM '.$db->prefix().'timeflow_timeentry AS te WHERE te.date_delete IS NULL))';
+        $sql .= ' ORDER BY (u.statut = 1) DESC, u.lastname ASC, u.firstname ASC, u.login ASC';
+        $resql = timeflowQuery($db, $sql, 'timeflowFetchDashboardFilterOptions:employees');
+        while ($obj = $db->fetch_object($resql)) {
+            $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+            $employees[] = array(
+                'id' => (int) $obj->rowid,
+                'label' => $fullName !== '' ? $fullName : (string) $obj->login,
+                'inactive' => (int) $obj->statut !== 1,
+            );
+        }
+        $db->free($resql);
+    }
+
+    return array('projects' => $projects, 'clients' => $clients, 'employees' => $employees);
+}
+
+/**
  * Tasks for a project (or, with $projectId = 0, across projects), restricted
  * to the projects $user may see — same native visibility rule as the project
  * picker. $projectId = 0 never means "every project": for a restricted user it
@@ -2838,6 +2907,20 @@ switch ($action) {
         if ($dateTo !== '') {
             $dateRangeSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $dateTo.' 23:59:59');
         }
+        // Dashboard filters (Projet / Client / Employé), same fragment as the period so the rows, the totals
+        // and the "truncated" count agree. The employee filter is honoured for a user who may read every entry
+        // only: anybody else is already limited to their own entries above and the parameter is ignored,
+        // whatever the interface sent.
+        $projectIds = timeflowParseIdFilter($postData['project_ids'] ?? GETPOST('project_ids', 'alphanohtml'));
+        $clientIds = timeflowParseIdFilter($postData['client_ids'] ?? GETPOST('client_ids', 'alphanohtml'));
+        $userIds = timeflowParseIdFilter($postData['user_ids'] ?? GETPOST('user_ids', 'alphanohtml'));
+        if ($projectIds === null || $clientIds === null || $userIds === null) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Filtre invalide'), 400);
+        }
+        if (!timeflowCanReadAllTimeEntries($user)) {
+            $userIds = array();
+        }
+        $dateRangeSql .= timeflowSummaryFilterSql($db, $projectIds, $clientIds, $userIds);
         // Same admin-only debug gate as timeflowFetchWeeklyTimesheet()'s own
         // instrumentation: not needed on every call in production.
         if (!empty($user->admin) && GETPOST('debug', 'int')) {
@@ -2856,6 +2939,10 @@ switch ($action) {
         $summaryData['entries_returned'] = count($rows);
         $summaryData['entries_total_in_period'] = timeflowCountEntriesMatchingFilter($db, $filter, $dateRangeSql);
         timeflowJsonResponse(array('status' => 'success', 'data' => $summaryData));
+        break;
+
+    case 'getDashboardFilterOptions':
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchDashboardFilterOptions($db, $user)));
         break;
 
     case 'validateEntry':
