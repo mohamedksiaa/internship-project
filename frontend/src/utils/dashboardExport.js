@@ -25,10 +25,12 @@
  * with) fix that: the header names the real dimension, and an extra line
  * right before it spells out the crossing when one is active.
  */
-export function buildDashboardCsvRows({ t, dateRange, totalSeconds, billableSeconds, formatDuration, chartData, crossedData, dimensionLabel, crossWithLabel }) {
+export function buildDashboardCsvRows({ t, dateRange, totalSeconds, billableSeconds, formatDuration, chartData, crossedData, dimensionLabel, crossWithLabel, filterSummary = '' }) {
   const rows = [
     [t('dashboard.export.csv_period_from'), dateRange.from],
     [t('dashboard.export.csv_period_to'), dateRange.to],
+    // Only when a Projet / Client / Employé filter is active: a filtered file must not pass for the full total.
+    ...(filterSummary ? [[t('dashboard.export.csv_filters'), filterSummary]] : []),
     [t('dashboard.total'), formatDuration(totalSeconds)],
     [t('dashboard.of_which_billable'), formatDuration(billableSeconds)],
     ['', ''],
