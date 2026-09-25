@@ -560,7 +560,9 @@ class TimeImportClockify
 
         $existing = $this->getExistingMapping($sourceSystem, 'project', $sourceValue);
         if (!empty($existing)) {
-            return array(
+            list($existing, $targetMissing) = $this->checkExistingTarget('project', $existing);
+
+            return $this->withTargetMissingWarning(array(
                 'mapping_type' => 'project',
                 'source_system' => $sourceSystem,
                 'source_value' => $existing['source_value'],
@@ -568,7 +570,7 @@ class TimeImportClockify
                 'target_action' => $existing['target_action'],
                 'status' => $existing['target_action'],
                 'new_label' => $existing['new_label'],
-            );
+            ), $targetMissing);
         }
 
         $targetId = $this->findTimeflowProjectByRefOrTitle($sourceValue);
@@ -632,7 +634,9 @@ class TimeImportClockify
 
         $existing = $this->getExistingMapping($sourceSystem, 'group', $sourceValue);
         if (!empty($existing)) {
-            return array(
+            list($existing, $targetMissing) = $this->checkExistingTarget('group', $existing);
+
+            return $this->withTargetMissingWarning(array(
                 'mapping_type' => 'group',
                 'source_system' => $sourceSystem,
                 'source_value' => $existing['source_value'],
@@ -640,7 +644,7 @@ class TimeImportClockify
                 'target_action' => $existing['target_action'],
                 'status' => $existing['target_action'],
                 'new_label' => $existing['new_label'],
-            );
+            ), $targetMissing);
         }
 
         $targetId = $this->findUserGroupByName($sourceValue);
@@ -816,6 +820,72 @@ class TimeImportClockify
         $this->db->query($sql);
     }
 
+    /** Whether the Dolibarr record a project / client / group mapping points to still exists. */
+    protected function targetStillExists($mappingType, $targetId)
+    {
+        $targetId = (int) $targetId;
+        if ($targetId <= 0) {
+            return false;
+        }
+        switch ($mappingType) {
+            case 'project':
+                return $this->timeflowProjectExists($targetId);
+            case 'client':
+                return $this->societeExists($targetId);
+            case 'group':
+                return $this->usergroupExists($targetId);
+        }
+
+        return true;
+    }
+
+    /**
+     * Sends a project / client / group mapping back to "pending" WITHOUT forgetting which record it
+     * pointed to: the dangling target_id is what lets every later preview keep saying "that element
+     * no longer exists in Dolibarr" (a fresh decision replaces or clears it).
+     */
+    protected function downgradeKeepingTarget($mappingRowId)
+    {
+        $sql = 'UPDATE '.$this->db->prefix().'timeflow_import_mapping SET';
+        $sql .= " target_action = 'create_pending', new_label = NULL";
+        $sql .= ' WHERE rowid = '.(int) $mappingRowId;
+        $this->db->query($sql);
+    }
+
+    /**
+     * Revalidates an existing project / client / group mapping against Dolibarr. A resolved one whose
+     * target was deleted (or merged) since goes back to pending; a pending one that still remembers a
+     * dead target keeps being flagged. Renaming is harmless: mappings follow the record's id.
+     *
+     * @return array{0:array,1:bool} The (possibly downgraded) mapping and whether its target is missing
+     */
+    protected function checkExistingTarget($mappingType, array $existing)
+    {
+        $action = $existing['target_action'];
+        $hadTarget = !empty($existing['target_id']) && (int) $existing['target_id'] > 0;
+        if (in_array($action, array('matched', 'created'), true) && !$this->targetStillExists($mappingType, (int) $existing['target_id'])) {
+            $this->downgradeKeepingTarget($existing['rowid']);
+            $existing['target_action'] = 'create_pending';
+            $existing['new_label'] = null;
+
+            return array($existing, true);
+        }
+        if ($action === 'create_pending' && $hadTarget && !$this->targetStillExists($mappingType, (int) $existing['target_id'])) {
+            return array($existing, true);
+        }
+
+        return array($existing, false);
+    }
+
+    protected function withTargetMissingWarning(array $resolution, $targetMissing)
+    {
+        if ($targetMissing) {
+            $resolution['warning'] = 'target_missing';
+        }
+
+        return $resolution;
+    }
+
     /**
      * Login of a user that exists but is disabled, null otherwise.
      */
@@ -944,7 +1014,9 @@ class TimeImportClockify
 
         $existing = $this->getExistingMapping($sourceSystem, 'client', $sourceValue);
         if (!empty($existing)) {
-            return array(
+            list($existing, $targetMissing) = $this->checkExistingTarget('client', $existing);
+
+            return $this->withTargetMissingWarning(array(
                 'mapping_type' => 'client',
                 'source_system' => $sourceSystem,
                 'source_value' => $existing['source_value'],
@@ -952,7 +1024,7 @@ class TimeImportClockify
                 'target_action' => $existing['target_action'],
                 'status' => $existing['target_action'],
                 'new_label' => $existing['new_label'],
-            );
+            ), $targetMissing);
         }
 
         $targetId = $this->findSocieteByName($sourceValue);
@@ -1757,14 +1829,11 @@ class TimeImportClockify
     }
 
     /**
-     * Creates every project/group mapping row still at 'create_confirmed'
-     * — never 'user': the WHERE clause below only ever selects
-     * mapping_type IN ('project', 'group'), so there is no code path here
-     * that can reach a llx_user INSERT, structurally, regardless of what
-     * target_action a 'user' row might carry (and resolveMappingDecisions()
-     * already refuses to ever set target_action='create_confirmed' on a
-     * 'user' row in the first place — this is defense in depth on top of
-     * that, not the only guard).
+     * Creates every project/group mapping row still at 'create_confirmed'.
+     * The WHERE clause below only ever selects mapping_type IN ('project',
+     * 'group'): a Dolibarr account is never created here. Accounts are created
+     * by createConfirmedUsers() alone, only for an actor who is admin or holds
+     * the native "create users" right, with only TimeFlow's basic rights.
      *
      * @param User     $user          Acting user (importing admin) — becomes
      *                                fk_user_creat on the created
@@ -1868,13 +1937,15 @@ class TimeImportClockify
      * createConfirmedProjectsAndGroups() has already run, so a group that
      * was 'create_confirmed' now has a real target_id. A pair is applied
      * only if BOTH sides resolve to a real Dolibarr id: the user side must
-     * be 'matched' (a user is never created by this flow), the group side
-     * must be 'matched' or 'created'. Anything else is counted as skipped,
-     * never silently dropped.
+     * be 'matched' or 'created' (an account this import created), the group
+     * side must be 'matched' or 'created'. Anything else is counted as
+     * skipped, never silently dropped.
      *
-     * User::SetInGroup() does its own DELETE-then-INSERT on
-     * llx_usergroup_user, so calling it twice for the same pair (e.g. a
-     * re-run of the import) is a safe no-op, not a duplicate.
+     * A pair whose membership already exists is counted apart
+     * ('group_memberships_existing') and left untouched: User::SetInGroup()
+     * does a DELETE-then-INSERT and fires USER_MODIFY, which a re-run of the
+     * import must not do for nothing. A membership that fails is contained
+     * (skipped + an error entry), it never aborts the import.
      *
      * @param array    $report      Accumulator, mutated in place.
      * @param string[] $userValues  User (email) values from the current CSV.
@@ -1905,7 +1976,13 @@ class TimeImportClockify
             throw new RuntimeException('Erreur SQL lors de la lecture des associations utilisateur/groupe : '.$this->db->lasterror());
         }
 
-        while ($obj = $this->db->fetch_object($resql)) {
+        // Read every pair first: the loop below runs other queries (and may fail on one of them).
+        $pairs = array();
+        while ($pair = $this->db->fetch_object($resql)) {
+            $pairs[] = $pair;
+        }
+
+        foreach ($pairs as $obj) {
             $userMapping = $this->getExistingMapping($this->sourceSystem, 'user', $obj->user_source_value);
             $groupMapping = $this->getExistingMapping($this->sourceSystem, 'group', $obj->group_source_value);
 
@@ -1916,6 +1993,13 @@ class TimeImportClockify
 
             if ($resolvedUserId <= 0 || $resolvedGroupId <= 0) {
                 $report['group_memberships_skipped']++;
+                continue;
+            }
+
+            // Already a member: nothing to do. Calling SetInGroup() again would DELETE + INSERT the link
+            // and fire USER_MODIFY for nothing, re-triggering whatever listens to it.
+            if ($this->isGroupMember($resolvedUserId, $resolvedGroupId, (int) ($conf->entity ?? 1))) {
+                $report['group_memberships_existing']++;
                 continue;
             }
 
@@ -1932,19 +2016,67 @@ class TimeImportClockify
                 continue;
             }
 
-            $targetUser = new User($this->db);
+            $targetUser = $this->newUserObject();
             if ($targetUser->fetch($resolvedUserId) <= 0) {
                 $report['group_memberships_skipped']++;
                 continue;
             }
 
-            $result = $targetUser->SetInGroup($resolvedGroupId, (int) ($conf->entity ?? 1));
+            $failure = null;
+            $openBefore = (int) $this->db->transaction_opened;
+            try {
+                $result = $targetUser->SetInGroup($resolvedGroupId, (int) ($conf->entity ?? 1));
+                if ($result <= 0) {
+                    $failure = (string) $targetUser->error;
+                }
+            } catch (Throwable $e) {
+                // e.g. the group vanished after the revalidation: contained, reported, the import goes on.
+                $this->rollbackLeftOpenSince($openBefore);
+                $result = -1;
+                $failure = $e->getMessage();
+            }
             if ($result > 0) {
                 $report['group_memberships_created']++;
             } else {
                 $report['group_memberships_skipped']++;
+                $report['errors'][] = array(
+                    'type' => 'group_membership',
+                    'source_value' => $obj->user_source_value.' / '.$obj->group_source_value,
+                    'message' => 'Rattachement impossible : '.($failure !== '' ? $failure : 'erreur inconnue'),
+                );
             }
         }
+    }
+
+    /**
+     * Rolls back the transaction levels a failed Dolibarr call left open (its own begin() with no commit),
+     * and only those: an enclosing transaction, if any, is not the failed call's to undo.
+     */
+    protected function rollbackLeftOpenSince($levelBefore)
+    {
+        while ((int) $this->db->transaction_opened > (int) $levelBefore) {
+            $this->db->rollback();
+        }
+    }
+
+    /** Factories, so the two calls that reach into Dolibarr per pair can be replaced in tests. */
+    protected function newUserObject()
+    {
+        return new User($this->db);
+    }
+
+    protected function newProjectObject()
+    {
+        return new Project($this->db);
+    }
+
+    protected function isGroupMember($userId, $groupId, $entity)
+    {
+        $sql = 'SELECT 1 FROM '.$this->db->prefix().'usergroup_user';
+        $sql .= ' WHERE fk_user = '.((int) $userId).' AND fk_usergroup = '.((int) $groupId).' AND entity = '.((int) $entity);
+        $res = $this->db->query($sql);
+
+        return $res && $this->db->num_rows($res) > 0;
     }
 
     /**
@@ -1958,8 +2090,8 @@ class TimeImportClockify
      * that row — so nothing here is ever derived from group membership.
      *
      * A pair is applied only if BOTH sides resolve to a real Dolibarr id:
-     * the user side must be 'matched' (a user is never created by this
-     * flow), the project side must be 'matched' or 'created'. Anything else
+     * the user side must be 'matched' or 'created' (an account this import
+     * created), the project side must be 'matched' or 'created'. Anything else
      * is counted as skipped, never silently dropped.
      *
      * add_contact() does its own dedup (checks llx_element_contact before
@@ -2013,7 +2145,7 @@ class TimeImportClockify
             }
 
             if (!array_key_exists($resolvedProjectId, $projectCache)) {
-                $project = new Project($this->db);
+                $project = $this->newProjectObject();
                 $projectCache[$resolvedProjectId] = $project->fetch($resolvedProjectId) > 0 ? $project : null;
             }
             $project = $projectCache[$resolvedProjectId];
@@ -2022,7 +2154,14 @@ class TimeImportClockify
                 continue;
             }
 
-            $result = $project->add_contact($resolvedUserId, 'PROJECTCONTRIBUTOR', 'internal', 1);
+            $openBefore = (int) $this->db->transaction_opened;
+            try {
+                $result = $project->add_contact($resolvedUserId, 'PROJECTCONTRIBUTOR', 'internal', 1);
+            } catch (Throwable $e) {
+                $this->rollbackLeftOpenSince($openBefore);
+                $project->error = $e->getMessage();
+                $result = -1;
+            }
             if ($result > 0) {
                 $report['project_contacts_created']++;
             } elseif ($result === 0) {
@@ -2207,8 +2346,8 @@ class TimeImportClockify
      * eligible row.
      *
      * A row is eligible only if BOTH its user and its project already
-     * resolve to a real Dolibarr id (user: 'matched' — never created by
-     * this flow; project: 'matched' or 'created' by
+     * resolve to a real Dolibarr id (user: 'matched', or 'created' by
+     * createConfirmedUsers(); project: 'matched' or 'created' by
      * createConfirmedProjectsAndGroups(), called before this method).
      * Every other outcome (empty cell, unresolved value, unparsable dates,
      * a time overlap, already imported, or a hard creation error) is
@@ -2603,6 +2742,29 @@ class TimeImportClockify
         return $rights === array_values($expectedRightIds) && $adminObj && (int) $adminObj->admin === 0 && (int) $adminObj->statut === 1 && $groupsObj && (int) $groupsObj->nb === 0;
     }
 
+    /** @var string[] "type:value" of the mappings sent back to pending by revalidateTargetMappings() in this run. */
+    protected $missingTargets = array();
+
+    /**
+     * Same revalidation as for users, for the three other kinds of mapping: every project, client and
+     * group of this file whose Dolibarr record no longer exists goes back to pending.
+     */
+    protected function revalidateTargetMappings(array $scopedValues)
+    {
+        foreach (array('project', 'client', 'group') as $type) {
+            foreach ($scopedValues[$type] ?? array() as $value) {
+                $mapping = $this->getExistingMapping($this->sourceSystem, $type, $value);
+                if (empty($mapping)) {
+                    continue;
+                }
+                list($mapping, $missing) = $this->checkExistingTarget($type, $mapping);
+                if ($missing) {
+                    $this->missingTargets[] = $type.':'.$value;
+                }
+            }
+        }
+    }
+
     /**
      * Sends back to pending every matched user whose account is disabled or gone.
      */
@@ -2629,9 +2791,11 @@ class TimeImportClockify
      * the browser resubmits the same file the user already picked once the
      * mapping is fully resolved.
      *
-     * Refuses to run at all while any project/group mapping is still
+     * Refuses to run at all while any project/client/group mapping is still
      * 'create_pending' (findPendingProjectAndGroupMappings()) — every
-     * confirmed decision is executed, but nothing is guessed.
+     * confirmed decision is executed, but nothing is guessed. Mappings whose
+     * Dolibarr record was deleted since the preview are sent back to pending
+     * first (revalidateTargetMappings()), so that refusal names them.
      *
      * Failures are handled per-item, not as one all-or-nothing transaction:
      * a failed project/group creation, or a CSV row that can't be turned
@@ -2674,9 +2838,18 @@ class TimeImportClockify
 
         $scopedValues = $this->extractDistinctSourceValuesFromCsv($csvPath);
 
+        // A project, client or group resolved at preview time may have been deleted in Dolibarr since:
+        // it goes back to pending and the refusal below names it, instead of crashing half-way.
+        $this->missingTargets = array();
+        $this->revalidateTargetMappings($scopedValues);
+
         $pending = $this->findPendingProjectAndGroupMappings($scopedValues);
         if (!empty($pending)) {
-            throw new InvalidArgumentException('Des éléments restent à résoudre avant de lancer l’import : '.implode(', ', $pending));
+            $message = 'Des éléments restent à résoudre avant de lancer l’import : '.implode(', ', $pending);
+            if (!empty($this->missingTargets)) {
+                $message .= ' — introuvable(s) dans Dolibarr (supprimé(s) depuis l’aperçu ?) : '.implode(', ', $this->missingTargets).'. Relancez la prévisualisation pour les résoudre à nouveau.';
+            }
+            throw new InvalidArgumentException($message);
         }
 
         // An account matched at preview time may have been disabled (or deleted) since:
@@ -2688,6 +2861,7 @@ class TimeImportClockify
             'projects_created' => array(),
             'groups_created' => array(),
             'group_memberships_created' => 0,
+            'group_memberships_existing' => 0,
             'group_memberships_skipped' => 0,
             'project_contacts_created' => 0,
             'project_contacts_skipped' => 0,
