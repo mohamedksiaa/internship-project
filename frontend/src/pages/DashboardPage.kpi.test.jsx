@@ -7,6 +7,7 @@ import i18n from '../i18n';
 import DashboardPage from './DashboardPage';
 
 vi.mock('../api/timeflowApi', () => ({
+  getDashboardFilterOptions: vi.fn().mockResolvedValue({ projects: [], clients: [], employees: [] }),
   getSummaryReports: vi.fn().mockResolvedValue({
     total_seconds: 7200,
     billable_seconds: 3600,

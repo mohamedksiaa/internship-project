@@ -5,6 +5,7 @@ import i18n from '../i18n';
 import DashboardPage from './DashboardPage';
 
 vi.mock('../api/timeflowApi', () => ({
+  getDashboardFilterOptions: vi.fn().mockResolvedValue({ projects: [], clients: [], employees: [] }),
   getSummaryReports: vi.fn().mockResolvedValue({ total_seconds: 0, billable_seconds: 0, by_project: {}, project_labels: {}, by_status: {} }),
   getWeeklyTimesheet: vi.fn().mockResolvedValue({ weekStart: '2026-09-01', weekEnd: '2026-09-07', rows: [] }),
   getTimeEntries: vi.fn().mockResolvedValue({ entries: [], pagination: { page: 1, per_page: 100, total: 0, pages: 1 } }),

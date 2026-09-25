@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/templates/DashboardLayout';
 import CustomChartWidget, { buildSingleDimensionChartData, buildStackedChartData, countPrimaryCategories } from '../components/organisms/CustomChartWidget';
 import { effectiveCrossWith, effectiveDimension } from '../utils/crossDimensions.js';
-import { getSummaryReports } from '../api/timeflowApi';
+import { getDashboardFilterOptions, getSummaryReports } from '../api/timeflowApi';
+import MultiSelectFilter from '../components/molecules/MultiSelectFilter.jsx';
+import { buildApiFilters, buildFilterSummary, filtersKey, parseIdList, serializeIdList } from '../utils/dashboardFilters.js';
 import { formatDuration } from '../utils/FormatDuration.js';
 import { downloadCsv } from '../utils/csvExport.js';
 import { buildChartAnalysisText, buildDashboardCsvRows } from '../utils/dashboardExport.js';
@@ -91,6 +93,27 @@ export default function DashboardPage() {
     setUrlDateTo(value);
     writeStoredDashboardDateRange({ from: dateRange.from, to: value });
   };
+  // Projet / Client / Employé filters, kept in the URL like the dates (shareable, survive a refresh). Not saved
+  // in localStorage on purpose: a forgotten filter must not silently hide data on the next visit.
+  const [projectsParam, setProjectsParam] = useUrlState('projects', '');
+  const [clientsParam, setClientsParam] = useUrlState('clients', '');
+  const [employeesParam, setEmployeesParam] = useUrlState('employees', '');
+  const projectIds = useMemo(() => parseIdList(projectsParam), [projectsParam]);
+  const clientIds = useMemo(() => parseIdList(clientsParam), [clientsParam]);
+  const employeeIds = useMemo(() => (canReadAll ? parseIdList(employeesParam) : []), [employeesParam, canReadAll]);
+  const apiFilters = useMemo(() => buildApiFilters({ projectIds, clientIds, employeeIds, canReadAll }), [projectIds, clientIds, employeeIds, canReadAll]);
+  const apiFiltersKey = filtersKey(apiFilters);
+  const [filterOptions, setFilterOptions] = useState({ projects: [], clients: [], employees: [] });
+
+  useEffect(() => {
+    let isMounted = true;
+    getDashboardFilterOptions()
+      .then((options) => { if (isMounted) setFilterOptions(options); })
+      // The filters are a convenience: without their lists the dashboard still works, unfiltered.
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
   const [summary, setSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState('');
@@ -110,7 +133,7 @@ export default function DashboardPage() {
         // time — neither is reliable enough to show as a confirmed stat.
         // "Suivi du temps" (TimerPage) deliberately keeps showing drafts, so
         // this flag stays scoped to this one call, not a global default.
-        const summaryData = await getSummaryReports(1000, dateRange.from, dateRange.to, true);
+        const summaryData = await getSummaryReports(1000, dateRange.from, dateRange.to, true, apiFilters);
         if (isMounted) {
           setSummary(summaryData || null);
         }
@@ -131,7 +154,9 @@ export default function DashboardPage() {
     return () => {
       isMounted = false;
     };
-  }, [dateRange.from, dateRange.to]);
+    // apiFiltersKey stands for apiFilters: an equal selection must not refetch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange.from, dateRange.to, apiFiltersKey]);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : i18n.language === 'de' ? 'de-DE' : 'fr-FR';
 
@@ -220,6 +245,9 @@ export default function DashboardPage() {
   // from. Shared by handleExportPdf and handleExportCsv below.
   const isCrossing = chartType === 'bar' && crossWith !== 'none';
 
+  // "Projet : A ; Employé : B" for the exports ('' when no filter is active).
+  const filterSummary = buildFilterSummary({ t, projectIds, clientIds, employeeIds, options: filterOptions, canReadAll });
+
   const handleExportPdf = async () => {
     setExportError('');
     setIsPreparingExport(true);
@@ -269,6 +297,7 @@ export default function DashboardPage() {
         generatedAtLabel: t('dashboard.export.generated_at', { date: now.toLocaleString(locale) }),
         summaryLines: [
           t('dashboard.export.summary_period', { from: dateRange.from, to: dateRange.to }),
+          ...(filterSummary ? [t('dashboard.export.summary_filters', { filters: filterSummary })] : []),
           t('dashboard.export.summary_total', { value: formatDuration(summaryStats.totalSeconds) }),
           t('dashboard.export.summary_billable', { value: formatDuration(summaryStats.billableSeconds) }),
         ],
@@ -306,6 +335,7 @@ export default function DashboardPage() {
       crossedData,
       dimensionLabel: t(`dashboard.dimension.${dimension}`),
       crossWithLabel: isCrossing ? t(`dashboard.dimension.${crossWith}`) : undefined,
+      filterSummary,
     });
     downloadCsv('tableau_de_bord', [t('dashboard.export.pdf_title'), ''], rows);
   };
@@ -333,6 +363,41 @@ export default function DashboardPage() {
             className="tw-rounded-xl tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-3 tw-py-2 tw-text-slate-900 dark:tw-bg-slate-800 dark:tw-text-slate-100"
           />
         </label>
+        <MultiSelectFilter
+          id="dashboard-filter-project"
+          label={t('dashboard.filters.project')}
+          options={filterOptions.projects.map((project) => ({ id: project.id, label: project.label, note: project.closed ? t('dashboard.filters.closed') : undefined }))}
+          selected={projectIds}
+          onChange={(ids) => setProjectsParam(serializeIdList(ids))}
+          allLabel={t('dashboard.filters.all')}
+          countLabel={(count) => t('dashboard.filters.selected_count', { count })}
+          searchPlaceholder={t('dashboard.filters.search')}
+          noResultsLabel={t('dashboard.filters.no_results')}
+        />
+        <MultiSelectFilter
+          id="dashboard-filter-client"
+          label={t('dashboard.filters.client')}
+          options={filterOptions.clients.map((client) => ({ id: client.id, label: client.label }))}
+          selected={clientIds}
+          onChange={(ids) => setClientsParam(serializeIdList(ids))}
+          allLabel={t('dashboard.filters.all')}
+          countLabel={(count) => t('dashboard.filters.selected_count', { count })}
+          searchPlaceholder={t('dashboard.filters.search')}
+          noResultsLabel={t('dashboard.filters.no_results')}
+        />
+        {canReadAll && (
+          <MultiSelectFilter
+            id="dashboard-filter-employee"
+            label={t('dashboard.filters.employee')}
+            options={filterOptions.employees.map((employee) => ({ id: employee.id, label: employee.label, note: employee.inactive ? t('dashboard.filters.inactive') : undefined }))}
+            selected={employeeIds}
+            onChange={(ids) => setEmployeesParam(serializeIdList(ids))}
+            allLabel={t('dashboard.filters.all')}
+            countLabel={(count) => t('dashboard.filters.selected_count', { count })}
+            searchPlaceholder={t('dashboard.filters.search')}
+            noResultsLabel={t('dashboard.filters.no_results')}
+          />
+        )}
         {summaryLoading && <span className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('loading')}</span>}
         <button
           type="button"

@@ -213,6 +213,15 @@ function handleMockRequest(action, body) {
       if (entry) entry.status = 9;
       return Promise.resolve({ status: 'success', data: entry || {} });
     }
+    case 'getDashboardFilterOptions':
+      return Promise.resolve({
+        status: 'success',
+        data: {
+          projects: [{ id: 1, label: 'Projet Alpha', closed: false, client_id: 1 }, { id: 2, label: 'Projet Beta', closed: true, client_id: 0 }],
+          clients: [{ id: 1, label: 'Client Demo' }],
+          employees: [{ id: 1, label: 'Alice Demo', inactive: false }],
+        },
+      });
     case 'getProjects':
       return Promise.resolve({
         status: 'success',
@@ -718,9 +727,35 @@ export async function getWeeklyTimesheet(weekStart = '') {
   return data?.data ?? data;
 }
 
-export async function getSummaryReports(limit = 1000, dateFrom = '', dateTo = '', onlyValidated = false) {
-  const data = await moduleTimerRequest('getSummaryReports', { limit, date_from: dateFrom, date_to: dateTo, only_validated: onlyValidated ? 1 : 0 });
+/**
+ * The period summary the Dashboard is built from.
+ *
+ * @param {{project_ids?: number[], client_ids?: number[], user_ids?: number[]}} [filters] Dashboard filters,
+ *   applied by the server to the rows, the totals and the truncation count alike. user_ids is only honoured
+ *   for a user who may read every entry.
+ */
+export async function getSummaryReports(limit = 1000, dateFrom = '', dateTo = '', onlyValidated = false, filters = {}) {
+  const body = { limit, date_from: dateFrom, date_to: dateTo, only_validated: onlyValidated ? 1 : 0 };
+  ['project_ids', 'client_ids', 'user_ids'].forEach((key) => {
+    if (Array.isArray(filters?.[key]) && filters[key].length > 0) body[key] = filters[key];
+  });
+  const data = await moduleTimerRequest('getSummaryReports', body);
   return data?.data ?? data;
+}
+
+/**
+ * What the Dashboard filters offer, already limited to what this user may see:
+ * { projects: [{id,label,closed,client_id}], clients: [{id,label}], employees: [{id,label,inactive}] }
+ * (employees is empty unless the user may read every entry).
+ */
+export async function getDashboardFilterOptions() {
+  const data = await moduleTimerRequest('getDashboardFilterOptions');
+  const payload = data?.data ?? data ?? {};
+  return {
+    projects: Array.isArray(payload.projects) ? payload.projects : [],
+    clients: Array.isArray(payload.clients) ? payload.clients : [],
+    employees: Array.isArray(payload.employees) ? payload.employees : [],
+  };
 }
 
 export async function saveDailyReport(dateReport, content, status = 1) {

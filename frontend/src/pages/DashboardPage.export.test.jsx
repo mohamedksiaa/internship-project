@@ -7,6 +7,7 @@ import DashboardPage from './DashboardPage';
 import { downloadCsv } from '../utils/csvExport.js';
 
 vi.mock('../api/timeflowApi', () => ({
+  getDashboardFilterOptions: vi.fn().mockResolvedValue({ projects: [], clients: [], employees: [] }),
   getSummaryReports: vi.fn().mockResolvedValue({
     total_seconds: 36000,
     billable_seconds: 18000,

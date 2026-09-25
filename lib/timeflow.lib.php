@@ -231,6 +231,72 @@ function timeflowCanReadAllTimeEntries($user)
 }
 
 /**
+ * Parses an id-list filter sent by the Dashboard: a JSON array, or a "1,2,3" string.
+ *
+ * @param mixed $value
+ * @return int[]|null Unique positive ids (empty array = no filter), or null when the value is malformed
+ *                    (anything that is not a positive integer, more than 500 ids): the caller answers 400.
+ */
+function timeflowParseIdFilter($value)
+{
+    if ($value === null || $value === '' || $value === array()) {
+        return array();
+    }
+    if (is_string($value)) {
+        $value = explode(',', $value);
+    }
+    if (!is_array($value)) {
+        return null;
+    }
+    $ids = array();
+    foreach ($value as $item) {
+        if (is_int($item)) {
+            $id = $item;
+        } elseif (is_string($item) && ctype_digit(trim($item))) {
+            $id = (int) trim($item);
+        } else {
+            return null;
+        }
+        if ($id <= 0) {
+            return null;
+        }
+        $ids[$id] = $id;
+    }
+
+    return count($ids) > 500 ? null : array_values($ids);
+}
+
+/**
+ * The Dashboard's Project / Client / Employee filters as raw SQL conditions on the alias t (timeflow_timeentry),
+ * every id already cast to int. Filters combine with AND, the ids of one filter with OR. A client is matched
+ * through the entry's project (projet.fk_soc): an entry with no project has no client.
+ *
+ * Appended to the same fragment as the period, so the fetch, the total, the "truncated" count and the exports
+ * all see exactly the same rows.
+ *
+ * @param DoliDB $db
+ * @param int[]  $projectIds
+ * @param int[]  $clientIds
+ * @param int[]  $userIds
+ * @return string " AND ..." (empty when no filter)
+ */
+function timeflowSummaryFilterSql($db, array $projectIds, array $clientIds, array $userIds)
+{
+    $sql = '';
+    if (!empty($projectIds)) {
+        $sql .= ' AND t.fk_project IN ('.implode(',', array_map('intval', $projectIds)).')';
+    }
+    if (!empty($clientIds)) {
+        $sql .= ' AND t.fk_project IN (SELECT pf.rowid FROM '.$db->prefix().'projet AS pf WHERE pf.fk_soc IN ('.implode(',', array_map('intval', $clientIds)).'))';
+    }
+    if (!empty($userIds)) {
+        $sql .= ' AND t.fk_user IN ('.implode(',', array_map('intval', $userIds)).')';
+    }
+
+    return $sql;
+}
+
+/**
  * One raw, escaped SQL date/time comparison (" AND <column> <op> '<value>'"),
  * for the callers that filter on a full "YYYY-MM-DD HH:MM:SS" value.
  *
