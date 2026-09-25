@@ -23,6 +23,7 @@ if (!$res) {
 dol_include_once('/timeflow/class/timeentry.class.php');
 dol_include_once('/timeflow/class/timeimport.class.php');
 dol_include_once('/timeflow/lib/timeflow.lib.php');
+dol_include_once('/timeflow/class/timeflowlatecheck.class.php');
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/task.class.php';
 
@@ -269,24 +270,6 @@ function timeflowTimeEntryScopeFilter($user, $scope = 'entries')
     }
 
     return $filter;
-}
-
-/**
- * Helper: return true when the `date_delete` column exists on the timeentry table.
- * Uses a simple information_schema probe and caches result per-request.
- *
- * @param DoliDB $db
- * @return bool
- */
-function timeflowHasDateDeleteColumn($db)
-{
-    static $cached = null;
-    if ($cached !== null) return $cached;
-    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
-    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'date_delete' LIMIT 1";
-    $res = $db->query($sql);
-    $cached = ($res && $db->num_rows($res) > 0);
-    return $cached;
 }
 
 /**
@@ -874,22 +857,6 @@ function timeflowNormalizeIsoDate($value)
 }
 
 /**
- * Whether the optional llx_timeflow_timeentry.fk_split_previous column exists
- * (same defensive check as timeflowHasDateDeleteColumn(), for installs whose
- * table predates the column).
- */
-function timeflowHasSplitPreviousColumn($db)
-{
-    static $cached = null;
-    if ($cached !== null) return $cached;
-    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
-    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'fk_split_previous' LIMIT 1";
-    $res = $db->query($sql);
-    $cached = ($res && $db->num_rows($res) > 0);
-    return $cached;
-}
-
-/**
  * Whether the DB connection can carry 4-byte UTF-8 characters (emoji...).
  * Dolibarr's default connection charset is "utf8" (MySQL's 3-byte utf8mb3):
  * through it such a character makes the INSERT fail even on a utf8mb4 table.
@@ -897,41 +864,6 @@ function timeflowHasSplitPreviousColumn($db)
 function timeflowDbStoresFourByteChars($db)
 {
     return stripos((string) ($db->forcecharset ?? ''), 'utf8mb4') !== false;
-}
-
-/**
- * Whether llx_timeflow_expected_absence exists. Tables are created when the
- * module is activated, so an install that was already active when this table
- * was introduced does not have it until the module is disabled and enabled
- * again. Reads degrade (presence still works, no expected absences) and report
- * it; writes refuse with an actionable message.
- *
- * Not cached across calls: the answer must flip as soon as the module is
- * re-activated.
- */
-function timeflowExpectedAbsenceTableExists($db)
-{
-    $tableName = $db->escape($db->prefix().'timeflow_expected_absence');
-    $res = $db->query("SELECT 1 FROM information_schema.tables WHERE table_name = '".$tableName."' LIMIT 1");
-
-    return (bool) ($res && $db->num_rows($res) > 0);
-}
-
-/**
- * 'ok', 'table_missing', or 'schema_outdated' (the table exists but predates
- * the reason_note column). Re-activating the module cannot fix the last one —
- * its CREATE TABLE finds the table already there — so it is reported apart,
- * with its own instruction, instead of letting every query fail with an SQL error.
- */
-function timeflowExpectedAbsenceSchemaState($db)
-{
-    if (!timeflowExpectedAbsenceTableExists($db)) {
-        return 'table_missing';
-    }
-    $tableName = $db->escape($db->prefix().'timeflow_expected_absence');
-    $res = $db->query("SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'reason_note' LIMIT 1");
-
-    return ($res && $db->num_rows($res) > 0) ? 'ok' : 'schema_outdated';
 }
 
 /**
@@ -986,21 +918,7 @@ function timeflowFetchUsersPresence($db, $date, $page = 1, $perPage = 20)
             $dayStart = new DateTimeImmutable($date.' 00:00:00', new DateTimeZone('UTC'));
             $nextDay = $dayStart->modify('+1 day')->format('Y-m-d');
 
-            $sql = 'SELECT DISTINCT t.fk_user FROM '.$db->prefix().'timeflow_timeentry AS t';
-            $sql .= ' WHERE t.fk_user IN ('.$idList.') AND t.entity IN ('.getEntity('timeentry').')';
-            if (timeflowHasDateDeleteColumn($db)) {
-                $sql .= ' AND t.date_delete IS NULL';
-            }
-            if (timeflowHasSplitPreviousColumn($db)) {
-                $sql .= ' AND t.fk_split_previous IS NULL';
-            }
-            $sql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $date.' 00:00:00');
-            $sql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<', $nextDay.' 00:00:00');
-            $resql = timeflowQuery($db, $sql, 'timeflowFetchUsersPresence:entries');
-            while ($obj = $db->fetch_object($resql)) {
-                $presentIds[(int) $obj->fk_user] = true;
-            }
-            $db->free($resql);
+            $presentIds = timeflowUserIdsWithEntryStartedBetween($db, $date.' 00:00:00', $nextDay.' 00:00:00', false, $userIds);
         }
 
         if ($absencesAvailable) {
@@ -1145,6 +1063,145 @@ function timeflowSaveExpectedAbsence($db, $actor, $targetUserId, $date, $reasonT
     timeflowQuery($db, $sql, 'timeflowSaveExpectedAbsence:insert');
 
     return array('id' => (int) $db->last_insert_id($db->prefix().'timeflow_expected_absence'), 'created' => true, 'reason_note' => $note === '' ? null : $note);
+}
+
+/**
+ * Whether llx_timeflow_notification exists (created at module activation, like
+ * every TimeFlow table). Not cached: it must flip as soon as the module is
+ * re-activated.
+ */
+function timeflowNotificationTableExists($db)
+{
+    $tableName = $db->escape($db->prefix().'timeflow_notification');
+    $res = $db->query("SELECT 1 FROM information_schema.tables WHERE table_name = '".$tableName."' LIMIT 1");
+
+    return (bool) ($res && $db->num_rows($res) > 0);
+}
+
+/**
+ * The current user's in-app notifications (the bell), newest day first.
+ *
+ * Strictly the user's OWN rows: the WHERE clause is on fk_user = the caller, so
+ * nobody can read another manager's digest by any parameter. Degrades to
+ * available=false (no rows, nothing unread) when the table does not exist yet.
+ *
+ * @param DoliDB $db
+ * @param User   $user
+ * @param int    $limit 1..100
+ * @return array{available:bool,unread_count:int,rows:array}
+ */
+function timeflowFetchMyNotifications($db, $user, $limit = 30)
+{
+    global $conf;
+
+    $out = array('available' => true, 'unread_count' => 0, 'rows' => array());
+    if (!timeflowNotificationTableExists($db)) {
+        $out['available'] = false;
+
+        return $out;
+    }
+    $limit = (int) $limit;
+    if ($limit < 1) {
+        $limit = 30;
+    }
+    $limit = min(100, $limit);
+    $base = ' FROM '.$db->prefix().'timeflow_notification AS n WHERE n.fk_user = '.((int) $user->id).' AND n.entity = '.((int) $conf->entity);
+
+    $resql = timeflowQuery($db, 'SELECT COUNT(*) AS nb'.$base.' AND n.date_read IS NULL', 'timeflowFetchMyNotifications:unread');
+    $obj = $db->fetch_object($resql);
+    $db->free($resql);
+    $out['unread_count'] = $obj ? (int) $obj->nb : 0;
+
+    $sql = 'SELECT n.rowid, n.notif_type, n.date_ref, n.payload, n.date_creation, n.date_read, n.email_status'.$base.' ORDER BY n.date_ref DESC, n.rowid DESC'.$db->plimit($limit, 0);
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchMyNotifications:rows');
+    while ($obj = $db->fetch_object($resql)) {
+        $payload = json_decode((string) $obj->payload, true);
+        $payload = is_array($payload) ? $payload : array();
+        $late = array();
+        if (isset($payload['late']) && is_array($payload['late'])) {
+            foreach ($payload['late'] as $person) {
+                if (is_array($person) && isset($person['id'])) {
+                    $late[] = array('id' => (int) $person['id'], 'label' => isset($person['label']) ? (string) $person['label'] : '');
+                }
+            }
+        }
+        $out['rows'][] = array(
+            'id' => (int) $obj->rowid,
+            'type' => (string) $obj->notif_type,
+            'date_ref' => (string) $obj->date_ref,
+            'created_at' => (string) $obj->date_creation,
+            'read' => $obj->date_read !== null,
+            'late' => $late,
+            'threshold' => isset($payload['threshold']) ? (string) $payload['threshold'] : null,
+            'cutoff' => isset($payload['cutoff']) ? (string) $payload['cutoff'] : null,
+            'email_status' => $obj->email_status !== null ? (string) $obj->email_status : null,
+        );
+    }
+    $db->free($resql);
+
+    return $out;
+}
+
+/**
+ * Marks some of the current user's notifications (or all of them) as read.
+ * Only rows of the caller can change: the ids are intersected with fk_user, so
+ * a forged id of somebody else's digest is ignored. Idempotent.
+ *
+ * @param int[] $ids
+ * @param bool  $all
+ * @return int Rows that turned from unread to read.
+ */
+function timeflowMarkNotificationsRead($db, $user, array $ids, $all)
+{
+    global $conf;
+
+    if (!timeflowNotificationTableExists($db)) {
+        return 0;
+    }
+    $sql = 'UPDATE '.$db->prefix()."timeflow_notification SET date_read = '".$db->idate(dol_now())."'";
+    $sql .= ' WHERE fk_user = '.((int) $user->id).' AND entity = '.((int) $conf->entity).' AND date_read IS NULL';
+    if (!$all) {
+        $sql .= ' AND rowid IN ('.implode(',', array_map('intval', $ids)).')';
+    }
+    $resql = timeflowQuery($db, $sql, 'timeflowMarkNotificationsRead');
+
+    return (int) $db->affected_rows($resql);
+}
+
+/**
+ * true / false for the usual spellings of a boolean (true, false, 1, 0, "1", "0",
+ * "true", "false"), null for anything else: a request that does not say clearly
+ * what it wants must not change a preference.
+ */
+function timeflowParseBool($value)
+{
+    if ($value === true || $value === 1 || $value === '1' || $value === 'true') {
+        return true;
+    }
+    if ($value === false || $value === 0 || $value === '0' || $value === 'false') {
+        return false;
+    }
+
+    return null;
+}
+
+/**
+ * What the bell's footer needs: is the current user emailed, do they have an
+ * address to be emailed at, and is the feature (and mail sending) on at all.
+ */
+function timeflowAlertPreferencesPayload($db, $user)
+{
+    global $conf;
+
+    $email = trim((string) $user->email);
+
+    return array(
+        'email_enabled' => TimeFlowLateCheck::getEmailPreference($db, (int) $user->id, (int) $conf->entity),
+        'has_email' => $email !== '' && isValidEmail($email),
+        'email' => $email !== '' ? $email : null,
+        'alerts_enabled' => getDolGlobalInt('TIMEFLOW_LATE_ALERT_ENABLED', 0) > 0,
+        'mail_enabled' => !getDolGlobalString('MAIN_DISABLE_ALL_MAILS'),
+    );
 }
 
 /**
@@ -2328,6 +2385,47 @@ switch ($action) {
     // Rapports' global "Export" button (above the tab bar, not per sub-page):
     // one row per time entry, in the same column shape TimeImportClockify
     // expects, so the file round-trips through previewClockifyImport() as-is.
+    // The bell of the React header: the managers' own late-arrival digests. Same
+    // audience as the rest of the team-wide reporting (readall); every query is
+    // scoped to the caller, so there is nothing to read about anybody else.
+    case 'getMyNotifications':
+    case 'markNotificationsRead':
+    case 'getAlertPreferences':
+    case 'saveAlertPreferences':
+        if (!timeflowCanReadAllTimeEntries($user)) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
+        }
+        if ($action === 'getMyNotifications') {
+            $notifLimit = isset($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
+            timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchMyNotifications($db, $user, $notifLimit)));
+        }
+        if ($action === 'markNotificationsRead') {
+            $markAll = isset($postData['all']) && timeflowParseBool($postData['all']) === true;
+            $markIds = array();
+            if (!$markAll) {
+                $rawIds = isset($postData['ids']) && is_array($postData['ids']) ? $postData['ids'] : array();
+                if (empty($rawIds) || count($rawIds) > 200) {
+                    timeflowJsonResponse(array('status' => 'error', 'message' => 'Indiquez entre 1 et 200 notifications, ou toutes.'), 400);
+                }
+                foreach ($rawIds as $rawId) {
+                    if (!(is_int($rawId) || (is_string($rawId) && ctype_digit($rawId))) || (int) $rawId <= 0) {
+                        timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant de notification invalide'), 400);
+                    }
+                    $markIds[] = (int) $rawId;
+                }
+            }
+            timeflowJsonResponse(array('status' => 'success', 'data' => array('updated' => timeflowMarkNotificationsRead($db, $user, $markIds, $markAll))));
+        }
+        if ($action === 'saveAlertPreferences') {
+            $wantEmail = timeflowParseBool(isset($postData['email_enabled']) ? $postData['email_enabled'] : null);
+            if ($wantEmail === null) {
+                timeflowJsonResponse(array('status' => 'error', 'message' => 'Valeur invalide pour email_enabled (true ou false attendu)'), 400);
+            }
+            TimeFlowLateCheck::setEmailPreference($db, (int) $user->id, (int) $conf->entity, $wantEmail);
+        }
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowAlertPreferencesPayload($db, $user)));
+        break;
+
     case 'exportGlobalCsv':
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowBuildGlobalCsvRows($db, $user)));
         break;

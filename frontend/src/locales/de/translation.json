@@ -271,6 +271,32 @@
       "reset": "Filter zurücksetzen"
     }
   },
+  "notifications": {
+    "title": "Benachrichtigungen",
+    "bell_aria": "Benachrichtigungen",
+    "bell_aria_unread": "Benachrichtigungen, {{count}} ungelesen",
+    "mark_all_read": "Alle als gelesen markieren",
+    "loading": "Wird geladen…",
+    "empty": "Keine Benachrichtigungen.",
+    "error": "Die Benachrichtigungen konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "unavailable": "Benachrichtigungen sind nicht verfügbar: Die Tabelle fehlt. Deaktivieren und aktivieren Sie das TimeFlow-Modul erneut.",
+    "unread": "Ungelesen",
+    "generic_title": "Benachrichtigung vom {{date}}",
+    "late_arrivals": {
+      "title": "{{count}} Mitarbeiter am {{date}} verspätet",
+      "more": "+{{count}} weitere",
+      "cutoff": "Grenzzeit: {{time}}"
+    },
+    "email_pref": {
+      "label": "Alarme zusätzlich per E-Mail erhalten",
+      "address": "Adresse: {{email}}",
+      "no_address": "In Ihrem Benutzerprofil ist keine E-Mail-Adresse hinterlegt: Sie erhalten nur die interne Benachrichtigung.",
+      "alerts_off": "Verspätungsalarme sind vom Administrator nicht aktiviert.",
+      "mail_off": "Der E-Mail-Versand ist auf dieser Instanz deaktiviert.",
+      "error": "Ihre Einstellung konnte nicht gespeichert werden."
+    }
+  },
   "users_report": {
     "title": "Benutzer",
     "empty": "Kein Benutzer mit TimeFlow-Aktivität.",

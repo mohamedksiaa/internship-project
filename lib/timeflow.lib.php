@@ -448,3 +448,152 @@ function timeflowCanAccessTimeEntry($user, $object)
     }
     return !empty($object->fk_user) && (int) $object->fk_user === (int) $user->id;
 }
+
+// ---------------------------------------------------------------------------
+// Presence helpers shared by the Users report (ajax/timeentry.php) and the
+// morning late-arrival job (class/timeflowlatecheck.class.php). They live here,
+// not in ajax/timeentry.php, because that file bootstraps a whole web request
+// (main.inc.php, CSRF token) and cannot be included from a cron.
+// ---------------------------------------------------------------------------
+
+/**
+ * Helper: return true when the `date_delete` column exists on the timeentry table.
+ * Uses a simple information_schema probe and caches result per-request.
+ *
+ * @param DoliDB $db
+ * @return bool
+ */
+function timeflowHasDateDeleteColumn($db)
+{
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
+    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'date_delete' LIMIT 1";
+    $res = $db->query($sql);
+    $cached = ($res && $db->num_rows($res) > 0);
+    return $cached;
+}
+
+/**
+ * Whether the optional llx_timeflow_timeentry.fk_split_previous column exists
+ * (same defensive check as timeflowHasDateDeleteColumn(), for installs whose
+ * table predates the column).
+ */
+function timeflowHasSplitPreviousColumn($db)
+{
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $tableName = $db->escape($db->prefix().'timeflow_timeentry');
+    $sql = "SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'fk_split_previous' LIMIT 1";
+    $res = $db->query($sql);
+    $cached = ($res && $db->num_rows($res) > 0);
+    return $cached;
+}
+
+/**
+ * Whether llx_timeflow_expected_absence exists. Tables are created when the
+ * module is activated, so an install that was already active when this table
+ * was introduced does not have it until the module is disabled and enabled
+ * again. Reads degrade (presence still works, no expected absences) and report
+ * it; writes refuse with an actionable message.
+ *
+ * Not cached across calls: the answer must flip as soon as the module is
+ * re-activated.
+ */
+function timeflowExpectedAbsenceTableExists($db)
+{
+    $tableName = $db->escape($db->prefix().'timeflow_expected_absence');
+    $res = $db->query("SELECT 1 FROM information_schema.tables WHERE table_name = '".$tableName."' LIMIT 1");
+
+    return (bool) ($res && $db->num_rows($res) > 0);
+}
+
+/**
+ * 'ok', 'table_missing', or 'schema_outdated' (the table exists but predates
+ * the reason_note column). Re-activating the module cannot fix the last one —
+ * its CREATE TABLE finds the table already there — so it is reported apart,
+ * with its own instruction, instead of letting every query fail with an SQL error.
+ */
+function timeflowExpectedAbsenceSchemaState($db)
+{
+    if (!timeflowExpectedAbsenceTableExists($db)) {
+        return 'table_missing';
+    }
+    $tableName = $db->escape($db->prefix().'timeflow_expected_absence');
+    $res = $db->query("SELECT 1 FROM information_schema.columns WHERE table_name = '".$tableName."' AND column_name = 'reason_note' LIMIT 1");
+
+    return ($res && $db->num_rows($res) > 0) ? 'ok' : 'schema_outdated';
+}
+
+/**
+ * Ids of the users who STARTED at least one time entry between two instants,
+ * as a set ([userId => true]).
+ *
+ * "Started" is the Users report's own definition of presence: the entry's
+ * date_start falls in the window; a soft-deleted entry does not count, nor does
+ * the continuation of a timer split at midnight (fk_split_previous IS NOT NULL:
+ * the user did not start that one). Any status counts (draft, submitted,
+ * validated), a running timer included.
+ *
+ * @param DoliDB   $db
+ * @param string   $from        'YYYY-MM-DD HH:MM:SS', inclusive.
+ * @param string   $to          'YYYY-MM-DD HH:MM:SS'.
+ * @param bool     $toInclusive true: date_start <= $to (a cut-off time), false: date_start < $to (a day boundary).
+ * @param int[]|null $userIds   Restrict to these users; null = everybody.
+ * @param int|null $entity      Exact entity (a cron job runs for one); null = getEntity('timeentry').
+ * @return array<int,bool>
+ */
+function timeflowUserIdsWithEntryStartedBetween($db, $from, $to, $toInclusive = false, $userIds = null, $entity = null)
+{
+    $set = array();
+    if (is_array($userIds) && empty($userIds)) {
+        return $set;
+    }
+
+    $sql = 'SELECT DISTINCT t.fk_user FROM '.$db->prefix().'timeflow_timeentry AS t WHERE 1 = 1';
+    if (is_array($userIds)) {
+        $sql .= ' AND t.fk_user IN ('.implode(',', array_map('intval', $userIds)).')';
+    }
+    $sql .= $entity !== null ? ' AND t.entity = '.((int) $entity) : ' AND t.entity IN ('.getEntity('timeentry').')';
+    if (timeflowHasDateDeleteColumn($db)) {
+        $sql .= ' AND t.date_delete IS NULL';
+    }
+    if (timeflowHasSplitPreviousColumn($db)) {
+        $sql .= ' AND t.fk_split_previous IS NULL';
+    }
+    $sql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $from);
+    $sql .= timeflowSqlDateTimeCondition($db, 't.date_start', $toInclusive ? '<=' : '<', $to);
+    $resql = timeflowQuery($db, $sql, 'timeflowUserIdsWithEntryStartedBetween');
+    while ($obj = $db->fetch_object($resql)) {
+        $set[(int) $obj->fk_user] = true;
+    }
+    $db->free($resql);
+
+    return $set;
+}
+
+/**
+ * Ids of the users with a recorded expected absence on a day, as a set. Empty
+ * when the absences table is missing or outdated (nothing to exclude then).
+ *
+ * @param string   $date   'YYYY-MM-DD'.
+ * @param int|null $entity Exact entity; null = getEntity('timeentry').
+ * @return array<int,bool>
+ */
+function timeflowExpectedAbsenceUserIdsForDate($db, $date, $entity = null)
+{
+    $set = array();
+    if (timeflowExpectedAbsenceSchemaState($db) !== 'ok') {
+        return $set;
+    }
+    $sql = 'SELECT a.fk_user FROM '.$db->prefix().'timeflow_expected_absence AS a';
+    $sql .= ' WHERE '.($entity !== null ? 'a.entity = '.((int) $entity) : 'a.entity IN ('.getEntity('timeentry').')');
+    $sql .= " AND a.date_absence = '".$db->escape($date)."'";
+    $resql = timeflowQuery($db, $sql, 'timeflowExpectedAbsenceUserIdsForDate');
+    while ($obj = $db->fetch_object($resql)) {
+        $set[(int) $obj->fk_user] = true;
+    }
+    $db->free($resql);
+
+    return $set;
+}

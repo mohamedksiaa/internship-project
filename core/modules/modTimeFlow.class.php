@@ -310,6 +310,20 @@ class modTimeFlow extends DolibarrModules
 				'test' => 'isModEnabled("timeflow")',
 				'priority' => 50,
 			),
+			1 => array(
+				'label' => 'TimeFlow: detect late arrivals and notify managers',
+				'jobtype' => 'method',
+				'class' => '/timeflow/class/timeflowlatecheck.class.php',
+				'objectname' => 'TimeFlowLateCheck',
+				'method' => 'runMorningLateCheck',
+				'parameters' => '',
+				'comment' => 'Once a day, after the cut-off time set in the TimeFlow setup (threshold + tolerance), finds the employees who started no timer and hands the result to the managers (readall). Does nothing until TIMEFLOW_LATE_ALERT_ENABLED is switched on. Dolibarr cron has no time of day, so it runs every 5 minutes and the job itself decides whether it is the moment; the day is processed exactly once.',
+				'frequency' => 5,
+				'unitfrequency' => 60,
+				'status' => 1,
+				'test' => 'isModEnabled("timeflow")',
+				'priority' => 50,
+			),
 		);
 		/* END MODULEBUILDER CRON */
 		// Example: $this->cronjobs=array(

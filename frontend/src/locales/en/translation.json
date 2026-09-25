@@ -270,6 +270,32 @@
       "reset": "Reset filters"
     }
   },
+  "notifications": {
+    "title": "Notifications",
+    "bell_aria": "Notifications",
+    "bell_aria_unread": "Notifications, {{count}} unread",
+    "mark_all_read": "Mark all as read",
+    "loading": "Loading…",
+    "empty": "No notifications.",
+    "error": "Could not load the notifications.",
+    "retry": "Retry",
+    "unavailable": "Notifications are unavailable: the table is missing. Disable then re-enable the TimeFlow module.",
+    "unread": "Unread",
+    "generic_title": "Notification of {{date}}",
+    "late_arrivals": {
+      "title": "{{count}} employee(s) late on {{date}}",
+      "more": "+{{count}} more",
+      "cutoff": "Cut-off: {{time}}"
+    },
+    "email_pref": {
+      "label": "Also receive the alerts by email",
+      "address": "Address: {{email}}",
+      "no_address": "There is no email address on your user card: you only get the in-app notification.",
+      "alerts_off": "Late-arrival alerts are not switched on by the administrator.",
+      "mail_off": "Sending emails is disabled on this instance.",
+      "error": "Could not save your preference."
+    }
+  },
   "users_report": {
     "title": "Users",
     "empty": "No user with TimeFlow activity.",
