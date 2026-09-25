@@ -451,7 +451,11 @@ function handleMockRequest(action, body) {
         target_id: decision.resolution === 'matched' ? Number(decision.target_id) : null,
         target_action: decision.resolution === 'matched' ? 'matched' : 'create_confirmed',
         status: decision.resolution === 'matched' ? 'matched' : 'create_confirmed',
-        new_label: decision.resolution === 'create_new' ? (decision.new_title || decision.source_value) : null,
+        new_label: decision.resolution !== 'create_new'
+          ? null
+          : (decision.mapping_type === 'user'
+            ? JSON.stringify({ login: decision.new_login, firstname: decision.new_firstname ?? '', lastname: decision.new_lastname ?? '' })
+            : (decision.new_title || decision.source_value)),
       }));
       return Promise.resolve({ status: 'success', data: updated });
     }
@@ -780,9 +784,12 @@ export async function listUserGroups() {
 
 /**
  * Persists a batch of mapping resolution decisions (user -> existing
- * Dolibarr user, project -> existing timeflow project or a confirmed new
- * project title). Writes only to llx_timeflow_import_mapping — never
- * creates a Dolibarr user account or a real llx_timeflow_project row.
+ * Dolibarr user, or a confirmed new account {new_login, new_firstname,
+ * new_lastname} for an actor allowed to create users; project -> existing
+ * timeflow project or a confirmed new project title). Writes only to
+ * llx_timeflow_import_mapping: neither a Dolibarr account nor a project row
+ * exists until executeClockifyImport(). A refusal (HTTP 403/400) comes back as
+ * a thrown Error carrying the server's message.
  */
 export async function resolveClockifyMapping(decisions = []) {
   const data = await moduleTimerRequest('resolveClockifyMapping', { decisions });
@@ -804,13 +811,18 @@ export async function previewClockifyImport(file) {
       skipped_rows: 0,
       users: [
         { mapping_type: 'user', source_value: 'jane@example.com', target_action: 'matched' },
-        { mapping_type: 'user', source_value: 'new.hire@example.com', target_action: 'create_pending' },
+        {
+          mapping_type: 'user', source_value: 'new.hire@example.com', target_action: 'create_pending', email_valid: true,
+          display_name: 'New Hire', suggested_login: 'new.hire', suggested_firstname: 'New', suggested_lastname: 'Hire',
+        },
+        { mapping_type: 'user', source_value: 'left.company@example.com', target_action: 'create_pending', email_valid: true, warning: 'disabled_account', disabled_login: 'lcompany' },
       ],
       projects: [
         { mapping_type: 'project', source_value: 'Projet Alpha', target_action: 'matched' },
         { mapping_type: 'project', source_value: '', target_action: 'ignored' },
       ],
-      stats: { matched_users: 1, pending_users: 1, ignored_users: 0, matched_projects: 1, pending_projects: 0, ignored_projects: 1 },
+      stats: { matched_users: 1, pending_users: 2, ignored_users: 0, matched_projects: 1, pending_projects: 0, ignored_projects: 1 },
+      can_create_users: true,
     });
   }
 
@@ -850,6 +862,8 @@ export async function previewClockifyImport(file) {
 export async function executeClockifyImport(file) {
   if (API_MODE === 'mock') {
     return Promise.resolve({
+      users_created: [{ source_value: 'new.hire@example.com', id: 1001, login: 'new.hire', email_sent: true, email_error: null }],
+      group_memberships_withheld: [],
       projects_created: [],
       groups_created: [{ source_value: 'HRM', id: 999, title: 'HRM' }],
       group_memberships_created: 3,

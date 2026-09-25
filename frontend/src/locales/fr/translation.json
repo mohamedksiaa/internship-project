@@ -485,7 +485,8 @@
         "matched": "Résolu",
         "create_pending": "À créer",
         "create_confirmed": "Sera créé automatiquement",
-        "ignored": "Ignoré"
+        "ignored": "Ignoré",
+        "created": "Créé automatiquement"
       },
       "select_user_placeholder": "— Choisir un utilisateur —",
       "select_project_placeholder": "— Choisir un projet existant —",
@@ -540,7 +541,27 @@
       "execute_result_errors_one": "{{count}} erreur lors de la création d'un élément",
       "execute_result_errors_other": "{{count}} erreurs lors de la création d'éléments",
       "execute_missing_file": "Le fichier CSV d'origine n'est plus disponible, merci de recommencer l'import.",
-      "execute_generic_error": "Une erreur est survenue lors de l'exécution de l'import."
+      "execute_generic_error": "Une erreur est survenue lors de l'exécution de l'import.",
+      "create_new_user_checkbox": "Créer automatiquement cet utilisateur",
+      "new_user_login_label": "Identifiant",
+      "new_user_firstname_label": "Prénom",
+      "new_user_lastname_label": "Nom",
+      "create_user_info": "Un compte Dolibarr sera créé avec uniquement les droits TimeFlow de base (créer et voir ses propres entrées). Ses identifiants seront envoyés à {{email}}.",
+      "create_user_not_allowed": "Vous n’avez pas le droit de créer des comptes utilisateurs : associez cet email à un compte existant.",
+      "create_user_invalid_email": "Adresse email invalide : impossible de créer un compte (les identifiants sont envoyés par email). Associez-la à un compte existant.",
+      "disabled_account_warning": "Compte désactivé : {{login}}. Aucun doublon n’est créé : associez cet email à un autre compte, ou réactivez ce compte dans Dolibarr puis relancez l’aperçu.",
+      "user_to_create_summary": "Compte à créer : {{login}} ({{name}})",
+      "confirm_recap_users_one": "{{count}} compte utilisateur sera créé",
+      "confirm_recap_users_other": "{{count}} comptes utilisateurs seront créés",
+      "confirm_recap_users_note": "Chaque compte n’a que les droits TimeFlow de base et reçoit par email ses identifiants (mot de passe généré).",
+      "execute_result_users_one": "{{count}} compte utilisateur créé",
+      "execute_result_users_other": "{{count}} comptes utilisateurs créés",
+      "execute_result_user_email_sent": "{{login}} : email d’identifiants envoyé à {{email}}",
+      "execute_result_user_email_mail_disabled": "{{login}} : compte créé, mais l’envoi d’emails est désactivé sur cette instance : aucun identifiant n’a été envoyé. Utilisez « Envoyer email avec informations de connexion » sur sa fiche Dolibarr.",
+      "execute_result_user_email_failed": "{{login}} : compte créé, mais l’email d’identifiants n’a PAS pu être envoyé ({{reason}}). Utilisez « Envoyer email avec informations de connexion » sur sa fiche Dolibarr.",
+      "execute_result_user_error": "{{email}} : {{message}}",
+      "execute_result_groups_withheld_one": "{{count}} rattachement à un groupe non appliqué : ce groupe donne plus que les droits TimeFlow de base à un compte créé par l’import",
+      "execute_result_groups_withheld_other": "{{count}} rattachements à un groupe non appliqués : ces groupes donnent plus que les droits TimeFlow de base à un compte créé par l’import"
     }
   },
   "entries_few": "",

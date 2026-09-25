@@ -484,7 +484,8 @@
         "matched": "Gelöst",
         "create_pending": "Zu erstellen",
         "create_confirmed": "Wird automatisch erstellt",
-        "ignored": "Ignoriert"
+        "ignored": "Ignoriert",
+        "created": "Automatisch erstellt"
       },
       "select_user_placeholder": "— Benutzer auswählen —",
       "select_project_placeholder": "— Bestehendes Projekt auswählen —",
@@ -539,7 +540,27 @@
       "execute_result_errors_one": "{{count}} Fehler beim Erstellen eines Elements",
       "execute_result_errors_other": "{{count}} Fehler beim Erstellen von Elementen",
       "execute_missing_file": "Die ursprüngliche CSV-Datei ist nicht mehr verfügbar, bitte starten Sie den Import erneut.",
-      "execute_generic_error": "Bei der Ausführung des Imports ist ein Fehler aufgetreten."
+      "execute_generic_error": "Bei der Ausführung des Imports ist ein Fehler aufgetreten.",
+      "create_new_user_checkbox": "Diesen Benutzer automatisch erstellen",
+      "new_user_login_label": "Login",
+      "new_user_firstname_label": "Vorname",
+      "new_user_lastname_label": "Nachname",
+      "create_user_info": "Es wird ein Dolibarr-Konto mit ausschließlich den grundlegenden TimeFlow-Rechten erstellt (eigene Einträge anlegen und ansehen). Die Zugangsdaten werden an {{email}} gesendet.",
+      "create_user_not_allowed": "Sie dürfen keine Benutzerkonten erstellen: ordnen Sie diese E-Mail einem bestehenden Konto zu.",
+      "create_user_invalid_email": "Ungültige E-Mail-Adresse: Es kann kein Konto erstellt werden (die Zugangsdaten werden per E-Mail gesendet). Ordnen Sie sie einem bestehenden Konto zu.",
+      "disabled_account_warning": "Deaktiviertes Konto: {{login}}. Es wird kein Duplikat erstellt: ordnen Sie diese E-Mail einem anderen Konto zu oder aktivieren Sie dieses Konto in Dolibarr wieder und starten Sie die Vorschau neu.",
+      "user_to_create_summary": "Zu erstellendes Konto: {{login}} ({{name}})",
+      "confirm_recap_users_one": "{{count}} Benutzerkonto wird erstellt",
+      "confirm_recap_users_other": "{{count}} Benutzerkonten werden erstellt",
+      "confirm_recap_users_note": "Jedes Konto erhält nur die grundlegenden TimeFlow-Rechte und bekommt seine Zugangsdaten (generiertes Passwort) per E-Mail.",
+      "execute_result_users_one": "{{count}} Benutzerkonto erstellt",
+      "execute_result_users_other": "{{count}} Benutzerkonten erstellt",
+      "execute_result_user_email_sent": "{{login}}: Zugangsdaten-E-Mail an {{email}} gesendet",
+      "execute_result_user_email_mail_disabled": "{{login}}: Konto erstellt, aber der E-Mail-Versand ist auf dieser Instanz deaktiviert: es wurden keine Zugangsdaten gesendet. Verwenden Sie „E-Mail mit Anmeldeinformationen senden“ auf der Dolibarr-Karte des Benutzers.",
+      "execute_result_user_email_failed": "{{login}}: Konto erstellt, aber die Zugangsdaten-E-Mail konnte NICHT gesendet werden ({{reason}}). Verwenden Sie „E-Mail mit Anmeldeinformationen senden“ auf der Dolibarr-Karte des Benutzers.",
+      "execute_result_user_error": "{{email}}: {{message}}",
+      "execute_result_groups_withheld_one": "{{count}} Gruppenzuordnung nicht angewendet: Diese Gruppe gibt einem durch den Import erstellten Konto mehr als die grundlegenden TimeFlow-Rechte",
+      "execute_result_groups_withheld_other": "{{count}} Gruppenzuordnungen nicht angewendet: Diese Gruppen geben einem durch den Import erstellten Konto mehr als die grundlegenden TimeFlow-Rechte"
     }
   },
   "entries_few": "",
