@@ -139,6 +139,23 @@ describe('DashboardPage — export buttons', () => {
     expect(call.fixedViews).toBeUndefined();
   });
 
+  it.each([
+    ['fr', false],
+    ['en', false],
+    ['de', false],
+    ['ar', true],
+  ])('PDF export in %s passes rtl=%s to the generator (Arabic text is right-aligned when drawn as an image)', async (lang, expectedRtl) => {
+    await i18n.changeLanguage(lang);
+    const user = userEvent.setup();
+    renderDashboard();
+    await screen.findByText(i18n.t('dashboard.total'));
+
+    await user.click(screen.getByRole('button', { name: i18n.t('dashboard.export.pdf_button') }));
+
+    await waitFor(() => expect(generateDashboardPdf).toHaveBeenCalledTimes(1));
+    expect(generateDashboardPdf.mock.calls[0][0].rtl).toBe(expectedRtl);
+  });
+
   it('shows a clear, translated error message if PDF generation throws, without crashing', async () => {
     // The shown message must always be the translated, user-facing one —
     // never the raw thrown error (a library-internal string like

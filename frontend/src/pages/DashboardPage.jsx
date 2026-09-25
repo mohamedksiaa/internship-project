@@ -278,6 +278,8 @@ export default function DashboardPage() {
         configuredChart: { get el() { return exportConfiguredChartRef.current; }, caption: configuredChartCaption },
         emptyChartMessage: t('dashboard.custom_chart_empty'),
         analysisText,
+        // Right-to-left interface (Arabic): text that has to be drawn as an image is right-aligned.
+        rtl: i18n.dir(i18n.language) === 'rtl',
       });
     } catch (err) {
       // Always a translated, user-facing message here — err.message is a
