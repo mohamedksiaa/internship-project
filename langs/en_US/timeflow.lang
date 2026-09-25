@@ -80,3 +80,19 @@ TimeFlowLateMailOpen = See today's presence in TimeFlow
 TimeFlowLateMailFooter = You receive this email because you have the "Read all time entries" right in TimeFlow. You can stop receiving it from the notification bell in TimeFlow (the in-app notification stays on).
 TimeFlowServerTimeInfo = Current server time: %s (timezone %s, UTC%s). The arrival threshold time is interpreted in this timezone, not in the timezone of whoever sets it.
 TimeFlowServerTimeMismatch = Warning: this browser is not in the same timezone as the server. Check MAIN_SERVER_TZ or date.timezone (php.ini) before enabling the alerts.
+TimeFlowLateOutDisabled = Late-arrival alerts are disabled (TIMEFLOW_LATE_ALERT_ENABLED): nothing was checked.
+TimeFlowLateOutNotWorkday = __DAY__ is not a controlled day (controlled days: __WORKDAYS__).
+TimeFlowLateOutTooEarly = Threshold not reached yet (threshold __THRESHOLD__ + grace __GRACE__ min = __CUTOFF__, server time __NOW__).
+TimeFlowLateOutAlreadyProcessed = __DAY__ already processed with the cut-off __CUTOFF__ (status __STATUS__, server time __NOW__).
+TimeFlowLateOutDelayExceeded = Maximum detection delay exceeded (cut-off __CUTOFF__ + __MAX__ h = __LIMIT__, server time __NOW__): no new check for __DAY__.
+TimeFlowLateOutMissed = __DAY__: first run of the day more than __MAX__ h after the cut-off (__CUTOFF__ + __MAX__ h = __LIMIT__, server time __NOW__): no alert.
+TimeFlowLateOutInProgress = __DAY__: already being processed by another run.
+TimeFlowLateOutNoActivity = __DAY__: none of the __EXPECTED__ expected user(s) started a timer before __CUTOFF__: treated as a non-working day, no alert.
+TimeFlowLateOutRetried = __ATTEMPTED__ pending email(s) retried, __SENT__ sent.
+TimeFlowLateOutRecheck = Re-check (the day had been processed with the cut-off __PREVIOUS__).
+TimeFlowLateOutDone = __DAY__: __CHECKED__ checked, __LATE__ late, __CREATED__ notification(s) created, __SENT__ email(s) sent
+TimeFlowLateOutDoneUpdated = __UPDATED__ notification(s) updated
+TimeFlowLateOutDoneSkipped = __SKIPPED__ email(s) skipped
+TimeFlowLateOutDoneFailed = __FAILED__ email(s) failed
+TimeFlowLateOutDoneTail = (cut-off __CUTOFF__ = threshold __THRESHOLD__ + grace __GRACE__ min, server time __NOW__).
+TimeFlowLateMailIntroAdded = Additional employees who had not started any timer by %s on %s:
