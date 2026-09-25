@@ -443,7 +443,17 @@ class TimeImportClockify
 
         $existing = $this->getExistingMapping($sourceSystem, 'user', $sourceValue);
         if (!empty($existing)) {
-            return array(
+            if ($existing['target_action'] === 'matched' && !$this->userExistsAndActive((int) $existing['target_id'])) {
+                // Matched earlier (possibly by the old code, which matched disabled accounts too),
+                // but that account is disabled or gone: ask again instead of importing into it.
+                $previousTargetLogin = $this->loginOfDisabledUser((int) $existing['target_id']);
+                $this->downgradeUserMapping($existing['rowid']);
+                $existing['target_id'] = null;
+                $existing['target_action'] = 'create_pending';
+                $existing['new_label'] = null;
+            }
+
+            $resolved = $this->withDisabledAccountWarning(array(
                 'mapping_type' => 'user',
                 'source_system' => $sourceSystem,
                 'source_value' => $existing['source_value'],
@@ -451,7 +461,14 @@ class TimeImportClockify
                 'target_action' => $existing['target_action'],
                 'status' => $existing['target_action'],
                 'new_label' => $existing['new_label'],
-            );
+            ), $sourceValue);
+            if (isset($previousTargetLogin) && $previousTargetLogin !== null && empty($resolved['warning'])) {
+                // The mapping had been made by hand to an account (whatever its email) that is disabled now.
+                $resolved['warning'] = 'disabled_account';
+                $resolved['disabled_login'] = $previousTargetLogin;
+            }
+
+            return $resolved;
         }
 
         $targetId = $this->findDolibarrUserByEmail($sourceValue);
@@ -467,7 +484,7 @@ class TimeImportClockify
         );
 
         if (!empty($persisted)) {
-            return array(
+            return $this->withDisabledAccountWarning(array(
                 'mapping_type' => 'user',
                 'source_system' => $sourceSystem,
                 'source_value' => $persisted['source_value'],
@@ -475,10 +492,10 @@ class TimeImportClockify
                 'target_action' => $persisted['target_action'],
                 'status' => $persisted['target_action'],
                 'new_label' => null,
-            );
+            ), $sourceValue);
         }
 
-        return array(
+        return $this->withDisabledAccountWarning(array(
             'mapping_type' => 'user',
             'source_system' => $sourceSystem,
             'source_value' => $sourceValue,
@@ -486,7 +503,7 @@ class TimeImportClockify
             'target_action' => $targetAction,
             'status' => $targetAction,
             'new_label' => null,
-        );
+        ), $sourceValue);
     }
 
     /**
@@ -713,32 +730,94 @@ class TimeImportClockify
         );
     }
 
-    protected function findDolibarrUserByEmail($email)
+    /**
+     * The Dolibarr account carrying this email, whatever its status. When several
+     * accounts share it (Dolibarr refuses that today, older data may not), an
+     * active one wins over a disabled one.
+     *
+     * @return array{id:int,login:string,active:bool}|null
+     */
+    protected function lookupDolibarrUserByEmail($email)
     {
         $email = trim((string) $email);
         if ($email === '') {
-            return 0;
+            return null;
         }
 
-        $user = new User($this->db);
-        $result = $user->fetch(0, '', '', $email);
-        if ($result > 0 && !empty($user->id)) {
-            return (int) $user->id;
-        }
-
-        $sql = 'SELECT rowid';
+        $sql = 'SELECT rowid, login, statut';
         $sql .= ' FROM '.$this->db->prefix().'user';
         $sql .= ' WHERE email = \''.$this->db->escape($email).'\'';
         $sql .= ' AND entity IN ('.getEntity('user').')';
-        $sql .= ' ORDER BY rowid ASC LIMIT 1';
+        $sql .= ' ORDER BY statut DESC, rowid ASC LIMIT 1';
 
         $res = $this->db->query($sql);
         if (!$res) {
-            return 0;
+            return null;
         }
 
         $obj = $this->db->fetch_object($res);
-        return $obj ? (int) $obj->rowid : 0;
+        if (!$obj) {
+            return null;
+        }
+
+        return array('id' => (int) $obj->rowid, 'login' => (string) $obj->login, 'active' => ((int) $obj->statut) === 1);
+    }
+
+    /**
+     * The ACTIVE Dolibarr account carrying this email, or 0. A disabled account is
+     * deliberately not returned: silently attributing imported time to it would
+     * hide that the person can no longer log in (see resolveUserMapping()).
+     */
+    protected function findDolibarrUserByEmail($email)
+    {
+        $found = $this->lookupDolibarrUserByEmail($email);
+
+        return ($found !== null && $found['active']) ? $found['id'] : 0;
+    }
+
+    /**
+     * Puts a user mapping back to "pending" when the account it points to can no
+     * longer receive imported time (disabled since, or deleted). Persisted, so every
+     * later step sees the same state.
+     */
+    protected function downgradeUserMapping($mappingRowId)
+    {
+        $sql = 'UPDATE '.$this->db->prefix().'timeflow_import_mapping SET';
+        $sql .= " target_id = NULL, target_action = 'create_pending', new_label = NULL";
+        $sql .= ' WHERE rowid = '.(int) $mappingRowId;
+        $this->db->query($sql);
+    }
+
+    /**
+     * Login of a user that exists but is disabled, null otherwise.
+     */
+    protected function loginOfDisabledUser($userId)
+    {
+        $res = $this->db->query('SELECT login, statut FROM '.$this->db->prefix().'user WHERE rowid = '.((int) $userId));
+        $obj = $res ? $this->db->fetch_object($res) : null;
+
+        return ($obj && ((int) $obj->statut) !== 1) ? (string) $obj->login : null;
+    }
+
+    /**
+     * Adds the "this email belongs to a DISABLED account" warning to a pending user row.
+     *
+     * @param array  $resolution A user row from resolveUserMapping()
+     * @param string $email
+     * @return array
+     */
+    protected function withDisabledAccountWarning(array $resolution, $email)
+    {
+        if ($resolution['target_action'] !== 'create_pending') {
+            return $resolution;
+        }
+        $found = $this->lookupDolibarrUserByEmail($email);
+        if ($found !== null && !$found['active']) {
+            $resolution['warning'] = 'disabled_account';
+            $resolution['disabled_login'] = $found['login'];
+        }
+
+        return $resolution;
     }
 
     protected function findTimeflowProjectByRefOrTitle($projectLabel)
@@ -1989,7 +2068,8 @@ class TimeImportClockify
                 // an email with no matching Dolibarr account (still
                 // create_pending, or somehow no mapping row at all).
                 $report['time_entries_skipped_unresolved']++;
-                $report['unresolved_rows'][] = array('row' => $rowNumber, 'reason' => 'user_not_found', 'value' => $email);
+                $found = $this->lookupDolibarrUserByEmail($email);
+                $report['unresolved_rows'][] = array('row' => $rowNumber, 'reason' => ($found !== null && !$found['active']) ? 'user_disabled' : 'user_not_found', 'value' => $email);
                 continue;
             }
             $resolvedUserId = (int) $userMapping['target_id'];
@@ -2108,6 +2188,19 @@ class TimeImportClockify
     }
 
     /**
+     * Sends back to pending every matched user whose account is disabled or gone.
+     */
+    protected function revalidateUserMappings(array $emails)
+    {
+        foreach ($emails as $email) {
+            $mapping = $this->getExistingMapping($this->sourceSystem, 'user', $email);
+            if (!empty($mapping) && $mapping['target_action'] === 'matched' && !$this->userExistsAndActive((int) $mapping['target_id'])) {
+                $this->downgradeUserMapping($mapping['rowid']);
+            }
+        }
+    }
+
+    /**
      * Runs the real import: creates every confirmed project/group, links
      * every resolvable (user, group) pair, then creates one draft
      * TimeEntry per eligible CSV row.
@@ -2169,6 +2262,10 @@ class TimeImportClockify
         if (!empty($pending)) {
             throw new InvalidArgumentException('Des éléments restent à résoudre avant de lancer l’import : '.implode(', ', $pending));
         }
+
+        // An account matched at preview time may have been disabled (or deleted) since:
+        // such users go back to pending and their rows are reported, not imported.
+        $this->revalidateUserMappings($scopedValues['user']);
 
         $report = array(
             'clients_created' => array(),
