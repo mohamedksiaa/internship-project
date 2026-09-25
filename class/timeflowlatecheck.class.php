@@ -160,20 +160,23 @@ class TimeFlowLateCheck
 		$this->result = array('status' => null, 'entity' => $entity);
 
 		$settings = self::getSettings();
+		$this->result['threshold'] = $settings['threshold'];
+		$this->result['grace'] = $settings['grace'];
 		if (!$settings['enabled']) {
-			return $this->finishWithoutWork('disabled', 'Late-arrival alerts are disabled (TIMEFLOW_LATE_ALERT_ENABLED).');
+			return $this->finishWithoutWork('disabled', $this->msg('TimeFlowLateOutDisabled'));
 		}
 
 		$day = date('Y-m-d', $now);
 		$this->result['day'] = $day;
 		if (!in_array((int) date('N', $now), $settings['workdays'], true)) {
-			return $this->finishWithoutWork('not_workday', $day.' is not a working day.');
+			return $this->finishWithoutWork('not_workday', $this->msg('TimeFlowLateOutNotWorkday', array('__DAY__' => $day, '__WORKDAYS__' => $this->workdayNames($settings['workdays']))));
 		}
 
 		$cutoff = self::cutoffTimestamp($now, $settings);
 		$this->result['cutoff'] = $cutoff;
 		if ($now < $cutoff) {
-			return $this->finishWithoutWork('too_early', 'Too early: the cut-off is '.date('H:i', $cutoff).'.');
+			// Nothing is written here: the day is only ever marked once a detection really ran after the cut-off.
+			return $this->finishWithoutWork('too_early', $this->msg('TimeFlowLateOutTooEarly', $this->timeVars($now, $cutoff, $settings)));
 		}
 
 		if (!$this->tablesAvailable()) {
@@ -212,70 +215,167 @@ class TimeFlowLateCheck
 	}
 
 	/**
+	 * A text of the job's output, in the language of the cron context (fr, en, de, ar; English otherwise).
+	 * Values are substituted by name AFTER the translation: Translate applies its own sprintf() to what it
+	 * returns, so a "%s" in a language file would be blanked.
+	 *
+	 * @param string               $key
+	 * @param array<string,string> $vars
+	 * @return string
+	 */
+	private function msg($key, array $vars = array())
+	{
+		global $langs;
+
+		if (!is_object($langs)) {
+			return $key.' '.implode(' ', $vars);
+		}
+		$langs->loadLangs(array('main', 'timeflow@timeflow'));
+
+		return strtr($langs->transnoentitiesnoconv($key), $vars);
+	}
+
+	/**
+	 * The values every "time" sentence of the output can use.
+	 *
+	 * @return array<string,string>
+	 */
+	private function timeVars($now, $cutoff, array $settings)
+	{
+		return array(
+			'__THRESHOLD__' => $settings['threshold'],
+			'__GRACE__' => (string) $settings['grace'],
+			'__CUTOFF__' => date('H:i', $cutoff),
+			'__NOW__' => date('H:i', $now),
+			'__MAX__' => (string) $settings['max_delay_hours'],
+			'__LIMIT__' => date('H:i', $cutoff + $settings['max_delay_hours'] * 3600),
+		);
+	}
+
+	/**
+	 * @param int[] $workdays ISO days, 1 = Monday.
+	 * @return string "Monday, Tuesday, ..." in the current language.
+	 */
+	private function workdayNames(array $workdays)
+	{
+		global $langs;
+
+		$keys = array(1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday');
+		$names = array();
+		foreach ($workdays as $day) {
+			$names[] = is_object($langs) ? $langs->transnoentitiesnoconv($keys[(int) $day]) : (string) $day;
+		}
+
+		return implode(', ', $names);
+	}
+
+	/**
 	 * The part of a tick that happens once the cut-off has passed on a working day.
+	 *
+	 * A day is settled for ONE cut-off: the marker remembers the cut-off it was processed with. When the
+	 * settings' cut-off differs (the admin moved the threshold or the tolerance since), the day is checked
+	 * again - inside the maximum detection delay - and only people not yet told about are notified.
 	 *
 	 * @return int
 	 */
 	private function runForDay($entity, $day, $now, $cutoff, array $settings)
 	{
 		$existing = $this->getMarker($entity, $day);
+		$vars = $this->timeVars($now, $cutoff, $settings) + array('__DAY__' => $day);
+		$previousCutoff = null;
+
 		if ($existing && $existing['status'] !== self::STATUS_RUNNING) {
-			$note = '';
-			if ($existing['status'] === self::STATUS_DONE) {
-				// The detection is never redone, but an email that failed earlier is retried.
-				$retry = $this->sendPendingEmails($entity, $day, $now);
-				if ($retry['attempted'] > 0) {
-					$this->updateEmailCount($existing['rowid'], $this->countEmailsSent($entity, $day));
-					$note = ' '.$retry['attempted'].' pending email(s) retried, '.$retry['sent'].' sent.';
+			$storedCutoff = strtotime($existing['cutoff']);
+			if ($storedCutoff === $cutoff) {
+				$note = '';
+				if ($existing['status'] === self::STATUS_DONE) {
+					// The detection is never redone, but an email that failed earlier is retried.
+					$retry = $this->sendPendingEmails($entity, $day, $now);
+					if ($retry['attempted'] > 0) {
+						$this->updateEmailCount($existing['rowid'], $this->countEmailsSent($entity, $day));
+						$note = ' '.$this->msg('TimeFlowLateOutRetried', array('__ATTEMPTED__' => (string) $retry['attempted'], '__SENT__' => (string) $retry['sent']));
+					}
+					$this->result['retried_emails'] = $retry;
 				}
-				$this->result['retried_emails'] = $retry;
+
+				return $this->finishWithoutWork('already_processed', $this->msg('TimeFlowLateOutAlreadyProcessed', $vars + array('__STATUS__' => $existing['status'])).$note);
 			}
 
-			return $this->finishWithoutWork('already_processed', $day.' already processed ('.$existing['status'].').'.$note);
-		}
-		if ($existing && strtotime($existing['date_run']) > $now - self::STALE_CLAIM_SECONDS) {
-			return $this->finishWithoutWork('in_progress', $day.' is being processed by another run.');
-		}
-
-		if (!$existing && $now > $cutoff + $settings['max_delay_hours'] * 3600) {
-			// First run of the day long after the cut-off (outage): a "you are late"
-			// alert hours later would be noise, so the day is recorded and skipped.
-			$this->claimDay($entity, $day, $now, $cutoff, self::STATUS_MISSED);
-
-			return $this->finishWithoutWork(self::STATUS_MISSED, $day.': first run more than '.$settings['max_delay_hours'].'h after the cut-off, no alert.');
-		}
-
-		if ($existing) {
-			// A claim left 'running' by a run that died: take it over, atomically.
-			if (!$this->takeOverClaim($existing, $now)) {
-				return $this->finishWithoutWork('in_progress', $day.' was taken over by another run.');
+			// The cut-off of the settings is not the one this day was processed with.
+			if ($now > $cutoff + $settings['max_delay_hours'] * 3600) {
+				return $this->finishWithoutWork('delay_exceeded', $this->msg('TimeFlowLateOutDelayExceeded', $vars));
+			}
+			if (!$this->reopenDay($existing, $now, $cutoff)) {
+				return $this->finishWithoutWork('in_progress', $this->msg('TimeFlowLateOutInProgress', $vars));
 			}
 			$markerId = (int) $existing['rowid'];
+			$previousCutoff = $storedCutoff;
 		} else {
-			$markerId = $this->claimDay($entity, $day, $now, $cutoff, self::STATUS_RUNNING);
-			if ($markerId === 0) {
-				return $this->finishWithoutWork('in_progress', $day.' was claimed by another run.');
+			if ($existing && strtotime($existing['date_run']) > $now - self::STALE_CLAIM_SECONDS) {
+				return $this->finishWithoutWork('in_progress', $this->msg('TimeFlowLateOutInProgress', $vars));
 			}
+
+			if (!$existing && $now > $cutoff + $settings['max_delay_hours'] * 3600) {
+				// First run of the day long after the cut-off (outage): a "you are late"
+				// alert hours later would be noise, so the day is recorded and skipped.
+				$this->claimDay($entity, $day, $now, $cutoff, self::STATUS_MISSED);
+
+				return $this->finishWithoutWork(self::STATUS_MISSED, $this->msg('TimeFlowLateOutMissed', $vars));
+			}
+
+			if ($existing) {
+				// A claim left 'running' by a run that died: take it over, atomically.
+				if (!$this->takeOverClaim($existing, $now, $cutoff)) {
+					return $this->finishWithoutWork('in_progress', $this->msg('TimeFlowLateOutInProgress', $vars));
+				}
+				$markerId = (int) $existing['rowid'];
+			} else {
+				$markerId = $this->claimDay($entity, $day, $now, $cutoff, self::STATUS_RUNNING);
+				if ($markerId === 0) {
+					return $this->finishWithoutWork('in_progress', $this->msg('TimeFlowLateOutInProgress', $vars));
+				}
+			}
+		}
+		$this->result['recheck'] = $previousCutoff !== null;
+		if ($previousCutoff !== null) {
+			$this->result['previous_cutoff'] = $previousCutoff;
 		}
 
 		$detection = $this->detect($entity, $day, $now, $cutoff, $settings);
 		$this->result = array_merge($this->result, $detection);
 
 		if ($detection['skipped'] !== null) {
-			$this->closeDay($markerId, self::STATUS_SKIPPED_NO_ACTIVITY, $now, $detection, 0, 0);
+			$this->closeDay($markerId, self::STATUS_SKIPPED_NO_ACTIVITY, $now, $detection, $this->countDigests($entity, $day), $this->countEmailsSent($entity, $day));
 
-			return $this->finishWithoutWork(self::STATUS_SKIPPED_NO_ACTIVITY, $day.': nobody expected started a timer before '.date('H:i', $cutoff).' — treated as a non-working day, no alert.');
+			return $this->finishWithoutWork(self::STATUS_SKIPPED_NO_ACTIVITY, $this->msg('TimeFlowLateOutNoActivity', $vars + array('__EXPECTED__' => (string) count($detection['expected']))));
 		}
 
 		$delivery = $this->deliver($entity, $day, $now, $detection, $settings);
 		$this->result = array_merge($this->result, $delivery);
 
-		$this->closeDay($markerId, self::STATUS_DONE, $now, $detection, $delivery['recipients'], $delivery['emails']);
+		$this->closeDay($markerId, self::STATUS_DONE, $now, $detection, $this->countDigests($entity, $day), $delivery['emails']);
 		$this->result['status'] = self::STATUS_DONE;
-		$this->output = $day.': '.count($detection['expected']).' expected, '.count($detection['late']).' late, '
-			.$delivery['recipients'].' manager(s) notified, '.$delivery['emails'].' email(s) sent'
-			.($delivery['emails_skipped'] > 0 ? ', '.$delivery['emails_skipped'].' skipped' : '')
-			.($delivery['emails_failed'] > 0 ? ', '.$delivery['emails_failed'].' failed' : '').'.';
+
+		$out = '';
+		if ($previousCutoff !== null) {
+			$out .= $this->msg('TimeFlowLateOutRecheck', array('__PREVIOUS__' => date('H:i', $previousCutoff))).' ';
+		}
+		$out .= $this->msg('TimeFlowLateOutDone', $vars + array(
+			'__CHECKED__' => (string) count($detection['expected']),
+			'__LATE__' => (string) count($detection['late']),
+			'__CREATED__' => (string) $delivery['notifications'],
+			'__SENT__' => (string) $delivery['emails_sent_now'],
+		));
+		if ($delivery['notifications_updated'] > 0) {
+			$out .= ', '.$this->msg('TimeFlowLateOutDoneUpdated', array('__UPDATED__' => (string) $delivery['notifications_updated']));
+		}
+		if ($delivery['emails_skipped'] > 0) {
+			$out .= ', '.$this->msg('TimeFlowLateOutDoneSkipped', array('__SKIPPED__' => (string) $delivery['emails_skipped']));
+		}
+		if ($delivery['emails_failed'] > 0) {
+			$out .= ', '.$this->msg('TimeFlowLateOutDoneFailed', array('__FAILED__' => (string) $delivery['emails_failed']));
+		}
+		$this->output = $out.' '.$this->msg('TimeFlowLateOutDoneTail', $vars);
 
 		return 0;
 	}
@@ -336,13 +436,14 @@ class TimeFlowLateCheck
 	 * (entity, manager, type, day) is what makes a second run, or a run resumed
 	 * after a crash, unable to alert twice.
 	 *
-	 * @return array{recipients:int,emails:int,emails_skipped:int,emails_failed:int,notifications:int,manager_ids:int[],recipient_ids:int[]}
+	 * @return array{recipients:int,emails:int,emails_sent_now:int,emails_skipped:int,emails_failed:int,notifications:int,notifications_updated:int,manager_ids:int[],recipient_ids:int[]}
 	 */
 	protected function deliver($entity, $day, $now, array $detection, array $settings)
 	{
 		$managerIds = array();
 		$recipientIds = array();
 		$created = 0;
+		$updated = 0;
 
 		if (!empty($detection['late'])) {
 			$labels = $this->fetchUserLabels($detection['late']);
@@ -368,6 +469,10 @@ class TimeFlowLateCheck
 				), JSON_UNESCAPED_UNICODE);
 				if ($this->insertNotification($entity, (int) $manager->id, $day, $payload, $now)) {
 					$created++;
+				} elseif ($this->mergeIntoDigest($entity, (int) $manager->id, $day, $late, $settings, $now)) {
+					// This manager already has the day's digest (an earlier run, possibly with another cut-off):
+					// only the people it does not mention yet were added to it.
+					$updated++;
 				}
 			}
 		}
@@ -380,12 +485,80 @@ class TimeFlowLateCheck
 		return array(
 			'recipients' => count($recipientIds),
 			'emails' => $this->countEmailsSent($entity, $day),
+			'emails_sent_now' => $mail['sent'],
 			'emails_skipped' => $mail['skipped'],
 			'emails_failed' => $mail['failed'],
 			'notifications' => $created,
+			'notifications_updated' => $updated,
 			'manager_ids' => $managerIds,
 			'recipient_ids' => $recipientIds,
 		);
+	}
+
+	/**
+	 * Adds to a manager's existing digest of the day the late people it does not mention yet. Nothing
+	 * changes (no notification touched, no email) when everybody is already in it. Otherwise the digest
+	 * lists everyone, records the new people as 'added', becomes unread again and its email is due again -
+	 * an email that only speaks about the people added (see buildEmail()).
+	 *
+	 * @param array<int,array{id:int,label:string}> $late All the late people this manager must hear about.
+	 * @return bool True when the digest was updated.
+	 */
+	private function mergeIntoDigest($entity, $managerId, $day, array $late, array $settings, $now)
+	{
+		$sql = 'SELECT rowid, payload FROM '.$this->db->prefix().'timeflow_notification WHERE entity = '.((int) $entity).' AND fk_user = '.((int) $managerId);
+		$sql .= " AND notif_type = '".$this->db->escape(self::NOTIF_TYPE)."' AND date_ref = '".$this->db->escape($day)."'";
+		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::mergeIntoDigest:select');
+		$row = $this->db->fetch_object($resql);
+		$this->db->free($resql);
+		if (!$row) {
+			return false;
+		}
+
+		$previous = json_decode((string) $row->payload, true);
+		$previous = is_array($previous) ? $previous : array();
+		$known = array();
+		$merged = isset($previous['late']) && is_array($previous['late']) ? $previous['late'] : array();
+		foreach ($merged as $person) {
+			$known[(int) $person['id']] = true;
+		}
+		$added = array();
+		foreach ($late as $person) {
+			if (!isset($known[(int) $person['id']])) {
+				$added[] = $person;
+			}
+		}
+		if (empty($added)) {
+			return false;
+		}
+
+		$payload = json_encode(array(
+			'day' => $day,
+			'threshold' => $settings['threshold'],
+			'grace' => $settings['grace'],
+			'cutoff' => date('H:i', self::cutoffTimestamp($now, $settings)),
+			'late' => array_merge($merged, $added),
+			'added' => $added,
+		), JSON_UNESCAPED_UNICODE);
+		$sql = 'UPDATE '.$this->db->prefix()."timeflow_notification SET payload = '".$this->db->escape($payload)."', date_read = NULL,";
+		$sql .= ' email_status = NULL, email_attempts = 0, email_error = NULL, email_date = NULL WHERE rowid = '.((int) $row->rowid);
+		timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::mergeIntoDigest:update');
+
+		return true;
+	}
+
+	/**
+	 * @return int How many managers have a digest for the day.
+	 */
+	private function countDigests($entity, $day)
+	{
+		$sql = 'SELECT COUNT(*) AS nb FROM '.$this->db->prefix().'timeflow_notification WHERE entity = '.((int) $entity);
+		$sql .= " AND notif_type = '".$this->db->escape(self::NOTIF_TYPE)."' AND date_ref = '".$this->db->escape($day)."'";
+		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::countDigests');
+		$obj = $this->db->fetch_object($resql);
+		$this->db->free($resql);
+
+		return $obj ? (int) $obj->nb : 0;
 	}
 
 	/**
@@ -654,6 +827,11 @@ class TimeFlowLateCheck
 		$outputlangs->loadLangs(array('main', 'timeflow@timeflow'));
 
 		$late = isset($payload['late']) && is_array($payload['late']) ? $payload['late'] : array();
+		// A digest completed by a later check: the email only speaks about the people added since the first one.
+		$added = isset($payload['added']) && is_array($payload['added']) && !empty($payload['added']) ? $payload['added'] : array();
+		if (!empty($added)) {
+			$late = $added;
+		}
 		$dayLabel = dol_print_date(strtotime($day.' 12:00:00'), 'day', 'tzserver', $outputlangs);
 		$cutoff = isset($payload['cutoff']) ? (string) $payload['cutoff'] : '';
 
@@ -669,7 +847,7 @@ class TimeFlowLateCheck
 		$url = dol_buildpath('/timeflow/timeflowindex.php', 2).'#/reports?tab=users&presenceDate='.$day;
 
 		$html = '<div'.($lang === 'ar_SA' ? ' dir="rtl"' : '').'>';
-		$html .= '<p>'.dol_escape_htmltag($outputlangs->transnoentitiesnoconv('TimeFlowLateMailIntro', $cutoff, $dayLabel)).'</p>';
+		$html .= '<p>'.dol_escape_htmltag($outputlangs->transnoentitiesnoconv(!empty($added) ? 'TimeFlowLateMailIntroAdded' : 'TimeFlowLateMailIntro', $cutoff, $dayLabel)).'</p>';
 		$html .= '<ul>'.$items.'</ul>';
 		$html .= '<p><a href="'.dol_escape_htmltag($url).'">'.dol_escape_htmltag($outputlangs->transnoentitiesnoconv('TimeFlowLateMailOpen')).'</a></p>';
 		$html .= '<p style="color:#666;font-size:12px">'.dol_escape_htmltag($outputlangs->transnoentitiesnoconv('TimeFlowLateMailFooter')).'</p>';
@@ -859,13 +1037,13 @@ class TimeFlowLateCheck
 	 */
 	private function getMarker($entity, $day)
 	{
-		$sql = 'SELECT rowid, status, date_run FROM '.$this->db->prefix().'timeflow_late_check';
+		$sql = 'SELECT rowid, status, date_run, cutoff FROM '.$this->db->prefix().'timeflow_late_check';
 		$sql .= ' WHERE entity = '.((int) $entity)." AND date_check = '".$this->db->escape($day)."'";
 		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::getMarker');
 		$obj = $this->db->fetch_object($resql);
 		$this->db->free($resql);
 
-		return $obj ? array('rowid' => (int) $obj->rowid, 'status' => (string) $obj->status, 'date_run' => (string) $obj->date_run) : null;
+		return $obj ? array('rowid' => (int) $obj->rowid, 'status' => (string) $obj->status, 'date_run' => (string) $obj->date_run, 'cutoff' => (string) $obj->cutoff) : null;
 	}
 
 	/**
@@ -897,11 +1075,26 @@ class TimeFlowLateCheck
 	 *
 	 * @return bool
 	 */
-	private function takeOverClaim(array $existing, $now)
+	private function takeOverClaim(array $existing, $now, $cutoff)
 	{
-		$sql = 'UPDATE '.$this->db->prefix()."timeflow_late_check SET date_run = '".date('Y-m-d H:i:s', $now)."'";
+		$sql = 'UPDATE '.$this->db->prefix()."timeflow_late_check SET date_run = '".date('Y-m-d H:i:s', $now)."', cutoff = '".date('Y-m-d H:i:s', $cutoff)."'";
 		$sql .= ' WHERE rowid = '.((int) $existing['rowid'])." AND status = 'running' AND date_run = '".$this->db->escape($existing['date_run'])."'";
 		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::takeOverClaim');
+
+		return (int) $this->db->affected_rows($resql) === 1;
+	}
+
+	/**
+	 * Reopens a day that was processed with another cut-off, atomically: the UPDATE only matches while the
+	 * row still has the status and cut-off that were read, so of two runs reopening at once only one wins.
+	 *
+	 * @return bool
+	 */
+	private function reopenDay(array $existing, $now, $cutoff)
+	{
+		$sql = 'UPDATE '.$this->db->prefix()."timeflow_late_check SET status = 'running', date_end = NULL, date_run = '".date('Y-m-d H:i:s', $now)."', cutoff = '".date('Y-m-d H:i:s', $cutoff)."'";
+		$sql .= ' WHERE rowid = '.((int) $existing['rowid'])." AND status = '".$this->db->escape($existing['status'])."' AND cutoff = '".$this->db->escape($existing['cutoff'])."'";
+		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::reopenDay');
 
 		return (int) $this->db->affected_rows($resql) === 1;
 	}

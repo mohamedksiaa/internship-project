@@ -80,3 +80,19 @@ TimeFlowLateMailOpen = عرض حضور اليوم في TimeFlow
 TimeFlowLateMailFooter = تتلقى هذا البريد لأن لديك صلاحية «قراءة جميع سجلات الوقت» في TimeFlow. يمكنك إيقافه من جرس الإشعارات في TimeFlow (يبقى الإشعار الداخلي مفعّلاً).
 TimeFlowServerTimeInfo = وقت الخادم الحالي: %s (المنطقة الزمنية %s، UTC%s). يُفسَّر وقت الحضور المحدد وفق هذه المنطقة الزمنية، وليس وفق المنطقة الزمنية لمن يضبطه.
 TimeFlowServerTimeMismatch = تنبيه: هذا المتصفح ليس في نفس المنطقة الزمنية للخادم. تحقق من MAIN_SERVER_TZ أو date.timezone (php.ini) قبل تفعيل التنبيهات.
+TimeFlowLateOutDisabled = تنبيهات التأخير معطّلة (TIMEFLOW_LATE_ALERT_ENABLED): لم يتم أي فحص.
+TimeFlowLateOutNotWorkday = __DAY__ ليس يوماً خاضعاً للمراقبة (الأيام المراقبة: __WORKDAYS__).
+TimeFlowLateOutTooEarly = لم يُبلغ الحد بعد (الحد __THRESHOLD__ + السماح __GRACE__ دقيقة = __CUTOFF__، وقت الخادم __NOW__).
+TimeFlowLateOutAlreadyProcessed = تمت معالجة __DAY__ مسبقاً بالوقت الأقصى __CUTOFF__ (الحالة __STATUS__، وقت الخادم __NOW__).
+TimeFlowLateOutDelayExceeded = تم تجاوز المهلة القصوى للكشف (الوقت الأقصى __CUTOFF__ + __MAX__ ساعة = __LIMIT__، وقت الخادم __NOW__): لا فحص جديد لـ __DAY__.
+TimeFlowLateOutMissed = __DAY__: أول تشغيل في اليوم بعد أكثر من __MAX__ ساعة من الوقت الأقصى (__CUTOFF__ + __MAX__ ساعة = __LIMIT__، وقت الخادم __NOW__): لا تنبيه.
+TimeFlowLateOutInProgress = __DAY__: قيد المعالجة من تشغيل آخر.
+TimeFlowLateOutNoActivity = __DAY__: لم يبدأ أي من __EXPECTED__ مستخدم متوقَّع مؤقتاً قبل __CUTOFF__: يُعامل كيوم غير عمل، لا تنبيه.
+TimeFlowLateOutRetried = أُعيدت محاولة __ATTEMPTED__ رسالة معلّقة، أُرسل منها __SENT__.
+TimeFlowLateOutRecheck = فحص جديد (كان اليوم قد عولج بالوقت الأقصى __PREVIOUS__).
+TimeFlowLateOutDone = __DAY__: تم فحص __CHECKED__، متأخرون __LATE__، إشعارات مُنشأة __CREATED__، رسائل مُرسلة __SENT__
+TimeFlowLateOutDoneUpdated = إشعارات محدَّثة __UPDATED__
+TimeFlowLateOutDoneSkipped = رسائل مُتجاوَزة __SKIPPED__
+TimeFlowLateOutDoneFailed = رسائل فاشلة __FAILED__
+TimeFlowLateOutDoneTail = (الوقت الأقصى __CUTOFF__ = الحد __THRESHOLD__ + السماح __GRACE__ دقيقة، وقت الخادم __NOW__).
+TimeFlowLateMailIntroAdded = موظفون إضافيون لم يبدؤوا أي مؤقّت قبل %s في %s:

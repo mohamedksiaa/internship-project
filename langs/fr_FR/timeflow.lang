@@ -80,3 +80,19 @@ TimeFlowLateMailOpen = Voir la présence du jour dans TimeFlow
 TimeFlowLateMailFooter = Vous recevez cet email parce que vous avez le droit « Lire toutes les entrées de temps » dans TimeFlow. Vous pouvez ne plus le recevoir depuis la cloche de notification de TimeFlow (la notification interne reste active).
 TimeFlowServerTimeInfo = Heure actuelle du serveur : %s (fuseau %s, UTC%s). L'heure seuil d'arrivée est interprétée dans ce fuseau, pas dans celui de la personne qui la règle.
 TimeFlowServerTimeMismatch = Attention : ce navigateur n'est pas dans le même fuseau que le serveur. Vérifiez MAIN_SERVER_TZ ou date.timezone (php.ini) avant d'activer les alertes.
+TimeFlowLateOutDisabled = Alertes de retard désactivées (TIMEFLOW_LATE_ALERT_ENABLED) : aucun contrôle effectué.
+TimeFlowLateOutNotWorkday = __DAY__ n'est pas un jour contrôlé (jours contrôlés : __WORKDAYS__).
+TimeFlowLateOutTooEarly = Seuil pas encore atteint (seuil __THRESHOLD__ + tolérance __GRACE__ min = __CUTOFF__, heure serveur __NOW__).
+TimeFlowLateOutAlreadyProcessed = __DAY__ déjà traité avec l'heure limite __CUTOFF__ (statut __STATUS__, heure serveur __NOW__).
+TimeFlowLateOutDelayExceeded = Délai maximal de détection dépassé (heure limite __CUTOFF__ + __MAX__ h = __LIMIT__, heure serveur __NOW__) : aucune nouvelle vérification pour __DAY__.
+TimeFlowLateOutMissed = __DAY__ : première exécution du jour plus de __MAX__ h après l'heure limite (__CUTOFF__ + __MAX__ h = __LIMIT__, heure serveur __NOW__) : aucune alerte.
+TimeFlowLateOutInProgress = __DAY__ : traitement déjà en cours par un autre passage.
+TimeFlowLateOutNoActivity = __DAY__ : aucun des __EXPECTED__ utilisateur(s) attendu(s) n'a démarré de chronomètre avant __CUTOFF__ : jour considéré comme non travaillé, aucune alerte.
+TimeFlowLateOutRetried = __ATTEMPTED__ email(s) en attente renvoyé(s), __SENT__ envoyé(s).
+TimeFlowLateOutRecheck = Nouvelle vérification (la journée avait été traitée avec l'heure limite __PREVIOUS__).
+TimeFlowLateOutDone = __DAY__ : __CHECKED__ contrôlé(s), __LATE__ en retard, __CREATED__ notification(s) créée(s), __SENT__ email(s) envoyé(s)
+TimeFlowLateOutDoneUpdated = __UPDATED__ notification(s) mise(s) à jour
+TimeFlowLateOutDoneSkipped = __SKIPPED__ email(s) ignoré(s)
+TimeFlowLateOutDoneFailed = __FAILED__ email(s) en échec
+TimeFlowLateOutDoneTail = (heure limite __CUTOFF__ = seuil __THRESHOLD__ + tolérance __GRACE__ min, heure serveur __NOW__).
+TimeFlowLateMailIntroAdded = Employés supplémentaires n'ayant démarré aucun chronomètre à %s le %s :
