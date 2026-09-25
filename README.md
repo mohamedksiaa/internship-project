@@ -67,6 +67,19 @@ Il permet de :
    ```
 4. Vérifier la configuration du fichier .env si vous souhaitez utiliser l’API réelle.
 
+### Alertes de retard : fuseau horaire du serveur (à vérifier avant activation)
+`TIMEFLOW_LATE_THRESHOLD_TIME` (heure seuil d'arrivée, 09:00 par défaut) et la tolérance sont interprétés en **heure SERVEUR** — le fuseau PHP du serveur qui exécute la tâche planifiée — et **non** dans le fuseau de la personne qui les règle ni de ses employés. Avec un serveur en UTC et des employés en UTC+1, une alerte réglée à 09:00 part à 10:00 heure locale ; le job ne se trompe pas, il répond simplement « trop tôt » pendant une heure de plus.
+
+Avant d'activer `TIMEFLOW_LATE_ALERT_ENABLED` en production :
+1. Repérer le fuseau réellement utilisé : Configuration > Modules > TimeFlow affiche l'heure et le fuseau du serveur au-dessus du champ, avec un avertissement si le navigateur est dans un autre fuseau.
+2. Le définir explicitement, l'un des deux suivants (`MAIN_SERVER_TZ` a priorité) :
+   - constante Dolibarr `MAIN_SERVER_TZ` (Accueil > Configuration > Autre configuration), par exemple `Africa/Tunis` ou `Europe/Paris` ;
+   - ou `date.timezone` dans le `php.ini` de **la tâche planifiée et du serveur web** (avec l'image Docker `tuxgasy/dolibarr` : variable `PHP_INI_DATE_TIMEZONE`, qui vaut `UTC` par défaut et **ignore `TZ`**).
+3. Garder le fuseau du serveur de base de données cohérent avec celui de PHP (une requête du module utilise `NOW()`).
+4. Relancer la tâche planifiée / le serveur web, puis vérifier l'heure affichée dans la page de configuration.
+
+Changer le fuseau d'une installation existante décale d'autant l'interprétation des dates déjà enregistrées : à faire avant d'utiliser le module en production.
+
 ## Utilisation
 
 - Un utilisateur peut démarrer un chrono depuis l’interface React.

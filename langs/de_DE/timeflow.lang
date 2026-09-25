@@ -78,3 +78,5 @@ TimeFlowLateMailSubject = [TimeFlow] %s Mitarbeiter heute Morgen verspätet (%s)
 TimeFlowLateMailIntro = Die folgenden Mitarbeiter hatten bis %s am %s keinen Timer gestartet:
 TimeFlowLateMailOpen = Anwesenheit des Tages in TimeFlow ansehen
 TimeFlowLateMailFooter = Sie erhalten diese E-Mail, weil Sie in TimeFlow das Recht „Alle Zeiteinträge lesen“ haben. Sie können sie über die Benachrichtigungsglocke in TimeFlow abbestellen (die interne Benachrichtigung bleibt aktiv).
+TimeFlowServerTimeInfo = Aktuelle Serverzeit: %s (Zeitzone %s, UTC%s). Die Ankunfts-Schwellenzeit wird in dieser Zeitzone interpretiert, nicht in der Zeitzone der Person, die sie einstellt.
+TimeFlowServerTimeMismatch = Achtung: Dieser Browser befindet sich nicht in derselben Zeitzone wie der Server. Prüfen Sie MAIN_SERVER_TZ oder date.timezone (php.ini), bevor Sie die Warnungen aktivieren.
