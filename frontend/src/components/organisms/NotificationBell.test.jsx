@@ -19,7 +19,8 @@ const row = (id, day, over = {}) => ({
   late: [person(4, 'Nicole Kardashian')], threshold: '09:00', cutoff: '09:10', email_status: 'sent', ...over,
 });
 const list = (rows, over = {}) => ({ available: true, unreadCount: rows.filter((r) => !r.read).length, rows, ...over });
-const prefs = (over = {}) => ({ emailEnabled: true, hasEmail: true, email: 'manager@example.com', alertsEnabled: true, mailEnabled: true, ...over });
+// Emails are opt-in: a manager who never touched the box has it unchecked.
+const prefs = (over = {}) => ({ emailEnabled: false, hasEmail: true, email: 'manager@example.com', alertsEnabled: true, mailEnabled: true, ...over });
 const twoRows = () => [
   row(12, '2026-09-23', { late: [person(4, 'Nicole Kardashian')] }),
   row(11, '2026-09-22', { read: true, late: [person(4, 'Nicole Kardashian'), person(3, 'Alex Waternson')] }),
@@ -358,35 +359,53 @@ describe('NotificationBell', () => {
       renderBell();
       const panel = await openPanel(user);
       const checkbox = await within(panel).findByRole('checkbox', { name: 'Recevoir aussi les alertes par email' });
-      expect(checkbox).toBeChecked();
+      expect(checkbox).not.toBeChecked();
       expect(checkbox).toBeEnabled();
       expect(within(panel).getByText('Adresse : manager@example.com')).toBeInTheDocument();
     });
 
-    it('reflects "off"', async () => {
-      getAlertPreferences.mockResolvedValue(prefs({ emailEnabled: false }));
+    it('reflects "on" when the manager opted in', async () => {
+      getAlertPreferences.mockResolvedValue(prefs({ emailEnabled: true }));
       const user = userEvent.setup();
       renderBell();
       const panel = await openPanel(user);
-      expect(await within(panel).findByRole('checkbox', { name: /Recevoir aussi/ })).not.toBeChecked();
+      expect(await within(panel).findByRole('checkbox', { name: /Recevoir aussi/ })).toBeChecked();
     });
 
-    it('unchecking saves "off" and shows what the server answered', async () => {
+    it('checking saves "on" and shows what the server answered; unchecking saves "off"', async () => {
       const user = userEvent.setup();
       renderBell();
       const panel = await openPanel(user);
       const checkbox = await within(panel).findByRole('checkbox', { name: /Recevoir aussi/ });
       await user.click(checkbox);
-      expect(saveAlertPreferences).toHaveBeenCalledWith({ emailEnabled: false });
-      await waitFor(() => expect(checkbox).not.toBeChecked());
-      await user.click(checkbox);
-      expect(saveAlertPreferences).toHaveBeenLastCalledWith({ emailEnabled: true });
+      expect(saveAlertPreferences).toHaveBeenCalledWith({ emailEnabled: true });
       await waitFor(() => expect(checkbox).toBeChecked());
+      await user.click(checkbox);
+      expect(saveAlertPreferences).toHaveBeenLastCalledWith({ emailEnabled: false });
+      await waitFor(() => expect(checkbox).not.toBeChecked());
+    });
+
+    it('a checked box stays checked after the panel is closed and after the whole bell is reloaded (state lives on the server)', async () => {
+      let serverEnabled = false;
+      getAlertPreferences.mockImplementation(async () => prefs({ emailEnabled: serverEnabled }));
+      saveAlertPreferences.mockImplementation(async ({ emailEnabled }) => {
+        serverEnabled = emailEnabled;
+        return prefs({ emailEnabled });
+      });
+      const user = userEvent.setup();
+      const first = renderBell();
+      let panel = await openPanel(user);
+      await user.click(await within(panel).findByRole('checkbox', { name: /Recevoir aussi/ }));
+      await waitFor(() => expect(serverEnabled).toBe(true));
+      first.unmount(); // a page reload: every bit of React state is gone
+      renderBell();
+      panel = await openPanel(user);
+      expect(await within(panel).findByRole('checkbox', { name: /Recevoir aussi/ })).toBeChecked();
     });
 
     it('is locked while saving, so a double click sends one request', async () => {
       let release;
-      saveAlertPreferences.mockImplementation(() => new Promise((resolve) => { release = () => resolve(prefs({ emailEnabled: false })); }));
+      saveAlertPreferences.mockImplementation(() => new Promise((resolve) => { release = () => resolve(prefs({ emailEnabled: true })); }));
       const user = userEvent.setup();
       renderBell();
       const panel = await openPanel(user);
@@ -407,7 +426,7 @@ describe('NotificationBell', () => {
       const checkbox = await within(panel).findByRole('checkbox', { name: /Recevoir aussi/ });
       await user.click(checkbox);
       expect(await within(panel).findByRole('alert')).toHaveTextContent('Accès refusé');
-      expect(checkbox).toBeChecked();
+      expect(checkbox).not.toBeChecked();
       expect(checkbox).toBeEnabled();
     });
 
