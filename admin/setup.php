@@ -249,6 +249,24 @@ print dol_get_fiche_head($head, 'settings', $langs->trans($title), -1, "timeflow
 // Setup page goes here
 echo '<span class="opacitymedium">'.$langs->trans("TimeFlowSetupPage").'</span><br><br>';
 
+// The late-arrival threshold is read in SERVER time (PHP's timezone: MAIN_SERVER_TZ
+// or php.ini date.timezone), not in the timezone of whoever edits it here. Show it
+// before the threshold field, and warn as soon as this browser disagrees with it.
+$serverNow = dol_now();
+$serverOffsetMinutes = (int) round((int) date('Z', $serverNow) / 60);
+print '<div class="info" id="timeflow-server-time" data-offset="'.$serverOffsetMinutes.'" style="margin-bottom: 1em;">';
+print img_picto('', 'info', 'class="pictofixedwidth"');
+print dol_escape_htmltag($langs->transnoentitiesnoconv('TimeFlowServerTimeInfo', date('Y-m-d H:i', $serverNow), date_default_timezone_get(), date('P', $serverNow)));
+print '<span id="timeflow-server-time-warning" class="warning" style="display:none;"> '.dol_escape_htmltag($langs->transnoentitiesnoconv('TimeFlowServerTimeMismatch')).'</span>';
+print '</div>';
+print '<script>(function () {'
+	.' var box = document.getElementById("timeflow-server-time");'
+	.' if (!box) { return; }'
+	.' if (-new Date().getTimezoneOffset() !== parseInt(box.getAttribute("data-offset"), 10)) {'
+	.'   document.getElementById("timeflow-server-time-warning").style.display = "inline";'
+	.' }'
+	.'})();</script>';
+
 if (!empty($formSetup->items)) {
 	print $formSetup->generateOutput(true);
 	print '<br>';

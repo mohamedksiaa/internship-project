@@ -78,3 +78,5 @@ TimeFlowLateMailSubject = [TimeFlow] %s employee(s) late this morning (%s)
 TimeFlowLateMailIntro = The following employees had not started any timer by %s on %s:
 TimeFlowLateMailOpen = See today's presence in TimeFlow
 TimeFlowLateMailFooter = You receive this email because you have the "Read all time entries" right in TimeFlow. You can stop receiving it from the notification bell in TimeFlow (the in-app notification stays on).
+TimeFlowServerTimeInfo = Current server time: %s (timezone %s, UTC%s). The arrival threshold time is interpreted in this timezone, not in the timezone of whoever sets it.
+TimeFlowServerTimeMismatch = Warning: this browser is not in the same timezone as the server. Check MAIN_SERVER_TZ or date.timezone (php.ini) before enabling the alerts.

@@ -78,3 +78,5 @@ TimeFlowLateMailSubject = [TimeFlow] %s موظف(ين) متأخر(ون) هذا �
 TimeFlowLateMailIntro = لم يبدأ الموظفون التالية أسماؤهم أي مؤقت قبل %s بتاريخ %s:
 TimeFlowLateMailOpen = عرض حضور اليوم في TimeFlow
 TimeFlowLateMailFooter = تتلقى هذا البريد لأن لديك صلاحية «قراءة جميع سجلات الوقت» في TimeFlow. يمكنك إيقافه من جرس الإشعارات في TimeFlow (يبقى الإشعار الداخلي مفعّلاً).
+TimeFlowServerTimeInfo = وقت الخادم الحالي: %s (المنطقة الزمنية %s، UTC%s). يُفسَّر وقت الحضور المحدد وفق هذه المنطقة الزمنية، وليس وفق المنطقة الزمنية لمن يضبطه.
+TimeFlowServerTimeMismatch = تنبيه: هذا المتصفح ليس في نفس المنطقة الزمنية للخادم. تحقق من MAIN_SERVER_TZ أو date.timezone (php.ini) قبل تفعيل التنبيهات.
