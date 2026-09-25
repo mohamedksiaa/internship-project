@@ -483,7 +483,8 @@
         "matched": "Resolved",
         "create_pending": "To create",
         "create_confirmed": "Will be created automatically",
-        "ignored": "Ignored"
+        "ignored": "Ignored",
+        "created": "Created automatically"
       },
       "select_user_placeholder": "— Choose a user —",
       "select_project_placeholder": "— Choose an existing project —",
@@ -538,7 +539,27 @@
       "execute_result_errors_one": "{{count}} error while creating an item",
       "execute_result_errors_other": "{{count}} errors while creating items",
       "execute_missing_file": "The original CSV file is no longer available, please restart the import.",
-      "execute_generic_error": "An error occurred while executing the import."
+      "execute_generic_error": "An error occurred while executing the import.",
+      "create_new_user_checkbox": "Automatically create this user",
+      "new_user_login_label": "Login",
+      "new_user_firstname_label": "First name",
+      "new_user_lastname_label": "Last name",
+      "create_user_info": "A Dolibarr account will be created with only the basic TimeFlow rights (create and view its own entries). Its login details will be emailed to {{email}}.",
+      "create_user_not_allowed": "You are not allowed to create user accounts: map this email to an existing account.",
+      "create_user_invalid_email": "Invalid email address: no account can be created (the login details are sent by email). Map it to an existing account.",
+      "disabled_account_warning": "Disabled account: {{login}}. No duplicate is created: map this email to another account, or re-enable this account in Dolibarr and rerun the preview.",
+      "user_to_create_summary": "Account to create: {{login}} ({{name}})",
+      "confirm_recap_users_one": "{{count}} user account will be created",
+      "confirm_recap_users_other": "{{count}} user accounts will be created",
+      "confirm_recap_users_note": "Each account only gets the basic TimeFlow rights and is emailed its login details (generated password).",
+      "execute_result_users_one": "{{count}} user account created",
+      "execute_result_users_other": "{{count}} user accounts created",
+      "execute_result_user_email_sent": "{{login}}: login email sent to {{email}}",
+      "execute_result_user_email_mail_disabled": "{{login}}: account created, but email sending is disabled on this instance: no login details were sent. Use “Send email with login information” on its Dolibarr card.",
+      "execute_result_user_email_failed": "{{login}}: account created, but the login email could NOT be sent ({{reason}}). Use “Send email with login information” on its Dolibarr card.",
+      "execute_result_user_error": "{{email}}: {{message}}",
+      "execute_result_groups_withheld_one": "{{count}} group membership not applied: that group gives more than the basic TimeFlow rights to an account created by the import",
+      "execute_result_groups_withheld_other": "{{count}} group memberships not applied: those groups give more than the basic TimeFlow rights to an account created by the import"
     }
   },
   "entries_few": "",

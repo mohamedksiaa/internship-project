@@ -2602,6 +2602,8 @@ switch ($action) {
             $clockifyImport = new TimeImportClockify($db);
             $updatedMapping = $clockifyImport->resolveMappingDecisions($decisions);
             timeflowJsonResponse(array('status' => 'success', 'data' => $updatedMapping));
+        } catch (TimeImportForbiddenException $e) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 403);
         } catch (InvalidArgumentException $e) {
             timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
         } catch (RuntimeException $e) {

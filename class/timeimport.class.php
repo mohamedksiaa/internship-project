@@ -5,7 +5,13 @@ require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/usergroup.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php'; // getRandomPassword()
 dol_include_once('/timeflow/class/timeentry.class.php');
+
+/** Thrown when the acting user lacks the right to create Dolibarr accounts (mapped to HTTP 403). */
+class TimeImportForbiddenException extends RuntimeException
+{
+}
 
 /**
  * Clockify CSV preview/import mapping helper, and — once the user has
@@ -21,11 +27,26 @@ dol_include_once('/timeflow/class/timeentry.class.php');
  * path in this class that creates real entities, and it does so strictly
  * from mapping rows the user already confirmed (target_action='create_confirmed'
  * for projects/groups) or already matched to an existing record — see
- * createConfirmedProjectsAndGroups() below for why a llx_user row can never
- * be created from this flow, structurally, not just by convention.
+ * createConfirmedProjectsAndGroups() below.
+ *
+ * A Dolibarr account is created from this flow ONLY when an actor who is admin
+ * or holds the native Dolibarr right "create users" (user->user->creer) has
+ * confirmed it for a Clockify email that matches no account at all, active or
+ * disabled (resolveMappingDecisions()); createConfirmedUsers() re-checks
+ * everything at execution and gives the account nothing beyond TimeFlow's basic
+ * read/write rights.
  */
 class TimeImportClockify
 {
+    /** The only Dolibarr rights a created account gets: TimeFlow timeentry read + write. */
+    const BASE_RIGHTS = array('read', 'write');
+
+    /** Target actions that mean "this email is resolved to a real, usable account". */
+    const RESOLVED_USER_ACTIONS = array('matched', 'created');
+
+    /** @var User|null Acting user; defaults to the global $user (the AJAX caller). Exposed for tests. */
+    public $actor = null;
+
     /** @var DoliDB */
     public $db;
 
@@ -143,7 +164,9 @@ class TimeImportClockify
                 'skipped_rows' => 'Lignes ignorées : user ou project vide. Elles seront exclues automatiquement sans bloquer l’import.',
             ),
             'warnings' => array(),
+            'can_create_users' => $this->canCreateUsers(),
         );
+        $displayNameByEmail = array();
 
         $handle = fopen($csvPath, 'r');
         if ($handle === false) {
@@ -180,6 +203,11 @@ class TimeImportClockify
             $clientLabel = $this->normalizeString($this->readCell($normalizedRow, $columnIndexes['client'] ?? null));
             $groupsCell = $this->readCell($normalizedRow, $columnIndexes['groups'] ?? null);
             $groupNames = $this->splitGroupNames($groupsCell);
+
+            $displayName = $this->normalizeString($this->readCell($normalizedRow, $columnIndexes['user_display'] ?? null));
+            if ($email !== '' && $displayName !== '' && !isset($displayNameByEmail[$email])) {
+                $displayNameByEmail[$email] = $displayName;
+            }
 
             $userResolution = $this->resolveUserMapping($email, $this->sourceSystem);
             $projectResolution = $this->resolveProjectMapping($projectLabel, $this->sourceSystem);
@@ -234,13 +262,13 @@ class TimeImportClockify
             $this->persistProjectUserLink($this->sourceSystem, $pair['project'], $pair['email'], $this->getCurrentUserId());
         }
 
-        $summary['users'] = array_values($summary['users']);
+        $summary['users'] = $this->addUserCreationHints(array_values($summary['users']), $displayNameByEmail);
         $summary['projects'] = array_values($summary['projects']);
         $summary['groups'] = array_values($summary['groups']);
         $summary['clients'] = array_values($summary['clients']);
 
         foreach ($summary['users'] as $userEntry) {
-            if ($userEntry['target_action'] === 'matched') {
+            if (in_array($userEntry['target_action'], self::RESOLVED_USER_ACTIONS, true)) {
                 $summary['stats']['matched_users']++;
             } elseif ($userEntry['target_action'] === 'create_pending') {
                 $summary['stats']['pending_users']++;
@@ -443,7 +471,17 @@ class TimeImportClockify
 
         $existing = $this->getExistingMapping($sourceSystem, 'user', $sourceValue);
         if (!empty($existing)) {
-            return array(
+            if (in_array($existing['target_action'], self::RESOLVED_USER_ACTIONS, true) && !$this->userExistsAndActive((int) $existing['target_id'])) {
+                // Matched earlier (possibly by the old code, which matched disabled accounts too),
+                // but that account is disabled or gone: ask again instead of importing into it.
+                $previousTargetLogin = $this->loginOfDisabledUser((int) $existing['target_id']);
+                $this->downgradeUserMapping($existing['rowid']);
+                $existing['target_id'] = null;
+                $existing['target_action'] = 'create_pending';
+                $existing['new_label'] = null;
+            }
+
+            $resolved = $this->withDisabledAccountWarning(array(
                 'mapping_type' => 'user',
                 'source_system' => $sourceSystem,
                 'source_value' => $existing['source_value'],
@@ -451,7 +489,14 @@ class TimeImportClockify
                 'target_action' => $existing['target_action'],
                 'status' => $existing['target_action'],
                 'new_label' => $existing['new_label'],
-            );
+            ), $sourceValue);
+            if (isset($previousTargetLogin) && $previousTargetLogin !== null && empty($resolved['warning'])) {
+                // The mapping had been made by hand to an account (whatever its email) that is disabled now.
+                $resolved['warning'] = 'disabled_account';
+                $resolved['disabled_login'] = $previousTargetLogin;
+            }
+
+            return $resolved;
         }
 
         $targetId = $this->findDolibarrUserByEmail($sourceValue);
@@ -467,7 +512,7 @@ class TimeImportClockify
         );
 
         if (!empty($persisted)) {
-            return array(
+            return $this->withDisabledAccountWarning(array(
                 'mapping_type' => 'user',
                 'source_system' => $sourceSystem,
                 'source_value' => $persisted['source_value'],
@@ -475,10 +520,10 @@ class TimeImportClockify
                 'target_action' => $persisted['target_action'],
                 'status' => $persisted['target_action'],
                 'new_label' => null,
-            );
+            ), $sourceValue);
         }
 
-        return array(
+        return $this->withDisabledAccountWarning(array(
             'mapping_type' => 'user',
             'source_system' => $sourceSystem,
             'source_value' => $sourceValue,
@@ -486,7 +531,7 @@ class TimeImportClockify
             'target_action' => $targetAction,
             'status' => $targetAction,
             'new_label' => null,
-        );
+        ), $sourceValue);
     }
 
     /**
@@ -713,32 +758,94 @@ class TimeImportClockify
         );
     }
 
-    protected function findDolibarrUserByEmail($email)
+    /**
+     * The Dolibarr account carrying this email, whatever its status. When several
+     * accounts share it (Dolibarr refuses that today, older data may not), an
+     * active one wins over a disabled one.
+     *
+     * @return array{id:int,login:string,active:bool}|null
+     */
+    protected function lookupDolibarrUserByEmail($email)
     {
         $email = trim((string) $email);
         if ($email === '') {
-            return 0;
+            return null;
         }
 
-        $user = new User($this->db);
-        $result = $user->fetch(0, '', '', $email);
-        if ($result > 0 && !empty($user->id)) {
-            return (int) $user->id;
-        }
-
-        $sql = 'SELECT rowid';
+        $sql = 'SELECT rowid, login, statut';
         $sql .= ' FROM '.$this->db->prefix().'user';
         $sql .= ' WHERE email = \''.$this->db->escape($email).'\'';
         $sql .= ' AND entity IN ('.getEntity('user').')';
-        $sql .= ' ORDER BY rowid ASC LIMIT 1';
+        $sql .= ' ORDER BY statut DESC, rowid ASC LIMIT 1';
 
         $res = $this->db->query($sql);
         if (!$res) {
-            return 0;
+            return null;
         }
 
         $obj = $this->db->fetch_object($res);
-        return $obj ? (int) $obj->rowid : 0;
+        if (!$obj) {
+            return null;
+        }
+
+        return array('id' => (int) $obj->rowid, 'login' => (string) $obj->login, 'active' => ((int) $obj->statut) === 1);
+    }
+
+    /**
+     * The ACTIVE Dolibarr account carrying this email, or 0. A disabled account is
+     * deliberately not returned: silently attributing imported time to it would
+     * hide that the person can no longer log in (see resolveUserMapping()).
+     */
+    protected function findDolibarrUserByEmail($email)
+    {
+        $found = $this->lookupDolibarrUserByEmail($email);
+
+        return ($found !== null && $found['active']) ? $found['id'] : 0;
+    }
+
+    /**
+     * Puts a user mapping back to "pending" when the account it points to can no
+     * longer receive imported time (disabled since, or deleted). Persisted, so every
+     * later step sees the same state.
+     */
+    protected function downgradeUserMapping($mappingRowId)
+    {
+        $sql = 'UPDATE '.$this->db->prefix().'timeflow_import_mapping SET';
+        $sql .= " target_id = NULL, target_action = 'create_pending', new_label = NULL";
+        $sql .= ' WHERE rowid = '.(int) $mappingRowId;
+        $this->db->query($sql);
+    }
+
+    /**
+     * Login of a user that exists but is disabled, null otherwise.
+     */
+    protected function loginOfDisabledUser($userId)
+    {
+        $res = $this->db->query('SELECT login, statut FROM '.$this->db->prefix().'user WHERE rowid = '.((int) $userId));
+        $obj = $res ? $this->db->fetch_object($res) : null;
+
+        return ($obj && ((int) $obj->statut) !== 1) ? (string) $obj->login : null;
+    }
+
+    /**
+     * Adds the "this email belongs to a DISABLED account" warning to a pending user row.
+     *
+     * @param array  $resolution A user row from resolveUserMapping()
+     * @param string $email
+     * @return array
+     */
+    protected function withDisabledAccountWarning(array $resolution, $email)
+    {
+        if ($resolution['target_action'] !== 'create_pending') {
+            return $resolution;
+        }
+        $found = $this->lookupDolibarrUserByEmail($email);
+        if ($found !== null && !$found['active']) {
+            $resolution['warning'] = 'disabled_account';
+            $resolution['disabled_login'] = $found['login'];
+        }
+
+        return $resolution;
     }
 
     protected function findTimeflowProjectByRefOrTitle($projectLabel)
@@ -1017,11 +1124,164 @@ class TimeImportClockify
         return !empty($user->id) ? (int) $user->id : 0;
     }
 
+    /** The acting user: the explicit $actor (tests), else the AJAX caller's global $user. */
+    protected function getActor()
+    {
+        global $user;
+
+        return $this->actor instanceof User ? $this->actor : $user;
+    }
+
+    /**
+     * Whether the actor may create Dolibarr accounts: Dolibarr admin, or the native
+     * "create users" right. Never TimeFlow's own write right, which every employee has.
+     */
+    public function canCreateUsers($actor = null)
+    {
+        $actor = $actor ?: $this->getActor();
+
+        return is_object($actor) && !empty($actor->id) && (!empty($actor->admin) || $actor->hasRight('user', 'user', 'creer'));
+    }
+
+    protected function loginIsTaken($login)
+    {
+        global $conf;
+
+        $sql = 'SELECT COUNT(*) AS nb FROM '.$this->db->prefix().'user';
+        $sql .= " WHERE login = '".$this->db->escape($login)."'";
+        $sql .= ' AND entity IN ('.((int) $conf->entity).', 0)';
+        $res = $this->db->query($sql);
+        $obj = $res ? $this->db->fetch_object($res) : null;
+
+        return !$obj || (int) $obj->nb > 0;
+    }
+
+    protected function loginIsWellFormed($login)
+    {
+        return (bool) preg_match('/^[A-Za-z0-9._-]{1,50}$/', (string) $login);
+    }
+
+    /**
+     * Login, first name and last name proposed for a Clockify email and display name.
+     * The login is the email's local part, lower-cased and reduced to [a-z0-9._-]
+     * ("@" is forbidden in Dolibarr logins), with a number appended while it is taken.
+     *
+     * @param string   $email
+     * @param string   $displayName
+     * @param string[] $reservedLogins Logins already proposed for other rows of the same file
+     * @return array{login:string,firstname:string,lastname:string}
+     */
+    public function suggestUserIdentity($email, $displayName, array $reservedLogins = array())
+    {
+        $local = strstr((string) $email, '@', true);
+        $local = $local === false ? (string) $email : $local;
+        $base = strtolower(preg_replace('/[^A-Za-z0-9._-]/', '', dol_string_unaccent($local)));
+        $base = substr($base !== '' ? $base : 'user', 0, 40);
+
+        $login = $base;
+        for ($i = 2; $i < 1000 && (in_array($login, $reservedLogins, true) || $this->loginIsTaken($login)); $i++) {
+            $login = $base.$i;
+        }
+
+        $parts = preg_split('/\s+/', trim((string) $displayName), -1, PREG_SPLIT_NO_EMPTY);
+        if (count($parts) >= 2) {
+            $firstname = array_shift($parts);
+            $lastname = implode(' ', $parts);
+        } elseif (count($parts) === 1) {
+            $firstname = '';
+            $lastname = $parts[0];
+        } else {
+            $firstname = '';
+            $lastname = $base;
+        }
+
+        return array('login' => $login, 'firstname' => substr($firstname, 0, 50), 'lastname' => substr($lastname, 0, 50));
+    }
+
+    /**
+     * Adds what the "create this user" form needs to the user rows of a preview:
+     * a proposal for pending rows, the saved choice for confirmed ones.
+     */
+    protected function addUserCreationHints(array $rows, array $displayNameByEmail)
+    {
+        $reserved = array();
+        foreach ($rows as $index => $row) {
+            $email = $row['source_value'];
+            if ($row['target_action'] === 'create_pending') {
+                $displayName = $displayNameByEmail[$email] ?? '';
+                $suggestion = $this->suggestUserIdentity($email, $displayName, $reserved);
+                $reserved[] = $suggestion['login'];
+                $rows[$index]['email_valid'] = isValidEmail($email);
+                $rows[$index]['display_name'] = $displayName;
+                $rows[$index]['suggested_login'] = $suggestion['login'];
+                $rows[$index]['suggested_firstname'] = $suggestion['firstname'];
+                $rows[$index]['suggested_lastname'] = $suggestion['lastname'];
+            } elseif ($row['target_action'] === 'create_confirmed') {
+                $identity = json_decode((string) $row['new_label'], true);
+                if (is_array($identity)) {
+                    $rows[$index]['new_login'] = (string) ($identity['login'] ?? '');
+                    $rows[$index]['new_firstname'] = (string) ($identity['firstname'] ?? '');
+                    $rows[$index]['new_lastname'] = (string) ($identity['lastname'] ?? '');
+                    $reserved[] = (string) ($identity['login'] ?? '');
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Validates a "create this account" decision and returns the identity to store.
+     * Everything that can be refused is refused here, before any write.
+     *
+     * @throws TimeImportForbiddenException when the actor may not create accounts
+     * @throws InvalidArgumentException     for anything else wrong with the decision
+     */
+    protected function validateUserCreationDecision(array $decision, $index, array $loginsInBatch)
+    {
+        $email = trim((string) ($decision['source_value'] ?? ''));
+
+        if (!$this->canCreateUsers()) {
+            throw new TimeImportForbiddenException('Vous n’avez pas le droit de créer des comptes utilisateurs Dolibarr.');
+        }
+        if (!isValidEmail($email)) {
+            throw new InvalidArgumentException('« '.$email.' » n’est pas une adresse email valide : impossible de créer le compte (les identifiants lui sont envoyés par email).');
+        }
+        $existing = $this->lookupDolibarrUserByEmail($email);
+        if ($existing !== null) {
+            throw new InvalidArgumentException($existing['active']
+                ? 'Un compte existe déjà pour « '.$email.' » (« '.$existing['login'].' ») : associez-le au lieu d’en créer un.'
+                : 'Un compte désactivé existe déjà pour « '.$email.' » : compte désactivé : '.$existing['login'].'. Aucun doublon n’est créé ; réactivez-le dans Dolibarr ou associez l’email à un autre compte.');
+        }
+
+        $login = trim((string) ($decision['new_login'] ?? ''));
+        if (!$this->loginIsWellFormed($login)) {
+            throw new InvalidArgumentException('Identifiant invalide pour « '.$email.' » : 1 à 50 caractères parmi lettres, chiffres, point, tiret et tiret bas.');
+        }
+        if ($this->loginIsTaken($login) || in_array(strtolower($login), $loginsInBatch, true)) {
+            throw new InvalidArgumentException('L’identifiant « '.$login.' » est déjà pris (décision à l’index '.$index.').');
+        }
+
+        $firstname = trim((string) ($decision['new_firstname'] ?? ''));
+        $lastname = trim((string) ($decision['new_lastname'] ?? ''));
+        if ($lastname === '') {
+            throw new InvalidArgumentException('Le nom est obligatoire pour créer le compte de « '.$email.' ».');
+        }
+        if (dol_strlen($firstname) > 50 || dol_strlen($lastname) > 50) {
+            throw new InvalidArgumentException('Prénom et nom : 50 caractères au maximum.');
+        }
+
+        return array('login' => $login, 'firstname' => $firstname, 'lastname' => $lastname);
+    }
+
     /**
      * Apply a batch of mapping resolution decisions.
      *
-     * This never creates a Dolibarr user account, and never inserts a
-     * project row: a 'create_new' decision on a project only
+     * A 'create_new' decision on a user only records the confirmed identity
+     * (login, first name, last name) against the mapping row — validated here, and
+     * allowed only for an actor who may create accounts. The account itself is
+     * created at the real import step (createConfirmedUsers()). It never inserts a
+     * project row either: a 'create_new' decision on a project only
      * records the confirmed title against the mapping row (target_id stays
      * NULL, target_action becomes 'create_confirmed'). The actual project
      * row is created later, at the real import step. Every decision is
@@ -1042,6 +1302,7 @@ class TimeImportClockify
         }
 
         $normalized = array();
+        $loginsInBatch = array();
         foreach ($decisions as $index => $decision) {
             if (!is_array($decision)) {
                 throw new InvalidArgumentException('Décision invalide à l’index '.$index.'.');
@@ -1062,15 +1323,21 @@ class TimeImportClockify
                 throw new InvalidArgumentException('Résolution invalide à l’index '.$index.' : "'.$resolution.'".');
             }
 
-            // We never create Dolibarr user accounts automatically from an
-            // import: a Clockify email with no Dolibarr match must be
-            // associated with an existing user, never auto-provisioned.
-            if ($resolution === 'create_new' && $mappingType === 'user') {
-                throw new InvalidArgumentException('La création automatique d’un compte utilisateur n’est pas autorisée. Associez « '.$sourceValue.' » à un utilisateur Dolibarr existant.');
-            }
-
             $targetId = null;
             $newLabel = null;
+
+            if ($resolution === 'create_new' && $mappingType === 'user') {
+                $identity = $this->validateUserCreationDecision($decision, $index, $loginsInBatch);
+                $loginsInBatch[] = strtolower($identity['login']);
+                $normalized[] = array(
+                    'mapping_type' => 'user',
+                    'source_value' => $sourceValue,
+                    'resolution' => 'create_new',
+                    'target_id' => null,
+                    'new_label' => json_encode($identity, JSON_UNESCAPED_UNICODE),
+                );
+                continue;
+            }
 
             if ($resolution === 'matched') {
                 $targetId = isset($decision['target_id']) ? (int) $decision['target_id'] : 0;
@@ -1090,8 +1357,7 @@ class TimeImportClockify
                     throw new InvalidArgumentException('Client Dolibarr introuvable pour « '.$sourceValue.' ».');
                 }
             } else {
-                // Auto-creating a group is allowed (no password/account
-                // implication), unlike a user — only 'user' is rejected above.
+                // Projects, groups and clients: a title. (Users took the branch above.)
                 $newLabel = trim((string) ($decision['new_title'] ?? $sourceValue));
                 if ($newLabel === '') {
                     throw new InvalidArgumentException('Nom manquant pour la création de « '.$sourceValue.' ».');
@@ -1643,13 +1909,25 @@ class TimeImportClockify
             $userMapping = $this->getExistingMapping($this->sourceSystem, 'user', $obj->user_source_value);
             $groupMapping = $this->getExistingMapping($this->sourceSystem, 'group', $obj->group_source_value);
 
-            $resolvedUserId = (!empty($userMapping) && $userMapping['target_action'] === 'matched')
+            $resolvedUserId = (!empty($userMapping) && in_array($userMapping['target_action'], self::RESOLVED_USER_ACTIONS, true))
                 ? (int) $userMapping['target_id'] : 0;
             $resolvedGroupId = (!empty($groupMapping) && in_array($groupMapping['target_action'], array('matched', 'created'), true))
                 ? (int) $groupMapping['target_id'] : 0;
 
             if ($resolvedUserId <= 0 || $resolvedGroupId <= 0) {
                 $report['group_memberships_skipped']++;
+                continue;
+            }
+
+            // An account created by this import never joins a group that carries more than
+            // TimeFlow's basic rights (it would inherit them, defeating "basic rights only").
+            // Groups the import created itself are empty and stay allowed.
+            if ($userMapping['target_action'] === 'created' && $groupMapping['target_action'] === 'matched' && $this->groupHasRightsBeyondBase($resolvedGroupId)) {
+                $report['group_memberships_withheld'][] = array(
+                    'user' => $obj->user_source_value,
+                    'group' => $obj->group_source_value,
+                    'reason' => 'group_has_extra_rights',
+                );
                 continue;
             }
 
@@ -1725,7 +2003,7 @@ class TimeImportClockify
 
             $resolvedProjectId = (!empty($projectMapping) && in_array($projectMapping['target_action'], array('matched', 'created'), true))
                 ? (int) $projectMapping['target_id'] : 0;
-            $resolvedUserId = (!empty($userMapping) && $userMapping['target_action'] === 'matched')
+            $resolvedUserId = (!empty($userMapping) && in_array($userMapping['target_action'], self::RESOLVED_USER_ACTIONS, true))
                 ? (int) $userMapping['target_id'] : 0;
 
             if ($resolvedProjectId <= 0 || $resolvedUserId <= 0) {
@@ -1830,7 +2108,7 @@ class TimeImportClockify
         $sql .= ' FROM '.$this->db->prefix().'timeflow_import_mapping';
         $sql .= " WHERE source_system = '".$this->db->escape($this->sourceSystem)."'";
         $sql .= " AND mapping_type = 'user'";
-        $sql .= " AND target_action = 'matched'";
+        $sql .= " AND target_action IN ('matched', 'created')";
         $sql .= ' AND source_value IN ('.$inList.')';
 
         $resql = $this->db->query($sql);
@@ -1984,12 +2262,13 @@ class TimeImportClockify
             }
 
             $userMapping = $this->getExistingMapping($this->sourceSystem, 'user', $email);
-            if (empty($userMapping) || $userMapping['target_action'] !== 'matched') {
+            if (empty($userMapping) || !in_array($userMapping['target_action'], self::RESOLVED_USER_ACTIONS, true)) {
                 // Covers exactly the case that must never be lost silently:
                 // an email with no matching Dolibarr account (still
                 // create_pending, or somehow no mapping row at all).
                 $report['time_entries_skipped_unresolved']++;
-                $report['unresolved_rows'][] = array('row' => $rowNumber, 'reason' => 'user_not_found', 'value' => $email);
+                $found = $this->lookupDolibarrUserByEmail($email);
+                $report['unresolved_rows'][] = array('row' => $rowNumber, 'reason' => ($found !== null && !$found['active']) ? 'user_disabled' : 'user_not_found', 'value' => $email);
                 continue;
             }
             $resolvedUserId = (int) $userMapping['target_id'];
@@ -2108,6 +2387,235 @@ class TimeImportClockify
     }
 
     /**
+     * Whether a Dolibarr group carries any right other than TimeFlow's basic
+     * timeentry read/write (another module, or readall/validate/delete...).
+     */
+    protected function groupHasRightsBeyondBase($groupId)
+    {
+        $sql = 'SELECT rd.module, rd.perms, rd.subperms';
+        $sql .= ' FROM '.$this->db->prefix().'usergroup_rights gr';
+        $sql .= ' LEFT JOIN '.$this->db->prefix().'rights_def rd ON rd.id = gr.fk_id';
+        $sql .= ' WHERE gr.fk_usergroup = '.((int) $groupId);
+        $res = $this->db->query($sql);
+        if (!$res) {
+            return true; // cannot tell: do not enrol
+        }
+        while ($obj = $this->db->fetch_object($res)) {
+            if (!($obj->module === 'timeflow' && $obj->perms === 'timeentry' && in_array($obj->subperms, self::BASE_RIGHTS, true))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Ids of the TimeFlow rights every created account gets (timeentry read + write).
+     *
+     * @return int[]
+     */
+    protected function baseRightIds()
+    {
+        global $conf;
+
+        $ids = array();
+        $sql = 'SELECT id FROM '.$this->db->prefix()."rights_def WHERE module = 'timeflow' AND perms = 'timeentry'";
+        $sql .= " AND subperms IN ('".implode("','", self::BASE_RIGHTS)."') AND entity = ".((int) $conf->entity);
+        $res = $this->db->query($sql);
+        while ($res && ($obj = $this->db->fetch_object($res))) {
+            $ids[] = (int) $obj->id;
+        }
+        sort($ids);
+
+        return $ids;
+    }
+
+    /** Removes every trace of a half-created account (used when its transaction could not simply be rolled back). */
+    protected function discardAccount($userId)
+    {
+        $userId = (int) $userId;
+        if ($userId <= 0) {
+            return;
+        }
+        $prefix = $this->db->prefix();
+        foreach (array('user_rights' => 'fk_user', 'usergroup_user' => 'fk_user', 'user_param' => 'fk_user', 'user' => 'rowid') as $table => $column) {
+            $this->db->query('DELETE FROM '.$prefix.$table.' WHERE '.$column.' = '.$userId);
+        }
+    }
+
+    /**
+     * Creates the Dolibarr accounts the actor confirmed ('create_confirmed' user
+     * mappings of this file), one transaction per account:
+     *   create -> keep ONLY TimeFlow timeentry read+write -> verify -> random password -> commit,
+     * then the native "send login information" email (after the commit: a mail failure
+     * never undoes the account, and the password never appears in the report).
+     * Everything is re-checked here, not trusted from the confirmation: the actor's
+     * right, the email and the login still being free.
+     */
+    protected function createConfirmedUsers(User $actor, array &$report, array $emails)
+    {
+        global $conf;
+
+        $inList = $this->sqlStringInList($emails);
+        if ($inList === null) {
+            return;
+        }
+
+        $sql = 'SELECT rowid, source_value, new_label FROM '.$this->db->prefix().'timeflow_import_mapping';
+        $sql .= " WHERE source_system = '".$this->db->escape($this->sourceSystem)."' AND mapping_type = 'user'";
+        $sql .= " AND target_action = 'create_confirmed' AND source_value IN (".$inList.') ORDER BY rowid ASC';
+        $resql = $this->db->query($sql);
+        if (!$resql) {
+            throw new RuntimeException('Erreur SQL lors de la lecture des comptes à créer : '.$this->db->lasterror());
+        }
+        $rows = array();
+        while ($obj = $this->db->fetch_object($resql)) {
+            $rows[] = $obj;
+        }
+        if (empty($rows)) {
+            return;
+        }
+
+        $fail = function ($row, $message, $downgrade) use (&$report) {
+            $report['errors'][] = array('type' => 'user', 'source_value' => $row->source_value, 'message' => $message);
+            if ($downgrade) {
+                $this->downgradeUserMapping($row->rowid);
+            }
+        };
+
+        if (!$this->canCreateUsers($actor)) {
+            foreach ($rows as $row) {
+                $fail($row, 'Création refusée : droit « créer des utilisateurs » (ou administrateur) requis.', false);
+            }
+
+            return;
+        }
+
+        $baseRights = $this->baseRightIds();
+        if (count($baseRights) !== count(self::BASE_RIGHTS)) {
+            foreach ($rows as $row) {
+                $fail($row, 'Création refusée : les droits TimeFlow de base sont introuvables (module désactivé ?).', false);
+            }
+
+            return;
+        }
+
+        foreach ($rows as $row) {
+            $identity = json_decode((string) $row->new_label, true);
+            $email = (string) $row->source_value;
+            if (!is_array($identity) || empty($identity['login']) || !isset($identity['lastname']) || trim($identity['lastname']) === '') {
+                $fail($row, 'Identité du compte manquante : décidez à nouveau pour cet email.', true);
+                continue;
+            }
+            if (!isValidEmail($email)) {
+                $fail($row, 'Adresse email invalide : compte non créé.', true);
+                continue;
+            }
+            $existing = $this->lookupDolibarrUserByEmail($email);
+            if ($existing !== null) {
+                $fail($row, 'Un compte existe déjà pour cet email (« '.$existing['login'].' »)'.($existing['active'] ? '' : ' — compte désactivé').' : compte non créé.', true);
+                continue;
+            }
+            if (!$this->loginIsWellFormed($identity['login']) || $this->loginIsTaken($identity['login'])) {
+                $fail($row, 'L’identifiant « '.$identity['login'].' » n’est plus disponible : compte non créé.', true);
+                continue;
+            }
+
+            $password = getRandomPassword(false); // Dolibarr's configured password generator (same as the user card)
+            $newUser = new User($this->db);
+            $newUser->login = $identity['login'];
+            $newUser->email = $email;
+            $newUser->firstname = (string) ($identity['firstname'] ?? '');
+            $newUser->lastname = (string) $identity['lastname'];
+            $newUser->admin = 0;
+            $newUser->employee = 1;
+            $newUser->entity = (int) $conf->entity;
+
+            $this->db->begin();
+            $newId = $newUser->create($actor);
+            $problem = null;
+            if ($newId <= 0) {
+                $problem = $newUser->error ?: 'Erreur inconnue à la création du compte.';
+                $newId = 0;
+            } else {
+                // Dolibarr grants its "default rights" (other modules') on creation: keep only the TimeFlow basics.
+                $this->db->query('DELETE FROM '.$this->db->prefix().'user_rights WHERE fk_user = '.((int) $newId));
+                foreach ($baseRights as $rightId) {
+                    if ($newUser->addrights($rightId) <= 0) {
+                        $problem = 'Impossible d’attribuer les droits TimeFlow de base.';
+                        break;
+                    }
+                }
+                if ($problem === null && !$this->accountIsExactlyBasic($newId, $baseRights)) {
+                    $problem = 'Vérification des droits du compte créé échouée : compte annulé.';
+                }
+                if ($problem === null) {
+                    $passwordResult = $newUser->setPassword($actor, $password);
+                    if (is_int($passwordResult) && $passwordResult < 0) {
+                        $problem = 'Impossible de définir le mot de passe : '.$newUser->error;
+                    }
+                }
+            }
+
+            if ($problem !== null) {
+                $this->db->rollback();
+                $this->discardAccount($newId);
+                $fail($row, $problem, false);
+                continue;
+            }
+            $this->db->commit();
+
+            $this->markMappingCreated($row->rowid, $newId);
+
+            $entry = array('source_value' => $email, 'id' => $newId, 'login' => $identity['login'], 'email_sent' => false, 'email_error' => null);
+            if (getDolGlobalString('MAIN_DISABLE_ALL_MAILS')) {
+                $entry['email_error'] = 'mail_disabled';
+            } else {
+                $fresh = new User($this->db);
+                $fresh->fetch($newId);
+                $fresh->conf->MAIN_LANG_DEFAULT = ''; // like the user card: mail in the current language
+                if ($fresh->send_password($actor, $password, 0) > 0) {
+                    $entry['email_sent'] = true;
+                } else {
+                    $entry['email_error'] = (string) $fresh->error;
+                }
+            }
+            $report['users_created'][] = $entry;
+        }
+    }
+
+    /** The account has exactly the given rights (and no others), is active, is not admin, and belongs to no group. */
+    protected function accountIsExactlyBasic($userId, array $expectedRightIds)
+    {
+        $prefix = $this->db->prefix();
+        $rights = array();
+        $res = $this->db->query('SELECT fk_id FROM '.$prefix.'user_rights WHERE fk_user = '.((int) $userId));
+        while ($res && ($obj = $this->db->fetch_object($res))) {
+            $rights[] = (int) $obj->fk_id;
+        }
+        sort($rights);
+        $admin = $this->db->query('SELECT admin, statut FROM '.$prefix.'user WHERE rowid = '.((int) $userId));
+        $adminObj = $admin ? $this->db->fetch_object($admin) : null;
+        $groups = $this->db->query('SELECT COUNT(*) AS nb FROM '.$prefix.'usergroup_user WHERE fk_user = '.((int) $userId));
+        $groupsObj = $groups ? $this->db->fetch_object($groups) : null;
+
+        return $rights === array_values($expectedRightIds) && $adminObj && (int) $adminObj->admin === 0 && (int) $adminObj->statut === 1 && $groupsObj && (int) $groupsObj->nb === 0;
+    }
+
+    /**
+     * Sends back to pending every matched user whose account is disabled or gone.
+     */
+    protected function revalidateUserMappings(array $emails)
+    {
+        foreach ($emails as $email) {
+            $mapping = $this->getExistingMapping($this->sourceSystem, 'user', $email);
+            if (!empty($mapping) && in_array($mapping['target_action'], self::RESOLVED_USER_ACTIONS, true) && !$this->userExistsAndActive((int) $mapping['target_id'])) {
+                $this->downgradeUserMapping($mapping['rowid']);
+            }
+        }
+    }
+
+    /**
      * Runs the real import: creates every confirmed project/group, links
      * every resolvable (user, group) pair, then creates one draft
      * TimeEntry per eligible CSV row.
@@ -2170,6 +2678,10 @@ class TimeImportClockify
             throw new InvalidArgumentException('Des éléments restent à résoudre avant de lancer l’import : '.implode(', ', $pending));
         }
 
+        // An account matched at preview time may have been disabled (or deleted) since:
+        // such users go back to pending and their rows are reported, not imported.
+        $this->revalidateUserMappings($scopedValues['user']);
+
         $report = array(
             'clients_created' => array(),
             'projects_created' => array(),
@@ -2187,8 +2699,11 @@ class TimeImportClockify
             'time_entries_skipped_invalid' => 0,
             'unresolved_rows' => array(),
             'errors' => array(),
+            'users_created' => array(),
+            'group_memberships_withheld' => array(),
         );
 
+        $this->createConfirmedUsers($user, $report, $scopedValues['user']);
         $this->createConfirmedClients($user, $report, $scopedValues['client']);
         $this->createConfirmedProjectsAndGroups($user, $report, $scopedValues['project'], $scopedValues['group']);
         $this->enrichMatchedUsersFromCsv($csvPath, $user, $report);

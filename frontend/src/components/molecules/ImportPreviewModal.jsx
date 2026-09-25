@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ImportUserMappingList from './ImportUserMappingList';
+import { defaultUserChoice, readConfirmedIdentity } from '../../utils/importUsers';
 import { executeClockifyImport, getProjects, listActiveThirdParties, listActiveUsers, listUserGroups, resolveClockifyMapping } from '../../api/timeflowApi';
 
 const STATUS_STYLES = {
   matched: 'tw-bg-emerald-50 tw-text-emerald-700 dark:tw-bg-emerald-900/40 dark:tw-text-emerald-300',
   create_confirmed: 'tw-bg-sky-50 tw-text-sky-700 dark:tw-bg-sky-900/40 dark:tw-text-sky-300',
+  created: 'tw-bg-emerald-50 tw-text-emerald-700 dark:tw-bg-emerald-900/40 dark:tw-text-emerald-300',
   create_pending: 'tw-bg-orange-50 tw-text-orange-700 dark:tw-bg-orange-900/40 dark:tw-text-orange-300',
   ignored: 'tw-bg-gray-100 tw-text-gray-600 dark:tw-bg-slate-700 dark:tw-text-slate-300',
 };
@@ -186,6 +189,7 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
   // Every mapping is resolved (matched or confirmed-for-creation) — the
   // second, explicit "Confirmer et importer" step becomes available.
   const readyToExecute = hasResolvableData && pendingCount === 0;
+  const usersToCreate = users.filter((row) => row.target_action === 'create_confirmed');
   const projectsToCreate = projects.filter((row) => row.target_action === 'create_confirmed');
   const groupsToCreate = groups.filter((row) => row.target_action === 'create_confirmed');
   const clientsToCreate = clients.filter((row) => row.target_action === 'create_confirmed');
@@ -202,13 +206,31 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
     };
   }
 
+  function updateUserChoice(sourceValue, patch) {
+    const row = pendingUsers.find((candidate) => candidate.source_value === sourceValue);
+    setUserChoices((current) => ({
+      ...current,
+      [sourceValue]: { ...defaultUserChoice(row), ...current[sourceValue], ...patch },
+    }));
+  }
+
   function buildDecisions() {
     const decisions = [];
 
     for (const row of pendingUsers) {
-      const targetId = userChoices[row.source_value];
-      if (targetId) {
-        decisions.push({ mapping_type: 'user', source_value: row.source_value, resolution: 'matched', target_id: Number(targetId) });
+      const choice = userChoices[row.source_value];
+      if (!choice) continue;
+      if (choice.mode === 'create') {
+        decisions.push({
+          mapping_type: 'user',
+          source_value: row.source_value,
+          resolution: 'create_new',
+          new_login: (choice.login ?? '').trim(),
+          new_firstname: (choice.firstname ?? '').trim(),
+          new_lastname: (choice.lastname ?? '').trim(),
+        });
+      } else if (choice.targetId) {
+        decisions.push({ mapping_type: 'user', source_value: row.source_value, resolution: 'matched', target_id: Number(choice.targetId) });
       }
     }
 
@@ -327,6 +349,18 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
               <div className="tw-rounded-xl tw-border tw-border-[#5B8FA8] tw-bg-[#5B8FA8]/5 dark:tw-bg-[#5B8FA8]/10 tw-p-4 tw-space-y-2">
                 <p className="tw-text-sm tw-font-semibold tw-text-slate-800 dark:tw-text-slate-100">{t('processed_history.import.confirm_recap_title')}</p>
                 <ul className="tw-list-disc tw-list-inside tw-text-sm tw-text-slate-700 dark:tw-text-slate-300 tw-space-y-1">
+                  {usersToCreate.length > 0 && (
+                    <li>
+                      {t('processed_history.import.confirm_recap_users', { count: usersToCreate.length })}
+                      <ul className="tw-ms-5 tw-list-[circle] tw-text-xs">
+                        {usersToCreate.map((row) => {
+                          const identity = readConfirmedIdentity(row);
+                          return <li key={row.source_value}>{identity ? identity.login : '?'} — {row.source_value}</li>;
+                        })}
+                      </ul>
+                      <span className="tw-block tw-text-xs tw-text-slate-500 dark:tw-text-slate-400">{t('processed_history.import.confirm_recap_users_note')}</span>
+                    </li>
+                  )}
                   <li>{t('processed_history.import.confirm_recap_clients', { count: clientsToCreate.length })}</li>
                   <li>{t('processed_history.import.confirm_recap_projects', { count: projectsToCreate.length })}</li>
                   <li>{t('processed_history.import.confirm_recap_groups', { count: groupsToCreate.length })}</li>
@@ -366,6 +400,22 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
                 <div className="tw-rounded-xl tw-border tw-border-emerald-200 dark:tw-border-emerald-800 tw-bg-emerald-50 dark:tw-bg-emerald-900/20 tw-p-4 tw-space-y-2">
                   <p className="tw-text-sm tw-font-semibold tw-text-emerald-800 dark:tw-text-emerald-300">{t('processed_history.import.execute_done_title')}</p>
                   <ul className="tw-list-disc tw-list-inside tw-text-sm tw-text-slate-700 dark:tw-text-slate-300 tw-space-y-1">
+                    {(executeReport?.users_created?.length || 0) > 0 && (
+                      <li>
+                        {t('processed_history.import.execute_result_users', { count: executeReport.users_created.length })}
+                        <ul className="tw-ms-5 tw-list-[circle] tw-text-xs">
+                          {executeReport.users_created.map((created) => (
+                            <li key={created.source_value} className={created.email_sent ? '' : 'tw-text-orange-700 dark:tw-text-orange-300'}>
+                              {created.email_sent
+                                ? t('processed_history.import.execute_result_user_email_sent', { login: created.login, email: created.source_value })
+                                : created.email_error === 'mail_disabled'
+                                  ? t('processed_history.import.execute_result_user_email_mail_disabled', { login: created.login })
+                                  : t('processed_history.import.execute_result_user_email_failed', { login: created.login, reason: created.email_error || '' })}
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    )}
                     <li>{t('processed_history.import.execute_result_clients', { count: executeReport?.clients_created?.length || 0 })}</li>
                     <li>{t('processed_history.import.execute_result_projects', { count: executeReport?.projects_created?.length || 0 })}</li>
                     <li>{t('processed_history.import.execute_result_groups', { count: executeReport?.groups_created?.length || 0 })}</li>
@@ -378,7 +428,8 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
                   {(executeReport?.time_entries_skipped_unresolved > 0
                     || executeReport?.time_entries_skipped_invalid > 0
                     || executeReport?.time_entries_skipped_already_imported > 0
-                    || (executeReport?.errors?.length || 0) > 0) && (
+                    || (executeReport?.errors?.length || 0) > 0
+                    || (executeReport?.group_memberships_withheld?.length || 0) > 0) && (
                     <div className="tw-mt-2 tw-rounded-lg tw-bg-orange-50 dark:tw-bg-orange-900/30 tw-p-3 tw-text-sm tw-text-orange-700 dark:tw-text-orange-300 tw-space-y-1">
                       {executeReport?.time_entries_skipped_unresolved > 0 && (
                         <p>{t('processed_history.import.execute_result_skipped_unresolved', { count: executeReport.time_entries_skipped_unresolved })}</p>
@@ -391,6 +442,19 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
                       )}
                       {(executeReport?.errors?.length || 0) > 0 && (
                         <p>{t('processed_history.import.execute_result_errors', { count: executeReport.errors.length })}</p>
+                      )}
+                      {(executeReport?.errors || []).filter((item) => item?.type === 'user').map((item) => (
+                        <p key={item.source_value} className="tw-text-xs">{t('processed_history.import.execute_result_user_error', { email: item.source_value, message: item.message })}</p>
+                      ))}
+                      {(executeReport?.group_memberships_withheld?.length || 0) > 0 && (
+                        <div>
+                          <p>{t('processed_history.import.execute_result_groups_withheld', { count: executeReport.group_memberships_withheld.length })}</p>
+                          <ul className="tw-ms-5 tw-list-[circle] tw-text-xs">
+                            {executeReport.group_memberships_withheld.map((item) => (
+                              <li key={item.user + '|' + item.group}>{item.user} → {item.group}</li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   )}
@@ -437,35 +501,14 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
 
               <div>
                 <p className="tw-mb-2 tw-text-sm tw-font-semibold tw-text-slate-700 dark:tw-text-slate-300">{t('processed_history.import.users_title')}</p>
-                {users.length === 0 ? (
-                  <p className="tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('processed_history.import.no_users')}</p>
-                ) : (
-                  <ul className="tw-space-y-2">
-                    {users.map((row) => (
-                      <li
-                        key={rowKey(row)}
-                        className="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3 tw-rounded-xl tw-border tw-border-slate-200 dark:tw-border-slate-700 tw-bg-slate-50 dark:tw-bg-slate-800/60 tw-px-3 tw-py-2"
-                      >
-                        <span className="tw-truncate tw-text-sm tw-text-slate-700 dark:tw-text-slate-200">{row.source_value || '—'}</span>
-                        {row.target_action === 'create_pending' ? (
-                          <select
-                            aria-label={t('processed_history.import.select_user_placeholder')}
-                            value={userChoices[row.source_value] || ''}
-                            onChange={(event) => setUserChoices((current) => ({ ...current, [row.source_value]: event.target.value }))}
-                            className="tw-rounded-lg tw-border tw-border-slate-300 dark:tw-border-slate-600 tw-px-2 tw-py-1 tw-text-sm tw-text-slate-700 dark:tw-bg-slate-800 dark:tw-text-slate-200"
-                          >
-                            <option value="">{t('processed_history.import.select_user_placeholder')}</option>
-                            {activeUsers.map((activeUser) => (
-                              <option key={activeUser.id} value={activeUser.id}>{activeUser.label}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <MappingStatusBadge status={row.target_action} />
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <ImportUserMappingList
+                  rows={users}
+                  choices={userChoices}
+                  onChoiceChange={updateUserChoice}
+                  activeUsers={activeUsers}
+                  canCreateUsers={data?.can_create_users}
+                  renderBadge={(status) => <MappingStatusBadge status={status} />}
+                />
               </div>
 
               <CreatableMappingList
