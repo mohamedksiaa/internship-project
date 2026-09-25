@@ -1921,8 +1921,9 @@ class TimeImportClockify
 
             // An account created by this import never joins a group that carries more than
             // TimeFlow's basic rights (it would inherit them, defeating "basic rights only").
-            // Groups the import created itself are empty and stay allowed.
-            if ($userMapping['target_action'] === 'created' && $groupMapping['target_action'] === 'matched' && $this->groupHasRightsBeyondBase($resolvedGroupId)) {
+            // Checked whatever the group's mapping status: a group this import created is empty at first, but an admin
+            // may have given it more rights since (then a later import must not enrol new accounts in it).
+            if ($userMapping['target_action'] === 'created' && $this->groupHasRightsBeyondBase($resolvedGroupId)) {
                 $report['group_memberships_withheld'][] = array(
                     'user' => $obj->user_source_value,
                     'group' => $obj->group_source_value,
