@@ -14,6 +14,12 @@ const mockTimeFlowUsers = [
 ];
 // "userId|YYYY-MM-DD" -> { reason, note }, for the mock Users report presence.
 const mockExpectedAbsences = new Map();
+// The bell: the manager's own late-arrival digests, and their email preference.
+let mockNotifications = [
+  { id: 2, type: 'late_arrivals', date_ref: '2026-09-23', created_at: '2026-09-23 09:11:00', read: false, late: [{ id: 2, label: 'Bob Durand' }], threshold: '09:00', cutoff: '09:10', email_status: 'sent' },
+  { id: 1, type: 'late_arrivals', date_ref: '2026-09-22', created_at: '2026-09-22 09:11:00', read: true, late: [{ id: 1, label: 'Alice Martin' }, { id: 2, label: 'Bob Durand' }], threshold: '09:00', cutoff: '09:10', email_status: 'sent' },
+];
+let mockEmailEnabled = true;
 let mockTimeFlowProjects = [
   { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0, date_creation: '2026-07-01T09:00:00Z' },
 ];
@@ -402,6 +408,27 @@ function handleMockRequest(action, body) {
       const deleted = mockExpectedAbsences.delete(`${body.user_id}|${body.date}`) ? 1 : 0;
       return Promise.resolve({ status: 'success', data: { deleted, user_id: body.user_id, date: body.date } });
     }
+    case 'getMyNotifications':
+      return Promise.resolve({
+        status: 'success',
+        data: { available: true, unread_count: mockNotifications.filter((n) => !n.read).length, rows: mockNotifications },
+      });
+    case 'markNotificationsRead': {
+      let updated = 0;
+      mockNotifications = mockNotifications.map((n) => {
+        if (!n.read && (body?.all === true || (body?.ids || []).includes(n.id))) {
+          updated += 1;
+          return { ...n, read: true };
+        }
+        return n;
+      });
+      return Promise.resolve({ status: 'success', data: { updated } });
+    }
+    case 'getAlertPreferences':
+      return Promise.resolve({ status: 'success', data: { email_enabled: mockEmailEnabled, has_email: true, email: 'manager@example.com', alerts_enabled: true, mail_enabled: true } });
+    case 'saveAlertPreferences':
+      mockEmailEnabled = body?.email_enabled === true;
+      return Promise.resolve({ status: 'success', data: { email_enabled: mockEmailEnabled, has_email: true, email: 'manager@example.com', alerts_enabled: true, mail_enabled: true } });
     case 'exportGlobalCsv':
       return Promise.resolve({
         status: 'success',
@@ -626,6 +653,50 @@ export async function saveExpectedAbsence({ userId, date, reasonType, reasonNote
 export async function deleteExpectedAbsence({ userId, date }) {
   const data = await moduleTimerRequest('deleteExpectedAbsence', { user_id: userId, date });
   return data?.data ?? {};
+}
+
+/**
+ * The current manager's late-arrival notifications (the bell), newest day first.
+ * `available` is false when the server's table does not exist yet.
+ */
+export async function getMyNotifications(limit = 30) {
+  const data = await moduleTimerRequest('getMyNotifications', { limit });
+  const payload = data?.data ?? data ?? {};
+  return {
+    available: payload.available !== false,
+    unreadCount: Number(payload.unread_count) || 0,
+    rows: Array.isArray(payload.rows) ? payload.rows : [],
+  };
+}
+
+/** Marks some of the manager's own notifications (`ids`) or all of them (`all: true`) as read. */
+export async function markNotificationsRead({ ids, all } = {}) {
+  const body = all ? { all: true } : { ids: Array.isArray(ids) ? ids : [] };
+  const data = await moduleTimerRequest('markNotificationsRead', body);
+  return { updated: Number((data?.data ?? {}).updated) || 0 };
+}
+
+function mapAlertPreferences(payload) {
+  const p = payload ?? {};
+  return {
+    // Emails are on unless the server says exactly false.
+    emailEnabled: p.email_enabled !== false,
+    hasEmail: p.has_email === true,
+    email: typeof p.email === 'string' && p.email !== '' ? p.email : null,
+    alertsEnabled: p.alerts_enabled === true,
+    mailEnabled: p.mail_enabled !== false,
+  };
+}
+
+/** The manager's email preference for the late-arrival alerts, and what explains it. */
+export async function getAlertPreferences() {
+  const data = await moduleTimerRequest('getAlertPreferences', {});
+  return mapAlertPreferences(data?.data ?? data);
+}
+
+export async function saveAlertPreferences({ emailEnabled }) {
+  const data = await moduleTimerRequest('saveAlertPreferences', { email_enabled: emailEnabled === true });
+  return mapAlertPreferences(data?.data ?? data);
 }
 
 export async function exportGlobalCsv() {
