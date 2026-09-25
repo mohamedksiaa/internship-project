@@ -315,3 +315,49 @@ describe('the new user-creation texts', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// A project / client / group deleted in Dolibarr since it was mapped comes back
+// as pending with a warning (server side: warning = 'target_missing').
+// ---------------------------------------------------------------------------
+describe('ImportPreviewModal — mapped element deleted in Dolibarr', () => {
+  const missing = (type, value) => ({ ...pending(type, value), warning: 'target_missing', target_id: 77 });
+
+  it.each([
+    ['project', 'Projet P', 'target_missing_project'],
+    ['group', 'Groupe G', 'target_missing_group'],
+    ['client', 'Client C', 'target_missing_client'],
+  ])('a pending %s carrying the warning says the linked one no longer exists, and can still be resolved', async (type, value, key) => {
+    const user = userEvent.setup();
+    const data = makeData({ users: [], projects: [], groups: [], clients: [], [`${type}s`]: [missing(type, value)] });
+    renderModal(data);
+    const li = rowFor(value);
+    expect(within(li).getByRole('alert')).toHaveTextContent(T(key));
+    // the normal ways out are still offered
+    await user.click(within(li).getByRole('checkbox'));
+    await user.click(resolveBtn());
+    await waitFor(() => expect(resolveClockifyMapping).toHaveBeenCalledWith([{ mapping_type: type, source_value: value, resolution: 'create_new', new_title: value }]));
+  });
+
+  it('each kind shows its OWN wording (not another kind\'s)', () => {
+    renderModal(makeData({ users: [], projects: [missing('project', 'Projet P')], groups: [missing('group', 'Groupe G')], clients: [missing('client', 'Client C')] }));
+    expect(within(rowFor('Projet P')).getByRole('alert')).toHaveTextContent(T('target_missing_project'));
+    expect(within(rowFor('Groupe G')).getByRole('alert')).toHaveTextContent(T('target_missing_group'));
+    expect(within(rowFor('Client C')).getByRole('alert')).toHaveTextContent(T('target_missing_client'));
+  });
+
+  it('a normal pending row (never mapped) has no such warning', () => {
+    renderModal(makeData({ users: [] }));
+    expect(within(rowFor('Projet P')).queryByRole('alert')).toBeNull();
+  });
+
+  it('a resolved row is never flagged, even if the server sent the field', () => {
+    renderModal(makeData({ users: [], projects: [{ ...matched('project', 'Projet P', 4), warning: 'target_missing' }], groups: [], clients: [] }));
+    expect(within(rowFor('Projet P')).queryByRole('alert')).toBeNull();
+  });
+
+  it.each(['fr', 'en', 'de', 'ar'])('%s has the three warning texts', async (lang) => {
+    const dict = (await import(`../../locales/${lang}/translation.json`)).default.processed_history.import;
+    for (const k of ['target_missing_project', 'target_missing_group', 'target_missing_client']) expect(dict[k], `${lang}:${k}`).toBeTruthy();
+  });
+});

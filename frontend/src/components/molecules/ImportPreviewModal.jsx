@@ -37,7 +37,7 @@ function defaultChoice(sourceValue) {
  * "Projets détectés" and "Groupes détectés" sections, which follow the
  * exact same interaction pattern.
  */
-function CreatableMappingList({ title, emptyLabel, rows, choices, onChoiceChange, options, selectPlaceholder, checkboxLabel, titleAriaLabel }) {
+function CreatableMappingList({ title, emptyLabel, rows, choices, onChoiceChange, options, selectPlaceholder, checkboxLabel, titleAriaLabel, targetMissingLabel }) {
   return (
     <div>
       <p className="tw-mb-2 tw-text-sm tw-font-semibold tw-text-slate-700 dark:tw-text-slate-300">{title}</p>
@@ -54,6 +54,12 @@ function CreatableMappingList({ title, emptyLabel, rows, choices, onChoiceChange
                   <span className="tw-truncate tw-text-sm tw-text-slate-700 dark:tw-text-slate-200">{row.source_value || '—'}</span>
                   {!isCreatePending && <MappingStatusBadge status={row.target_action} />}
                 </div>
+
+                {isCreatePending && row.warning === 'target_missing' && (
+                  <p role="alert" className="tw-rounded-lg tw-bg-amber-50 dark:tw-bg-amber-900/30 tw-p-2 tw-text-xs tw-text-amber-800 dark:tw-text-amber-300">
+                    {targetMissingLabel}
+                  </p>
+                )}
 
                 {isCreatePending && (
                   <div className="tw-space-y-2">
@@ -521,6 +527,7 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
                 selectPlaceholder={t('processed_history.import.select_project_placeholder')}
                 checkboxLabel={t('processed_history.import.create_new_project_checkbox')}
                 titleAriaLabel={t('processed_history.import.new_project_title_aria')}
+                targetMissingLabel={t('processed_history.import.target_missing_project')}
               />
 
               <CreatableMappingList
@@ -533,6 +540,7 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
                 selectPlaceholder={t('processed_history.import.select_group_placeholder')}
                 checkboxLabel={t('processed_history.import.create_new_group_checkbox')}
                 titleAriaLabel={t('processed_history.import.new_group_title_aria')}
+                targetMissingLabel={t('processed_history.import.target_missing_group')}
               />
 
               <CreatableMappingList
@@ -545,6 +553,7 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
                 selectPlaceholder={t('processed_history.import.select_client_placeholder')}
                 checkboxLabel={t('processed_history.import.create_new_client_checkbox')}
                 titleAriaLabel={t('processed_history.import.new_client_title_aria')}
+                targetMissingLabel={t('processed_history.import.target_missing_client')}
               />
 
             </>
