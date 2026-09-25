@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Module** | TimeFlow (module Dolibarr : back-end PHP + interface React/Vite) |
-| **Versions cibles** | Dolibarr 19.0.2 (environnement de test disponible) et 22.0.4 (à fournir, voir §0.5) |
-| **Statut du document** | **Plan uniquement** : aucun test n'a été exécuté, aucun code modifié, le Docker n'a pas été touché |
+| **Versions cibles** | Dolibarr 19.0.2 pour toutes les phases ; Dolibarr 22.0.4 en fin de parcours, sur un second environnement à version fixée (voir §0.5) |
+| **Statut du document** | Plan **validé le 2026-09-25** avec les ajustements du §0.7 (priorisation, comptes de test, environnement 22.0.4). Deux points restent à confirmer explicitement : seuils et matrice de droits (§0.7) |
 | **Axes, dans l'ordre** | 1. Sécurité · 2. Tolérance aux pannes · 3. Disponibilité · 4. Scalabilité |
 | **Livrables par axe** | `docs/tests/RAPPORT_SECURITE.md`, `RAPPORT_PANNES.md`, `RAPPORT_DISPONIBILITE.md`, `RAPPORT_SCALABILITE.md` (modèle en annexe A) |
 
@@ -42,8 +42,17 @@ Démontrer, par des essais **reproductibles et mesurables**, que le module reste
 ### 0.5 Environnement et hypothèses communes
 
 - **Environnement de test** : les 4 conteneurs du dossier `docker-timeflow-test` (`timeflow-mariadb` MariaDB 10.11, `timeflow-dolibarr` et `timeflow-dolibarr-cron` sur `tuxgasy/dolibarr:latest` = Dolibarr 19.0.2, `timeflow-mailpit` comme puits de courrier). Fuseau `Africa/Tunis`.
-- **Dolibarr 22.0.4** : le plan de compatibilité impose de rejouer un sous-ensemble (marqué **[19+22]**) sur 22.0.4. Cet environnement n'existe pas encore : il sera à fournir ou à créer avec l'accord du responsable. À défaut, les cas concernés sont marqués ⏭ dans le rapport.
-- **Identités de test** (à créer avec accord, préfixe `zz_nf_`) : `zz_nf_anon` (sans session), `zz_nf_noright` (aucun droit TimeFlow), `zz_nf_user_a` et `zz_nf_user_b` (droits de base `read`+`write`), `zz_nf_manager` (`readall`), `zz_nf_validator` (`readall`+`validate`), l'administrateur existant. Ces comptes sont supprimés en fin de phase.
+- **Dolibarr 22.0.4** : **toutes les phases se déroulent sur le Docker 19.0.2.** À la fin du parcours, un **second environnement Docker** avec une image Dolibarr 22 à **version fixée** (pas de balise `latest`) sera créé, sur demande du responsable, pour **rejouer les cas critiques** (marqués **[19+22]**). Cet environnement n'est pas créé avant cette étape ; d'ici là les cas [19+22] restent à l'état « à rejouer ».
+- **Comptes de test** (4 comptes dédiés, préfixe `zz_nf_`, créés au début de chaque phase, connexion par une **session Dolibarr normale**) :
+
+| Compte | Droits | Rôle dans les essais |
+|---|---|---|
+| `zz_nf_admin` | Administrateur Dolibarr | Référence « tout autorisé », cible des essais de droits d'administration |
+| `zz_nf_manager` | TimeFlow `read`, `write`, `readall` (sans `validate`) | Responsable qui lit tout mais ne valide pas ; **victime** des essais d'IDOR (ses saisies et comptes rendus servent de cibles) |
+| `zz_nf_employee` | TimeFlow `read`, `write` | Employé simple : **attaquant** dans les essais d'accès horizontal et vertical |
+| `zz_nf_norights` | Aucun droit TimeFlow | Utilisateur connecté sans le module |
+
+  Le profil « anonyme » n'est pas un compte : c'est une requête sans session. Les cas qui exigent `readall`+`validate` sont couverts par `zz_nf_admin` (qui possède tout) contre `zz_nf_manager` (qui n'a pas `validate`). **Ces comptes, et les données créées avec eux, sont supprimés à la fin de chaque phase ; le rapport de la phase le mentionne** (liste des comptes créés, puis supprimés, avec les comptages avant/après). Les mots de passe sont générés aléatoirement, ne figurent dans aucun fichier du dépôt ni dans aucun rapport.
 - **Traçabilité** : les scripts d'essai sont versionnés dans le dépôt (dossier `tests/nonfunctional/`, ajouté dans une PR séparée lors de la première phase) ; les preuves (sorties, captures, `EXPLAIN`) sont rangées dans `docs/tests/preuves/<AXE>/<ID>/`.
 - **Références** : OWASP Top 10 (2021), OWASP ASVS niveau 2 (chapitres V4 contrôle d'accès, V5 validation, V13 API), OWASP Testing Guide, CWE (89, 79, 639, 352, 1236).
 
@@ -57,6 +66,14 @@ Démontrer, par des essais **reproductibles et mesurables**, que le module reste
 | 4 | Scalabilité | Sauvegarde ; accord pour le jeu de données | **Oui** (volumétrie, charge) | `RAPPORT_SCALABILITE.md` + PR |
 
 Fin de phase : rapport → remise du clone sur `main` + confirmation → revue avec le responsable → PR de correctifs → mise à jour du rapport.
+
+### 0.7 Ajustements validés par le responsable (2026-09-25)
+
+1. **Priorisation.** On exécute **d'abord tous les cas de risque « critique » puis « élevé »** (42 cas, dont `DISP-10` optionnel). Les cas de risque **« moyen »** (18 cas) sont exécutés **si le temps le permet**, dans l'ordre de l'axe. Deux cas deviennent **optionnels** : l'**essai de disponibilité de 24 h** (`DISP-10`) et le **palier de 500 000 saisies** de `SCAL-10` (les paliers 10 000, 50 000 et 100 000 restent obligatoires). Un cas non exécuté est marqué ⏭ dans le rapport avec sa raison.
+2. **Seuils** (RTO 5 min, RPO 24 h, disponibilité 99,5 %, temps de réponse du §4.2, etc.) : **à confirmer explicitement.** Le message de validation contenait un champ à compléter laissé en l'état ; ces seuils restent donc **proposés** et sont utilisés comme critères provisoires. Toute correction sera reportée ici avant l'axe concerné.
+3. **Matrice des droits attendus par action** (`SEC-06`) : **à confirmer explicitement**, pour la même raison. Une **proposition dérivée du code** est produite en préparation de la phase 1 et soumise au responsable ; `SEC-06` n'est pas exécuté tant qu'elle n'est pas validée.
+4. **Comptes de test** : 4 comptes dédiés, session Dolibarr normale, supprimés à la fin de chaque phase (§0.5).
+5. **Dolibarr 22.0.4** : toutes les phases sur le Docker 19.0.2 ; second environnement à version fixée créé **à la fin**, sur demande, pour rejouer les cas critiques (§0.5). Pas de création anticipée.
 
 ---
 
@@ -145,14 +162,14 @@ Fin de phase : rapport → remise du clone sur `main` + confirmation → revue a
 
 #### SEC-06 — Contrôle d'accès vertical (matrice action × profil)
 - **Objectif** : chaque action n'est accessible qu'aux profils autorisés, **côté serveur**, indépendamment de l'interface.
-- **Procédure** : (1) établir avec le responsable la matrice « droit attendu » des 44 actions ; (2) pour chaque action et chacun des 6 profils (anonyme, sans droit TimeFlow, utilisateur de base, `readall`, `readall`+`validate`, administrateur), envoyer une requête valide et relever le code et le contenu ; (3) comparer automatiquement à la matrice.
+- **Procédure** : (1) établir avec le responsable la matrice « droit attendu » des 44 actions ; (2) pour chaque action et chacun des 5 profils (anonyme, `zz_nf_norights`, `zz_nf_employee`, `zz_nf_manager`, `zz_nf_admin`), envoyer une requête valide et relever le code et le contenu ; (3) comparer automatiquement à la matrice.
 - **Résultat attendu** : 401 sans session, 403 sans le droit requis, 200 sinon.
-- **Critère de réussite** : **100 %** des 264 cellules (44 × 6) conformes à la matrice ; toute divergence est une anomalie classée par le risque de l'action.
+- **Critère de réussite** : **100 %** des 220 cellules (44 × 5) conformes à la matrice ; toute divergence est une anomalie classée par le risque de l'action.
 - **Risque** : Critique
 
 #### SEC-07 — IDOR : accès aux données d'autrui en changeant un identifiant
 - **Objectif** : un utilisateur **sans `readall`** ne peut ni lire ni modifier les données d'un autre, quel que soit l'identifiant fourni.
-- **Procédure** : avec `zz_nf_user_a`, cibler les objets de `zz_nf_user_b` en substituant les identifiants (énumération par plage) dans : `stopTimer`, `restartTimer`, `submitEntry`, `deleteTimeEntry`, `correctTimeEntry`, `getModificationHistory`, `getTimeEntryUpdates`, `getTimeEntries` (`user_id`, `id`), `getWeeklyTimesheet` (`user_id`), `updateDailyReport`, `deleteDailyReport`, `getMyDailyReports`, `markNotificationsRead` (`ids`), `saveAlertPreferences`, `getTasks` et `startTimer` (projet non autorisé), `getSummaryReports` (`user_ids`), `getDashboardFilterOptions`, `getProcessedHistory`, `exportProcessedHistory`, `exportGlobalCsv`, `getUsersPresence`, `saveExpectedAbsence`. Même essai pour un projet ou un client non visible.
+- **Procédure** : avec `zz_nf_employee`, cibler les objets de `zz_nf_manager` et de `zz_nf_admin` (données créées pour l'essai) en substituant les identifiants (énumération par plage) dans : `stopTimer`, `restartTimer`, `submitEntry`, `deleteTimeEntry`, `correctTimeEntry`, `getModificationHistory`, `getTimeEntryUpdates`, `getTimeEntries` (`user_id`, `id`), `getWeeklyTimesheet` (`user_id`), `updateDailyReport`, `deleteDailyReport`, `getMyDailyReports`, `markNotificationsRead` (`ids`), `saveAlertPreferences`, `getTasks` et `startTimer` (projet non autorisé), `getSummaryReports` (`user_ids`), `getDashboardFilterOptions`, `getProcessedHistory`, `exportProcessedHistory`, `exportGlobalCsv`, `getUsersPresence`, `saveExpectedAbsence`. Même essai pour un projet ou un client non visible.
 - **Résultat attendu** : 403 ou 404 uniforme (sans distinguer « inexistant » de « interdit » quand c'est possible) ; jamais de donnée d'autrui dans la réponse.
 - **Critère de réussite** : **0** ligne appartenant à un autre utilisateur dans les réponses ; **0** modification en base des objets d'autrui (comparaison des sommes de contrôle) ; couverture de **100 %** des actions qui prennent un identifiant.
 - **Risque** : Critique
@@ -236,7 +253,7 @@ Fin de phase : rapport → remise du clone sur `main` + confirmation → revue a
 
 #### SEC-19 — Fuites par les listes de filtres, exports et PDF
 - **Objectif** : les listes de filtres du tableau de bord, les exports et le PDF ne révèlent rien qu'un utilisateur limité ne pourrait pas voir.
-- **Procédure** : comparer, pour `zz_nf_user_a` et pour un `readall`, les réponses de `getDashboardFilterOptions`, `getSummaryReports` avec `user_ids`, l'export CSV du tableau de bord et le PDF ; chercher des noms d'autres employés dans chaque sortie.
+- **Procédure** : comparer, pour `zz_nf_employee` et pour `zz_nf_manager` (`readall`), les réponses de `getDashboardFilterOptions`, `getSummaryReports` avec `user_ids`, l'export CSV du tableau de bord et le PDF ; chercher des noms d'autres employés dans chaque sortie.
 - **Résultat attendu** : aucune donnée d'autrui pour l'utilisateur limité.
 - **Critère de réussite** : **0** occurrence d'un nom, identifiant ou total d'un autre employé dans les sorties de l'utilisateur limité.
 - **Risque** : Élevé
@@ -435,7 +452,7 @@ Les éléments suivants **ne sont pas testables ni pertinents sur un Docker loca
 | DISP-07 | Restauration partielle et volumes de documents | ⚠ | Élevé |
 | DISP-08 | Désactivation/réactivation du module : données conservées | ⚠ | Élevé |
 | DISP-09 | Mode dégradé : dépendances indisponibles une à une | ⚠ | Moyen |
-| DISP-10 | Essai de disponibilité continue (24 h) | Non | Élevé |
+| DISP-10 | Essai de disponibilité continue (24 h) — **optionnel** | Non | Élevé |
 | DISP-11 | Observabilité : les pannes sont-elles visibles ? | Non | Moyen |
 | DISP-12 | Compatibilité 19.0.2 / 22.0.4 après reprise **[19+22]** | ⚠ | Moyen |
 
@@ -504,7 +521,7 @@ Les éléments suivants **ne sont pas testables ni pertinents sur un Docker loca
 - **Critère de réussite** : matrice « dépendance en panne / fonctions disponibles » conforme à l'attendu ; 0 perte de donnée.
 - **Risque** : Moyen
 
-#### DISP-10 — Essai de disponibilité continue
+#### DISP-10 — Essai de disponibilité continue (optionnel)
 - **Objectif** : mesurer une disponibilité et un taux d'erreur réels.
 - **Procédure** : sonde d'un appel applicatif léger par seconde pendant 24 h avec une charge de fond faible (10 utilisateurs virtuels), sans panne provoquée ; consigner chaque échec ; calculer disponibilité et latence (médiane, p95, p99).
 - **Résultat attendu** : service continu.
@@ -570,7 +587,7 @@ Générateur de données maison (Node ou PHP) · **k6** (scénarios de charge, s
 | SCAL-07 | Analyse des index et plans d'exécution (EXPLAIN) | Non | Élevé |
 | SCAL-08 | Test de charge concurrent | ⚠ | Élevé |
 | SCAL-09 | Intégrité sous écritures concurrentes | ⚠ | Élevé |
-| SCAL-10 | Courbe de croissance et extrapolation | Non | Moyen |
+| SCAL-10 | Courbe de croissance et extrapolation (palier 500 000 **optionnel**) | Non | Moyen |
 | SCAL-11 | Interface : poids, chargement, rendu de grandes listes | Non | Moyen |
 | SCAL-12 | Bornes des paramètres de pagination (abus) | Non | Moyen |
 | SCAL-13 | Ressources des conteneurs sous charge | Non | Moyen |
