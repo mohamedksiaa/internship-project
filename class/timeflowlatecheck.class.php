@@ -46,7 +46,7 @@ class TimeFlowLateCheck
 	/** In-app notification type written by this job. */
 	const NOTIF_TYPE = 'late_arrivals';
 
-	/** Per-user preference (llx_user_param): '0' = "do not email me"; absent = emails on. */
+	/** Per-user preference (llx_user_param): '1' = "email me too"; '0' or absent = bell only (opt-in). */
 	const PARAM_EMAIL = 'TIMEFLOW_LATE_ALERT_EMAIL';
 
 	/** An email is attempted at most this many times per notification. */
@@ -460,8 +460,8 @@ class TimeFlowLateCheck
 	}
 
 	/**
-	 * Whether a user wants the late-arrival emails: yes, unless their preference
-	 * is exactly '0'. Only the refusal is stored, so nobody needs a row to be on.
+	 * Whether a user wants the late-arrival emails: only if their preference is
+	 * exactly '1' (opt-in). No row, '0' or anything else means "bell only".
 	 *
 	 * @param DoliDB $db
 	 * @param int    $userId
@@ -475,14 +475,15 @@ class TimeFlowLateCheck
 		$obj = $db->fetch_object($resql);
 		$db->free($resql);
 
-		return !($obj && (string) $obj->value === '0');
+		return $obj && (string) $obj->value === '1';
 	}
 
 	/**
-	 * Stores the preference: on = no row, off = a row with '0'.
+	 * Stores the preference as an explicit row: '1' = email me, '0' = bell only.
+	 * Both are stored so that "chose no" stays distinguishable from "never chose".
 	 *
 	 * Written with plain SQL on purpose. Dolibarr's own dol_set_user_param() tests
-	 * "if ($value)" before inserting, and '0' is false in PHP: through it the
+	 * "if ($value)" before inserting, and '0' is false in PHP: through it a
 	 * refusal would silently never be stored (checked on 19.0.2, where its
 	 * "forcevalue" form does not exist either and stores the text "Array").
 	 *
@@ -499,9 +500,7 @@ class TimeFlowLateCheck
 		$db->begin();
 		try {
 			timeflowQuery($db, 'DELETE FROM '.$prefix.'user_param'.$where, 'TimeFlowLateCheck::setEmailPreference:delete');
-			if (!$enabled) {
-				timeflowQuery($db, 'INSERT INTO '.$prefix.'user_param (fk_user, entity, param, value) VALUES ('.((int) $userId).', '.((int) $entity).", '".$db->escape(self::PARAM_EMAIL)."', '0')", 'TimeFlowLateCheck::setEmailPreference:insert');
-			}
+			timeflowQuery($db, 'INSERT INTO '.$prefix.'user_param (fk_user, entity, param, value) VALUES ('.((int) $userId).', '.((int) $entity).", '".$db->escape(self::PARAM_EMAIL)."', '".($enabled ? '1' : '0')."')", 'TimeFlowLateCheck::setEmailPreference:insert');
 			$db->commit();
 		} catch (TimeflowSqlException $e) {
 			$db->rollback();
@@ -510,15 +509,15 @@ class TimeFlowLateCheck
 	}
 
 	/**
-	 * Managers who opted out of the emails (preference '0' in llx_user_param).
+	 * Managers who opted in to the emails (preference '1' in llx_user_param).
 	 *
 	 * @return array<int,bool>
 	 */
-	private function fetchEmailOptOut($entity)
+	private function fetchEmailOptIn($entity)
 	{
 		$set = array();
-		$sql = 'SELECT fk_user FROM '.$this->db->prefix().'user_param WHERE entity = '.((int) $entity)." AND param = '".$this->db->escape(self::PARAM_EMAIL)."' AND value = '0'";
-		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::fetchEmailOptOut');
+		$sql = 'SELECT fk_user FROM '.$this->db->prefix().'user_param WHERE entity = '.((int) $entity)." AND param = '".$this->db->escape(self::PARAM_EMAIL)."' AND value = '1'";
+		$resql = timeflowQuery($this->db, $sql, 'TimeFlowLateCheck::fetchEmailOptIn');
 		while ($obj = $this->db->fetch_object($resql)) {
 			$set[(int) $obj->fk_user] = true;
 		}
@@ -530,7 +529,7 @@ class TimeFlowLateCheck
 	/**
 	 * Decides and sends the emails of the day's notifications that are not
 	 * settled yet. A notification is settled when its email was sent, or when it
-	 * will never be sent: the manager opted out ('skipped_pref'), has no valid
+	 * will never be sent: the manager did not opt in to emails ('skipped_pref'), has no valid
 	 * address ('skipped_no_address') or mail sending is off on this instance
 	 * ('skipped_disabled'). A failure is retried (one attempt per cron tick,
 	 * EMAIL_MAX_ATTEMPTS in all).
@@ -561,7 +560,7 @@ class TimeFlowLateCheck
 			return $out;
 		}
 
-		$optOut = $this->fetchEmailOptOut($entity);
+		$optIn = $this->fetchEmailOptIn($entity);
 		foreach ($rows as $row) {
 			$notificationId = (int) $row->rowid;
 			$attempts = (int) $row->email_attempts;
@@ -578,7 +577,7 @@ class TimeFlowLateCheck
 			$skip = null;
 			if (getDolGlobalString('MAIN_DISABLE_ALL_MAILS')) {
 				$skip = 'skipped_disabled';
-			} elseif (isset($optOut[(int) $row->fk_user])) {
+			} elseif (!isset($optIn[(int) $row->fk_user])) {
 				$skip = 'skipped_pref';
 			} elseif (empty($row->email) || !isValidEmail((string) $row->email)) {
 				$skip = 'skipped_no_address';

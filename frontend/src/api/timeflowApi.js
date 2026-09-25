@@ -19,7 +19,7 @@ let mockNotifications = [
   { id: 2, type: 'late_arrivals', date_ref: '2026-09-23', created_at: '2026-09-23 09:11:00', read: false, late: [{ id: 2, label: 'Bob Durand' }], threshold: '09:00', cutoff: '09:10', email_status: 'sent' },
   { id: 1, type: 'late_arrivals', date_ref: '2026-09-22', created_at: '2026-09-22 09:11:00', read: true, late: [{ id: 1, label: 'Alice Martin' }, { id: 2, label: 'Bob Durand' }], threshold: '09:00', cutoff: '09:10', email_status: 'sent' },
 ];
-let mockEmailEnabled = true;
+let mockEmailEnabled = false;
 let mockTimeFlowProjects = [
   { id: 1, rowid: 1, title: 'Projet Alpha', ref: 'CPJ-MOCK1', description: '', fk_dolibarr_project: 0, fk_soc: 1, client: 'Client Test', entry_count: 2, assigned_user_ids: [], assigned_count: 0, date_creation: '2026-07-01T09:00:00Z' },
 ];
@@ -679,8 +679,8 @@ export async function markNotificationsRead({ ids, all } = {}) {
 function mapAlertPreferences(payload) {
   const p = payload ?? {};
   return {
-    // Emails are on unless the server says exactly false.
-    emailEnabled: p.email_enabled !== false,
+    // Emails are opt-in: off unless the server says exactly true.
+    emailEnabled: p.email_enabled === true,
     hasEmail: p.has_email === true,
     email: typeof p.email === 'string' && p.email !== '' ? p.email : null,
     alertsEnabled: p.alerts_enabled === true,

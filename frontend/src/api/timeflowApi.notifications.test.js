@@ -92,9 +92,15 @@ describe('timeflowApi — notifications and alert preferences', () => {
       expect(prefs).toEqual({ emailEnabled: false, hasEmail: true, email: 'm@example.com', alertsEnabled: true, mailEnabled: true });
     });
 
-    it('emails are considered ON unless the server says exactly false; the other flags are strict the other way', async () => {
+    it('emails are OFF (opt-in) unless the server says exactly true; the other flags are strict as well', async () => {
       fetchMock.mockResolvedValue(fakeResponse({ status: 'success', data: {} }));
-      expect(await getAlertPreferences()).toEqual({ emailEnabled: true, hasEmail: false, email: null, alertsEnabled: false, mailEnabled: true });
+      expect(await getAlertPreferences()).toEqual({ emailEnabled: false, hasEmail: false, email: null, alertsEnabled: false, mailEnabled: true });
+      fetchMock.mockResolvedValue(fakeResponse({ status: 'success', data: { email_enabled: true } }));
+      expect((await getAlertPreferences()).emailEnabled).toBe(true);
+      for (const notTrue of ['true', 1, '1', null]) {
+        fetchMock.mockResolvedValue(fakeResponse({ status: 'success', data: { email_enabled: notTrue } }));
+        expect((await getAlertPreferences()).emailEnabled).toBe(false);
+      }
     });
 
     it('a blank address is null', async () => {

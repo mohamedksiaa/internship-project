@@ -36,7 +36,7 @@ describe('AppLayout — the notification bell', () => {
     await i18n.changeLanguage('fr');
     getMyNotifications.mockReset().mockResolvedValue({ available: true, unreadCount: 3, rows: [] });
     markNotificationsRead.mockReset().mockResolvedValue({ updated: 0 });
-    getAlertPreferences.mockReset().mockResolvedValue({ emailEnabled: true, hasEmail: true, email: 'a@b.c', alertsEnabled: true, mailEnabled: true });
+    getAlertPreferences.mockReset().mockResolvedValue({ emailEnabled: false, hasEmail: true, email: 'a@b.c', alertsEnabled: true, mailEnabled: true });
     saveAlertPreferences.mockReset();
   });
   afterEach(() => {
