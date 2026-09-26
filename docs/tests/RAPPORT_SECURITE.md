@@ -112,7 +112,7 @@ Sévérité = gravité **x** vraisemblance dans le contexte du module. Aucune n'
 - **Recommandations** (décisions du responsable du 26 septembre) : (1) rotation du mot de passe de base — **prise en charge par le responsable** ; (2) régénération de `instance_unique_id` **après** examen de l'impact (§5.2) ; (3) réécriture de l'historique **plus tard, dans une étape dédiée**, en tenant compte du fork ; (4) empêcher la récidive : ajouter `conf.php`, `conf/conf.php*`, `/*.sql` et `*.dump` au `.gitignore`. **Attention** : ne pas ajouter `*.sql` sans exception, car `sql/` contient les schémas de tables **suivis** (`llx_timeflow_*.sql`) indispensables à l'installation ; si la règle globale est voulue, ajouter `!sql/*.sql`. Un `.gitignore` n'empêche pas l'ajout d'un fichier déjà suivi.
 - **Preuve.** Analyse en lecture seule (valeurs masquées), `preuves/SECURITE/SEC-12/`.
 
-### A-02 — `submitEntry` sans contrôle de propriétaire ni d'état — **Élevée** (SEC-07, SEC-08)
+### A-02 — `submitEntry` sans contrôle de propriétaire ni d'état — **Élevée** (SEC-07, SEC-08) — ✅ *corrigée dans la PR n° 36 (en revue)*
 
 - **Constat.** `TimeEntry::submitEntry()` (`class/timeentry.class.php:1849`) charge la saisie, vérifie la date de fin et la durée maximale, puis passe le statut à « soumis » **sans comparer `fk_user` à l'utilisateur connecté** et **sans regarder le statut courant**.
 - **Essai 1 (autrui).** `zz_nf_employee` (droits `read`+`write`) soumet des brouillons de `zz_nf_manager` et de `zz_nf_admin` : **4 essais sur 4 réussis** (JSON et GET). Base : `status=1`, `fk_user_submit=<employé>`, sur des lignes dont `fk_user` est la victime.
@@ -163,14 +163,14 @@ Les changements de statut par `submitEntry`, `validateEntry` et `rejectEntry` n'
 - Un fichier binaire renommé `.csv`, une archive renommée et un CSV **sans les en-têtes attendus** sont acceptés avec le statut `success` (0 ligne utile) au lieu d'un refus explicite.
 - Un **émoji** (UTF-8 sur 4 octets) dans une cellule fait échouer l'aperçu : HTTP 400 avec le message SQL brut « Incorrect string value … for column `dolibarr`.`llx_timeflow_import_mapping`.`source_value` » (échec fonctionnel + divulgation du nom de table et de colonne). Cause : jeu de caractères de la colonne.
 
-### A-10 — Paramètre texte reçu sous forme de tableau : erreur 500 — **Faible** (SEC-01, SEC-03, SEC-16)
+### A-10 — Paramètre texte reçu sous forme de tableau : erreur 500 — **Faible** (SEC-01, SEC-03, SEC-16) — ✅ *corrigée dans la PR n° 36 (en revue)*
 
 - **Constat.** 18 combinaisons par profil (identiques pour l'employé et l'administrateur) répondent **HTTP 500 à corps vide** : `note[]`, `project_label[]`, `reason[]`, `content[]` en GET (`startTimer`, `createManualEntry`, `saveDailyReport`, `updateDailyReport`, `correctTimeEntry`), et `date_from` / `date_to` / `weekStart` sous forme de tableau (GET ou JSON) sur `getSummaryReports`, `getProcessedHistory`, `exportProcessedHistory`, `getWeeklyTimesheet`.
 - **Cause (journal PHP).** `Uncaught TypeError` : `strtotime()` (`ajax/timeentry.php:1533`), `preg_match()` (`ajax/timeentry.php:2878`), `strip_tags()` (noyau, via `GETPOST`).
 - **Impact.** Faible : pas de fuite (`display_errors` désactivé), pas d'écriture, service disponible ensuite ; mais erreurs fatales PHP évitables et bruit dans les journaux.
 - **Recommandation.** Valider le type (chaîne) des paramètres de date et de texte avant usage et répondre 400.
 
-### A-11 — Un paramètre `id` reçu sous forme de tableau est converti en 1 — **Élevée** (SEC-01, SEC-07 ; liée à A-02)
+### A-11 — Un paramètre `id` reçu sous forme de tableau est converti en 1 — **Élevée** (SEC-01, SEC-07 ; liée à A-02) — ✅ *corrigée dans la PR n° 36 (en revue)*
 
 - **Constat.** Les actions lisent l'identifiant par `(int) $postData['id']`. En PHP, `(int)` d'un **tableau non vide vaut 1** : `{"id":["x"]}` vise donc l'enregistrement n° 1, quelle que soit la valeur envoyée. Aucune validation de type n'est faite (aucun contrôle « chaîne ou entier »).
 - **Reproduction (lecture seule, sans effet).** Session administrateur : `getModificationHistory` avec `{"entryId":1}` et avec `{"entryId":["x"]}` renvoient **la même réponse** (1 ligne) ; `{"entryId":[]}` et `{"entryId":"x"}` renvoient 0 ligne (`preuves/SECURITE/SEC-07-08/`).
@@ -178,7 +178,7 @@ Les changements de statut par `submitEntry`, `validateEntry` et `rejectEntry` n'
 - **Aggravant.** Ces actions ne vérifient pas `date_delete` : une saisie **supprimée** reste modifiable (voir A-12).
 - **Recommandation.** Validation stricte des types : n'accepter qu'un entier ou une chaîne numérique (`ctype_digit`), sinon 400 ; PR commune avec A-02 et A-10.
 
-### A-12 — Une saisie supprimée reste modifiable par validation, refus ou soumission — **Faible** (SEC-07)
+### A-12 — Une saisie supprimée reste modifiable par validation, refus ou soumission — **Faible** (SEC-07) — ✅ *corrigée dans la PR n° 36 (en revue)*
 
 Les actions `submitEntry`, `validateEntry` et `rejectEntry` ne vérifient pas `date_delete` : la saisie n° 1 (supprimée le 18 septembre) a été refusée le 26. **Recommandation** : refuser toute action d'état sur une saisie supprimée.
 
@@ -282,6 +282,22 @@ Une PR par anomalie ou groupe cohérent, **après relecture de ce rapport** :
 **Deuxième cycle (SEC-06 et contrôle de la conversion tableau → 1).** Quatre comptes recréés puis supprimés, mêmes contrôles : après nettoyage, comparaison ligne à ligne de toutes les tables avec la sauvegarde — seuls restent les écarts d'horloge indiqués ci-dessus (connexion de `admin`, constantes du module, tâches planifiées, un passage du cron).
 
 Fichiers temporaires : les 1 400 fichiers `imp*` du dossier `/tmp` du conteneur (copies de CSV laissées par mes anciens essais en ligne de commande, propriétaire root, datés du 25 septembre) et mes scripts ont été supprimés ; **aucun envoi web du 26 septembre n'a laissé de fichier**.
+
+---
+
+## 8. Suivi des corrections
+
+Le statut d'une anomalie passe à « corrigée » à la **fusion** de sa PR ; d'ici là elle est « corrigée dans la PR (en revue) ». Chaque correctif est rejoué sur le Docker de test (comptes de test créés puis supprimés, base comparée à la sauvegarde) avant ouverture de la PR.
+
+| PR | Anomalies | Statut | Cas rejoués | Résultat du rejeu |
+|---|---|---|---|---|
+| **n° 36 — (a)** validation stricte des types, `submitEntry`, saisies supprimées | A-02, A-10, A-11, A-12 | ✅ corrigées, **en revue** | SEC-07 / 08 / 19 (83 contrôles), les 18 cas d'erreur 500, « `id` = tableau » sur 7 actions, 3 profils × 6 écrans de l'interface | **83/83** (78/83 avant) ; 18 réponses 500 → 400 ; aucune ligne préexistante modifiée ; 0 faux positif sur 52 appels de l'interface ; 5 tests PHPUnit + 28 cas du validateur, 6 mutants tués |
+| (b) matrice de droits, D1–D3 | A-03, A-13 | à venir | — | — |
+| (c) formules CSV | A-04 | à venir | — | — |
+| (d) `.gitignore`, déploiement | A-01 (prévention), A-05 | à venir | — | — |
+| (e) `react-router` | SEC-13 | à venir | — | — |
+
+**Effet attendu sur les cas** (après fusion de la PR n° 36) : SEC-01, 03 et 16 n'ont plus de réponse 500 ; SEC-07 n'a plus d'écart ; SEC-08 garde l'écart de l'import (A-03, correctif (b)).
 
 ---
 
