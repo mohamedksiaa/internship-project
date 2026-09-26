@@ -1,0 +1,7 @@
+{
+ "entryId=1": 1,
+ "entryId=[\"x\"]": 1,
+ "entryId=[]": 0,
+ "entryId=\"x\"": 0,
+ "identiqueA1": true
+}

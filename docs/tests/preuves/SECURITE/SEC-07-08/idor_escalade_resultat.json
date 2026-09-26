@@ -1,0 +1,524 @@
+{
+ "fixtures": {
+  "M1": 10642,
+  "M2": 10646,
+  "M3": 10645,
+  "A1": 10643,
+  "MT": null,
+  "MR": 17,
+  "AR": 18,
+  "E1": 10644
+ },
+ "uid": {
+  "zz_nf_admin": "6697",
+  "zz_nf_employee": "6699",
+  "zz_nf_imp_ok_muicddqq": "6701",
+  "zz_nf_imp_ok_muicdst4": "6702",
+  "zz_nf_manager": "6698",
+  "zz_nf_norights": "6700"
+ },
+ "results": [
+  {
+   "id": "SEC-07",
+   "name": "employé → stopTimer(id=null) JSON",
+   "ok": true,
+   "detail": "HTTP 400 Entrée introuvable"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → stopTimer(id=null) GET",
+   "ok": true,
+   "detail": "HTTP 400 Entrée introuvable"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → restartTimer(id=10647) JSON",
+   "ok": true,
+   "detail": "HTTP 403 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → restartTimer(id=10648) GET",
+   "ok": true,
+   "detail": "HTTP 403 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → submitEntry(id=10649) JSON",
+   "ok": false,
+   "detail": "HTTP 200  LIGNE DE LA VICTIME MODIFIÉE"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → submitEntry(id=10650) GET",
+   "ok": false,
+   "detail": "HTTP 200  LIGNE DE LA VICTIME MODIFIÉE"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → submitEntry(id=10651) JSON",
+   "ok": false,
+   "detail": "HTTP 200  LIGNE DE LA VICTIME MODIFIÉE"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → submitEntry(id=10652) GET",
+   "ok": false,
+   "detail": "HTTP 200  LIGNE DE LA VICTIME MODIFIÉE"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → deleteTimeEntry(id=10653) JSON",
+   "ok": true,
+   "detail": "HTTP 403 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → deleteTimeEntry(id=10654) GET",
+   "ok": true,
+   "detail": "HTTP 403 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → deleteTimeEntry(id=10655) JSON",
+   "ok": true,
+   "detail": "HTTP 403 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → deleteTimeEntry(id=10656) GET",
+   "ok": true,
+   "detail": "HTTP 403 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → correctTimeEntry(id=10657) JSON",
+   "ok": true,
+   "detail": "HTTP 403 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → correctTimeEntry(id=10658) GET",
+   "ok": true,
+   "detail": "HTTP 403 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → stopTimer(id=10659) JSON",
+   "ok": true,
+   "detail": "HTTP 400 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → stopTimer(id=10660) GET",
+   "ok": true,
+   "detail": "HTTP 400 Accès refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getModificationHistory {\"entryId\":10642} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getModificationHistory {\"entryId\":10642} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getModificationHistory {\"id\":10642} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getModificationHistory {\"id\":10642} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getModificationHistory {\"entryId\":10643} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getModificationHistory {\"entryId\":10643} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeEntries {\"user_id\":6698} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeEntries {\"user_id\":6698} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeEntries {\"id\":10642} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeEntries {\"id\":10642} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getWeeklyTimesheet {\"user_id\":6698} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getWeeklyTimesheet {\"user_id\":6698} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeEntryUpdates {\"employee_id\":6698,\"scope\":\"validation\"} GET",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeEntryUpdates {\"employee_id\":6698,\"scope\":\"validation\"} JSON",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeEntryUpdates {\"employee_id\":6698} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeEntryUpdates {\"employee_id\":6698} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getSummaryReports {\"user_ids\":\"6698\"} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getSummaryReports {\"user_ids\":\"6698\"} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getSummaryReports {\"user_ids\":\"6698,6697\"} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getSummaryReports {\"user_ids\":\"6698,6697\"} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getProcessedHistory {\"employee_id\":6698} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getProcessedHistory {\"employee_id\":6698} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → exportProcessedHistory {} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → exportProcessedHistory {} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → exportGlobalCsv {} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → exportGlobalCsv {} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getDashboardFilterOptions {} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getDashboardFilterOptions {} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getMyDailyReports {\"user_id\":6698} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getMyDailyReports {\"user_id\":6698} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getDailyReports {\"scope\":\"all\",\"user_id\":6698} GET",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getDailyReports {\"scope\":\"all\",\"user_id\":6698} JSON",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getValidationEntries {\"employee_id\":6698} GET",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getValidationEntries {\"employee_id\":6698} JSON",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getUsersPresence {} GET",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getUsersPresence {} JSON",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeFlowUsers {} GET",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getTimeFlowUsers {} JSON",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getMyNotifications {} GET",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getMyNotifications {} JSON",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getAlertPreferences {} GET",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → getAlertPreferences {} JSON",
+   "ok": true,
+   "detail": "HTTP 403 refusé"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → updateDailyReport(17)",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → deleteDailyReport(17)",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → deleteDailyReport(18)",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-07",
+   "name": "employé → updateDailyReport(18)",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-07",
+   "name": "comptes rendus des victimes inchangés",
+   "ok": true,
+   "detail": "17:·:0:,18:·:0:"
+  },
+  {
+   "id": "SEC-07",
+   "name": "énumération d'identifiants (9) via getModificationHistory",
+   "ok": true,
+   "detail": "0 fuite(s)"
+  },
+  {
+   "id": "SEC-08",
+   "name": "employé valide sa propre saisie",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-08",
+   "name": "employé refuse sa propre saisie",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-08",
+   "name": "manager (sans validate) valide une saisie",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-08",
+   "name": "employé valide un compte rendu",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-08",
+   "name": "manager sans validate enregistre une absence prévue",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-08",
+   "name": "employé enregistre une absence prévue",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-08",
+   "name": "createManualEntry avec champs réservés forgés : réponse",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "SEC-08",
+   "name": "champs réservés ignorés (fk_user, status, fk_user_valid, entity, import_key, date_creation, duration)",
+   "ok": true,
+   "detail": "6699|0|NULL|1||2026-09-26 13:14:13|1200"
+  },
+  {
+   "id": "SEC-08",
+   "name": "la saisie M1 de la victime n’a pas été écrasée via id/rowid forgé",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "id": "SEC-08",
+   "name": "correctTimeEntry sur sa propre saisie avec fk_user/status forgés",
+   "ok": true,
+   "detail": "HTTP 400 → 6699|0|NULL|1||2026-09-26 13:13:56|1800"
+  },
+  {
+   "id": "SEC-08",
+   "name": "… fk_user et status non modifiés",
+   "ok": true,
+   "detail": "6699|0|NULL|1||2026-09-26 13:13:56|1800"
+  },
+  {
+   "id": "SEC-08",
+   "name": "saveDailyReport : fk_user/status/fk_user_read forgés ignorés",
+   "ok": true,
+   "detail": "6699|1|"
+  },
+  {
+   "id": "SEC-08",
+   "name": "propriétaire modifie une saisie déjà validée",
+   "ok": true,
+   "detail": "HTTP 403 Cette entrée a été soumise ou traitée : contactez votre mana"
+  },
+  {
+   "id": "SEC-08",
+   "name": "propriétaire supprime une saisie validée sans deletevalidated",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-08",
+   "name": "autre employé supprime une saisie validée",
+   "ok": true,
+   "detail": "HTTP 403"
+  },
+  {
+   "id": "SEC-08",
+   "name": "employé re-soumet sa saisie déjà validée (le statut ne doit pas régresser)",
+   "ok": false,
+   "detail": "statut avant=2 après=1 HTTP 200"
+  },
+  {
+   "id": "SEC-19",
+   "name": "getDashboardFilterOptions (employé) ne liste aucun autre utilisateur",
+   "ok": true,
+   "detail": "HTTP 200 clés=projects,clients,employees noms d'autrui vus=0"
+  },
+  {
+   "id": "SEC-19",
+   "name": "employé → getSummaryReports {\"user_ids\":[6698,6697]} : aucun nom/total d'autrui",
+   "ok": true,
+   "detail": "noms=0 lignes_autrui=0"
+  },
+  {
+   "id": "SEC-19",
+   "name": "employé → getSummaryReports {} : aucun nom/total d'autrui",
+   "ok": true,
+   "detail": "noms=0 lignes_autrui=0"
+  }
+ ],
+ "summary": {
+  "pass": 78,
+  "fail": 5
+ }
+}

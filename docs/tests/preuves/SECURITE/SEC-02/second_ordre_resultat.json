@@ -1,0 +1,73 @@
+{
+ "tag": "muici5pb",
+ "results": [
+  {
+   "id": "SEC-02",
+   "name": "aperçu du CSV hostile : pas d’erreur SQL ni 5xx",
+   "ok": true,
+   "detail": "HTTP 200 "
+  },
+  {
+   "id": "SEC-02",
+   "name": "résolution des correspondances avec valeurs hostiles",
+   "ok": true,
+   "detail": "HTTP 200 "
+  },
+  {
+   "id": "SEC-02",
+   "name": "exécution : pas d’erreur SQL ni 5xx",
+   "ok": true,
+   "detail": "HTTP 200 entrées=8 erreurs=[]"
+  },
+  {
+   "id": "SEC-02",
+   "name": "réimportation : aucune duplication (clé import_key)",
+   "ok": true,
+   "detail": "HTTP 200 créées=0 déjà importées=8"
+  },
+  {
+   "id": "SEC-02",
+   "name": "8 valeurs relues octet pour octet dans projet, client, groupe et description de saisie",
+   "ok": true,
+   "detail": "toutes identiques"
+  },
+  {
+   "id": "SEC-02",
+   "name": "aucune table détruite ni ligne supplémentaire inattendue",
+   "ok": true,
+   "detail": "avant=37|23|28|19|671 après=45|31|36|19|679"
+  },
+  {
+   "id": "SEC-02",
+   "name": "9 lectures ultérieures (filtres du tableau de bord, synthèse, historique, recherche, exports) sur les valeurs stockées",
+   "ok": true,
+   "detail": "0 erreur(s)"
+  },
+  {
+   "id": "SEC-02",
+   "name": "caractère UTF-8 sur 4 octets (émoji) dans une cellule : traité sans erreur",
+   "ok": false,
+   "detail": "HTTP 400 Erreur SQL lors de la persistance du mapping project pour clockify: Incorrect string value: '\\xF0\\x9F\\x98\\x80 m...' for "
+  }
+ ],
+ "ids": [
+  "218",
+  "219",
+  "220",
+  "221",
+  "222",
+  "223",
+  "224",
+  "225"
+ ],
+ "clients": [
+  "154",
+  "153",
+  "158",
+  "151",
+  "152",
+  "155",
+  "156",
+  "157"
+ ]
+}

@@ -1,0 +1,104 @@
+[
+ {
+  "id": "SEC-18",
+  "name": "decision create_new forgée par employé (write) : refusée",
+  "ok": true,
+  "detail": "HTTP 403 Vous n’avez pas le droit de créer des comptes utilisateurs Dolibarr."
+ },
+ {
+  "id": "SEC-18",
+  "name": "import exécuté par employé (write) : 0 compte créé",
+  "ok": true,
+  "detail": "0 compte(s) ; users_created=undefined"
+ },
+ {
+  "id": "SEC-18",
+  "name": "decision create_new forgée par manager (read/write/readall) : refusée",
+  "ok": true,
+  "detail": "HTTP 403 Vous n’avez pas le droit de créer des comptes utilisateurs Dolibarr."
+ },
+ {
+  "id": "SEC-18",
+  "name": "import exécuté par manager (read/write/readall) : 0 compte créé",
+  "ok": true,
+  "detail": "0 compte(s) ; users_created=undefined"
+ },
+ {
+  "id": "SEC-18",
+  "name": "admin : décisions acceptées (compte, projet, groupe à droits étendus)",
+  "ok": true,
+  "detail": "HTTP 200 "
+ },
+ {
+  "id": "SEC-18",
+  "name": "le compte est créé par l’admin",
+  "ok": true,
+  "detail": "HTTP 200, id=6702, users_created=[{\"source_value\":\"zz_nf_imp_ok_muicdst4@invalid.test\",\"id\":6702,\"login\":\"zz_nf_imp_ok_muicdst4\",\"email_sent\":true,\"email_error\":null}]"
+ },
+ {
+  "id": "SEC-18",
+  "name": "droits du compte créé = exactement timeentry read (50000001) + write (50000003)",
+  "ok": true,
+  "detail": "droits=50000001,50000003"
+ },
+ {
+  "id": "SEC-18",
+  "name": "compte non administrateur, actif, sans rattachement à un groupe à droits étendus",
+  "ok": true,
+  "detail": "admin|statut=0|1, groupes=0, retenus=[{\"user\":\"zz_nf_imp_ok_muicdst4@invalid.test\",\"group\":\"zz_nf_grp_rights\",\"reason\":\"group_has_extra_rights\"}]"
+ },
+ {
+  "id": "SEC-18",
+  "name": "aucun mot de passe ni condensat dans les réponses de l’API (aperçu, décisions, exécution)",
+  "ok": true,
+  "detail": "réponses analysées: 2731 octets"
+ },
+ {
+  "id": "SEC-18",
+  "name": "identifiant déjà pris (admin) : refusé",
+  "ok": true,
+  "detail": "HTTP 400 L’identifiant « admin » est déjà pris (décision à l’index 0)."
+ },
+ {
+  "id": "SEC-18",
+  "name": "identifiant mal formé (espace, point-virgule) : refusé",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "id": "SEC-18",
+  "name": "même identifiant deux fois dans le lot : refusé",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "id": "SEC-18",
+  "name": "email d’un compte désactivé : aucun doublon créé",
+  "ok": true,
+  "detail": "HTTP 400 Un compte désactivé existe déjà pour « zz_nf_norights@invalid.test » : compte désactivé : "
+ },
+ {
+  "id": "SEC-08",
+  "name": "un employé (write seul) ne peut pas créer, via l’import, une saisie au nom d’un autre utilisateur",
+  "ok": true,
+  "detail": "HTTP 200 ; ligne créée (fk_user|status|fk_user_valid) = aucune ; manager=6698"
+ },
+ {
+  "id": "SEC-08",
+  "name": "l’import d’un employé ne modifie pas les contributeurs d’un projet",
+  "ok": false,
+  "detail": "1 lien(s) contributeur créé(s) pour le manager sur le projet 93"
+ },
+ {
+  "id": "SEC-02",
+  "name": "8 valeurs hostiles (apostrophes, guillemets, \\, %, _, DROP TABLE, OR 1=1, Unicode) : aucun effet de bord SQL, relues à l’identique",
+  "ok": false,
+  "detail": "écarts=3, tables intactes=true"
+ },
+ {
+  "id": "SEC-02",
+  "name": "projets créés depuis les valeurs hostiles relus octet pour octet",
+  "ok": false,
+  "detail": "NULL"
+ }
+]

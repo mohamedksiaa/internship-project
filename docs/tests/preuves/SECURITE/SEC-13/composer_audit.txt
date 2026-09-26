@@ -1,0 +1,2 @@
+No security vulnerability advisories found.
+paquets verrouillés : 26
