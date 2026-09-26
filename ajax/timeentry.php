@@ -47,6 +47,15 @@ if (empty($user->id)) {
     exit;
 }
 
+// Strict parameter types, checked before any GETPOST(): an array where a scalar is expected must never reach
+// a string function or an (int) cast (see timeflowFindInvalidRequestParam()). GET and POST here, the JSON body below.
+$invalidParam = timeflowFindInvalidRequestParam(array($_GET, $_POST));
+if ($invalidParam !== null) {
+    http_response_code(400);
+    echo json_encode(array('status' => 'error', 'message' => 'Paramètre invalide : '.$invalidParam));
+    exit;
+}
+
 $token = GETPOST('token', 'alphanohtml');
 if (empty($token) || $token !== currentToken()) {
     // Do not log the token itself: it is a credential.  This trace makes it
@@ -71,6 +80,10 @@ $postData = json_decode(file_get_contents('php://input'), true);
 if (!is_array($postData)) {
     $postData = array();
 } else {
+    $invalidParam = timeflowFindInvalidRequestParam(array($postData));
+    if ($invalidParam !== null) {
+        timeflowJsonResponse(array('status' => 'error', 'message' => 'Paramètre invalide : '.$invalidParam), 400);
+    }
     if (!empty($postData['action'])) {
         $action = $postData['action'];
     }
@@ -2250,7 +2263,7 @@ switch ($action) {
         if ($res > 0) {
             timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
         }
-        timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à la soumission'), 400);
+        timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à la soumission'), $res === -2 ? 403 : 400);
         break;
 
     case 'stopTimer':
