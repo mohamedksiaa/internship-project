@@ -1845,11 +1845,46 @@ class TimeEntry extends CommonObject
 		return $failed > 0 ? -1 : 0;
 	}
 
-	/** Mark an entry as submitted for approval. */
+	/**
+	 * Whether the entry has been soft-deleted (date_delete set). The column is not part of $fields, so fetch()
+	 * never loads it: the state has to be read explicitly before an action changes the entry's status.
+	 *
+	 * @param int $id Entry id
+	 * @return bool
+	 */
+	public function isSoftDeleted($id)
+	{
+		if (!$this->hasDatabaseColumn($this->table_element, 'date_delete')) {
+			return false;
+		}
+		$resql = $this->db->query('SELECT date_delete FROM '.$this->db->prefix().$this->table_element.' WHERE rowid = '.((int) $id));
+		$obj = $resql ? $this->db->fetch_object($resql) : null;
+		return $obj && $obj->date_delete !== null && $obj->date_delete !== '';
+	}
+
+	/**
+	 * Mark an entry as submitted for approval.
+	 *
+	 * Only the owner of a DRAFT entry may submit it, and only with the write right (an administrator keeps the
+	 * fallback every other TimeFlow check has). Anyone else — or any other status, or a soft-deleted entry — is
+	 * refused and the row is left untouched.
+	 *
+	 * @param int  $id   Entry id
+	 * @param User $user Acting user
+	 * @return int >0 on success, -1 on a business refusal, -2 when the caller is not allowed (HTTP 403)
+	 */
 	public function submitEntry($id, User $user)
 	{
-		if ($this->fetch((int) $id) <= 0) {
+		if ($this->fetch((int) $id) <= 0 || $this->isSoftDeleted((int) $id)) {
 			$this->error = 'Entrée introuvable';
+			return -1;
+		}
+		if ((int) $this->fk_user !== (int) $user->id || (empty($user->admin) && !$user->hasRight('timeflow', 'timeentry', 'write'))) {
+			$this->error = 'Accès refusé';
+			return -2;
+		}
+		if ((int) $this->status !== self::STATUS_DRAFT) {
+			$this->error = 'Seule une saisie en brouillon peut être soumise.';
 			return -1;
 		}
 		if (empty($this->date_end)) {
@@ -1878,7 +1913,7 @@ class TimeEntry extends CommonObject
 	/** Update the validation status of an entry. */
 	public function validateEntry($id, User $user, $status)
 	{
-		if ($this->fetch((int) $id) <= 0) {
+		if ($this->fetch((int) $id) <= 0 || $this->isSoftDeleted((int) $id)) {
 			$this->error = 'Entrée introuvable';
 			return -1;
 		}
