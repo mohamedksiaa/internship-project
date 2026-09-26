@@ -1,0 +1,314 @@
+[
+ {
+  "id": "SEC-09",
+  "name": "createManualEntry sans jeton",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "startTimer sans jeton",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "saveDailyReport sans jeton",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "deleteTimeEntry sans jeton",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "submitEntry sans jeton",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "createManualEntry jeton invalide",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "startTimer jeton invalide",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "saveDailyReport jeton invalide",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "deleteTimeEntry jeton invalide",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "submitEntry jeton invalide",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "createManualEntry jeton d’un autre utilisateur",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "startTimer jeton d’un autre utilisateur",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "saveDailyReport jeton d’un autre utilisateur",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "deleteTimeEntry jeton d’un autre utilisateur",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "submitEntry jeton d’un autre utilisateur",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "createManualEntry jeton d’une autre session",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "startTimer jeton d’une autre session",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "saveDailyReport jeton d’une autre session",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "deleteTimeEntry jeton d’une autre session",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "submitEntry jeton d’une autre session",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "POST text/plain (formulaire inter-domaine) sans jeton",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "POST formulaire classique avec cookie de session, sans jeton, Origin étranger",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "écriture en GET sans jeton",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-09",
+  "name": "écriture réalisée en GET avec un jeton valide (createManualEntry)",
+  "ok": null,
+  "detail": "HTTP 200, 1 ligne(s) créée(s) : aucune restriction de méthode HTTP"
+ },
+ {
+  "id": "SEC-09",
+  "name": "Set-Cookie de la page de connexion",
+  "ok": null,
+  "detail": "DOLSESSID_<masqué>=<masqué>; path=/; HttpOnly; SameSite=Lax"
+ },
+ {
+  "id": "SEC-09",
+  "name": "CORS : Access-Control-Allow-Origin absent pour une origine étrangère",
+  "ok": true,
+  "detail": "ACAO=absent ACAC=absent"
+ },
+ {
+  "id": "SEC-09",
+  "name": "CORS : la requête préliminaire OPTIONS n’autorise pas l’origine étrangère",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-09",
+  "name": "en-têtes de sécurité de l’API",
+  "ok": null,
+  "detail": "{\"x-frame-options\":\"SAMEORIGIN\",\"x-content-type-options\":\"nosniff\",\"referrer-policy\":\"strict-origin\",\"content-security-policy\":\"absent\",\"strict-transport-security\":\"absent\",\"cache-control\":\"no-store, no-cache, must-revalidate\",\"server\":\"Apache\",\"x-powered-by\":\"PHP/8.2.7\"}"
+ },
+ {
+  "id": "SEC-09",
+  "name": "en-têtes de la page timeflowindex.php",
+  "ok": null,
+  "detail": "{\"x-frame-options\":\"SAMEORIGIN\",\"x-content-type-options\":\"nosniff\",\"referrer-policy\":\"strict-origin\",\"content-security-policy\":\"absent\",\"strict-transport-security\":\"absent\"}"
+ },
+ {
+  "id": "SEC-09",
+  "name": "le jeton CSRF n’apparaît pas dans les journaux du serveur",
+  "ok": false,
+  "detail": "5127 occurrence(s) dans le journal d’accès (stdout), 948 dans le journal d’erreurs (stderr, notices du filtre anti-injection du noyau), sur les 6000 dernières lignes"
+ },
+ {
+  "id": "SEC-14",
+  "name": "anonyme sans cookie : aucune donnée",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-14",
+  "name": "cookie de session inventé + jeton valide d’une autre session",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-14",
+  "name": "session rejouée après déconnexion",
+  "ok": true,
+  "detail": "avant=200 logout=302 après=200"
+ },
+ {
+  "id": "SEC-14",
+  "name": "compte désactivé en cours de session : accès coupé à la requête suivante",
+  "ok": true,
+  "detail": "avant HTTP 200 {\"status\":\"success\",\"data\":null} → après désactivation HTTP 200 <!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8"
+ },
+ {
+  "id": "SEC-14",
+  "name": "session existante après changement du mot de passe du compte",
+  "ok": null,
+  "detail": "HTTP 200 (session toujours valide : comportement du noyau Dolibarr)"
+ },
+ {
+  "id": "SEC-14",
+  "name": "jeton CSRF : unique par session, longueur ≥ 32, alphabet varié",
+  "ok": true,
+  "detail": "12/12 distincts, longueur=32, 16 caractères distincts"
+ },
+ {
+  "id": "SEC-15",
+  "name": "fichiers internes non servis par le serveur web",
+  "ok": false,
+  "detail": "sql/llx_timeflow_timeentry.sql → HTTP 200 (1843 o) ; .git/HEAD → HTTP 200 (21 o) ; .git/config → HTTP 200 (346 o) ; composer.json → HTTP 200 (71 o) ; composer.lock → HTTP 200 (62384 o) ; composer.phar → HTTP 200 [chemin/erreur PHP] (3580768 o) ; package.json → HTTP 200 (236 o) ; frontend/package.json → HTTP 200 (1406 o) ; frontend/.env.example → HTTP 200 (199 o) ; ChangeLog.md → HTTP 200 (1140 o) ; README.md → HTTP 200 (5944 o) ; langs/fr_FR/timeflow.lang → HTTP 200 (6756 o)"
+ },
+ {
+  "id": "SEC-15",
+  "name": "pas de listing de répertoire (ajax/)",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-15",
+  "name": "en-têtes Server / X-Powered-By sans numéro de version",
+  "ok": false,
+  "detail": "Server=Apache X-Powered-By=PHP/8.2.7"
+ },
+ {
+  "id": "SEC-15",
+  "name": "JSON invalide : réponse sans chemin ni trace",
+  "ok": true,
+  "detail": "HTTP 200 {\"status\":\"success\",\"data\":{\"entries\":[{\"id\":10568,\"rowid\":null,\"entity\":null,\"f"
+ },
+ {
+  "id": "SEC-15",
+  "name": "paramètre debug sans effet pour un non-administrateur",
+  "ok": true,
+  "detail": "taille debug=8928 normal=8928"
+ },
+ {
+  "id": "SEC-16",
+  "name": "JSON tronqué",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-16",
+  "name": "corps vide",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-16",
+  "name": "JSON = null",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-16",
+  "name": "JSON = tableau",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-16",
+  "name": "JSON = nombre",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-16",
+  "name": "types inversés (objet pour entier)",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-16",
+  "name": "Unicode extrême (emoji, RTL, zéro-largeur, NUL)",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-16",
+  "name": "clés dupliquées",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "id": "SEC-16",
+  "name": "corps de 50 Mo",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-16",
+  "name": "le service répond normalement après la salve",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-16",
+  "name": "12 startTimer simultanés : un seul chronomètre actif",
+  "ok": true,
+  "detail": "12 réponses 200, 1 chronomètre(s) actif(s) en base"
+ }
+]
