@@ -13,25 +13,27 @@
 
 ## 1. Synthèse
 
-Sur les **20 cas** de l'axe, **19 ont été exécutés** ; `SEC-06` (matrice des droits) attend la validation de la matrice par le responsable (proposition en annexe A). Les 42 cas « critique » et « élevé » de l'ensemble du plan passent en priorité, conformément à l'arbitrage du 25 septembre.
+Sur les **20 cas** de l'axe, **tous ont été exécutés**. La matrice de droits de `SEC-06` a été **validée par le responsable le 26 septembre** avec trois décisions (D1 : import réservé à l'administrateur ; D2 : un compte sans droit TimeFlow reçoit 403 partout ; D3 : un administrateur Dolibarr peut tout faire sans droit explicite). Les 42 cas « critique » et « élevé » de l'ensemble du plan passent en priorité, conformément à l'arbitrage du 25 septembre.
 
 | Résultat | Nombre | Cas |
 |---|---|---|
 | ✅ Conforme | 6 | SEC-04, 05, 14, 17, 18, 19 (SEC-04, 17 et 19 avec couverture partielle signalée) |
 | ⚠️ Conforme avec réserves | 8 | SEC-01, 02, 03, 09, 11, 13, 16, 20 |
-| ❌ Anomalie confirmée | 5 | SEC-07, 08, 10, 12, 15 |
-| ⏸ En attente | 1 | SEC-06 (validation de la matrice) |
+| ❌ Anomalie confirmée | 6 | SEC-06, 07, 08, 10, 12, 15 |
+| ⏸ En attente | 0 | — |
 
 **Ce que les essais établissent (avec preuves) :**
 
 1. **Aucune injection SQL exploitable** n'a été trouvée : 34 440 requêtes hostiles en tant qu'employé et 34 440 en tant qu'administrateur, 496 requêtes différentielles sur les filtres, relecture de 276 concaténations SQL, second ordre par l'import : **0 erreur SQL, 0 ligne en trop, 0 délai attribuable à une charge**. Seule réserve : 18 réponses HTTP 500 par profil quand un paramètre texte reçoit un tableau (A-10).
 2. **La protection CSRF est effective** (20 combinaisons de jetons absents, faux, d'un autre utilisateur ou d'une autre session : toutes refusées) ; aucune ouverture CORS ; aucun script exécuté dans le navigateur sur 12 vues et 20 combinaisons de paramètres d'URL (avec témoin positif).
-3. **Onze anomalies** (A-01 à A-11), dont cinq majeures : deux d'intégrité des données qui touchent directement le métier (saisies d'autrui modifiées ou fabriquées par un utilisateur ordinaire) et une d'exposition de secrets (voir §4) :
+3. **Treize anomalies** (A-01 à A-13), dont sept majeures : deux d'intégrité des données qui touchent directement le métier (saisies d'autrui modifiées ou fabriquées par un utilisateur ordinaire), une d'exposition de secrets, une de conception des droits (voir §4) :
    - **A-01 (critique)** — un fichier `conf.php` réel figure dans l'historique Git d'un dépôt **public** (1 fork) ;
    - **A-02 (élevée)** — `submitEntry` ne vérifie ni le propriétaire ni l'état : n'importe quel utilisateur connecté soumet la saisie d'un autre et peut faire **régresser** une saisie validée ;
    - **A-03 (élevée)** — l'import Clockify, accessible avec le seul droit `write`, crée des saisies **déjà validées au nom d'un autre utilisateur** et modifie les contributeurs de projets ;
    - **A-04 (élevée)** — les exports CSV ne neutralisent aucune formule (8 charges sur 8 restent actives) ;
-   - **A-05 (élevée)** — le dossier `.git` du module est téléchargeable par HTTP dans l'environnement de test, ainsi que `sql/`, `composer.phar`, etc.
+   - **A-05 (élevée)** — le dossier `.git` du module est téléchargeable par HTTP dans l'environnement de test, ainsi que `sql/`, `composer.phar`, etc. ;
+   - **A-11 (élevée)** — un paramètre `id` reçu sous forme de **tableau JSON est converti en 1** : un employé peut agir sur la saisie n° 1 d'un autre utilisateur (lié à A-02) ;
+   - **A-13 (élevée)** — la matrice de droits n'est pas respectée : **25 actions sont ouvertes à un compte sans aucun droit TimeFlow**, l'import est ouvert à `write`, `correctTimeEntry` refuse l'administrateur sans droit explicite.
 
 ---
 
@@ -78,7 +80,7 @@ Chaque cas a été rejoué par script (Node 24) contre `http://localhost:8080` a
 | SEC-03 | Injection via filtres, dates, tri | Élevé | ⚠️ | 496 requêtes différentielles sur 31 couples action/paramètre (dates, listes d'identifiants, recherche, statut) : 0 erreur SQL, 0 lenteur. 2 écarts de volume, **expliqués** : la charge commence par « 1 », convertie en entier 1 (pas d'injection). **Réserve (A-10)** : une date reçue sous forme de tableau provoque un 500 |
 | SEC-04 | XSS stocké | Critique | ✅ | 8 familles de charges plantées dans 6 champs (note, motif de création et de correction, compte rendu, libellé de projet, absence), affichées par 2 profils sur 6 routes : **0 exécution, 0 requête sortante, 0 nœud injecté**. Témoin positif validé. Couverture partielle : cloche de notifications, fenêtre d'import, PDF et courriels réels non observés |
 | SEC-05 | XSS via paramètres d'URL | Élevé | ✅ | 10 paramètres × 2 routes : 0 exécution |
-| SEC-06 | Matrice action × profil | Critique | ⏸ | En attente de validation (annexe A). Indice fortuit (SEC-14) : un compte sans aucun droit obtient `200` sur `getActiveTimer` |
+| SEC-06 | Matrice action × profil | Critique | ❌ | 220 cellules (44 actions × 5 profils, barrière de droits seule, aucune écriture) : **183 conformes, 37 écarts**, tous dans **A-13** (25 actions ouvertes au compte sans droit ; 12 cellules d'import ouvertes à l'employé et au manager). Administrateur **sans droit explicite** : 44/44 conformes à la barrière ; incohérence de `correctTimeEntry` confirmée à part. Anonyme : 44/44 refusés |
 | SEC-07 | IDOR | Critique | ❌ | **A-02** : `submitEntry` modifie la saisie d'autrui (4/4 essais, contrôlé en base). Les **30 autres contrôles** (arrêt, redémarrage, suppression, correction, comptes rendus, historique, exports, notifications, projets et clients non visibles, énumération d'identifiants) refusent ou ne renvoient aucune ligne d'autrui ; couverture : les 22 actions à identifiant du plan y compris `getTasks` et `startTimer` (projet non visible) |
 | SEC-08 | Élévation de privilèges | Critique | ❌ | **A-02** (validée → soumise) et **A-03** (import). Champs réservés (`fk_user`, `status`, `fk_user_valid`, `entity`, `import_key`, `date_creation`, `duration`) correctement ignorés ; auto-validation, validation d'un compte rendu, absence prévue sans `validate`, suppression d'une saisie validée : refusées |
 | SEC-09 | CSRF et méthode HTTP | Élevé | ⚠️ | 20 combinaisons sans jeton valide + formulaire inter-domaine + `text/plain` : **toutes 403**, 0 écriture. CORS fermé. Cookie `HttpOnly; SameSite=Lax`. **Réserves : A-06** (jeton dans l'URL, présent dans les journaux ; écritures acceptées en GET) |
@@ -94,7 +96,7 @@ Chaque cas a été rejoué par script (Node 24) contre `http://localhost:8080` a
 | SEC-19 | Fuites par filtres, exports, PDF | Élevé | ✅ | Employé : liste d'employés vide, `getSummaryReports` avec `user_ids` d'autrui sans aucun nom ni total d'autrui. PDF non rejoué (pas de rendu serveur) |
 | SEC-20 | Piste d'audit | Moyen | ⚠️ | **A-08** : soumission, validation et refus ne créent aucune ligne d'audit ; aucune action d'API n'écrit ni ne supprime l'historique |
 
-Décompte : ✅ 6 (04, 05, 14, 17, 18, 19) · ⚠️ 8 (01, 02, 03, 09, 11, 13, 16, 20) · ❌ 5 (07, 08, 10, 12, 15) · ⏸ 1 (06).
+Décompte : ✅ 6 (04, 05, 14, 17, 18, 19) · ⚠️ 8 (01, 02, 03, 09, 11, 13, 16, 20) · ❌ 6 (06, 07, 08, 10, 12, 15).
 
 ---
 
@@ -124,7 +126,7 @@ Sévérité = gravité **x** vraisemblance dans le contexte du module. Aucune n'
 - **Constat.** `previewClockifyImport`, `resolveClockifyMapping` et `executeClockifyImport` exigent seulement `write` (ou admin). Un employé téléverse un CSV dont la colonne « Email » est celle du manager, associe le projet à un projet existant, puis exécute.
 - **Résultat en base.** Une saisie est créée avec `fk_user` = **le manager**, `status` = **2 (validée)**, `fk_user_valid` = **l'employé** ; un lien « contributeur » du manager est ajouté au projet visé (`project_contacts_created: 1`). Reproduit 2 fois.
 - **Impact.** Fabrication de temps validé pour n'importe quel utilisateur, contournement du circuit de validation, modification des équipes de projet. La création de **comptes** reste protégée (SEC-18 ✅).
-- **Décision de conception à prendre (D1).** L'import est-il un outil d'administration (recommandé : `validate` ou administrateur, ou un droit dédié) ou ouvert à tout `write` ? Tant que D1 n'est pas tranchée, la matrice proposée reflète l'état actuel du code.
+- **Décision du responsable (D1, 26 septembre).** L'import est **réservé à l'administrateur**. L'écart est chiffré dans A-13.
 - **Preuve.** `preuves/SECURITE/SEC-07-08/`.
 
 ### A-04 — Injection de formules dans les exports CSV — **Élevée** (SEC-10)
@@ -168,11 +170,26 @@ Les changements de statut par `submitEntry`, `validateEntry` et `rejectEntry` n'
 - **Impact.** Faible : pas de fuite (`display_errors` désactivé), pas d'écriture, service disponible ensuite ; mais erreurs fatales PHP évitables et bruit dans les journaux.
 - **Recommandation.** Valider le type (chaîne) des paramètres de date et de texte avant usage et répondre 400.
 
-### A-11 — Un tableau JSON est converti en identifiant 1 ; une saisie supprimée reste modifiable — **Faible** (SEC-01, SEC-07)
+### A-11 — Un paramètre `id` reçu sous forme de tableau est converti en 1 — **Élevée** (SEC-01, SEC-07 ; liée à A-02)
 
-- **Constat.** `(int) $postData['id']` transforme un **tableau non vide en 1** : `{"id":["x"]}` vise donc l'enregistrement n° 1. Lors de la série d'injection en tant qu'administrateur, cela a fait passer la saisie n° 1 (**supprimée le 18 septembre**, appartenant à l'utilisateur 1) du statut 2 au statut **9 (refusée)**, avec `fk_user_valid` et `fk_user_submit` du compte de test, et a mis à jour l'horodatage du compte rendu n° 1. Les actions de validation, refus et soumission **ne vérifient pas `date_delete`**.
-- **Effet sur l'environnement de test.** Ces deux lignes préexistantes ont été modifiées par le test lui-même (voir §7). Elles sont signalées et **non restaurées sans accord**.
-- **Recommandation.** Ignorer les valeurs non scalaires (400) et refuser toute action d'état sur une saisie supprimée.
+- **Constat.** Les actions lisent l'identifiant par `(int) $postData['id']`. En PHP, `(int)` d'un **tableau non vide vaut 1** : `{"id":["x"]}` vise donc l'enregistrement n° 1, quelle que soit la valeur envoyée. Aucune validation de type n'est faite (aucun contrôle « chaîne ou entier »).
+- **Reproduction (lecture seule, sans effet).** Session administrateur : `getModificationHistory` avec `{"entryId":1}` et avec `{"entryId":["x"]}` renvoient **la même réponse** (1 ligne) ; `{"entryId":[]}` et `{"entryId":"x"}` renvoient 0 ligne (`preuves/SECURITE/SEC-07-08/`).
+- **Effet constaté.** Lors de la série d'injection (paramètre `id` = tableau, sur `rejectEntry`, `submitEntry`, `validateDailyReport`…), la saisie n° 1 — **supprimée le 18 septembre**, appartenant à l'utilisateur 1 — est passée du statut 2 au statut 9 avec `fk_user_valid` et `fk_user_submit` du compte de test, et l'horodatage du compte rendu n° 1 a changé. Le même chemin est ouvert à un compte `read`+`write` pour `submitEntry` (A-02 : aucun contrôle de propriétaire) : **un employé peut modifier la saisie n° 1 d'un autre utilisateur** sans en connaître l'identifiant autrement que par cette conversion.
+- **Aggravant.** Ces actions ne vérifient pas `date_delete` : une saisie **supprimée** reste modifiable (voir A-12).
+- **Recommandation.** Validation stricte des types : n'accepter qu'un entier ou une chaîne numérique (`ctype_digit`), sinon 400 ; PR commune avec A-02 et A-10.
+
+### A-12 — Une saisie supprimée reste modifiable par validation, refus ou soumission — **Faible** (SEC-07)
+
+Les actions `submitEntry`, `validateEntry` et `rejectEntry` ne vérifient pas `date_delete` : la saisie n° 1 (supprimée le 18 septembre) a été refusée le 26. **Recommandation** : refuser toute action d'état sur une saisie supprimée.
+
+### A-13 — La matrice de droits n'est pas respectée — **Élevée** (SEC-06)
+
+- **D2 — compte sans aucun droit TimeFlow (25 actions ouvertes).** `getActiveTimer`, `startTimer`, `createManualEntry`, `submitEntry`, `stopTimer`, `restartTimer`, `deleteTimeEntry`, `correctTimeEntry`, `getProjects`, `getTimeFlowProjects`, `getTasks`, `getTimeEntries`, `getTimeEntryUpdates`, `getWeeklyTimesheet`, `getSummaryReports`, `getDashboardFilterOptions`, `getProcessedHistory`, `exportProcessedHistory`, `exportGlobalCsv`, `getModificationHistory`, `saveDailyReport`, `updateDailyReport`, `deleteDailyReport`, `getMyDailyReports`, `getDailyReports` franchissent la barrière de droits (réponse 200 ou erreur métier 400/404 au lieu de 403). L'endpoint ne teste que « module actif, session, jeton » ; seules les actions équipe, validation et import testent un droit.
+- **D1 — import.** `previewClockifyImport`, `executeClockifyImport`, `resolveClockifyMapping`, `listActiveUsers`, `listUserGroups`, `listActiveThirdParties` sont accessibles à `zz_nf_employee` et `zz_nf_manager` (12 cellules). Conséquences prouvées : A-03.
+- **D3 — administrateur sans droit explicite.** Sur la barrière de droits, l'administrateur passe partout (44/44). Une seule incohérence : `correctTimeEntry` exige `write` **sans repli administrateur** (403 sur sa propre saisie).
+- **Conforme.** Anonyme : 44/44 sans donnée. Actions équipe (`readall`), validation (`validate`) et absences prévues : conformes pour l'employé et le manager.
+- **Méthode.** Chaque requête est construite pour qu'une barrière franchie aboutisse à une erreur métier inoffensive (identifiant 0, corps vide) et une barrière fermée à un 403 ; les tables `llx_timeflow_*` sont identiques avant et après. Le seul écart isolé de la série (`getTasks` de l'employé) venait d'une requête mal construite (projet inexistant) ; rejoué sans identifiant, il est conforme.
+- **Recommandation.** Contrôle central au début de l'endpoint (droit `read` minimum, table action → droit), avec repli administrateur généralisé ; PR (b) du plan de correctifs.
 
 ---
 
@@ -222,17 +239,12 @@ Une PR par anomalie ou groupe cohérent, **après relecture de ce rapport** :
 
 | PR | Contenu | Anomalie(s) | Priorité |
 |---|---|---|---|
-| S1 | `.gitignore` (conf, dumps) ; retrait de `composer.phar` ; plus tard, purge d'historique dédiée | A-01 | Critique |
-| S2 | `submitEntry` : propriétaire, droit et état ; tests | A-02 | Élevée |
-| S3 | Droit requis pour l'import (décision D1) ; tests | A-03 | Élevée |
-| S4 | Neutralisation des formules CSV ; tests | A-04 | Élevée |
-| S5 | Interdire `.git`, `sql/`, `docs/`… par règle Apache ; documentation de déploiement | A-05 | Élevée |
-| S6 | Jeton hors URL ; méthode POST obligatoire pour les écritures | A-06 | Moyenne |
-| S7 | Journalisation de la soumission, validation, refus | A-08 | Moyenne |
-| S8 | Import : validation des en-têtes, limite cohérente, `utf8mb4`, message d'erreur générique ; typage des paramètres (tableaux) ; saisie supprimée non modifiable | A-09, A-10, A-11 | Faible |
-| S9 | Mise à jour du verrou `react-router` | SEC-13 | Faible |
-| S10 | Configuration serveur : `expose_php`, `ServerTokens`, taille de corps, CSP | A-07 | Faible |
-| — | Résultats de `SEC-06` (matrice) | à venir | — |
+| (a) | `submitEntry` : propriétaire, droit et état ; **validation stricte des types** (tableau → 400, plus de conversion en 1) ; fin des erreurs 500 sur paramètres tableau ; saisie supprimée non modifiable ; tests | A-02, A-10, A-11, A-12 | Élevée |
+| (b) | Matrice de droits : contrôle central, D1 (import = administrateur), D2 (403 sans droit), D3 (repli administrateur, `correctTimeEntry`) ; tests de la matrice | A-03, A-13 | Élevée |
+| (c) | Neutralisation des formules CSV ; tests | A-04 | Élevée |
+| (d) | `.gitignore` (conf, dumps) et note de déploiement : ne pas déployer `.git`, `sql/`, `composer.phar` ; retrait de `composer.phar` du dépôt | A-01 (prévention), A-05 | Critique / Élevée |
+| (e) | Mise à jour du verrou `react-router` | SEC-13 | Faible |
+| ultérieur | Jeton hors de l'URL et POST obligatoire (A-06) ; journalisation soumission/validation/refus (A-08) ; import : en-têtes, limite, `utf8mb4`, message d'erreur générique (A-09) ; durcissement serveur (A-07) ; purge d'historique et rotation (A-01, étape dédiée) | A-01, A-06 à A-09 | Moyenne / Faible |
 
 ---
 
@@ -260,18 +272,20 @@ Une PR par anomalie ou groupe cohérent, **après relecture de ce rapport** :
 
 | Table | Écart | Origine |
 |---|---|---|
-| `llx_timeflow_timeentry` (1 ligne, n° 1) | statut 2 → 9, validateur et soumetteur = compte de test supprimé | **Effet collatéral du test** (A-11) |
-| `llx_timeflow_daily_report` (1 ligne, n° 1) | horodatage `tms` mis à jour | **Effet collatéral du test** (A-11) |
+| `llx_timeflow_timeentry` (1 ligne, n° 1) | statut 2 → 9, validateur et soumetteur = compte de test supprimé | **Effet collatéral du test** (A-11) — **restauré** |
+| `llx_timeflow_daily_report` (1 ligne, n° 1) | horodatage `tms` mis à jour | **Effet collatéral du test** (A-11) — **restauré** |
 | `llx_user` (compte `admin`) | dernière connexion | Connexion à l'instance, sans lien avec les essais |
 | `llx_const` (10 lignes `TIMEFLOW_*`), `llx_cronjob` (2), `llx_timeflow_late_check` (+1) | horodatages et passage des tâches planifiées | Redémarrage de Docker et cron du module |
 
-**Restauration proposée** (non exécutée, en attente d'accord) : remettre les deux lignes n° 1 aux valeurs de la sauvegarde.
+**Restauration (accord du responsable le 26 septembre).** Les deux lignes n° 1 ont été remises **aux valeurs de la sauvegarde** ; contrôle par requête : 0 ligne différente de la sauvegarde dans `llx_timeflow_timeentry` et `llx_timeflow_daily_report` (statut 2, `fk_user_valid` = `fk_user_submit` = 1, `tms` du 19 septembre pour le compte rendu).
+
+**Deuxième cycle (SEC-06 et contrôle de la conversion tableau → 1).** Quatre comptes recréés puis supprimés, mêmes contrôles : après nettoyage, comparaison ligne à ligne de toutes les tables avec la sauvegarde — seuls restent les écarts d'horloge indiqués ci-dessus (connexion de `admin`, constantes du module, tâches planifiées, un passage du cron).
 
 Fichiers temporaires : les 1 400 fichiers `imp*` du dossier `/tmp` du conteneur (copies de CSV laissées par mes anciens essais en ligne de commande, propriétaire root, datés du 25 septembre) et mes scripts ont été supprimés ; **aucun envoi web du 26 septembre n'a laissé de fichier**.
 
 ---
 
-## Annexe A — Matrice de droits proposée (SEC-06, **à valider**)
+## Annexe A — Matrice de droits (SEC-06), **validée par le responsable le 26 septembre**
 
 Codes : **OK** accepté · **OWN** accepté, périmètre limité à l'appelant · **403** refusé · **401** sans session (ou renvoi vers la connexion), jamais de donnée. Profils : ANO anonyme · NOR sans droit TimeFlow · EMP `read`+`write` · MGR `read`+`write`+`readall` · ADM administrateur avec les 6 droits. La colonne « code actuel » signale ce que la lecture du code laisse prévoir quand cela diffère de la proposition ; **SEC-06 le confirmera ou l'infirmera**.
 
@@ -315,14 +329,14 @@ Codes : **OK** accepté · **OWN** accepté, périmètre limité à l'appelant �
 | `rejectDailyReport` | validate | 401 | 403 | 403 | 403 | OK |  |
 | `saveExpectedAbsence` | readall+validate | 401 | 403 | 403 | 403 | OK | readall ET validate (ou admin) |
 | `deleteExpectedAbsence` | readall+validate | 401 | 403 | 403 | 403 | OK |  |
-| `previewClockifyImport` | write | 401 | 403 | OK | OK | OK | write (ou admin) |
-| `executeClockifyImport` | write | 401 | 403 | OK | OK | OK | write (ou admin) : anomalie SEC-08 prouvée |
-| `resolveClockifyMapping` | write | 401 | 403 | OK | OK | OK | write (ou admin) ; création de compte : droit natif user->creer |
-| `listActiveUsers` | write | 401 | 403 | OK | OK | OK |  |
-| `listUserGroups` | write | 401 | 403 | OK | OK | OK |  |
-| `listActiveThirdParties` | write | 401 | 403 | OK | OK | OK |  |
+| `previewClockifyImport` | admin | 401 | 403 | 403 | 403 | OK | write (ou admin) |
+| `executeClockifyImport` | admin | 401 | 403 | 403 | 403 | OK | write (ou admin) : anomalie SEC-08 prouvée |
+| `resolveClockifyMapping` | admin | 401 | 403 | 403 | 403 | OK | write (ou admin) ; création de compte : droit natif user->creer |
+| `listActiveUsers` | admin | 401 | 403 | 403 | 403 | OK |  |
+| `listUserGroups` | admin | 401 | 403 | 403 | 403 | OK |  |
+| `listActiveThirdParties` | admin | 401 | 403 | 403 | 403 | OK |  |
 
-**Décisions à trancher.** D1 : import réservé aux administrateurs / `validate` (recommandé) ou ouvert à `write` ? D2 : un compte **sans aucun droit TimeFlow** doit-il être refusé (403) partout (proposé) ? D3 : un administrateur **sans** droits TimeFlow explicites (cas d'un compte administrateur créé par un script) doit-il fonctionner ? (`correctTimeEntry` n'a pas de repli « admin »).
+**Décisions du responsable.** D1 : l'import est réservé à l'administrateur. D2 : un compte sans aucun droit TimeFlow reçoit 403 sur toutes les actions, y compris `getActiveTimer`. D3 : un administrateur Dolibarr doit pouvoir tout faire dans TimeFlow sans droit explicite, comme le reste du module ; `correctTimeEntry` est l'incohérence. Les résultats de l'exécution figurent en A-13.
 
 ## Annexe B — Paramètres lus par action
 
