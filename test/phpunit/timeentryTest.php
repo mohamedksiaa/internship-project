@@ -50,7 +50,8 @@ require_once $moduleRoot . '/class/timeentry.class.php';
 if (empty($user->id)) {
 	print "Load permissions for admin user nb 1\n";
 	$user->fetch(1);
-	$user->loadRights();
+	// loadRights() exists from Dolibarr 20; 19.x only has getrights().
+	method_exists($user, 'loadRights') ? $user->loadRights() : $user->getrights();
 }
 $conf->global->MAIN_DISABLE_ALL_MAILS = 1;
 
@@ -1137,4 +1138,102 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 			$this->assertNotNull($obj, 'Soft-deleted validated entry missing from history query');
 			$this->assertSame((int)$entryId, (int)$obj->rowid);
 		}
+
+	/**
+	 * Creates a draft entry owned by $user, ending one hour before "now" (offset keeps the slots of these tests apart).
+	 *
+	 * @param int $offsetHours Hours to shift the slot back
+	 * @return int Entry id
+	 */
+	private function createDraftFor($user, $offsetHours)
+	{
+		global $db;
+		$entry = new TimeEntry($db);
+		$end = dol_now() - $offsetHours * 3600;
+		$id = $entry->createManualEntry((int) $user->id, 0, 0, $end - 1800, $end, 'Test securite soumission', '', 0, $user, null, TimeEntry::STATUS_DRAFT);
+		$this->assertGreaterThan(0, $id, $entry->error ?: implode(', ', $entry->errors));
+		return (int) $id;
+	}
+
+	/** Reads the status of a row straight from the database. */
+	private function rawStatus($id)
+	{
+		global $db;
+		$res = $db->query('SELECT status FROM '.$db->prefix().'timeflow_timeentry WHERE rowid = '.((int) $id));
+		$obj = $res ? $db->fetch_object($res) : null;
+		return $obj ? (int) $obj->status : null;
+	}
+
+	/** SEC-07 / A-02: a user cannot submit somebody else's draft; the row stays untouched. */
+	public function testSubmitEntryRefusesANonOwner()
+	{
+		global $db, $user;
+		$id = $this->createDraftFor($user, 30);
+
+		$stranger = new User($db);
+		$stranger->id = (int) $user->id + 100000;
+		$stranger->admin = 0;
+		$stranger->rights = new stdClass();
+
+		$entry = new TimeEntry($db);
+		$this->assertSame(-2, $entry->submitEntry($id, $stranger));
+		$this->assertSame('Accès refusé', $entry->error);
+		$this->assertSame(TimeEntry::STATUS_DRAFT, $this->rawStatus($id));
+	}
+
+	/** SEC-07 / A-02: not even an administrator submits on behalf of the owner. */
+	public function testSubmitEntryRefusesAnAdministratorWhoIsNotTheOwner()
+	{
+		global $db, $user;
+		$id = $this->createDraftFor($user, 31);
+
+		$otherAdmin = new User($db);
+		$otherAdmin->id = (int) $user->id + 100001;
+		$otherAdmin->admin = 1;
+
+		$entry = new TimeEntry($db);
+		$this->assertSame(-2, $entry->submitEntry($id, $otherAdmin));
+		$this->assertSame(TimeEntry::STATUS_DRAFT, $this->rawStatus($id));
+	}
+
+	/** SEC-08 / A-02: only a draft can be submitted; a validated entry is not sent back to "submitted". */
+	public function testSubmitEntryOnlyAcceptsADraft()
+	{
+		global $db, $user;
+		$id = $this->createDraftFor($user, 32);
+		$entry = new TimeEntry($db);
+		$this->assertGreaterThan(0, $entry->validateEntry($id, $user, TimeEntry::STATUS_VALIDATED));
+
+		$again = new TimeEntry($db);
+		$this->assertSame(-1, $again->submitEntry($id, $user));
+		$this->assertStringContainsString('brouillon', $again->error);
+		$this->assertSame(TimeEntry::STATUS_VALIDATED, $this->rawStatus($id));
+	}
+
+	/** A-12: a soft-deleted entry can be neither submitted, validated nor rejected. */
+	public function testActionsRefuseASoftDeletedEntry()
+	{
+		global $db, $user;
+		$id = $this->createDraftFor($user, 33);
+		$this->assertNotFalse($db->query('UPDATE '.$db->prefix().'timeflow_timeentry SET date_delete = "'.$db->idate(dol_now()).'" WHERE rowid = '.$id));
+
+		$a = new TimeEntry($db);
+		$this->assertSame(-1, $a->submitEntry($id, $user));
+		$this->assertSame('Entrée introuvable', $a->error);
+		$b = new TimeEntry($db);
+		$this->assertSame(-1, $b->validateEntry($id, $user, TimeEntry::STATUS_VALIDATED));
+		$c = new TimeEntry($db);
+		$this->assertSame(-1, $c->validateEntry($id, $user, TimeEntry::STATUS_CANCELED));
+		$this->assertSame(TimeEntry::STATUS_DRAFT, $this->rawStatus($id));
+	}
+
+	/** The owner can still submit his own draft (no regression). */
+	public function testSubmitEntryStillWorksForTheOwner()
+	{
+		global $db, $user;
+		$id = $this->createDraftFor($user, 34);
+		$entry = new TimeEntry($db);
+		$this->assertGreaterThan(0, $entry->submitEntry($id, $user), (string) $entry->error);
+		$this->assertSame(TimeEntry::STATUS_SUBMITTED, $this->rawStatus($id));
+	}
 	}  // @phan-suppress-current-line PhanUndeclaredClass

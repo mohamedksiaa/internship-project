@@ -231,6 +231,74 @@ function timeflowCanReadAllTimeEntries($user)
 }
 
 /**
+ * Request parameters that legitimately carry a list (everything else is a scalar).
+ *
+ * @return string[]
+ */
+function timeflowListParamNames()
+{
+    return array('project_ids', 'client_ids', 'user_ids', 'ids', 'decisions');
+}
+
+/**
+ * Request parameters that carry a record identifier: an integer, or a string made of digits only.
+ *
+ * @return string[]
+ */
+function timeflowIdParamNames()
+{
+    return array('id', 'entryId', 'fk_project', 'fk_task', 'projectId', 'employee_id', 'client_id', 'user_id');
+}
+
+/**
+ * Strict type check of the request parameters (GET, POST and JSON body), done once before any action runs.
+ *
+ * PHP silently turns an array into 1 ((int) array('x') === 1), "12abc" into 12 and true into 1, and hands an
+ * array to string functions (strtotime, preg_match, strip_tags), which is a fatal TypeError. So a parameter that
+ * is not of the expected shape must be refused, not converted:
+ *  - a scalar parameter may not be an array (only the names of timeflowListParamNames() may be, and their items
+ *    must be integers or digit strings — except 'decisions', a list of objects checked by the import class);
+ *  - an identifier parameter must be null, '' (= absent), a non-negative integer or a digit-only string.
+ *
+ * @param array<int,array<string,mixed>> $sources Request arrays, e.g. array($_GET, $_POST, $jsonBody)
+ * @return string|null Name of the first offending parameter (safe to display), or null when all are valid
+ */
+function timeflowFindInvalidRequestParam(array $sources)
+{
+    $listNames = timeflowListParamNames();
+    $idNames = timeflowIdParamNames();
+    $isDigits = function ($v) {
+        return is_int($v) ? $v >= 0 : (is_string($v) && preg_match('/^\d{1,18}$/', $v) === 1);
+    };
+    foreach ($sources as $source) {
+        if (!is_array($source)) {
+            continue;
+        }
+        foreach ($source as $key => $value) {
+            $name = (string) $key;
+            $shown = preg_match('/^\w{1,40}$/', $name) ? $name : 'inconnu';
+            if (is_array($value)) {
+                if (!in_array($name, $listNames, true)) {
+                    return $shown;
+                }
+                if ($name !== 'decisions') {
+                    foreach ($value as $item) {
+                        if (!$isDigits($item)) {
+                            return $shown;
+                        }
+                    }
+                }
+                continue;
+            }
+            if (in_array($name, $idNames, true) && $value !== null && $value !== '' && !$isDigits($value)) {
+                return $shown;
+            }
+        }
+    }
+    return null;
+}
+
+/**
  * Parses an id-list filter sent by the Dashboard: a JSON array, or a "1,2,3" string.
  *
  * @param mixed $value
