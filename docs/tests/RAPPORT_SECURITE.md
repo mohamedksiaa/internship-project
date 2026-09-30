@@ -294,7 +294,7 @@ Le statut d'une anomalie passe à « corrigée » à la **fusion** de sa PR ; d'
 | PR | Anomalies | Statut | Cas rejoués | Résultat du rejeu |
 |---|---|---|---|---|
 | **n° 36 — (a)** validation stricte des types, `submitEntry`, saisies supprimées | A-02, A-10, A-11, A-12 | ✅ **corrigées, fusionnée** | SEC-07 / 08 / 19 (83 contrôles), les 18 cas d'erreur 500, « `id` = tableau » sur 7 actions, 3 profils × 6 écrans de l'interface | **83/83** (78/83 avant) ; 18 réponses 500 → 400 ; aucune ligne préexistante modifiée ; 0 faux positif sur 52 appels de l'interface ; 5 tests PHPUnit + 28 cas du validateur, 6 mutants tués |
-| **n° 37 — (b)** matrice de droits, D1–D3 | A-03, A-13 | ✅ corrigées, **en revue** | SEC-06 (220 cellules), SEC-07/08/19 (83 contrôles), 9 tests PHPUnit, vérification navigateur réel (4 profils) | **219/220** conformes (écart restant : artefact de méthode, sans lien avec les droits) ; **83/83** ; 6 mutants tués ; écran d'accès refusé sans appel API, bouton Import et bouton Démarrer conformes pour les 4 profils ; aucune ligne préexistante modifiée ; suite frontend 507 tests (3 échecs préexistants, non liés, 0 nouveau) |
+| **n° 37 — (b)** matrice de droits, D1–D3 + second ajustement d'annexe A (scope de `listActiveUsers`/`listActiveThirdParties`) | A-03, A-13 | ✅ corrigées, **en revue** | SEC-06 (220 cellules), SEC-07/08/19 (83 contrôles), 14 tests PHPUnit (9 matrice + 5 annuaire scopé), vérification navigateur réel (4 profils + filtre Client/utilisateurs assignés pour l'employé) | **219/220** conformes (écart restant : artefact de méthode, sans lien avec les droits) ; **83/83** ; 6 mutants tués ; écran d'accès refusé sans appel API, bouton Import et bouton Démarrer conformes pour les 4 profils ; employé scopé à 3 utilisateurs/1 client (contre 17/3 pour manager et admin), 0 champ `login`/`firstname`/`lastname`/`email` exposé ; aucune ligne préexistante modifiée ; suite PHPUnit complète 67 tests (4 échecs préexistants chronos, non liés, 0 nouveau) ; suite frontend 507 tests (3 échecs préexistants, non liés, 0 nouveau) |
 | (c) formules CSV | A-04 | à venir | — | — |
 | (d) `.gitignore`, déploiement | A-01 (prévention), A-05 | à venir | — | — |
 | (e) `react-router` | SEC-13 | à venir | — | — |
@@ -351,12 +351,19 @@ Codes : **OK** accepté · **OWN** accepté, périmètre limité à l'appelant �
 | `executeClockifyImport` | admin | 401 | 403 | 403 | 403 | OK | write (ou admin) : anomalie SEC-08 prouvée |
 | `resolveClockifyMapping` | admin | 401 | 403 | 403 | 403 | OK | write (ou admin) ; création de compte : droit natif user->creer |
 | `listUserGroups` | admin | 401 | 403 | 403 | 403 | OK |  |
-| `listActiveUsers` | read *(ajustement d'annexe A — voir ci-dessous)* | 401 | 403 | OK | OK | OK |  |
-| `listActiveThirdParties` | read *(ajustement d'annexe A — voir ci-dessous)* | 401 | 403 | OK | OK | OK |  |
+| `listActiveUsers` | read, **réponse scopée sans `readall`** *(voir ci-dessous)* | 401 | 403 | OK¹ | OK | OK |  |
+| `listActiveThirdParties` | read, **réponse scopée sans `readall`** *(voir ci-dessous)* | 401 | 403 | OK¹ | OK | OK |  |
+
+¹ OK = accès accordé (200), mais le **contenu** de la réponse est restreint pour un compte sans `readall` (EMP) — voir le second ajustement d'annexe A ci-dessous. MGR (`readall`) et ADM reçoivent la liste complète.
 
 **Décisions du responsable.** D1 : l'import est réservé à l'administrateur. D2 : un compte sans aucun droit TimeFlow reçoit 403 sur toutes les actions, y compris `getActiveTimer`. D3 : un administrateur Dolibarr doit pouvoir tout faire dans TimeFlow sans droit explicite, comme le reste du module ; `correctTimeEntry` est l'incohérence. Les résultats de l'exécution figurent en A-13.
 
 **Ajustement d'annexe A (2026-09-30, en câblant le correctif (b), confirmé avec le responsable).** `listActiveThirdParties` et `listActiveUsers` sont ressorties du groupe « import = admin » : ce sont des lectures seules réutilisées **hors import**, par l'onglet Projets (filtre « Client », libellés « utilisateurs assignés »), ouvertes à tout lecteur TimeFlow. Les restreindre à l'administrateur, comme validé initialement, cassait ce filtre pour l'employé et le manager — repéré avant la fusion de la PR n° 37, pas après. Les 4 autres actions de l'import (`previewClockifyImport`, `executeClockifyImport`, `resolveClockifyMapping`, `listUserGroups`) restent admin uniquement, sans changement.
+
+**Second ajustement d'annexe A (2026-09-30, relevé par le responsable avant la fusion de la PR n° 37).** Le premier ajustement ouvrait ces deux actions en bloc à tout lecteur `read` — exactement le type de fuite que les filtres du tableau de bord avaient été construits pour éviter : n'importe quel employé pouvait ainsi lister **tous** les utilisateurs actifs (avec `login`/prénom/nom) et **tous** les clients de l'instance, pas seulement ceux de ses propres projets. Corrigé dans le même correctif (b), avant fusion :
+- **Administrateur ou `readall`** : liste complète, inchangée (comme aujourd'hui).
+- **Sinon (`read` seul, sans `readall`)** : uniquement les utilisateurs rattachés (contributeurs, mécanisme natif `PROJECTCONTRIBUTOR`) aux projets visibles par l'appelant, avec **seulement `id` et `label`** — jamais `login`, `firstname`, `lastname` ni email ; et uniquement les clients de ces mêmes projets visibles, pour `listActiveThirdParties`.
+- **Vérifié** : un employé sans projet reçoit une liste vide ; assigné à un seul projet, il reçoit exactement les contributeurs et le client de ce projet (pas ceux d'un autre projet, testé avec des données réelles) ; le filtre « Client » et les libellés « utilisateurs assignés » de l'onglet Projets continuent de fonctionner pour lui (vérifié dans un vrai navigateur). 5 tests PHPUnit dédiés (`test/phpunit/timeflowActiveDirectoryTest.php`), dont un vérifiant explicitement qu'aucune entrée ne contient `login`/`firstname`/`lastname`/`email` et qu'aucun utilisateur ou client n'apparaît deux fois.
 
 ## Annexe B — Paramètres lus par action
 
