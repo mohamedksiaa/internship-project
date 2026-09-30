@@ -194,6 +194,7 @@
   },
   "daily_report": {
     "section_title": "Tagesbericht",
+    "read_only_notice": "Ihr Profil verfügt nicht über das TimeFlow-Schreibrecht: Sie können Berichte einsehen, aber keinen verfassen.",
     "heading": "Mein Bericht",
     "date_label": "Datum",
     "date_aria": "Berichtsdatum",
@@ -235,6 +236,7 @@
     "start": "STARTEN",
     "stop": "STOPPEN",
     "ready_to_start": "Bereit zum Starten.",
+    "read_only_notice": "Ihr Profil verfügt nicht über das TimeFlow-Schreibrecht: Sie können Ihre Einträge einsehen, aber keinen Timer starten.",
     "start_without_project": "Sie können trotzdem einen Timer ohne Projekt starten.",
     "long_running_warning": "Dieser Timer läuft seit über 12 Stunden. Stellen Sie sicher, dass Sie ihn nicht vergessen haben.",
     "billable_label": "Abrechenbar"

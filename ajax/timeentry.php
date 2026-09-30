@@ -686,34 +686,6 @@ function timeflowFetchUserGroups($db)
     return $groups;
 }
 
-function timeflowFetchActiveUsers($db)
-{
-    $users = array();
-    $sql = 'SELECT rowid, login, firstname, lastname';
-    $sql .= ' FROM '.$db->prefix().'user';
-    $sql .= ' WHERE statut = 1';
-    $sql .= ' AND entity IN ('.getEntity('user').')';
-    $sql .= ' ORDER BY lastname ASC, firstname ASC, login ASC';
-
-    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveUsers');
-    if ($resql) {
-        while ($obj = $db->fetch_object($resql)) {
-            $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
-            $users[] = array(
-                'id' => (int) $obj->rowid,
-                'rowid' => (int) $obj->rowid,
-                'login' => (string) $obj->login,
-                'firstname' => (string) $obj->firstname,
-                'lastname' => (string) $obj->lastname,
-                'label' => $fullName !== '' ? $fullName : (string) $obj->login,
-            );
-        }
-        $db->free($resql);
-    }
-
-    return $users;
-}
-
 /**
  * Read-only "who has TimeFlow activity" listing for Rapports > Utilisateurs:
  * every user matching AT LEAST ONE of:
@@ -2104,6 +2076,16 @@ function timeflowDailyReportEmployees($includeDeleted = false)
     return $employees;
 }
 
+// Central rights gate (security report A-13, decisions D1–D3): every action requires the minimal right the
+// validated matrix assigns it, checked once here — before this existed, an action with no case-specific check
+// of its own (getActiveTimer, getProjects, most of the reporting…) was reachable by any authenticated user
+// regardless of TimeFlow rights. A per-case check further down still runs afterwards wherever the action needs
+// more than the baseline (ownership, entry status, project visibility…); this only guarantees the floor.
+$timeflowRequiredRight = timeflowActionRightsMatrix()[$action] ?? null;
+if ($timeflowRequiredRight !== null && !timeflowUserHasRequiredRight($user, $timeflowRequiredRight)) {
+    timeflowJsonResponse(array('status' => 'error', 'message' => 'Vous n’avez pas accès à cette fonctionnalité de TimeFlow.'), 403);
+}
+
 // A SQL failure in any reader that uses timeflowQuery()/timeflowRequireRows()
 // throws TimeflowSqlException; it is answered once, below, as an HTTP 500 error
 // (the frontend already turns that into a visible error), instead of each
@@ -2513,10 +2495,11 @@ switch ($action) {
         break;
 
     case 'listActiveThirdParties':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveThirdParties($db)));
+        // Read-only list of active clients: reused by the Clockify import's client picker AND by the
+        // Projects tab's plain "Client" filter (ReportsPage.jsx), open to every TimeFlow reader — unlike the
+        // rest of the import flow (D1), it carries no import-specific data, so it stays a 'read' action (see
+        // the security report annex A adjustment, 2026-09-30). The central gate above already enforces 'read'.
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveThirdParties($db, $user)));
         break;
 
     case 'getTasks':
@@ -2611,7 +2594,9 @@ switch ($action) {
         break;
 
     case 'previewClockifyImport':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+        // D1: import is an administration tool (security report A-13) — the central gate above already
+        // enforces this; kept here too for a clear message at the point of use.
+        if (!$user->admin) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
 
@@ -2633,9 +2618,8 @@ switch ($action) {
         break;
 
     case 'executeClockifyImport':
-        // Same right as the rest of the import flow — this is the step
-        // that actually writes data, so no looser check than preview/resolve.
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+        // D1: same as previewClockifyImport above — administration only.
+        if (!$user->admin) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
 
@@ -2657,21 +2641,23 @@ switch ($action) {
         break;
 
     case 'listActiveUsers':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
-            timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
-        }
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveUsers($db)));
+        // Read-only active-user list: reused by the Clockify import's user picker AND by the Projects tab's
+        // "assigned users" labels (ReportsPage.jsx), open to every TimeFlow reader — see listActiveThirdParties
+        // above and the security report annex A adjustment (2026-09-30). The central gate enforces 'read'.
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveUsers($db, $user)));
         break;
 
     case 'listUserGroups':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+        // D1: same as previewClockifyImport above — administration only.
+        if (!$user->admin) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchUserGroups($db)));
         break;
 
     case 'resolveClockifyMapping':
-        if (!$user->admin && !$user->hasRight('timeflow', 'timeentry', 'write')) {
+        // D1: same as previewClockifyImport above — administration only.
+        if (!$user->admin) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
 
@@ -2993,7 +2979,7 @@ switch ($action) {
         $isManager = timeflowCanValidate($user);
         // A manager validates team entries but never manually changes them.
         // This ownership check is intentionally independent of UI visibility.
-        if ((int) $timeentry->fk_user !== (int) $user->id || !$user->hasRight('timeflow', 'timeentry', 'write')) {
+        if ((int) $timeentry->fk_user !== (int) $user->id || (empty($user->admin) && !$user->hasRight('timeflow', 'timeentry', 'write'))) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
 
@@ -3327,30 +3313,6 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1
         'rows' => $projects,
         'pagination' => array('page' => $page, 'per_page' => $perPage, 'total' => $total, 'pages' => max(1, (int) ceil($total / $perPage))),
     );
-}
-
-function timeflowFetchActiveThirdParties($db)
-{
-    $thirdParties = array();
-    $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
-    $sql .= ' WHERE entity IN ('.getEntity('societe').')';
-    $sql .= ' AND status = 1';
-    $sql .= ' AND client <> 0';
-    $sql .= ' ORDER BY nom ASC';
-
-    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveThirdParties');
-    if ($resql) {
-        while ($obj = $db->fetch_object($resql)) {
-            $thirdParties[] = array(
-                'id' => (int) $obj->rowid,
-                'rowid' => (int) $obj->rowid,
-                'title' => (string) $obj->nom,
-                'label' => (string) $obj->nom,
-            );
-        }
-    }
-
-    return $thirdParties;
 }
 
 function timeflowResolveOrCreateProjectByLabel($db, $user, $projectLabel, $fkSoc = 0)

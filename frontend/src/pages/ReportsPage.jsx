@@ -651,6 +651,10 @@ function UsersReportTab() {
 export default function ReportsPage() {
   const { t } = useTranslation();
   const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL === true;
+  // The Clockify import is administration-only server-side (security report decision D1) — hiding the
+  // trigger for anyone else is only a courtesy, the backend is what actually refuses previewClockifyImport /
+  // executeClockifyImport / resolveClockifyMapping to a non-admin, whatever this flag says.
+  const isAdmin = typeof window !== 'undefined' && window.TIMEFLOW_IS_ADMIN === true;
   // Tab and filters all live in the URL (?tab=&dateFrom=&dateTo=&employee=…)
   // instead of plain useState, so a refresh (or a shared link) restores the
   // exact same view. See src/hooks/useUrlState.js for how this works.
@@ -877,16 +881,20 @@ export default function ReportsPage() {
   return (
     <div className="tw-mx-auto tw-w-full tw-max-w-[1680px] tw-space-y-6 tw-px-5 tw-py-7">
       <div className="tw-flex tw-items-center tw-justify-end tw-gap-2">
-        <button type="button" onClick={openImportFilePicker} className="tw-rounded tw-border tw-border-[#5B8FA8] tw-px-4 tw-py-2 tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9] hover:tw-bg-[#5B8FA8]/10 dark:hover:tw-bg-[#5B8FA8]/20">
-          {t('processed_history.import_csv_global')}
-        </button>
-        <input
-          ref={importFileInputRef}
-          type="file"
-          accept=".csv"
-          onChange={handleImportFileSelected}
-          className="tw-hidden"
-        />
+        {isAdmin && (
+          <>
+            <button type="button" onClick={openImportFilePicker} className="tw-rounded tw-border tw-border-[#5B8FA8] tw-px-4 tw-py-2 tw-text-[#5B8FA8] dark:tw-text-[#8fc0d9] hover:tw-bg-[#5B8FA8]/10 dark:hover:tw-bg-[#5B8FA8]/20">
+              {t('processed_history.import_csv_global')}
+            </button>
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleImportFileSelected}
+              className="tw-hidden"
+            />
+          </>
+        )}
         <button type="button" onClick={handleExportGlobalCsv} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba]">
           {t('processed_history.export_csv_global')}
         </button>

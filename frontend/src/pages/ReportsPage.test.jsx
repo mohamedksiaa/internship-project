@@ -59,6 +59,7 @@ describe('ReportsPage', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('fr');
     window.TIMEFLOW_CAN_READALL = false;
+    window.TIMEFLOW_IS_ADMIN = false;
     getProjects.mockClear();
     getProcessedHistory.mockReset().mockResolvedValue({
       rows: [{ id: 1, note: 'Entrée validée', project_label: 'Projet test', user_label: 'Emma Lambert', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 2, duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
@@ -293,5 +294,24 @@ describe('ReportsPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: i18n.t('history.report_history') }));
 
     expect(await screen.findByTitle('Temps corrigé et tracé')).toBeInTheDocument();
+  });
+
+  describe('Clockify import button (security report A-13, decision D1: administrator only)', () => {
+    it('is hidden for a non-admin, whatever else they can do', async () => {
+      window.TIMEFLOW_IS_ADMIN = false;
+      window.TIMEFLOW_CAN_READALL = true;
+      renderReportsPage();
+      await screen.findByText('Entrée validée');
+      expect(screen.queryByRole('button', { name: i18n.t('processed_history.import_csv_global') })).not.toBeInTheDocument();
+      // The export button — a read action, unaffected by D1 — stays available.
+      expect(screen.getByRole('button', { name: i18n.t('processed_history.export_csv_global') })).toBeInTheDocument();
+    });
+
+    it('is shown for an administrator', async () => {
+      window.TIMEFLOW_IS_ADMIN = true;
+      renderReportsPage();
+      await screen.findByText('Entrée validée');
+      expect(screen.getByRole('button', { name: i18n.t('processed_history.import_csv_global') })).toBeInTheDocument();
+    });
   });
 });

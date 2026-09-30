@@ -10,7 +10,7 @@ import ProjectSelector from '../molecules/ProjectSelector';
 // at all. Someone legitimately working a long exceptional task is never blocked.
 const LONG_RUNNING_TIMER_WARNING_SECONDS = 12 * 3600;
 
-export default function TimerWidget({ timer, projects = [], projectsError = '', onProjectChange = () => {}, onProjectSelectorOpen = () => {}, onEntryCreated = () => {} }) {
+export default function TimerWidget({ timer, projects = [], projectsError = '', canWrite = true, onProjectChange = () => {}, onProjectSelectorOpen = () => {}, onEntryCreated = () => {} }) {
   const { t } = useTranslation();
   const { isRunning, seconds, loading, error, start, stop } = timer;
   const [fkProject, setFkProject] = useState('');
@@ -20,7 +20,10 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
   const noteTrimmed = note.trim();
   const isProjectValid = fkProject !== '' && Number(fkProject) > 0;
   const isNoteValid = noteTrimmed.length >= 3;
-  const isDisabled = loading || (!isRunning && (!isProjectValid || !isNoteValid));
+  // A read-only profile (no TimeFlow write right) would get 403 on every startTimer/stopTimer call — the
+  // backend's own central rights gate (security report A-13, decision D2) already refuses it, this only
+  // keeps the button from inviting a click that can never succeed.
+  const isDisabled = !canWrite || loading || (!isRunning && (!isProjectValid || !isNoteValid));
 
   const pushEntry = (entry) => {
     if (entry) {
@@ -104,10 +107,13 @@ export default function TimerWidget({ timer, projects = [], projectsError = '', 
           ⚠ {t('timer_widget.long_running_warning')}
         </p>
       )}
-      {!isRunning && !isDisabled && !error && (
+      {!canWrite && (
+        <p className="tw-mt-2 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('timer_widget.read_only_notice')}</p>
+      )}
+      {canWrite && !isRunning && !isDisabled && !error && (
         <p className="tw-mt-2 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{t('timer_widget.ready_to_start')}</p>
       )}
-      {projectsError && <p className="tw-mt-2 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{projectsError}. {t('timer_widget.start_without_project')}</p>}
+      {canWrite && projectsError && <p className="tw-mt-2 tw-text-sm tw-text-slate-500 dark:tw-text-slate-400">{projectsError}. {t('timer_widget.start_without_project')}</p>}
     </section>
   );
 }

@@ -96,3 +96,4 @@ TimeFlowLateOutDoneSkipped = __SKIPPED__ email(s) skipped
 TimeFlowLateOutDoneFailed = __FAILED__ email(s) failed
 TimeFlowLateOutDoneTail = (cut-off __CUTOFF__ = threshold __THRESHOLD__ + grace __GRACE__ min, server time __NOW__).
 TimeFlowLateMailIntroAdded = Additional employees who had not started any timer by %s on %s:
+TimeFlowNoAccessMessage = You don't have access to TimeFlow. Contact your administrator to get the required rights.

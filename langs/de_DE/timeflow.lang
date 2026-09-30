@@ -96,3 +96,4 @@ TimeFlowLateOutDoneSkipped = __SKIPPED__ E-Mail(s) übersprungen
 TimeFlowLateOutDoneFailed = __FAILED__ E-Mail(s) fehlgeschlagen
 TimeFlowLateOutDoneTail = (Grenzzeit __CUTOFF__ = Schwelle __THRESHOLD__ + Toleranz __GRACE__ Min, Serverzeit __NOW__).
 TimeFlowLateMailIntroAdded = Weitere Mitarbeiter, die um %s am %s noch keinen Timer gestartet hatten:
+TimeFlowNoAccessMessage = Sie haben keinen Zugriff auf TimeFlow. Wenden Sie sich an Ihren Administrator, um die erforderlichen Rechte zu erhalten.

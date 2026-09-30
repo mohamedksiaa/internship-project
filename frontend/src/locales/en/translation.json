@@ -193,6 +193,7 @@
   },
   "daily_report": {
     "section_title": "Daily report",
+    "read_only_notice": "Your profile does not have the TimeFlow write right: you can view reports but not write one.",
     "heading": "My report",
     "date_label": "Date",
     "date_aria": "Report date",
@@ -234,6 +235,7 @@
     "start": "START",
     "stop": "STOP",
     "ready_to_start": "Ready to start.",
+    "read_only_notice": "Your profile does not have the TimeFlow write right: you can view your entries but not start a timer.",
     "start_without_project": "You can still start a timer without a project.",
     "long_running_warning": "This timer has been running for over 12h. Make sure you haven't forgotten it.",
     "billable_label": "Billable"
