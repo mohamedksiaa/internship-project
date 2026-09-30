@@ -1,0 +1,47 @@
+[
+ {
+  "name": "D2 : écran \"pas d'accès\" pour zz_nf_norights",
+  "ok": true,
+  "detail": "racine React vide=true, 0 appel(s) API"
+ },
+ {
+  "name": "D2 : aucun appel à ajax/timeentry.php n'a été fait",
+  "ok": true,
+  "detail": "0 appel(s)"
+ },
+ {
+  "name": "lecture seule (write retiré) : le bouton Démarrer est désactivé",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "name": "lecture seule : la notice explicative est affichée",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "name": "D1 : bouton \"Importer\" absent pour le profil employé",
+  "ok": true,
+  "detail": "présent=false"
+ },
+ {
+  "name": "D1 : bouton \"Importer\" absent pour le profil manager",
+  "ok": true,
+  "detail": "présent=false"
+ },
+ {
+  "name": "D1 : bouton \"Importer\" visible pour le profil admin",
+  "ok": true,
+  "detail": "présent=true"
+ },
+ {
+  "name": "manager : le bouton Démarrer reste utilisable (pas de régression)",
+  "ok": true,
+  "detail": "enabled=true options=8"
+ },
+ {
+  "name": "admin : le bouton Démarrer reste utilisable (pas de régression)",
+  "ok": true,
+  "detail": "enabled=true options=8"
+ }
+]

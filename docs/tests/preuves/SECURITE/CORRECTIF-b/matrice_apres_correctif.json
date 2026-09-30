@@ -1,0 +1,1986 @@
+{
+ "cells": [
+  {
+   "action": "getActiveTimer",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getActiveTimer",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getActiveTimer",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getActiveTimer",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getActiveTimer",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "startTimer",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "startTimer",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "startTimer",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Veuillez décrire votre tâche (3 caractères minimum) avant de"
+  },
+  {
+   "action": "startTimer",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Veuillez décrire votre tâche (3 caractères minimum) avant de"
+  },
+  {
+   "action": "startTimer",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Veuillez décrire votre tâche (3 caractères minimum) avant de"
+  },
+  {
+   "action": "createManualEntry",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "createManualEntry",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "createManualEntry",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "La raison est obligatoire pour une saisie manuelle"
+  },
+  {
+   "action": "createManualEntry",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "La raison est obligatoire pour une saisie manuelle"
+  },
+  {
+   "action": "createManualEntry",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "La raison est obligatoire pour une saisie manuelle"
+  },
+  {
+   "action": "submitEntry",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "submitEntry",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "submitEntry",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "submitEntry",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "submitEntry",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "stopTimer",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "stopTimer",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "stopTimer",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "stopTimer",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "stopTimer",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "restartTimer",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "restartTimer",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "restartTimer",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant d’entrée invalide"
+  },
+  {
+   "action": "restartTimer",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant d’entrée invalide"
+  },
+  {
+   "action": "restartTimer",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant d’entrée invalide"
+  },
+  {
+   "action": "deleteTimeEntry",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "deleteTimeEntry",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "deleteTimeEntry",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant d’entrée invalide"
+  },
+  {
+   "action": "deleteTimeEntry",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant d’entrée invalide"
+  },
+  {
+   "action": "deleteTimeEntry",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant d’entrée invalide"
+  },
+  {
+   "action": "getProjects",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getProjects",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getProjects",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getProjects",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getProjects",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeFlowProjects",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeFlowProjects",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getTimeFlowProjects",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeFlowProjects",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeFlowProjects",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeFlowUsers",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeFlowUsers",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getTimeFlowUsers",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "getTimeFlowUsers",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeFlowUsers",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getUsersPresence",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getUsersPresence",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getUsersPresence",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "getUsersPresence",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getUsersPresence",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "saveExpectedAbsence",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "saveExpectedAbsence",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "saveExpectedAbsence",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "saveExpectedAbsence",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "saveExpectedAbsence",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Utilisateur invalide"
+  },
+  {
+   "action": "deleteExpectedAbsence",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "deleteExpectedAbsence",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "deleteExpectedAbsence",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "deleteExpectedAbsence",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "deleteExpectedAbsence",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Utilisateur invalide"
+  },
+  {
+   "action": "getMyNotifications",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getMyNotifications",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getMyNotifications",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "getMyNotifications",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getMyNotifications",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "markNotificationsRead",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "markNotificationsRead",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "markNotificationsRead",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "markNotificationsRead",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Indiquez entre 1 et 200 notifications, ou toutes."
+  },
+  {
+   "action": "markNotificationsRead",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Indiquez entre 1 et 200 notifications, ou toutes."
+  },
+  {
+   "action": "getAlertPreferences",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getAlertPreferences",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getAlertPreferences",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "getAlertPreferences",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getAlertPreferences",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "saveAlertPreferences",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "saveAlertPreferences",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "saveAlertPreferences",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "saveAlertPreferences",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "saveAlertPreferences",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "exportGlobalCsv",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "exportGlobalCsv",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "exportGlobalCsv",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "exportGlobalCsv",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "exportGlobalCsv",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "listActiveThirdParties",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "listActiveThirdParties",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "listActiveThirdParties",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "listActiveThirdParties",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "listActiveThirdParties",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTasks",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTasks",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getTasks",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": false,
+   "note": "Ce projet est restreint à certains utilisateurs"
+  },
+  {
+   "action": "getTasks",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTasks",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeEntryUpdates",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeEntryUpdates",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getTimeEntryUpdates",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeEntryUpdates",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeEntryUpdates",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeEntries",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeEntries",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getTimeEntries",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeEntries",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getTimeEntries",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getValidationEntries",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getValidationEntries",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getValidationEntries",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "getValidationEntries",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "getValidationEntries",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getProcessedHistory",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getProcessedHistory",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getProcessedHistory",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getProcessedHistory",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getProcessedHistory",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "exportProcessedHistory",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "exportProcessedHistory",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "exportProcessedHistory",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "exportProcessedHistory",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "exportProcessedHistory",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "previewClockifyImport",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "previewClockifyImport",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "previewClockifyImport",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "previewClockifyImport",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "previewClockifyImport",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Fichier CSV manquant."
+  },
+  {
+   "action": "executeClockifyImport",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "executeClockifyImport",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "executeClockifyImport",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "executeClockifyImport",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "executeClockifyImport",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Fichier CSV manquant."
+  },
+  {
+   "action": "listActiveUsers",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "listActiveUsers",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "listActiveUsers",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "listActiveUsers",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "listActiveUsers",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "listUserGroups",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "listUserGroups",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "listUserGroups",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "listUserGroups",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "listUserGroups",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "resolveClockifyMapping",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "resolveClockifyMapping",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "resolveClockifyMapping",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "resolveClockifyMapping",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "resolveClockifyMapping",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Aucune décision de résolution fournie."
+  },
+  {
+   "action": "saveDailyReport",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "saveDailyReport",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "saveDailyReport",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "La date du rapport est invalide."
+  },
+  {
+   "action": "saveDailyReport",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "La date du rapport est invalide."
+  },
+  {
+   "action": "saveDailyReport",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "La date du rapport est invalide."
+  },
+  {
+   "action": "updateDailyReport",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "updateDailyReport",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "updateDailyReport",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant du rapport invalide."
+  },
+  {
+   "action": "updateDailyReport",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant du rapport invalide."
+  },
+  {
+   "action": "updateDailyReport",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant du rapport invalide."
+  },
+  {
+   "action": "deleteDailyReport",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "deleteDailyReport",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "deleteDailyReport",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant du rapport invalide."
+  },
+  {
+   "action": "deleteDailyReport",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant du rapport invalide."
+  },
+  {
+   "action": "deleteDailyReport",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Identifiant du rapport invalide."
+  },
+  {
+   "action": "getMyDailyReports",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getMyDailyReports",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getMyDailyReports",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getMyDailyReports",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getMyDailyReports",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getDailyReports",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getDailyReports",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getDailyReports",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getDailyReports",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getDailyReports",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "validateDailyReport",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "validateDailyReport",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "validateDailyReport",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "validateDailyReport",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "validateDailyReport",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "rejectDailyReport",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "rejectDailyReport",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "rejectDailyReport",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "rejectDailyReport",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "rejectDailyReport",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getWeeklyTimesheet",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getWeeklyTimesheet",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getWeeklyTimesheet",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getWeeklyTimesheet",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getWeeklyTimesheet",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getSummaryReports",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getSummaryReports",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getSummaryReports",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getSummaryReports",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getSummaryReports",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getDashboardFilterOptions",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getDashboardFilterOptions",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getDashboardFilterOptions",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getDashboardFilterOptions",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getDashboardFilterOptions",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "validateEntry",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "validateEntry",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "validateEntry",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "validateEntry",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "validateEntry",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "rejectEntry",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "rejectEntry",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "rejectEntry",
+   "profile": "EMP",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "rejectEntry",
+   "profile": "MGR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Vous n’avez pas accès à cette fonctionnalité de TimeFlow."
+  },
+  {
+   "action": "rejectEntry",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 400,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "correctTimeEntry",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "correctTimeEntry",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "correctTimeEntry",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 404,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "correctTimeEntry",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 404,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "correctTimeEntry",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 404,
+   "ok": true,
+   "note": "Entrée introuvable"
+  },
+  {
+   "action": "getModificationHistory",
+   "profile": "ANO",
+   "expected": "UNAUTH",
+   "actual": "UNAUTH",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getModificationHistory",
+   "profile": "NOR",
+   "expected": "DENIED",
+   "actual": "DENIED",
+   "http": 403,
+   "ok": true,
+   "note": "Jeton invalide"
+  },
+  {
+   "action": "getModificationHistory",
+   "profile": "EMP",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getModificationHistory",
+   "profile": "MGR",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  },
+  {
+   "action": "getModificationHistory",
+   "profile": "ADM",
+   "expected": "PASSED",
+   "actual": "PASSED",
+   "http": 200,
+   "ok": true,
+   "note": ""
+  }
+ ],
+ "before": "fd3b260c392670bb247c0648daa3cad3",
+ "after": "fd3b260c392670bb247c0648daa3cad3"
+}
