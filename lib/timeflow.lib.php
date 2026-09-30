@@ -644,6 +644,147 @@ function timeflowCanAccessProject($db, $user, $fkProject)
 }
 
 /**
+ * Active-user directory: `listActiveUsers`, read by every TimeFlow reader (annex A adjustment, security
+ * report A-13) — reused by the Clockify import's user picker (admin only, D1) AND by the Projects tab's
+ * "assigned users" labels (any reader, ReportsPage.jsx). The two callers need different things: an admin
+ * resolving import identities needs the full directory (login/firstname/lastname, for suggesting an
+ * identity — see ImportUserMappingList.jsx); a plain reader only needs enough to label a name they can
+ * already see (assigned_user_ids on a project they can already see) — never a company-wide directory with
+ * logins, which is the actual data this function used to hand out to anyone with the base 'read' right
+ * once D2 stopped requiring 'write' for it. So a caller who may not read every entry gets a *different*
+ * shape, not a filtered copy of the same one: id and a display label only, for users who contribute to a
+ * project this caller can already access (the same native Dolibarr project-assignment rule every other
+ * project-scoped read in this file already uses — timeflowAuthorizedProjectIdList()).
+ *
+ * @param DoliDB    $db
+ * @param User|null $user Acting user. Full directory when null (defensive default) or when they may read
+ *                        every entry (admin or readall); otherwise scoped + minimal fields (see above).
+ * @return array
+ */
+function timeflowFetchActiveUsers($db, $user = null)
+{
+    $unrestricted = $user === null || timeflowCanReadAllTimeEntries($user);
+    $users = array();
+
+    if ($unrestricted) {
+        $sql = 'SELECT rowid, login, firstname, lastname';
+        $sql .= ' FROM '.$db->prefix().'user';
+        $sql .= ' WHERE statut = 1';
+        $sql .= ' AND entity IN ('.getEntity('user').')';
+        $sql .= ' ORDER BY lastname ASC, firstname ASC, login ASC';
+
+        $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveUsers');
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+                $users[] = array(
+                    'id' => (int) $obj->rowid,
+                    'rowid' => (int) $obj->rowid,
+                    'login' => (string) $obj->login,
+                    'firstname' => (string) $obj->firstname,
+                    'lastname' => (string) $obj->lastname,
+                    'label' => $fullName !== '' ? $fullName : (string) $obj->login,
+                );
+            }
+            $db->free($resql);
+        }
+        return $users;
+    }
+
+    $authorizedProjects = timeflowAuthorizedProjectIdList($db, $user);
+    if ($authorizedProjects === '0') {
+        return array();
+    }
+    $sql = 'SELECT DISTINCT u.rowid, u.firstname, u.lastname';
+    $sql .= ' FROM '.$db->prefix().'user AS u';
+    $sql .= ' INNER JOIN '.$db->prefix().'element_contact AS ec ON ec.fk_socpeople = u.rowid';
+    $sql .= ' INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
+    $sql .= " WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR' AND ec.statut = 4";
+    // $authorizedProjects is null here only if timeflowCanReadAllTimeEntries() already sent this caller
+    // through the unrestricted branch above — never reached with an unsafe/empty value.
+    $sql .= ' AND ec.element_id IN ('.$authorizedProjects.')';
+    $sql .= ' AND u.statut = 1 AND u.entity IN ('.getEntity('user').')';
+    $sql .= ' ORDER BY u.lastname ASC, u.firstname ASC';
+
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveUsers:scoped');
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+            // Deliberately no 'login', 'firstname', 'lastname' fields: this branch is read by a caller who
+            // may not read every entry, so it hands out only what a display label needs — never the
+            // directory shape above, which a plain employee must not receive company-wide (security report
+            // A-13 follow-up: listActiveUsers must not be a full user directory for a non-readall caller).
+            $users[] = array('id' => (int) $obj->rowid, 'rowid' => (int) $obj->rowid, 'label' => $fullName !== '' ? $fullName : '#'.(int) $obj->rowid);
+        }
+        $db->free($resql);
+    }
+
+    return $users;
+}
+
+/**
+ * Active-client directory: `listActiveThirdParties`, read by every TimeFlow reader (annex A adjustment,
+ * security report A-13) — reused by the Clockify import's client picker (admin only, D1) AND by the
+ * Projects tab's plain "Client" filter (any reader, ReportsPage.jsx). Same reasoning as
+ * timeflowFetchActiveUsers() just above: a caller who may not read every entry gets only the clients of
+ * projects they can already see — never every company-wide client (the follow-up to A-13 that prompted
+ * this: the annex A adjustment must not itself become a company-wide directory leak for a plain employee).
+ *
+ * @param DoliDB    $db
+ * @param User|null $user Acting user. Full list when null (defensive default) or when they may read every
+ *                        entry (admin or readall); otherwise scoped to their visible projects' clients.
+ * @return array
+ */
+function timeflowFetchActiveThirdParties($db, $user = null)
+{
+    $unrestricted = $user === null || timeflowCanReadAllTimeEntries($user);
+    $thirdParties = array();
+
+    if ($unrestricted) {
+        $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
+        $sql .= ' WHERE entity IN ('.getEntity('societe').')';
+        $sql .= ' AND status = 1';
+        $sql .= ' AND client <> 0';
+        $sql .= ' ORDER BY nom ASC';
+
+        $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveThirdParties');
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $thirdParties[] = array(
+                    'id' => (int) $obj->rowid,
+                    'rowid' => (int) $obj->rowid,
+                    'title' => (string) $obj->nom,
+                    'label' => (string) $obj->nom,
+                );
+            }
+        }
+        return $thirdParties;
+    }
+
+    $authorizedProjects = timeflowAuthorizedProjectIdList($db, $user);
+    if ($authorizedProjects === '0') {
+        return array();
+    }
+    $sql = 'SELECT DISTINCT s.rowid, s.nom FROM '.$db->prefix().'societe AS s';
+    $sql .= ' INNER JOIN '.$db->prefix().'projet AS p ON p.fk_soc = s.rowid';
+    $sql .= ' WHERE s.entity IN ('.getEntity('societe').')';
+    $sql .= ' AND s.status = 1 AND s.client <> 0';
+    // $authorizedProjects is null here only if timeflowCanReadAllTimeEntries() already sent this caller
+    // through the unrestricted branch above — never reached with an unsafe/empty value.
+    $sql .= ' AND p.rowid IN ('.$authorizedProjects.')';
+    $sql .= ' ORDER BY s.nom ASC';
+
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveThirdParties:scoped');
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $thirdParties[] = array('id' => (int) $obj->rowid, 'rowid' => (int) $obj->rowid, 'title' => (string) $obj->nom, 'label' => (string) $obj->nom);
+        }
+    }
+
+    return $thirdParties;
+}
+
+/**
  * Whether $user may view/act on a specific already-fetched TimeEntry
  * $object on the native Dolibarr card and its satellite tab pages
  * (timeentry_card.php, _agenda.php, _contact.php, _document.php,

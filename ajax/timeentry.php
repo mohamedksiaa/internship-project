@@ -686,34 +686,6 @@ function timeflowFetchUserGroups($db)
     return $groups;
 }
 
-function timeflowFetchActiveUsers($db)
-{
-    $users = array();
-    $sql = 'SELECT rowid, login, firstname, lastname';
-    $sql .= ' FROM '.$db->prefix().'user';
-    $sql .= ' WHERE statut = 1';
-    $sql .= ' AND entity IN ('.getEntity('user').')';
-    $sql .= ' ORDER BY lastname ASC, firstname ASC, login ASC';
-
-    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveUsers');
-    if ($resql) {
-        while ($obj = $db->fetch_object($resql)) {
-            $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
-            $users[] = array(
-                'id' => (int) $obj->rowid,
-                'rowid' => (int) $obj->rowid,
-                'login' => (string) $obj->login,
-                'firstname' => (string) $obj->firstname,
-                'lastname' => (string) $obj->lastname,
-                'label' => $fullName !== '' ? $fullName : (string) $obj->login,
-            );
-        }
-        $db->free($resql);
-    }
-
-    return $users;
-}
-
 /**
  * Read-only "who has TimeFlow activity" listing for Rapports > Utilisateurs:
  * every user matching AT LEAST ONE of:
@@ -2527,7 +2499,7 @@ switch ($action) {
         // Projects tab's plain "Client" filter (ReportsPage.jsx), open to every TimeFlow reader — unlike the
         // rest of the import flow (D1), it carries no import-specific data, so it stays a 'read' action (see
         // the security report annex A adjustment, 2026-09-30). The central gate above already enforces 'read'.
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveThirdParties($db)));
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveThirdParties($db, $user)));
         break;
 
     case 'getTasks':
@@ -2672,7 +2644,7 @@ switch ($action) {
         // Read-only active-user list: reused by the Clockify import's user picker AND by the Projects tab's
         // "assigned users" labels (ReportsPage.jsx), open to every TimeFlow reader — see listActiveThirdParties
         // above and the security report annex A adjustment (2026-09-30). The central gate enforces 'read'.
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveUsers($db)));
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowFetchActiveUsers($db, $user)));
         break;
 
     case 'listUserGroups':
@@ -3341,30 +3313,6 @@ function timeflowFetchTimeFlowProjects($db, $user, $filters = array(), $page = 1
         'rows' => $projects,
         'pagination' => array('page' => $page, 'per_page' => $perPage, 'total' => $total, 'pages' => max(1, (int) ceil($total / $perPage))),
     );
-}
-
-function timeflowFetchActiveThirdParties($db)
-{
-    $thirdParties = array();
-    $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
-    $sql .= ' WHERE entity IN ('.getEntity('societe').')';
-    $sql .= ' AND status = 1';
-    $sql .= ' AND client <> 0';
-    $sql .= ' ORDER BY nom ASC';
-
-    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveThirdParties');
-    if ($resql) {
-        while ($obj = $db->fetch_object($resql)) {
-            $thirdParties[] = array(
-                'id' => (int) $obj->rowid,
-                'rowid' => (int) $obj->rowid,
-                'title' => (string) $obj->nom,
-                'label' => (string) $obj->nom,
-            );
-        }
-    }
-
-    return $thirdParties;
 }
 
 function timeflowResolveOrCreateProjectByLabel($db, $user, $projectLabel, $fkSoc = 0)
