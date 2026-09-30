@@ -1,0 +1,202 @@
+{
+ "getActiveTimer": [],
+ "startTimer": [
+  "billable",
+  "fk_project",
+  "fk_task",
+  "note",
+  "project_label"
+ ],
+ "createManualEntry": [
+  "billable",
+  "date_end",
+  "date_start",
+  "fk_project",
+  "fk_task",
+  "note",
+  "project_label",
+  "reason",
+  "tags",
+  "thm"
+ ],
+ "submitEntry": [
+  "id"
+ ],
+ "stopTimer": [
+  "id"
+ ],
+ "restartTimer": [
+  "id"
+ ],
+ "deleteTimeEntry": [
+  "id"
+ ],
+ "getProjects": [],
+ "getTimeFlowProjects": [
+  "client_id",
+  "date_from",
+  "date_to",
+  "page",
+  "per_page",
+  "search"
+ ],
+ "getTimeFlowUsers": [
+  "page",
+  "per_page"
+ ],
+ "getUsersPresence": [
+  "date",
+  "page",
+  "per_page"
+ ],
+ "saveExpectedAbsence": [],
+ "deleteExpectedAbsence": [
+  "date",
+  "reason_note",
+  "reason_type",
+  "user_id"
+ ],
+ "getMyNotifications": [],
+ "markNotificationsRead": [],
+ "getAlertPreferences": [],
+ "saveAlertPreferences": [
+  "all",
+  "email_enabled",
+  "ids",
+  "limit"
+ ],
+ "exportGlobalCsv": [],
+ "listActiveThirdParties": [],
+ "getTasks": [
+  "limit",
+  "projectId"
+ ],
+ "getTimeEntryUpdates": [
+  "billable_only",
+  "date_from",
+  "date_to",
+  "employee_id",
+  "marker",
+  "page",
+  "per_page",
+  "scope"
+ ],
+ "getTimeEntries": [
+  "billable_only",
+  "page",
+  "per_page"
+ ],
+ "getValidationEntries": [
+  "date_from",
+  "date_to",
+  "employee_id",
+  "page",
+  "per_page"
+ ],
+ "getProcessedHistory": [],
+ "exportProcessedHistory": [],
+ "previewClockifyImport": [
+  "FILE:csv_file"
+ ],
+ "executeClockifyImport": [
+  "FILE:csv_file"
+ ],
+ "listActiveUsers": [],
+ "listUserGroups": [],
+ "resolveClockifyMapping": [
+  "decisions"
+ ],
+ "saveDailyReport": [
+  "content",
+  "date_report",
+  "status"
+ ],
+ "updateDailyReport": [
+  "content",
+  "id",
+  "status"
+ ],
+ "deleteDailyReport": [
+  "id"
+ ],
+ "getMyDailyReports": [],
+ "getDailyReports": [
+  "FILE:csv_file",
+  "all",
+  "billable",
+  "billable_only",
+  "client_id",
+  "client_ids",
+  "content",
+  "date",
+  "date_end",
+  "date_from",
+  "date_report",
+  "date_start",
+  "date_to",
+  "decisions",
+  "email_enabled",
+  "employee_id",
+  "entryId",
+  "fk_project",
+  "fk_task",
+  "id",
+  "ids",
+  "limit",
+  "marker",
+  "note",
+  "only_validated",
+  "page",
+  "per_page",
+  "projectId",
+  "project_ids",
+  "project_label",
+  "reason",
+  "reason_note",
+  "reason_type",
+  "scope",
+  "search",
+  "status",
+  "tags",
+  "thm",
+  "user_id",
+  "user_ids",
+  "weekStart"
+ ],
+ "validateDailyReport": [
+  "id"
+ ],
+ "rejectDailyReport": [
+  "id"
+ ],
+ "getWeeklyTimesheet": [
+  "weekStart"
+ ],
+ "getSummaryReports": [
+  "client_ids",
+  "date_from",
+  "date_to",
+  "limit",
+  "only_validated",
+  "project_ids",
+  "user_ids"
+ ],
+ "getDashboardFilterOptions": [],
+ "validateEntry": [
+  "id"
+ ],
+ "rejectEntry": [
+  "id"
+ ],
+ "correctTimeEntry": [
+  "billable",
+  "date_end",
+  "date_start",
+  "id",
+  "reason"
+ ],
+ "getModificationHistory": [
+  "entryId",
+  "id"
+ ]
+}

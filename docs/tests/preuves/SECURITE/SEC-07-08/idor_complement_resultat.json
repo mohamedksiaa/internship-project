@@ -1,0 +1,50 @@
+[
+ {
+  "id": "SEC-07",
+  "name": "startTimer sur un projet non visible (93) refusé",
+  "ok": true,
+  "detail": "HTTP 400 Ce projet est restreint à certains utilisateurs"
+ },
+ {
+  "id": "SEC-07",
+  "name": "getTasks d’un projet non visible refusé",
+  "ok": true,
+  "detail": "HTTP 403 Ce projet est restreint à certains utilisateurs"
+ },
+ {
+  "id": "SEC-07",
+  "name": "getTimeFlowProjects : aucun projet non visible listé",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-07",
+  "name": "getTimeFlowProjects filtré sur un client non visible : vide",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "SEC-07",
+  "name": "employé : markNotificationsRead sur les notifications d’autrui refusé",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-07",
+  "name": "manager : markNotificationsRead sur des notifications d’autres utilisateurs sans effet",
+  "ok": true,
+  "detail": "HTTP 200 (base inchangée)"
+ },
+ {
+  "id": "SEC-07",
+  "name": "employé : saveAlertPreferences refusé",
+  "ok": true,
+  "detail": "HTTP 403"
+ },
+ {
+  "id": "SEC-07",
+  "name": "manager sans validate : absence prévue pour un tiers refusée",
+  "ok": true,
+  "detail": "HTTP 403"
+ }
+]

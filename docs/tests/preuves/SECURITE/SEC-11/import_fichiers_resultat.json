@@ -1,0 +1,122 @@
+[
+ {
+  "id": "SEC-11",
+  "name": "extension .txt",
+  "ok": true,
+  "detail": "HTTP 400 refusé — Le fichier doit être un CSV valide (.csv). (371 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "double extension x.php.csv (contenu CSV valide)",
+  "ok": true,
+  "detail": "HTTP 200 accepté ÉCRITURE(mapping/lignes) — ok (155 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "fichier binaire aléatoire renommé .csv",
+  "ok": false,
+  "detail": "HTTP 200 accepté — ok (209 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "archive ZIP renommée .csv",
+  "ok": false,
+  "detail": "HTTP 200 accepté — ok (169 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "fichier vide",
+  "ok": true,
+  "detail": "HTTP 400 refusé — Le fichier CSV est invalide ou dépasse 10 Mo. (134 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "en-têtes manquants (une seule colonne)",
+  "ok": false,
+  "detail": "HTTP 200 accepté — ok (132 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "en-têtes dupliqués",
+  "ok": true,
+  "detail": "HTTP 200 accepté ÉCRITURE(mapping/lignes) — ok (179 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "5000 colonnes",
+  "ok": false,
+  "detail": "HTTP 200 accepté — ok (148 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "cellule de 3 Mo",
+  "ok": true,
+  "detail": "HTTP 400 refusé — Fichier CSV manquant. (180 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "10 Mo + 1 octet",
+  "ok": true,
+  "detail": "HTTP 400 refusé — Fichier CSV manquant. (193 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "UTF-16 avec BOM",
+  "ok": true,
+  "detail": "HTTP 200 accepté — ok (137 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "nom de fichier avec ../ ",
+  "ok": true,
+  "detail": "HTTP 200 accepté — ok (168 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "nom de fichier avec caractères de contrôle",
+  "ok": true,
+  "detail": "HTTP 400 refusé — Le fichier doit être un CSV valide (.csv). (139 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "cellules de formules",
+  "ok": true,
+  "detail": "HTTP 200 accepté ÉCRITURE(mapping/lignes) — ok (191 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "encodage Latin-1 (octets 0xE9)",
+  "ok": true,
+  "detail": "HTTP 200 accepté ÉCRITURE(mapping/lignes) — ok (181 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "fin de ligne mixte CR/LF/CRLF",
+  "ok": true,
+  "detail": "HTTP 200 accepté ÉCRITURE(mapping/lignes) — ok (187 ms)"
+ },
+ {
+  "id": "SEC-11",
+  "name": "chemin local forgé (csv_file[tmp_name]=/etc/passwd), aucun téléversement",
+  "ok": true,
+  "detail": "HTTP 400 {\"status\":\"error\",\"message\":\"Fichier CSV manquant.\"}"
+ },
+ {
+  "id": "SEC-11",
+  "name": "fichier de 9.5 Mo / 84419 lignes : traité en moins de 60 s sans erreur PHP",
+  "ok": true,
+  "detail": "HTTP 400 en 0.2 s Fichier CSV manquant."
+ },
+ {
+  "id": "SEC-11",
+  "name": "aucun fichier temporaire PHP conservé sur le disque après les requêtes",
+  "ok": true,
+  "detail": "0 fichier(s) php* dans /tmp du conteneur"
+ },
+ {
+  "id": "SEC-11",
+  "name": "aucune erreur fatale PHP (mémoire / temps) dans le journal",
+  "ok": true,
+  "detail": "0 occurrence(s)"
+ }
+]

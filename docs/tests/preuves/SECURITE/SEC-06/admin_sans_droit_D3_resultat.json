@@ -1,0 +1,87 @@
+[
+ {
+  "name": "createManualEntry (admin sans droit explicite)",
+  "ok": true,
+  "detail": "HTTP 200 "
+ },
+ {
+  "name": "correctTimeEntry sur sa propre saisie (incohérence signalée)",
+  "ok": false,
+  "detail": "HTTP 403 Accès refusé"
+ },
+ {
+  "name": "submitEntry",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "deleteTimeEntry (brouillon propre)",
+  "ok": true,
+  "detail": "HTTP 200 "
+ },
+ {
+  "name": "startTimer",
+  "ok": true,
+  "detail": "HTTP 200 "
+ },
+ {
+  "name": "stopTimer",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "restartTimer",
+  "ok": true,
+  "detail": "HTTP 200 "
+ },
+ {
+  "name": "saveDailyReport",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "updateDailyReport",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "deleteDailyReport",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "validateEntry (admin)",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "rejectEntry (admin)",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "saveExpectedAbsence (admin)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "name": "getTasks NOR",
+  "ok": null,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "getTasks EMP",
+  "ok": null,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "getTasks MGR",
+  "ok": null,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "getTasks ADM",
+  "ok": null,
+  "detail": "HTTP 200"
+ }
+]

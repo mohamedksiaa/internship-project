@@ -1,0 +1,297 @@
+{
+ "profil": "zz_nf_admin",
+ "requetes": 34440,
+ "statuts_http": {
+  "200": 17890,
+  "400": 10883,
+  "403": 3282,
+  "404": 727,
+  "414": 1640,
+  "500": 18
+ },
+ "refus_filtre_noyau_403": 3280,
+ "autres_signalements": 7747,
+ "relogins": 0,
+ "reponses_non_json": 0,
+ "duree_secondes": 3096,
+ "exemples_refus_noyau": [
+  {
+   "action": "getActiveTimer",
+   "param": "billable",
+   "payload": "union",
+   "mode": "GET",
+   "status": 403,
+   "ms": 14,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "Access refused to 172.18.0.1 by SQL or Script injection protection in main.inc.php:analyseVarsForSqlAndScriptsInjection type=1<br> Try to go back, fix data of y"
+  },
+  {
+   "action": "getActiveTimer",
+   "param": "billable",
+   "payload": "dquote",
+   "mode": "GET",
+   "status": 403,
+   "ms": 1292,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "Access refused to 172.18.0.1 by SQL or Script injection protection in main.inc.php:analyseVarsForSqlAndScriptsInjection type=1<br> Try to go back, fix data of y"
+  },
+  {
+   "action": "getActiveTimer",
+   "param": "billable_only",
+   "payload": "dquote",
+   "mode": "GET",
+   "status": 403,
+   "ms": 15,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "Access refused to 172.18.0.1 by SQL or Script injection protection in main.inc.php:analyseVarsForSqlAndScriptsInjection type=1<br> Try to go back, fix data of y"
+  }
+ ],
+ "autres": [
+  {
+   "action": "startTimer",
+   "param": "note",
+   "payload": "array",
+   "mode": "GET",
+   "status": 500,
+   "ms": 471,
+   "flags": [
+    "5xx"
+   ],
+   "snippet": ""
+  },
+  {
+   "action": "startTimer",
+   "param": "project_label",
+   "payload": "array",
+   "mode": "GET",
+   "status": 500,
+   "ms": 469,
+   "flags": [
+    "5xx"
+   ],
+   "snippet": ""
+  },
+  {
+   "action": "createManualEntry",
+   "param": "note",
+   "payload": "array",
+   "mode": "GET",
+   "status": 500,
+   "ms": 456,
+   "flags": [
+    "5xx"
+   ],
+   "snippet": ""
+  },
+  {
+   "action": "createManualEntry",
+   "param": "project_label",
+   "payload": "array",
+   "mode": "GET",
+   "status": 500,
+   "ms": 468,
+   "flags": [
+    "5xx"
+   ],
+   "snippet": ""
+  },
+  {
+   "action": "createManualEntry",
+   "param": "reason",
+   "payload": "array",
+   "mode": "GET",
+   "status": 500,
+   "ms": 549,
+   "flags": [
+    "5xx"
+   ],
+   "snippet": ""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "backslash",
+   "mode": "GET",
+   "status": 200,
+   "ms": 121,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "quote",
+   "mode": "GET",
+   "status": 200,
+   "ms": 201,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "or_true",
+   "mode": "GET",
+   "status": 200,
+   "ms": 292,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "stacked",
+   "mode": "GET",
+   "status": 200,
+   "ms": 372,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "paren",
+   "mode": "GET",
+   "status": 200,
+   "ms": 445,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "blind",
+   "mode": "GET",
+   "status": 200,
+   "ms": 470,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "nul",
+   "mode": "GET",
+   "status": 200,
+   "ms": 478,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "array",
+   "mode": "GET",
+   "status": 200,
+   "ms": 467,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "quote",
+   "mode": "JSON",
+   "status": 200,
+   "ms": 457,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "dquote",
+   "mode": "JSON",
+   "status": 200,
+   "ms": 451,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "backslash",
+   "mode": "JSON",
+   "status": 200,
+   "ms": 457,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "or_true",
+   "mode": "JSON",
+   "status": 200,
+   "ms": 451,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "paren",
+   "mode": "JSON",
+   "status": 200,
+   "ms": 452,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "stacked",
+   "mode": "JSON",
+   "status": 200,
+   "ms": 447,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  },
+  {
+   "action": "getProjects",
+   "param": "billable",
+   "payload": "union",
+   "mode": "JSON",
+   "status": 200,
+   "ms": 449,
+   "flags": [
+    "leak"
+   ],
+   "snippet": "{\"status\":\"success\",\"data\":[{\"id\":193,\"rowid\":193,\"title\":\"100%_like muicf0e5\",\"ref\":\"CPJ-20260926130527-1902\",\"fk_soc\":134,\"client\":\"100%_like muicf0e5\"},{\"id\""
+  }
+ ]
+}

@@ -1,0 +1,83 @@
+PASS SEC-07 employé → stopTimer(id=10738) JSON HTTP 400 Accès refusé
+PASS SEC-07 employé → stopTimer(id=10738) GET HTTP 400 Accès refusé
+PASS SEC-07 employé → restartTimer(id=10740) JSON HTTP 403 Accès refusé
+PASS SEC-07 employé → restartTimer(id=10741) GET HTTP 403 Accès refusé
+PASS SEC-07 employé → submitEntry(id=10742) JSON HTTP 403 Accès refusé
+PASS SEC-07 employé → submitEntry(id=10743) GET HTTP 403 Accès refusé
+PASS SEC-07 employé → submitEntry(id=10744) JSON HTTP 403 Accès refusé
+PASS SEC-07 employé → submitEntry(id=10745) GET HTTP 403 Accès refusé
+PASS SEC-07 employé → deleteTimeEntry(id=10746) JSON HTTP 403 Accès refusé
+PASS SEC-07 employé → deleteTimeEntry(id=10747) GET HTTP 403 Accès refusé
+PASS SEC-07 employé → deleteTimeEntry(id=10748) JSON HTTP 403 Accès refusé
+PASS SEC-07 employé → deleteTimeEntry(id=10749) GET HTTP 403 Accès refusé
+PASS SEC-07 employé → correctTimeEntry(id=10750) JSON HTTP 403 Accès refusé
+PASS SEC-07 employé → correctTimeEntry(id=10751) GET HTTP 403 Accès refusé
+PASS SEC-07 employé → stopTimer(id=10752) JSON HTTP 400 Accès refusé
+PASS SEC-07 employé → stopTimer(id=10753) GET HTTP 400 Accès refusé
+PASS SEC-07 employé → getModificationHistory {"entryId":10734} GET HTTP 200
+PASS SEC-07 employé → getModificationHistory {"entryId":10734} JSON HTTP 200
+PASS SEC-07 employé → getModificationHistory {"id":10734} GET HTTP 200
+PASS SEC-07 employé → getModificationHistory {"id":10734} JSON HTTP 200
+PASS SEC-07 employé → getModificationHistory {"entryId":10735} GET HTTP 200
+PASS SEC-07 employé → getModificationHistory {"entryId":10735} JSON HTTP 200
+PASS SEC-07 employé → getTimeEntries {"user_id":6708} GET HTTP 200
+PASS SEC-07 employé → getTimeEntries {"user_id":6708} JSON HTTP 200
+PASS SEC-07 employé → getTimeEntries {"id":10734} GET HTTP 200
+PASS SEC-07 employé → getTimeEntries {"id":10734} JSON HTTP 200
+PASS SEC-07 employé → getWeeklyTimesheet {"user_id":6708} GET HTTP 200
+PASS SEC-07 employé → getWeeklyTimesheet {"user_id":6708} JSON HTTP 200
+PASS SEC-07 employé → getTimeEntryUpdates {"employee_id":6708,"scope":"validation"} GET HTTP 403 refusé
+PASS SEC-07 employé → getTimeEntryUpdates {"employee_id":6708,"scope":"validation"} JSON HTTP 403 refusé
+PASS SEC-07 employé → getTimeEntryUpdates {"employee_id":6708} GET HTTP 200
+PASS SEC-07 employé → getTimeEntryUpdates {"employee_id":6708} JSON HTTP 200
+PASS SEC-07 employé → getSummaryReports {"user_ids":"6708"} GET HTTP 200
+PASS SEC-07 employé → getSummaryReports {"user_ids":"6708"} JSON HTTP 200
+PASS SEC-07 employé → getSummaryReports {"user_ids":"6708,6707"} GET HTTP 200
+PASS SEC-07 employé → getSummaryReports {"user_ids":"6708,6707"} JSON HTTP 200
+PASS SEC-07 employé → getProcessedHistory {"employee_id":6708} GET HTTP 200
+PASS SEC-07 employé → getProcessedHistory {"employee_id":6708} JSON HTTP 200
+PASS SEC-07 employé → exportProcessedHistory {} GET HTTP 200
+PASS SEC-07 employé → exportProcessedHistory {} JSON HTTP 200
+PASS SEC-07 employé → exportGlobalCsv {} GET HTTP 200
+PASS SEC-07 employé → exportGlobalCsv {} JSON HTTP 200
+PASS SEC-07 employé → getDashboardFilterOptions {} GET HTTP 200
+PASS SEC-07 employé → getDashboardFilterOptions {} JSON HTTP 200
+PASS SEC-07 employé → getMyDailyReports {"user_id":6708} GET HTTP 200
+PASS SEC-07 employé → getMyDailyReports {"user_id":6708} JSON HTTP 200
+PASS SEC-07 employé → getDailyReports {"scope":"all","user_id":6708} GET HTTP 200
+PASS SEC-07 employé → getDailyReports {"scope":"all","user_id":6708} JSON HTTP 200
+PASS SEC-07 employé → getValidationEntries {"employee_id":6708} GET HTTP 403 refusé
+PASS SEC-07 employé → getValidationEntries {"employee_id":6708} JSON HTTP 403 refusé
+PASS SEC-07 employé → getUsersPresence {} GET HTTP 403 refusé
+PASS SEC-07 employé → getUsersPresence {} JSON HTTP 403 refusé
+PASS SEC-07 employé → getTimeFlowUsers {} GET HTTP 403 refusé
+PASS SEC-07 employé → getTimeFlowUsers {} JSON HTTP 403 refusé
+PASS SEC-07 employé → getMyNotifications {} GET HTTP 403 refusé
+PASS SEC-07 employé → getMyNotifications {} JSON HTTP 403 refusé
+PASS SEC-07 employé → getAlertPreferences {} GET HTTP 403 refusé
+PASS SEC-07 employé → getAlertPreferences {} JSON HTTP 403 refusé
+PASS SEC-07 employé → updateDailyReport(21) HTTP 403
+PASS SEC-07 employé → deleteDailyReport(21) HTTP 403
+PASS SEC-07 employé → deleteDailyReport(22) HTTP 403
+PASS SEC-07 employé → updateDailyReport(22) HTTP 403
+PASS SEC-07 comptes rendus des victimes inchangés 21:·:0:,22:·:0:
+PASS SEC-07 énumération d'identifiants (9) via getModificationHistory 0 fuite(s)
+PASS SEC-08 employé valide sa propre saisie HTTP 403
+PASS SEC-08 employé refuse sa propre saisie HTTP 403
+PASS SEC-08 manager (sans validate) valide une saisie HTTP 403
+PASS SEC-08 employé valide un compte rendu HTTP 403
+PASS SEC-08 manager sans validate enregistre une absence prévue HTTP 403
+PASS SEC-08 employé enregistre une absence prévue HTTP 403
+PASS SEC-08 createManualEntry avec champs réservés forgés : réponse HTTP 200
+PASS SEC-08 champs réservés ignorés (fk_user, status, fk_user_valid, entity, import_key, date_creation, duration) 6709|0|NULL|1||2026-09-26 19:59:21|1200
+PASS SEC-08 la saisie M1 de la victime n’a pas été écrasée via id/rowid forgé 
+PASS SEC-08 correctTimeEntry sur sa propre saisie avec fk_user/status forgés HTTP 400 → 6709|0|NULL|1||2026-09-26 19:59:03|1800
+PASS SEC-08 … fk_user et status non modifiés 6709|0|NULL|1||2026-09-26 19:59:03|1800
+PASS SEC-08 saveDailyReport : fk_user/status/fk_user_read forgés ignorés 6709|1|
+PASS SEC-08 propriétaire modifie une saisie déjà validée HTTP 403 Cette entrée a été soumise ou traitée : contactez votre mana
+PASS SEC-08 propriétaire supprime une saisie validée sans deletevalidated HTTP 403
+PASS SEC-08 autre employé supprime une saisie validée HTTP 403
+PASS SEC-08 employé re-soumet sa saisie déjà validée (le statut ne doit pas régresser) statut avant=2 après=2 HTTP 400
+PASS SEC-19 getDashboardFilterOptions (employé) ne liste aucun autre utilisateur HTTP 200 clés=projects,clients,employees noms d'autrui vus=0
+PASS SEC-19 employé → getSummaryReports {"user_ids":[6708,6707]} : aucun nom/total d'autrui noms=0 lignes_autrui=0
+PASS SEC-19 employé → getSummaryReports {} : aucun nom/total d'autrui noms=0 lignes_autrui=0

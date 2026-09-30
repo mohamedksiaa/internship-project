@@ -1,0 +1,22 @@
+SEC-12 — analyse de l'historique Git (lecture seule ; aucune valeur de secret n'est reproduite)
+Date : 2026-09-26. Dépôt : mohamedksiaa/internship-project (visibilité : publique, 1 fork, vérifié par l'API GitHub).
+Balayage : 7 199 937 lignes ajoutées, toutes branches ; 12 familles de motifs ; 378 correspondances distinctes :
+  generic-assignment 170 · db-password-conf 132 · basic-auth-url 72 · instance-unique-id 3 · stripe-live 1 (faux positif : libellé de htdocs/stripe/admin/stripe.php)
+Triage des fichiers de configuration (longueur et classes de caractères uniquement) :
+candidate files in history: 932
+f6cfa06c htdocs/conf/conf.php dolibarr_main_db_pass: len=16 classes=aA0#
+f6cfa06c htdocs/conf/conf.php dolibarr_main_instance_unique_id: len=32 classes=a0
+f6cfa06c htdocs/conf/conf.php dolibarr_main_db_host: localhost
+f6cfa06c htdocs/conf/conf.php dolibarr_main_db_user: dolibarr_user
+f6cfa06c htdocs/conf/conf.php.example dolibarr_main_db_pass: len=11 classes=a
+f6cfa06c htdocs/conf/conf.php.example dolibarr_main_instance_unique_id: len=32 classes=a0
+f6cfa06c htdocs/conf/conf.php.example dolibarr_main_db_host: localhost
+f6cfa06c htdocs/conf/conf.php.example dolibarr_main_db_user: admin
+f6cfa06c htdocs/conf/conf.php.old dolibarr_main_db_pass: len=11 classes=a
+f6cfa06c htdocs/conf/conf.php.old dolibarr_main_instance_unique_id: len=32 classes=a0
+f6cfa06c htdocs/conf/conf.php.old dolibarr_main_db_host: localhost
+f6cfa06c htdocs/conf/conf.php.old dolibarr_main_db_user: admin
+--- sk_live_ occurrences (commits/files):
+f6cfa06c Update Clockify module compatibility and files
+htdocs/stripe/admin/stripe.php
+

@@ -1,0 +1,289 @@
+{
+ "planted": [],
+ "report": [
+  {
+   "who": "admin",
+   "route": "#/timer",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": true
+  },
+  {
+   "who": "admin",
+   "route": "#/history",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": false
+  },
+  {
+   "who": "admin",
+   "route": "#/daily-report",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": false
+  },
+  {
+   "who": "admin",
+   "route": "#/reports",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": true
+  },
+  {
+   "who": "admin",
+   "route": "#/validation",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": true
+  },
+  {
+   "who": "admin",
+   "route": "#/dashboard",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": false
+  },
+  {
+   "who": "manager",
+   "route": "#/timer",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": true
+  },
+  {
+   "who": "manager",
+   "route": "#/history",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": false
+  },
+  {
+   "who": "manager",
+   "route": "#/daily-report",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": false
+  },
+  {
+   "who": "manager",
+   "route": "#/reports",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": true
+  },
+  {
+   "who": "manager",
+   "route": "#/validation",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": false
+  },
+  {
+   "who": "manager",
+   "route": "#/dashboard",
+   "dialogs": 0,
+   "xss": [],
+   "externalRequests": 0,
+   "injectedNodes": 0,
+   "pageErrors": 0,
+   "markerVisible": false
+  }
+ ],
+ "urlReport": [
+  {
+   "route": "#/reports",
+   "param": "tab",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/reports",
+   "param": "dimension",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/reports",
+   "param": "chartType",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/reports",
+   "param": "crossWith",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/reports",
+   "param": "dateFrom",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/reports",
+   "param": "dateTo",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/reports",
+   "param": "presenceDate",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/reports",
+   "param": "projects",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/reports",
+   "param": "clients",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/reports",
+   "param": "employees",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "tab",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "dimension",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "chartType",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "crossWith",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "dateFrom",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "dateTo",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "presenceDate",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "projects",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "clients",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  },
+  {
+   "route": "#/dashboard",
+   "param": "employees",
+   "dialogs": 0,
+   "xss": 0,
+   "external": 0,
+   "injectedNodes": 0
+  }
+ ],
+ "badRoutes": 0,
+ "badUrl": 0
+}

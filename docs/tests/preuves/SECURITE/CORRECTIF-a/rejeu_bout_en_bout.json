@@ -1,0 +1,162 @@
+[
+ {
+  "name": "startTimer note[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : note"
+ },
+ {
+  "name": "startTimer project_label[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : project_label"
+ },
+ {
+  "name": "createManualEntry note[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : note"
+ },
+ {
+  "name": "createManualEntry project_label[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : project_label"
+ },
+ {
+  "name": "createManualEntry reason[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : reason"
+ },
+ {
+  "name": "saveDailyReport content[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : content"
+ },
+ {
+  "name": "updateDailyReport content[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : content"
+ },
+ {
+  "name": "correctTimeEntry reason[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : reason"
+ },
+ {
+  "name": "getProcessedHistory date_from[] (JSON) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : date_from"
+ },
+ {
+  "name": "getProcessedHistory date_to[] (JSON) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : date_to"
+ },
+ {
+  "name": "exportProcessedHistory date_from[] (JSON) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : date_from"
+ },
+ {
+  "name": "exportProcessedHistory date_to[] (JSON) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : date_to"
+ },
+ {
+  "name": "getWeeklyTimesheet weekStart[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : weekStart"
+ },
+ {
+  "name": "getWeeklyTimesheet weekStart[] (JSON) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : weekStart"
+ },
+ {
+  "name": "getSummaryReports date_from[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : date_from"
+ },
+ {
+  "name": "getSummaryReports date_from[] (JSON) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : date_from"
+ },
+ {
+  "name": "getSummaryReports date_to[] (GET) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : date_to"
+ },
+ {
+  "name": "getSummaryReports date_to[] (JSON) → 400 (avant : 500)",
+  "ok": true,
+  "detail": "HTTP 400 Paramètre invalide : date_to"
+ },
+ {
+  "name": "getModificationHistory entryId=[\"x\"] refusé",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "name": "getModificationHistory entryId=1 toujours accepté",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "submitEntry id=[\"x\"] refusé (400)",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "name": "submitEntry id=[] refusé (400)",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "name": "submitEntry id=\"12abc\" refusé (400)",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "name": "submitEntry id=\"999999999' OR '1'='1\" refusé (400)",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "name": "submitEntry id=-1 refusé (400)",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "name": "submitEntry id=1.5 refusé (400)",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "name": "submitEntry id=true refusé (400)",
+  "ok": true,
+  "detail": "HTTP 400"
+ },
+ {
+  "name": "lignes préexistantes (n° 1 à 100) inchangées après les tentatives « id = tableau »",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "name": "requête légitime GET (page/per_page en chaînes)",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "listes d’identifiants JSON acceptées",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "identifiant optionnel vide accepté",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "name": "interface réelle (3 profils × 6 écrans, 52 appels API) : aucun refus « Paramètre invalide »",
+  "ok": true,
+  "detail": "0 faux positif(s)"
+ }
+]

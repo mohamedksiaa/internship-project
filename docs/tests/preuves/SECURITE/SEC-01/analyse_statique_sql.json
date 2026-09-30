@@ -1,0 +1,509 @@
+{
+ "total": 276,
+ "review": [
+  {
+   "file": "ajax/timeentry.php",
+   "line": 528,
+   "vars": [
+    "$projectId"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$projectId;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 563,
+   "vars": [
+    "$taskId"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$taskId;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 594,
+   "vars": [
+    "$userId"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$userId;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 750,
+   "vars": [
+    "$membershipSubquery"
+   ],
+   "code": "$countSql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'user AS u WHERE u.rowid IN '.$membershipSubquery;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 761,
+   "vars": [
+    "$membershipSubquery"
+   ],
+   "code": "$sql .= ' WHERE u.rowid IN '.$membershipSubquery;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 926,
+   "vars": [
+    "$idList"
+   ],
+   "code": "$sql .= ' WHERE a.fk_user IN ('.$idList.') AND a.entity IN ('.getEntity('timeentry').')';"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 938,
+   "vars": [
+    "$idList"
+   ],
+   "code": "$sql = 'SELECT u.rowid FROM '.$db->prefix().'user AS u WHERE u.rowid IN ('.$idList.') AND u.statut <> 1';"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1054,
+   "vars": [
+    "$noteSql"
+   ],
+   "code": "$sql = 'UPDATE '.$db->prefix().\"timeflow_expected_absence SET reason_type = '\".$db->escape($reasonType).\"', reason_note = \".$noteSql;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1076,
+   "vars": [
+    "$tableName"
+   ],
+   "code": "$res = $db->query(\"SELECT 1 FROM information_schema.tables WHERE table_name = '\".$tableName.\"' LIMIT 1\");"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1110,
+   "vars": [
+    "$base"
+   ],
+   "code": "$resql = timeflowQuery($db, 'SELECT COUNT(*) AS nb'.$base.' AND n.date_read IS NULL', 'timeflowFetchMyNotifications:unread');"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1115,
+   "vars": [
+    "$base"
+   ],
+   "code": "$sql = 'SELECT n.rowid, n.notif_type, n.date_ref, n.payload, n.date_creation, n.date_read, n.email_status'.$base.' ORDER BY n.date_ref DESC, n.rowid DESC'.$db->plimit($li"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1368,
+   "vars": [
+    "$projectAlias",
+    "$authorized"
+   ],
+   "code": "return ' AND '.$projectAlias.'.rowid IN ('.$authorized.')';"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1502,
+   "vars": [
+    "$dolibarrProjectId"
+   ],
+   "code": "$sql .= ' AND fk_projet = '.$dolibarrProjectId;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1506,
+   "vars": [
+    "$authorizedProjectIds"
+   ],
+   "code": "$sql .= ' AND fk_projet IN ('.$authorizedProjectIds.')';"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1872,
+   "vars": [
+    "$where"
+   ],
+   "code": "$countSql = 'SELECT COUNT(*) AS total FROM '.$db->prefix().'timeflow_timeentry t WHERE '.$where;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1878,
+   "vars": [
+    "$where"
+   ],
+   "code": ".' FROM '.$db->prefix().'timeflow_timeentry t WHERE '.$where;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 1885,
+   "vars": [
+    "$where"
+   ],
+   "code": ".' WHERE '.$where.' ORDER BY t.date_start DESC, t.rowid DESC'.$db->plimit($perPage, $offset);"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 2011,
+   "vars": [
+    "$whereSql"
+   ],
+   "code": "$countSql = 'SELECT COUNT(*) AS total FROM '.$db->prefix().'timeflow_daily_report AS r WHERE '.$whereSql;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 2026,
+   "vars": [
+    "$whereSql"
+   ],
+   "code": ".' FROM '.$db->prefix().'timeflow_daily_report AS r WHERE '.$whereSql;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 2036,
+   "vars": [
+    "$whereSql"
+   ],
+   "code": "$sql .= ' WHERE '.$whereSql.' ORDER BY r.date_report DESC, r.tms DESC, r.rowid DESC'.$db->plimit($perPage, $offset);"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 2302,
+   "vars": [
+    "$fk_project"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$fk_project;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 2785,
+   "vars": [
+    "$id"
+   ],
+   "code": "$sql = 'SELECT rowid, fk_user, status, date_delete, date_validated_at, date_report FROM '.$db->prefix().'timeflow_daily_report WHERE rowid = '.$id.' AND entity = '.((int)"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 2806,
+   "vars": [
+    "$id"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$id.' AND entity = '.((int) $conf->entity).' AND date_delete IS NULL';"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 2842,
+   "vars": [
+    "$now",
+    "$now"
+   ],
+   "code": "$sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET status = 2, read_at = \\''.$now.'\\', date_validated_at = \\''.$now.'\\', fk_user_read = '.((int) $user->id).' WHERE"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 2855,
+   "vars": [
+    "$now",
+    "$now"
+   ],
+   "code": "$sql = 'UPDATE '.$db->prefix().'timeflow_daily_report SET status = 9, read_at = \\''.$now.'\\', date_validated_at = \\''.$now.'\\', fk_user_read = '.((int) $user->id).' WHERE"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 3174,
+   "vars": [
+    "$clientId"
+   ],
+   "code": "$whereSql .= ' AND p.fk_soc = '.$clientId;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 3187,
+   "vars": [
+    "$searchLike",
+    "$searchLike"
+   ],
+   "code": "$whereSql .= ' AND (p.title LIKE '.$searchLike.' OR p.ref LIKE '.$searchLike.')';"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 3205,
+   "vars": [
+    "$whereSql"
+   ],
+   "code": "$countSql .= ' WHERE '.$whereSql;"
+  },
+  {
+   "file": "ajax/timeentry.php",
+   "line": 3225,
+   "vars": [
+    "$whereSql"
+   ],
+   "code": "$sql .= ' WHERE '.$whereSql;"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 126,
+   "vars": [
+    "$modernTable"
+   ],
+   "code": "$modernSql = 'SELECT fk_user, reason, date_creation FROM '.$modernTable.' WHERE fk_timeentry = '.((int) $entryId).' AND action IN (\\'' . TimeEntry::MOD_ACTION_MANUAL_EMPL"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 138,
+   "vars": [
+    "$entryTable"
+   ],
+   "code": "$flagSql = 'SELECT is_manually_edited FROM '.$entryTable.' WHERE rowid = '.((int) $entryId).' LIMIT 1';"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 153,
+   "vars": [
+    "$legacyTable"
+   ],
+   "code": "$legacySql = 'SELECT fk_user_editor, reason, date_modification FROM '.$legacyTable.' WHERE fk_time_entry = '.((int) $entryId).' ORDER BY date_modification DESC, id DESC L"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 186,
+   "vars": [
+    "$tableName"
+   ],
+   "code": "$columnCheckSql = \"SELECT 1 FROM information_schema.columns WHERE table_name = '\".$tableName.\"' AND column_name = 'is_manually_edited' LIMIT 1\";"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 205,
+   "vars": [
+    "$modernTable",
+    "$alias"
+   ],
+   "code": "$parts[] = \"EXISTS (SELECT 1 FROM \".$modernTable.\" m WHERE m.fk_timeentry = \".$alias.\".rowid AND m.action IN ('\".TimeEntry::MOD_ACTION_MANUAL_EMPLOYEE.\"','\".TimeEntry::MO"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 208,
+   "vars": [
+    "$legacyTable",
+    "$alias"
+   ],
+   "code": "$parts[] = \"EXISTS (SELECT 1 FROM \".$legacyTable.\" l WHERE l.fk_time_entry = \".$alias.\".rowid LIMIT 1)\";"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 331,
+   "vars": [
+    "$column",
+    "$operator"
+   ],
+   "code": "return ' AND '.$column.' '.$operator.\" '\".$db->escape((string) $value).\"'\";"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 537,
+   "vars": [
+    "$tableName"
+   ],
+   "code": "$sql = \"SELECT 1 FROM information_schema.columns WHERE table_name = '\".$tableName.\"' AND column_name = 'date_delete' LIMIT 1\";"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 553,
+   "vars": [
+    "$tableName"
+   ],
+   "code": "$sql = \"SELECT 1 FROM information_schema.columns WHERE table_name = '\".$tableName.\"' AND column_name = 'fk_split_previous' LIMIT 1\";"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 572,
+   "vars": [
+    "$tableName"
+   ],
+   "code": "$res = $db->query(\"SELECT 1 FROM information_schema.tables WHERE table_name = '\".$tableName.\"' LIMIT 1\");"
+  },
+  {
+   "file": "lib/timeflow.lib.php",
+   "line": 589,
+   "vars": [
+    "$tableName"
+   ],
+   "code": "$res = $db->query(\"SELECT 1 FROM information_schema.columns WHERE table_name = '\".$tableName.\"' AND column_name = 'reason_note' LIMIT 1\");"
+  },
+  {
+   "file": "class/timeentry.class.php",
+   "line": 792,
+   "vars": [
+    "$entryId"
+   ],
+   "code": ".' WHERE rowid = '.$entryId"
+  },
+  {
+   "file": "class/timeentry.class.php",
+   "line": 856,
+   "vars": [
+    "$entryId"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$entryId;"
+  },
+  {
+   "file": "class/timeentry.class.php",
+   "line": 857,
+   "vars": [
+    "$draftCondition",
+    "$submittedCondition"
+   ],
+   "code": "$sql .= ' AND (('.$draftCondition.') OR ('.$submittedCondition.'))';"
+  },
+  {
+   "file": "class/timeentry.class.php",
+   "line": 924,
+   "vars": [
+    "$entryId"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$entryId;"
+  },
+  {
+   "file": "class/timeentry.class.php",
+   "line": 1743,
+   "vars": [
+    "$currentId"
+   ],
+   "code": "$sql .= ' WHERE fk_split_previous = '.$currentId;"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1492,
+   "vars": [
+    "$userId"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$userId;"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1508,
+   "vars": [
+    "$projectId"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$projectId;"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1523,
+   "vars": [
+    "$groupId"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$groupId;"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1538,
+   "vars": [
+    "$societeId"
+   ],
+   "code": "$sql .= ' WHERE rowid = '.$societeId;"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1585,
+   "vars": [
+    "$inList"
+   ],
+   "code": "$sql .= ' AND source_value IN ('.$inList.')';"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1764,
+   "vars": [
+    "$inList"
+   ],
+   "code": "$sql .= ' AND source_value IN ('.$inList.')';"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1859,
+   "vars": [
+    "$projectInList"
+   ],
+   "code": "$conditions[] = \"(mapping_type = 'project' AND source_value IN (\".$projectInList.\"))\";"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1863,
+   "vars": [
+    "$groupInList"
+   ],
+   "code": "$conditions[] = \"(mapping_type = 'group' AND source_value IN (\".$groupInList.\"))\";"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1971,
+   "vars": [
+    "$userInList"
+   ],
+   "code": "$sql .= ' AND user_source_value IN ('.$userInList.')';"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 1972,
+   "vars": [
+    "$groupInList"
+   ],
+   "code": "$sql .= ' AND group_source_value IN ('.$groupInList.')';"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 2123,
+   "vars": [
+    "$projectInList"
+   ],
+   "code": "$sql .= ' AND project_source_value IN ('.$projectInList.')';"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 2124,
+   "vars": [
+    "$userInList"
+   ],
+   "code": "$sql .= ' AND user_source_value IN ('.$userInList.')';"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 2252,
+   "vars": [
+    "$inList"
+   ],
+   "code": "$sql .= ' AND source_value IN ('.$inList.')';"
+  },
+  {
+   "file": "class/timeimport.class.php",
+   "line": 2606,
+   "vars": [
+    "$inList"
+   ],
+   "code": "$sql .= \" AND target_action = 'create_confirmed' AND source_value IN (\".$inList.') ORDER BY rowid ASC';"
+  },
+  {
+   "file": "class/timeflowlatecheck.class.php",
+   "line": 931,
+   "vars": [
+    "$rightList"
+   ],
+   "code": "$sql .= ' OR u.rowid IN (SELECT ur.fk_user FROM '.$prefix.'user_rights AS ur WHERE ur.fk_id IN ('.$rightList.') AND ur.entity = '.((int) $entity).')';"
+  },
+  {
+   "file": "class/timeflowlatecheck.class.php",
+   "line": 932,
+   "vars": [
+    "$rightList"
+   ],
+   "code": "$sql .= ' OR u.rowid IN (SELECT ugu.fk_user FROM '.$prefix.'usergroup_user AS ugu INNER JOIN '.$prefix.'usergroup_rights AS ugr ON ugr.fk_usergroup = ugu.fk_usergroup WHE"
+  },
+  {
+   "file": "class/timeflowlatecheck.class.php",
+   "line": 1030,
+   "vars": [
+    "$tableName"
+   ],
+   "code": "$res = $this->db->query(\"SELECT 1 FROM information_schema.tables WHERE table_name = '\".$tableName.\"' LIMIT 1\");"
+  }
+ ]
+}

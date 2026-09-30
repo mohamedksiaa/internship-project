@@ -1,0 +1,57 @@
+[
+ {
+  "input": "\"=1+1\"",
+  "output": "\"=1+1\"",
+  "neutralised": false
+ },
+ {
+  "input": "\"+1+1\"",
+  "output": "\"+1+1\"",
+  "neutralised": false
+ },
+ {
+  "input": "\"-1+1\"",
+  "output": "\"-1+1\"",
+  "neutralised": false
+ },
+ {
+  "input": "\"@SUM(1+1)\"",
+  "output": "\"@SUM(1+1)\"",
+  "neutralised": false
+ },
+ {
+  "input": "\"\\t=1+1\"",
+  "output": "\"\t=1+1\"",
+  "neutralised": false
+ },
+ {
+  "input": "\"\\r=1+1\"",
+  "output": "\"\r=1+1\"",
+  "neutralised": false
+ },
+ {
+  "input": "\"=HYPERLINK(\\\"http://attacker.example/x\\\";\\\"clic\\\")\"",
+  "output": "\"=HYPERLINK(\"\"http://attacker.example/x\"\";\"\"clic\"\")\"",
+  "neutralised": false
+ },
+ {
+  "input": "\"=cmd|' /C calc'!A0\"",
+  "output": "\"=cmd|' /C calc'!A0\"",
+  "neutralised": false
+ },
+ {
+  "input": "\"normal text\"",
+  "output": "\"normal text\"",
+  "neutralised": true
+ },
+ {
+  "input": "\"2026-08-01\"",
+  "output": "\"'2026-08-01\"",
+  "neutralised": true
+ },
+ {
+  "input": "\"  =1+1\"",
+  "output": "\"  =1+1\"",
+  "neutralised": true
+ }
+]
