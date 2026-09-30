@@ -33,6 +33,9 @@ describe('DailyReportComposer', () => {
     updateDailyReport.mockReset();
     deleteDailyReport.mockReset();
     window.confirm = vi.fn(() => true);
+    // Every profile these tests model (employee, manager, admin) holds the TimeFlow write right in practice —
+    // see the dedicated 'no TimeFlow write right' block below for the one that does not.
+    window.TIMEFLOW_CAN_WRITE = true;
   });
 
   it('shows the real status and manual-edit badge on recent validated cards', async () => {
@@ -234,5 +237,32 @@ describe('DailyReportComposer', () => {
 
     await waitFor(() => expect(deleteDailyReport).toHaveBeenCalledWith(46));
     await waitFor(() => expect(screen.queryByText('2026-08-16')).not.toBeInTheDocument());
+  });
+
+  describe('no TimeFlow write right (security report A-13, decision D2)', () => {
+    beforeEach(() => { window.TIMEFLOW_CAN_WRITE = false; });
+
+    it('hides the composer form and shows the read-only notice instead', async () => {
+      getMyDailyReports.mockResolvedValue(page([]));
+      render(<DailyReportComposer />);
+      await screen.findByText(i18n.t('daily_report.empty'));
+      expect(screen.queryByLabelText(i18n.t('daily_report.content_aria'))).not.toBeInTheDocument();
+      expect(screen.getByText(i18n.t('daily_report.read_only_notice'))).toBeInTheDocument();
+    });
+
+    it('hides edit/send/delete on every report regardless of status or delete_allowed', async () => {
+      getMyDailyReports.mockResolvedValue(page([
+        { id: 50, date_report: '2026-08-17', content: 'Brouillon', status: 0, date_creation: new Date().toISOString(), is_deleted: false, is_read: false, read_at: null, delete_allowed: true },
+        { id: 51, date_report: '2026-08-18', content: 'Refusé', status: 9, date_creation: '2026-08-18T08:00:00Z', is_deleted: false, is_read: true, read_at: '2026-08-18T09:00:00Z', delete_allowed: true },
+      ]));
+      render(<DailyReportComposer />);
+      await screen.findByText('2026-08-17');
+      await screen.findByText('2026-08-18');
+      expect(screen.queryByRole('button', { name: i18n.t('daily_report.edit') })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: i18n.t('daily_report.send_report') })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Supprimer/i })).not.toBeInTheDocument();
+      // Read-only is not blind: the read/consult action stays available.
+      expect(screen.getAllByRole('button', { name: i18n.t('daily_report.read_report') })).toHaveLength(2);
+    });
   });
 });

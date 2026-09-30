@@ -237,3 +237,31 @@ describe('TimeEntryList validation mode', () => {
     expect(screen.queryByTitle(i18n.t('timeentry.title_toggle_billable'))).not.toBeInTheDocument();
   });
 });
+
+describe('TimeEntryList canWrite=false (security report A-13, decision D2: no TimeFlow write right)', () => {
+  const draft = { ...entry, status: 0, date_end: '2026-08-12T14:04:00Z', delete_allowed: true };
+
+  it('hides every write action: bulk-selection checkboxes, submit, edit, delete, billable toggle, restart', () => {
+    render(<TimeEntryList entries={[draft]} setEntries={vi.fn()} canWrite={false} onRestartEntry={vi.fn()} />);
+
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.queryByTitle('Soumettre')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Modifier cette entrée' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Supprimer l’entrée' })).not.toBeInTheDocument();
+    expect(screen.queryByTitle(i18n.t('timeentry.title_toggle_billable'))).not.toBeInTheDocument();
+    expect(screen.queryByTitle(i18n.t('timeentry.title_restart'))).not.toBeInTheDocument();
+    // The billable state is still shown, just as a read-only badge/dash, not a button.
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('never renders the checkbox header column either, so the table stays aligned', () => {
+    render(<TimeEntryList entries={[draft]} setEntries={vi.fn()} canWrite={false} />);
+    expect(screen.queryByRole('columnheader', { name: '' })).not.toBeInTheDocument();
+  });
+
+  it('leaves validation (approve/reject) untouched: that needs the validate right, not write', () => {
+    render(<TimeEntryList entries={[{ ...entry, status: 1 }]} showValidationActions setEntries={vi.fn()} canWrite={false} />);
+    expect(screen.getByTitle(i18n.t('timeentry.title_validate'))).toBeInTheDocument();
+    expect(screen.getByTitle(i18n.t('timeentry.title_reject'))).toBeInTheDocument();
+  });
+});

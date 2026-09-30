@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import i18n from '../../i18n';
@@ -157,5 +157,24 @@ describe('TimerWidget', () => {
     expect(onEntryCreated).toHaveBeenCalledTimes(2);
     expect(onEntryCreated).toHaveBeenCalledWith(firstSegment);
     expect(onEntryCreated).toHaveBeenCalledWith(expect.objectContaining({ id: 9 }));
+  });
+
+  describe('canWrite=false (security report A-13, decision D2: no TimeFlow write right)', () => {
+    it('disables START even with valid project and description, and shows the read-only notice', async () => {
+      const user = userEvent.setup();
+      render(<TimerWidget timer={{ isRunning: false, seconds: 0, loading: false, start: vi.fn(), stop: vi.fn() }} projects={projects} canWrite={false} onEntryCreated={vi.fn()} />);
+      await user.selectOptions(screen.getByLabelText(t('timer_widget.project_label')), '1');
+      await user.type(screen.getByLabelText(t('timer_widget.description_label')), 'abc');
+      expect(screen.getByRole('button', { name: t('timer_widget.start') })).toBeDisabled();
+      expect(screen.getByText(t('timer_widget.read_only_notice'))).toBeInTheDocument();
+      expect(screen.queryByText(t('timer_widget.ready_to_start'))).not.toBeInTheDocument();
+    });
+
+    it('never calls start(), even if the disabled button is clicked programmatically', async () => {
+      const start = vi.fn();
+      render(<TimerWidget timer={{ isRunning: false, seconds: 0, loading: false, start, stop: vi.fn() }} projects={projects} canWrite={false} onEntryCreated={vi.fn()} />);
+      fireEvent.click(screen.getByRole('button', { name: t('timer_widget.start') }));
+      expect(start).not.toHaveBeenCalled();
+    });
   });
 });

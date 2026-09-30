@@ -231,6 +231,95 @@ function timeflowCanReadAllTimeEntries($user)
 }
 
 /**
+ * The rights matrix validated by the module owner on 2026-09-30 (security report annex A, decisions D1–D3):
+ * every one of the 44 ajax/timeentry.php actions requires exactly one of these minimal rights, checked once
+ * before the switch (see ajax/timeentry.php). Finer per-action rules — ownership, entry status, project
+ * visibility, the "own data only" scoping inside a reader — still run inside their own case; this only fixes
+ * the actions that previously had no right check at all (report anomaly A-13 / decision D2), and centralizes
+ * the ones that did, so the matrix and the code cannot silently drift apart again.
+ *
+ * D1: the Clockify import (preview, execute, resolve mapping, and its three read-only pickers) is an
+ * administration tool — 'admin' below, not a right an ordinary write user ever holds.
+ * D2: an account with none of TimeFlow's rights gets 403 everywhere, including read-only actions like
+ * getActiveTimer — there is no "public" action left unlisted here.
+ * D3: an administrator has every TimeFlow right implicitly, without it being explicitly assigned (see
+ * timeflowUserHasRequiredRight()) — except 'admin' itself (D1) and the ownership checks some actions still run
+ * afterwards: submitEntry and correctTimeEntry stay the *owner's* action, deliberately, even for an
+ * administrator (submitting or correcting someone else's entry is not "having every right", it is acting in
+ * their place, which nothing in D3 asks for).
+ *
+ * @return array<string,string> action => 'read'|'write'|'readall'|'validate'|'readall+validate'|'admin'
+ */
+function timeflowActionRightsMatrix()
+{
+    return array(
+        // Personal read (own data unless the reader itself widens it for a readall/validate caller).
+        'getActiveTimer' => 'read', 'getProjects' => 'read', 'getTimeFlowProjects' => 'read', 'getTasks' => 'read',
+        'getTimeEntries' => 'read', 'getWeeklyTimesheet' => 'read', 'getSummaryReports' => 'read',
+        'getDashboardFilterOptions' => 'read', 'getProcessedHistory' => 'read', 'exportProcessedHistory' => 'read',
+        'exportGlobalCsv' => 'read', 'getMyDailyReports' => 'read', 'getDailyReports' => 'read',
+        'getTimeEntryUpdates' => 'read', 'getModificationHistory' => 'read',
+        // Annex A adjustment (2026-09-30): these two are read-only lookups reused OUTSIDE the import flow —
+        // listActiveThirdParties feeds the Projects tab's plain "Client" filter, listActiveUsers labels the
+        // Projects tab's "assigned users" column — for every TimeFlow reader, not just an administrator. They
+        // carry no import-specific data, so unlike the rest of D1 below they stay 'read', not 'admin'.
+        'listActiveThirdParties' => 'read', 'listActiveUsers' => 'read',
+
+        // Personal write (own data; each case additionally checks ownership where it applies).
+        'startTimer' => 'write', 'createManualEntry' => 'write', 'submitEntry' => 'write', 'stopTimer' => 'write',
+        'restartTimer' => 'write', 'deleteTimeEntry' => 'write', 'correctTimeEntry' => 'write',
+        'saveDailyReport' => 'write', 'updateDailyReport' => 'write', 'deleteDailyReport' => 'write',
+
+        // Team-wide (the Users report, the bell, and its own preferences — see the case for why the bell needs readall).
+        'getTimeFlowUsers' => 'readall', 'getUsersPresence' => 'readall', 'getMyNotifications' => 'readall',
+        'markNotificationsRead' => 'readall', 'getAlertPreferences' => 'readall', 'saveAlertPreferences' => 'readall',
+
+        // Validation queue and decisions.
+        'getValidationEntries' => 'validate', 'validateEntry' => 'validate', 'rejectEntry' => 'validate',
+        'validateDailyReport' => 'validate', 'rejectDailyReport' => 'validate',
+
+        // Expected absences: picked from the team-wide Users report, and a manager decision.
+        'saveExpectedAbsence' => 'readall+validate', 'deleteExpectedAbsence' => 'readall+validate',
+
+        // D1: import is administration only.
+        'previewClockifyImport' => 'admin', 'executeClockifyImport' => 'admin', 'resolveClockifyMapping' => 'admin',
+        'listUserGroups' => 'admin',
+    );
+}
+
+/**
+ * Whether $user holds the right an action requires, per timeflowActionRightsMatrix() (D1–D3 above).
+ *
+ * @param User   $user
+ * @param string $need One of the matrix's values
+ * @return bool
+ */
+function timeflowUserHasRequiredRight($user, $need)
+{
+    if ($need === 'admin') {
+        // D1: never granted implicitly through another right — only real admin.
+        return !empty($user->admin);
+    }
+    if (!empty($user->admin)) {
+        // D3.
+        return true;
+    }
+    switch ($need) {
+        case 'read':
+            return $user->hasRight('timeflow', 'timeentry', 'read');
+        case 'write':
+            return $user->hasRight('timeflow', 'timeentry', 'write');
+        case 'readall':
+            return $user->hasRight('timeflow', 'timeentry', 'readall');
+        case 'validate':
+            return $user->hasRight('timeflow', 'timeentry', 'validate');
+        case 'readall+validate':
+            return $user->hasRight('timeflow', 'timeentry', 'readall') && $user->hasRight('timeflow', 'timeentry', 'validate');
+    }
+    return false;
+}
+
+/**
  * Request parameters that legitimately carry a list (everything else is a scalar).
  *
  * @return string[]
