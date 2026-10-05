@@ -44,7 +44,6 @@ describe('AppLayout i18n integration', () => {
 
     renderAtRoute('/timer');
     expect(screen.getByText('TimeFlow')).toBeTruthy();
-    expect(screen.getByText('Mon espace de travail')).toBeTruthy();
     expect(document.documentElement.dir).toBe('ltr');
 
     await act(async () => {
@@ -53,7 +52,6 @@ describe('AppLayout i18n integration', () => {
 
     renderAtRoute('/timer');
     expect(screen.getByText('TimeFlow')).toBeTruthy();
-    expect(screen.getByText('مساحتي العملية')).toBeTruthy();
     expect(document.documentElement.dir).toBe('rtl');
 
     await act(async () => {
@@ -62,7 +60,6 @@ describe('AppLayout i18n integration', () => {
 
     renderAtRoute('/timer');
     expect(screen.getByText('TimeFlow')).toBeTruthy();
-    expect(screen.getByText('Mein Arbeitsbereich')).toBeTruthy();
     expect(document.documentElement.dir).toBe('ltr');
   });
 

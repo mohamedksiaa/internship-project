@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '../i18n';
 import HistoryPage from './HistoryPage';
 import { getWeeklyTimesheet } from '../api/timeflowApi';
@@ -12,6 +12,10 @@ describe('HistoryPage i18n', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.setItem('timeflow_lang', 'de');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('uses the active language for the week/day toggle and the date range label', async () => {
@@ -60,6 +64,16 @@ describe('HistoryPage i18n', () => {
   // (id 1081 billable=1, id 1082 billable=0, same week, same user) — this is
   // exactly the payload shape the real backend sends, not a hand-typed guess.
   it('marks only the billable event with the indicator dot, when a billable and a non-billable entry are both visible', async () => {
+    // FullCalendar has no initialDate prop here (see HistoryPage.jsx) — it defaults to the real "today" for
+    // its first rendered view, same as the data fetch itself defaults to "the current week" when no week
+    // has been requested yet. Those two always agree in production (both read the real clock), but this
+    // fixture's events are hardcoded into the week of 2026-09-07 — the clock has to land there too, or the
+    // calendar's own default view shows a different week than the one these events were placed in, and the
+    // events render off-screen (out of the DOM) rather than not existing.
+    // toFake: ['Date'] only — leaving setTimeout/setInterval real so testing-library's own async
+    // polling (findByText) keeps working instead of hanging against a frozen clock.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-09T12:00:00Z'));
     getWeeklyTimesheet.mockResolvedValue({
       weekStart: '2026-09-07',
       weekEnd: '2026-09-14',

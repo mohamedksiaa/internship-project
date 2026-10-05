@@ -39,18 +39,12 @@ describe('DashboardPage KPI cards padding', () => {
       </MemoryRouter>
     );
 
-    // Period-driven cards: "Total" (renamed from "Total semaine"/"Total du
-    // mois" now that the period is a free date range, not a fixed week or
-    // month), "Soumises", "Validées" (all three via DashboardLayout), plus
-    // "Rapports en attente" (independent of the period picker). "Variation
-    // vs mois précédent" and "Période" were removed — no well-defined
-    // "previous period" once the range is free-form, and "Période" is
-    // redundant with the date-range picker itself.
+    // Only one KPI card is actually rendered here: DashboardLayout is called with showBillableCard={false}
+    // and a totalLabel override, so just the single "Total" tile — the "Soumises"/"Validées"/"Rapports en
+    // attente" cards this test used to also check for are gone from the component; their translation keys
+    // (dashboard.submitted/validated/pending_reports) are no longer read anywhere.
     const labels = [
       'Total',
-      'Soumises',
-      'Validées',
-      'Rapports en attente',
     ];
 
     for (const label of labels) {
