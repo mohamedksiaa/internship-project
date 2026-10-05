@@ -11,6 +11,27 @@
 
 ---
 
+## Résumé exécutif
+
+**Périmètre.** Axe 1 (Sécurité) du plan de tests (`docs/tests/PLAN_DE_TESTS.md`, PR n° 34) : les 20 cas prévus (SEC-01 à SEC-20 — injection SQL, XSS, CSRF, IDOR, élévation de privilèges, matrice de droits, fichiers d'import, secrets du dépôt, fichiers exposés, dépendances, authentification, entrées inattendues, courriels, comptes créés par l'import, fuites par filtres/exports, piste d'audit). Essais du 26 septembre 2026 sur le Docker de test (`docker-timeflow-test`, Dolibarr 19.0.2) ; correctifs (a) à (e) rejoués ensuite sur le même environnement, jamais en production.
+
+**Méthode.** Rejeu scripté (Node) de charges hostiles contre de vraies sessions Dolibarr (quatre profils de droits + anonyme), avec garde-fous (0 reconnexion acceptée en cas d'anomalie, sommes de contrôle des tables avant/après) ; revue statique des concaténations SQL et de l'historique Git (analyseur maison, `gitleaks`/`trufflehog` indisponibles) ; vérifications en vrai navigateur (Puppeteer) avec témoin positif pour les XSS. `sqlmap`/OWASP ZAP non lancés (autorisation écrite pour un scan actif non obtenue) — remplacés par le corpus de charges scripté.
+
+**Chiffres clés.** 20/20 cas exécutés ; environ 70 000 requêtes hostiles rejouées (SQL, second ordre, filtres) sans injection exploitable trouvée. **13 anomalies constatées (A-01 à A-13)** :
+- **7 corrigées** : A-02, A-03, A-04, A-10, A-11, A-12 (PR n° 36 et 37), A-13 (PR n° 37).
+- **1 atténuée, pas corrigée** : A-05 (fichiers internes servis par HTTP en déploiement par clone — PR n° 40 ajoute un filet `.htaccess`, mais ne protège que si `AllowOverride` est actif sur le déploiement réel ; la vraie correction reste de ne jamais cloner le dépôt sous la racine web).
+- **5 ouvertes, aucun correctif engagé** : **A-01** (critique — un vrai `conf.php` dans l'historique public ; seule sa récidive est bloquée par (d), l'exposition déjà commise ne l'est pas — rotation du mot de passe, régénération de l'identifiant d'instance et réécriture de l'historique restent à faire, décisions/actions du responsable) ; **A-06** (jeton CSRF dans l'URL, écritures acceptées en GET) ; **A-07** (durcissement serveur : version PHP exposée, pas de CSP, corps 50 Mo accepté) ; **A-08** (aucune trace d'audit sur soumission/validation/refus) ; **A-09** (validation des fichiers d'import, message SQL brut sur un émoji).
+- **Résiduel hors des 13 anomalies** : avis `dompurify` (GHSA-p98j-92pf-mc4p, faible, DOM XSS), apparu depuis le constat initial de SEC-13, non corrigé — identifié par (e) mais hors de son périmètre (verrou `react-router` seulement).
+
+État détaillé par cas : décompte **✅ 11 · ⚠️ 8 · ❌ 1** sur les 20 (§3) ; détail de chaque anomalie en §4 ; suivi des PR en §8.
+
+**Recommandations restantes, par priorité** (voir §6 pour le détail) :
+1. **Critique** — A-01 : rotation du mot de passe de base, régénération de l'identifiant d'instance (après étude d'impact, §5.2), réécriture de l'historique (tient compte du fork existant) — décisions déjà prises le 26 septembre, exécution hors périmètre de ce rapport.
+2. **Moyenne** — A-06 (jeton CSRF hors URL, refuser l'écriture en GET) ; A-08 (journaliser soumission/validation/refus, auteur + date + motif).
+3. **Faible** — A-09 (en-têtes CSV, limite d'import cohérente avec la doc, `utf8mb4`, message générique) ; A-07 (CSP, masquer la version PHP, refuser un corps surdimensionné) ; avis `dompurify` résiduel.
+
+---
+
 ## 1. Synthèse
 
 Sur les **20 cas** de l'axe, **tous ont été exécutés**. La matrice de droits de `SEC-06` a été **validée par le responsable le 26 septembre** avec trois décisions (D1 : import réservé à l'administrateur ; D2 : un compte sans droit TimeFlow reçoit 403 partout ; D3 : un administrateur Dolibarr peut tout faire sans droit explicite). Les 42 cas « critique » et « élevé » de l'ensemble du plan passent en priorité, conformément à l'arbitrage du 25 septembre.
