@@ -1,0 +1,15 @@
+{
+  "cas": "PAN-03 — Cron arrete plusieurs heures puis relance",
+  "limite": "scenarios (a) et (b) testes fonctionnellement (sans arreter reellement le conteneur cron, via l'argument $now de runMorningLateCheck, deja concu pour etre injecte) ; (c) a cheval sur minuit avec un chrono actif non teste separement ici (recoupe PAN-08 et le correctif deja verifie en PR n 44).",
+  "scenario_a_hors_fenetre": {
+    "procedure": "premiere execution du jour a cutoff+5h (fenetre max = 3h)",
+    "resultat": "status=missed, 0 notification, 0 email, detection meme pas lancee",
+    "sortie": "2026-12-01: first run of the day more than 3 h after the cut-off (09:15 + 3 h = 12:15, server time 14:15): no alert."
+  },
+  "scenario_b_dans_la_fenetre": {
+    "procedure": "premiere execution du jour a cutoff+1h45 (dans la fenetre de 3h)",
+    "resultat": "status=done, 5 verifies, 4 en retard, 4 notifications creees, 1 seule par destinataire",
+    "sortie": "2026-12-02: 5 checked, 4 late, 4 notification(s) created, 2 email(s) sent, 2 email(s) skipped"
+  },
+  "conclusion": "le rattrapage respecte la regle fonctionnelle : journee hors fenetre = missed sans bruit inutile ; journee dans la fenetre = detection tardive normale, sans doublon."
+}

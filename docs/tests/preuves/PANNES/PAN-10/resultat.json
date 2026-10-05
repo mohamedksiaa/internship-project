@@ -1,0 +1,13 @@
+{
+  "cas": "PAN-10 — Redemarrage du serveur web pendant des requetes",
+  "procedure": "60 createManualEntry espacees de 80ms (flux continu sur ~4.8s) ; docker restart timeflow-dolibarr a t+2.5s.",
+  "resultat": {
+    "requetes_total": 60,
+    "acquittees_ok": 35,
+    "echouees_cote_client": 25,
+    "indices_acquittes": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,18,19,21,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59],
+    "indices_presents_en_base": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,18,19,21,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59],
+    "ecart_entre_les_deux_listes": 0
+  },
+  "conclusion": "correspondance exacte entre requetes acquittees (200) et lignes presentes en base : aucune requete acquittee n'est absente, aucune requete non acquittee n'est presente (donc rejouable sans risque de doublon)."
+}

@@ -1,0 +1,21 @@
+{
+  "cas": "PAN-04 — Serveur de courrier arrete : l'alerte doit exister",
+  "procedure": "docker stop timeflow-mailpit ; runMorningLateCheck() simule pour 2026-10-07 (cas test, zz_nf_employee en retard, 2 managers opt-in) ; docker start timeflow-mailpit ; nouvel appel 10 min plus tard (au-dela du delai de reessai de 240s).",
+  "pendant_la_panne": {
+    "duree_job_s": 10.4,
+    "notifications_creees": 4,
+    "statuts": { "fk_user_1": "failed", "fk_user_3": "skipped_pref", "fk_user_6697": "skipped_pref", "fk_user_6698": "failed" },
+    "erreur_rapportee": "Error [99]: mailpit is either offline or is an invalid host name. (cause correctement identifiee, contrairement a PAN-02)",
+    "emails_envoyes_pendant_la_panne": 0
+  },
+  "apres_reprise": {
+    "delai_avant_second_appel_min": 10,
+    "emails_retentes": 2,
+    "emails_envoyes": 2,
+    "email_attempts_final": 2,
+    "email_status_final": "sent",
+    "messages_recus_dans_mailpit": 2,
+    "doublons": 0
+  },
+  "conclusion": "notification en base presente a 100% independamment de l'echec email ; 2 tentatives sur 3 max autorisees ; exactement 1 email recu par destinataire apres reprise ; 0 doublon ; duree du job largement sous 60s."
+}

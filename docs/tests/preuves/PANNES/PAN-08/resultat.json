@@ -1,0 +1,22 @@
+{
+  "cas": "PAN-08 — Chronometre actif pendant une panne",
+  "limite": "3 des 5 sous-scenarios du plan testes (redemarrage serveur web, coupure base, verification architecturale de l'absence de duree cote client) — pas (c) fermeture/reouverture navigateur ni (e) franchissement de minuit, par contrainte de temps.",
+  "scenario_a_redemarrage_web": {
+    "procedure": "startTimer, puis docker restart timeflow-dolibarr",
+    "resultat": "chrono toujours actif apres redemarrage, date_start inchange (2026-10-05 23:10:56), date_end NULL, duration 0"
+  },
+  "scenario_b_coupure_base": {
+    "procedure": "docker stop timeflow-mariadb (3s) puis docker start, chrono actif pendant la coupure",
+    "resultat": "chrono inchange apres reprise de la base"
+  },
+  "scenario_d_duree_calculee_cote_serveur": {
+    "verification_code": "ajax/timeentry.php case 'stopTimer' : stopTimer($id, $user) — aucun argument de date/duree n'est jamais lu depuis $postData ou GETPOST avant cet appel ; TimeEntry::stopTimer() utilise dol_now() par defaut. Le client ne peut donc pas influencer la duree enregistree.",
+    "verification_empirique": {
+      "date_start_serveur": "2026-10-05 23:10:56",
+      "date_end_serveur": "2026-10-05 23:11:46",
+      "duration_s": 50,
+      "note": "50s correspond exactement a l'enchainement reel redemarrage web + coupure base + sleep(5) + appel stopTimer, malgre ces deux pannes entre le demarrage et l'arret du chrono"
+    }
+  },
+  "conclusion": "0 chrono perdu ou double ; duree coherente avec les horodatages serveur malgre deux pannes successives pendant l'execution ; l'API ne permet pas au client de fournir sa propre duree."
+}

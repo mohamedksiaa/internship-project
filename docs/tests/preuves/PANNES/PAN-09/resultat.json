@@ -1,0 +1,9 @@
+{
+  "cas": "PAN-09 — Perte reseau cote navigateur",
+  "limite": "seul le critere « 0 saisie en double apres des clics rapides » a ete verifie, par HTTP direct, sans navigateur reel. Les scenarios necessitant une emulation reseau (hors ligne pendant chargement/demarrage/arret/export/cloche, ralentissement, message traduit a l'ecran) n'ont pas ete executes dans cette session — ils demandent Puppeteer en mode DevTools offline/throttling, non mis en oeuvre ici par contrainte de temps.",
+  "double_clic_teste": {
+    "procedure": "10 createManualEntry identiques tires simultanement (meme utilisateur, meme plage horaire)",
+    "resultat": { "succeeded": 1, "failed": 9, "cause_rejet": "Cette période chevauche déjà une autre entrée de temps.", "lignes_en_base": 1 },
+    "conclusion": "0 doublon : le controle de chevauchement protege naturellement contre les clics multiples, sans mecanisme d'idempotence dedie."
+  }
+}

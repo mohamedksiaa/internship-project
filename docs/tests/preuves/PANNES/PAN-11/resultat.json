@@ -1,0 +1,19 @@
+{
+  "cas": "PAN-11 — Concurrence sur un chronometre",
+  "etape_1_50_startTimer_simultanes": { "succeeded": 1, "failed": 49, "message_refus": "Un chrono est déjà actif pour cet utilisateur", "chronos_actifs_en_base_apres": 1 },
+  "etape_2_mix_stop_restart_submit_x10_chacun": {
+    "resultats": {
+      "success": 3,
+      "error_Ce_chrono_est_deja_arrete": 9,
+      "error_Un_chrono_est_deja_actif": 9,
+      "error_Seule_une_saisie_en_brouillon_peut_etre_soumise": 9
+    },
+    "interpretation": "exactement 1 succes par operation semantiquement exclusive (1 stop, 1 restart, 1 submit) sur 10 tentatives chacune, les 9 autres de chaque type recoivent un refus explicite — aucune erreur non geree sur les 30 appels"
+  },
+  "etat_final": {
+    "entree_originale": { "date_end": "2026-10-05 23:13:45", "status": 1, "duration": 25 },
+    "nouvelle_entree_restartTimer": { "date_end": null, "status": 0 },
+    "chronos_actifs_total_utilisateur": 1
+  },
+  "conclusion": "exactement 1 chrono actif a la fin ; 0 mise a jour perdue ; 0 erreur non geree ; aucun verrou mort observe."
+}

@@ -1,0 +1,28 @@
+{
+  "cas": "PAN-02 — Base coupee en pleine ecriture (executeClockifyImport, 300 lignes)",
+  "procedure": "preview puis execute d'un import de 300 lignes ; docker kill timeflow-mariadb a t+7s (sur une execution complete mesuree a 16s) ; docker start ; controle ; reimport du meme fichier.",
+  "resultat_interrompu": {
+    "http_status": 200,
+    "status_field": "success",
+    "time_entries_created": 138,
+    "time_entries_skipped_already_imported": 60,
+    "time_entries_skipped_unresolved": 102,
+    "unresolved_reason_shown": "user_not_found",
+    "unresolved_reason_reelle": "perte de connexion a la base pendant la boucle (le lookup de mapping utilisateur a echoue silencieusement en 'non trouve')"
+  },
+  "controle_coherence_apres_redemarrage": {
+    "lignes_pan02c_en_base": 138,
+    "lignes_dupliquees": 0
+  },
+  "reimport_meme_fichier": {
+    "time_entries_created": 102,
+    "time_entries_skipped_already_imported": 198,
+    "time_entries_skipped_unresolved": 0
+  },
+  "controle_final": {
+    "lignes_pan02c_total": 240,
+    "lignes_distinctes_par_note": 240,
+    "attendu": 240,
+    "note": "les plages de dates des fixtures pan02b (10-16 octobre) et pan02c (15-21 octobre) se recoupent sur 2 jours avec les memes creneaux horaires -> 60 lignes de pan02c partagent la meme cle d'import qu'une ligne pan02b deja creee (chevauchement du fixture de test, pas un comportement du produit). 300 - 60 = 240 lignes reellement nouvelles, toutes creees sans doublon apres les deux passages."
+  }
+}

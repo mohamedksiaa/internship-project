@@ -1,0 +1,23 @@
+{
+  "cas": "PAN-06 — Import interrompu (atomicite et reprise)",
+  "limite": "3 points d'interruption representatifs testes sur les 10 prevus par le plan (deconnexion base, arret du conteneur, fermeture cote client) — pas les 10 exhaustivement, par contrainte de temps.",
+  "point_1_perte_base": "voir preuves/PANNES/PAN-02/resultat.json (docker kill mariadb en pleine boucle d'import) : 138/300 puis convergence a 240/300 au reimport, 0 doublon.",
+  "point_2_arret_conteneur_dolibarr": {
+    "procedure": "docker restart timeflow-dolibarr a t+7s d'un import de 300 lignes",
+    "cote_client": "fetch failed (connexion perdue, aucune reponse)",
+    "lignes_creees_avant_coupure": 121,
+    "doublons": 0,
+    "reimport_meme_fichier": { "created": 179, "already_imported": 121, "unresolved": 0 },
+    "total_final": 300,
+    "distinct_final": 300
+  },
+  "point_3_fermeture_cote_client": {
+    "procedure": "AbortController.abort() cote client a t+3s d'un import de 300 lignes",
+    "cote_client": "AbortError recu a 3027ms",
+    "comportement_serveur": "l'execution PHP continue jusqu'a completion malgre la deconnexion client (comportement par defaut, pas de verification connection_aborted() dans le code) — les 300 lignes sont creees normalement",
+    "total_final": 300,
+    "distinct_final": 300,
+    "doublons": 0,
+    "observation": "pas une anomalie : un utilisateur qui ferme son navigateur pendant un import ne perd rien et ne cree pas de doublon s'il relance plus tard — le serveur termine le travail de son cote et la dedoublonnage par import_key protege un eventuel reimport."
+  }
+}

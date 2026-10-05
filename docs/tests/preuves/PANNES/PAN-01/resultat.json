@@ -1,0 +1,17 @@
+{
+  "cas": "PAN-01 — Base de données indisponible",
+  "procedure": "docker stop timeflow-mariadb, puis getActiveTimer (lecture), createManualEntry (ecriture), chargement de timeflowindex.php (page) pendant l'arret ; docker start timeflow-mariadb ; mesure du temps de reprise.",
+  "pendant_la_panne": [
+    { "action": "getActiveTimer", "http_status": 202, "is_json": false, "contains_trace": false, "ms": 3248 },
+    { "action": "createManualEntry", "http_status": 202, "is_json": false, "contains_trace": false, "ms": 3187 },
+    { "action": "timeflowindex.php (page)", "http_status": 202, "is_json": false, "contains_trace": false, "ms": 3208 }
+  ],
+  "corps_reponse_type": "This website or feature is currently temporarly not available or failed after a technical error.<br><br>This may be due to a maintenance operation. Current status of operation (...) are on next line...<br><br>Dolibarr has detected a technical error. You can read log file or set option $dolibarr_main_prod to '0' in your config file to get more information.",
+  "reprise": { "secondes": 2, "http_status_apres": 200 },
+  "controle_coherence": {
+    "lignes_llx_timeflow_timeentry_avant": 563,
+    "lignes_llx_timeflow_timeentry_apres": 563,
+    "lignes_pan01_note_creees_pendant_panne": 0
+  },
+  "requete_post_reprise": { "action": "getActiveTimer", "http_status": 200, "json": true }
+}
