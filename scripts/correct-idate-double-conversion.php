@@ -240,18 +240,28 @@ function computeTrueEpoch($db, $storedString)
     return array('epoch' => null, 'clean' => false);
 }
 
-$results = array('clean' => 0, 'review' => 0, 'excluded_corrected_since' => 0, 'applied' => 0, 'apply_failed' => 0);
+$results = array('clean' => 0, 'review' => 0, 'already_fixed_by_script' => 0, 'excluded_corrected_manually' => 0, 'applied' => 0, 'apply_failed' => 0);
 $toApply = array(); // rowid => array('start' => epoch, 'end' => epoch|null)
 echo "--- " . ($applyMode ? "Plan (vérifié avant toute écriture)" : "Simulation détaillée") . " ---\n";
 foreach ($allCandidates as $rowid => $info) {
     $row = $info['row'];
 
-    // Exclusion: a later, real correction (action <> 'manual_create') touched date_start or date_end.
-    $correctedSince = q($db, "SELECT 1 FROM {$prefix}timeflow_timeentry_modification
-        WHERE fk_timeentry = $rowid AND field_name IN ('date_start','date_end') AND action <> 'manual_create' LIMIT 1");
+    // Exclusion: a later row for date_start/date_end exists with an action other than the original
+    // 'manual_create'. Two distinct causes, reported separately: this script's own prior --apply run
+    // (action = MOD_ACTION_DATA_FIX = 'data_fix' — expected and desired on a second run, i.e. idempotence,
+    // not a problem to flag) versus a human actually correcting the entry since (action =
+    // 'manual_employee'/'manual_manager', correctTimeEntry() — a real reason to leave the row alone).
+    $correctedSince = q($db, "SELECT action FROM {$prefix}timeflow_timeentry_modification
+        WHERE fk_timeentry = $rowid AND field_name IN ('date_start','date_end') AND action <> 'manual_create'
+        ORDER BY date_creation DESC, rowid DESC LIMIT 1");
     if (!empty($correctedSince)) {
-        $results['excluded_corrected_since']++;
-        echo "rowid=$rowid [{$info['origin']}] EXCLU — date corrigée manuellement depuis (correctTimeEntry).\n";
+        if ($correctedSince[0]->action === 'data_fix') {
+            $results['already_fixed_by_script']++;
+            echo "rowid=$rowid [{$info['origin']}] DEJA CORRIGEE PAR CE SCRIPT (data_fix) — rien à refaire.\n";
+        } else {
+            $results['excluded_corrected_manually']++;
+            echo "rowid=$rowid [{$info['origin']}] EXCLU — corrigée manuellement depuis (correctTimeEntry, action='{$correctedSince[0]->action}').\n";
+        }
         continue;
     }
 
@@ -274,7 +284,8 @@ foreach ($allCandidates as $rowid => $info) {
 echo "\n=== Résumé du plan ===\n";
 echo "Corrections propres (" . ($applyMode ? "à appliquer" : "prêtes pour un futur mode application") . ") : {$results['clean']}\n";
 echo "A revoir manuellement (transition heure d'été) : {$results['review']}\n";
-echo "Exclues (déjà corrigées manuellement depuis) : {$results['excluded_corrected_since']}\n";
+echo "Déjà corrigées par ce script (data_fix, exécution précédente) : {$results['already_fixed_by_script']}\n";
+echo "Exclues (corrigées manuellement depuis par un humain) : {$results['excluded_corrected_manually']}\n";
 echo "Zone non classifiable (hors périmètre de ce script) : $unclassifiable\n";
 
 if (!$applyMode) {
