@@ -15,7 +15,7 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 
 - Cas prévus : 15 · exécutés (au moins partiellement) : 10 (tous les Critique + tous les Élevé) · non exécutés : 5 (PAN-05, 12, 13, 14, 15 — Moyen)
 - Statuts : ✅ 5 (PAN-03, 04, 07, 10, 11) · ⚠️ 5 (PAN-01, 02, 06, 08, 09 — testés avec une réserve ou une couverture partielle) · ❌ 0
-- Anomalies : Moyen 2 (ANO-PANNES-01, 02) · Critique/Élevé/Faible 0
+- Anomalies : Moyen 2 trouvées (ANO-PANNES-01, 02), **1 corrigée** (ANO-PANNES-02, PR n° 49) · Critique/Élevé/Faible 0
 - **Conclusion.** Aucune perte ni corruption de données constatée sur les 10 cas exécutés, y compris sous panne combinée (PAN-08) ou interruption en pleine écriture (PAN-02, PAN-06, PAN-10) — l'atomicité par transaction et la déduplication par clé (`import_key`, contraintes uniques) tiennent dans tous les essais. Les deux réserves trouvées sont des problèmes de **diagnostic** (message trompeur ou format de réponse non exploitable), pas de perte de données. Les cas Moyen restants (PAN-05, 12-15) et les sous-scénarios non couverts de PAN-03/06/08/09 restent à rejouer.
 
 ## 2. Tableau récapitulatif
@@ -53,9 +53,10 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 - **Reproduction** : lancer un import de plusieurs centaines de lignes (`previewClockifyImport` puis `executeClockifyImport`) ; `docker kill timeflow-mariadb` pendant que la boucle tourne.
 - **Impact** : diagnostic erroné, pas de perte de données — l'intégrité est préservée (0 doublon, convergence exacte au réimport, vérifié) grâce à `import_key`, mais uniquement si l'admin pense à relancer le même fichier malgré un rapport qui ne signale aucune panne.
 - **Preuve** : `preuves/PANNES/PAN-02/resultat.json`.
-- **Cause probable** : `getExistingMapping()`/`lookupDolibarrUserByEmail()` (`class/timeimport.class.php`) renvoient probablement `null`/tableau vide sur l'échec de la requête SQL elle-même, exactement comme sur une absence réelle de résultat — la boucle ne distingue pas les deux cas.
-- **Recommandation** : détecter l'échec de requête (`$db->query()` retournant `false`) distinctement d'un résultat vide, interrompre l'import proprement avec un message explicite plutôt que de continuer en traitant chaque ligne comme non résolue.
-- **Correctif** : à planifier (PR séparée, après relecture) · **Re-test** : non encore fait
+- **Cause confirmée** : `getExistingMapping()` et `lookupDolibarrUserByEmail()` (`class/timeimport.class.php`) renvoyaient un tableau vide / `null` sur l'échec de la requête SQL elle-même, exactement comme sur une absence réelle de résultat — la boucle ne distinguait pas les deux cas.
+- **Audit étendu** : à la demande du responsable, audit de **toutes** les requêtes du chemin d'exécution de l'import (pas seulement ces deux-là). Trouvé le même défaut dans 10 autres fonctions, dont une (`timeEntryAlreadyImported()`, la vérification anti-doublon elle-même) qui pouvait, dans un cas plus étroit que celui rejoué en PAN-02 (un seul query qui échoue sans casser toute la connexion), conduire à une **vraie saisie dupliquée** — `import_key` n'a aucune contrainte unique en base, cette vérification était le seul rempart. Liste complète et détail dans la PR n° 49.
+- **Correctif** : ✅ corrigé (PR n° 49) — chaque fonction concernée lève désormais `TimeflowSqlException` (mécanisme déjà existant dans le module, réutilisé) au lieu de renvoyer "rien trouvé" ; l'import s'interrompt proprement (HTTP 503, `status: error`) avec un message explicite indiquant combien de lignes/comptes/projets ont déjà été créés et que le même fichier peut être rejoué sans risque de doublon.
+- **Re-test** : ✅ scénario PAN-02 rejoué (nouveau fichier 300 lignes, `docker kill timeflow-mariadb` à t+7s) → réponse `status: error`, HTTP 503, message exact ("123 saisie(s) de temps déjà créé(s) avant l'interruption..."), 0 ligne mal étiquetée. Réimport du même fichier → 300/300, 0 doublon. PHPUnit 76/76 OK (0 régression).
 
 ## 4. Cas non exécutés ou non concluants
 

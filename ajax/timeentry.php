@@ -2633,6 +2633,11 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'success', 'data' => $report));
         } catch (InvalidArgumentException $e) {
             timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
+        } catch (TimeflowSqlException $e) {
+            // Must be caught before the generic RuntimeException below (TimeflowSqlException extends
+            // it): a connection loss mid-import must say exactly how much was already done and that
+            // the same file can be replayed safely, not the generic "erreur lors de l'exécution".
+            timeflowJsonResponse(timeflowClockifyImportSqlErrorPayload($e, $user), 503);
         } catch (RuntimeException $e) {
             timeflowJsonResponse(array('status' => 'error', 'message' => $e->getMessage()), 400);
         } catch (Exception $e) {
@@ -3442,5 +3447,48 @@ function timeflowCreateProject($db, $user, $title, $fkSoc = 0, $description = ''
     }
 
     return -1;
+}
+
+/**
+ * Builds the executeClockifyImport error response for a database connection lost mid-run
+ * (TimeflowSqlException, see TimeImport::executeImportFromCsvPath()). States exactly how much
+ * of $e->partialReport was already created, so the admin knows the same CSV file can be
+ * re-uploaded safely: every already-imported row/account/project/client/group is recognized by
+ * TimeFlow's own dedup (import_key, mapping rows) and skipped, never duplicated.
+ *
+ * @param TimeflowSqlException $e
+ * @param User $user
+ * @return array
+ */
+function timeflowClockifyImportSqlErrorPayload(TimeflowSqlException $e, $user)
+{
+    $partial = is_array($e->partialReport) ? $e->partialReport : array();
+    $progress = array();
+    if (!empty($partial['time_entries_created'])) {
+        $progress[] = $partial['time_entries_created'].' saisie(s) de temps';
+    }
+    if (!empty($partial['users_created'])) {
+        $progress[] = count($partial['users_created']).' compte(s) utilisateur';
+    }
+    if (!empty($partial['projects_created'])) {
+        $progress[] = count($partial['projects_created']).' projet(s)';
+    }
+    if (!empty($partial['clients_created'])) {
+        $progress[] = count($partial['clients_created']).' client(s)';
+    }
+    if (!empty($partial['groups_created'])) {
+        $progress[] = count($partial['groups_created']).' groupe(s)';
+    }
+
+    $progressText = !empty($progress)
+        ? implode(', ', $progress).' déjà créé(s) avant l’interruption.'
+        : 'Aucun élément créé avant l’interruption.';
+
+    $payload = timeflowSqlErrorPayload($e, $user);
+    $payload['message'] = 'La connexion à la base de données a été perdue pendant l’import. '.$progressText
+        .' Relancez le même fichier : les éléments déjà importés seront reconnus automatiquement, sans doublon.';
+    $payload['data'] = $partial;
+
+    return $payload;
 }
 

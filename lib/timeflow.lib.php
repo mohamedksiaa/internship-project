@@ -499,6 +499,10 @@ if (!class_exists('TimeflowSqlException')) {
     {
         /** @var string Raw driver error: server log and admins only, never other users. */
         public $dbError = '';
+
+        /** @var array|null The caller's progress accumulator at the point of failure (e.g. a Clockify import's
+         * $report), so an admin-facing message can state exactly how much was done before the interruption. */
+        public $partialReport = null;
     }
 }
 
