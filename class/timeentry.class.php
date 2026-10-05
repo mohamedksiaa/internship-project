@@ -1519,8 +1519,15 @@ class TimeEntry extends CommonObject
 		$this->fk_user = (int) $fk_user;
 		$this->fk_project = ((int) $fk_project > 0) ? (int) $fk_project : null;
 		$this->fk_task = ((int) $fk_task > 0) ? (int) $fk_task : null;
-		$this->date_start = $this->db->idate((int) $dateStart);
-		$this->date_end = $this->db->idate((int) $dateEnd);
+		// Raw epoch, NOT pre-formatted via $this->db->idate() — create() (CommonObject::setSaveQuery())
+		// already calls idate() itself on every 'datetime'-typed field. Pre-converting here used to double
+		// it: idate() applied a second time to its own string output re-renders it tzserver-shifted again
+		// (confirmed: idate(idate($ts)) == idate($ts + tzserver offset at $ts)), so every manually-created
+		// entry and every CSV import landed exactly one server-UTC-offset late. startTimer()/stopTimer()/
+		// correctTimeEntry() never had this bug — they already leave a raw epoch for the generic create()/
+		// update() to convert exactly once, which is the pattern this follows now.
+		$this->date_start = (int) $dateStart;
+		$this->date_end = (int) $dateEnd;
 		$this->duration = max(0, (int) ($dateEnd - $dateStart));
 		$this->is_manually_edited = 0;
 		$this->occurrence_count = 1;
@@ -1708,7 +1715,8 @@ class TimeEntry extends CommonObject
 		$next->is_manually_edited = 0;
 		$next->occurrence_count = 1;
 		$next->date_reprise = null;
-		$next->date_start = $this->db->idate($segmentEnd);
+		// Raw epoch — see the identical comment in createManualEntry(): create() already converts once.
+		$next->date_start = $segmentEnd;
 		$next->date_end = null;
 		$next->duration = 0;
 		if ($this->hasDatabaseColumn($this->table_element, 'fk_split_previous')) {
