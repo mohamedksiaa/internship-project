@@ -121,7 +121,7 @@ Sévérité = gravité **x** vraisemblance dans le contexte du module. Aucune n'
 - **Recommandation.** Exiger `fk_user == $user->id` (et le droit `write`), n'accepter que le statut « brouillon » (ou « refusé » si la re-soumission est voulue) ; PR séparée avec tests de non-régression.
 - **Preuve.** `preuves/SECURITE/SEC-07-08/`.
 
-### A-03 — Import Clockify accessible avec le seul droit `write` : saisies validées au nom d'autrui — **Élevée** (SEC-08) — ✅ *corrigée (PR n° 37, en revue)*
+### A-03 — Import Clockify accessible avec le seul droit `write` : saisies validées au nom d'autrui — **Élevée** (SEC-08) — ✅ *corrigée (PR n° 37, fusionnée)*
 
 - **Constat.** `previewClockifyImport`, `resolveClockifyMapping` et `executeClockifyImport` exigent seulement `write` (ou admin). Un employé téléverse un CSV dont la colonne « Email » est celle du manager, associe le projet à un projet existant, puis exécute.
 - **Résultat en base.** Une saisie est créée avec `fk_user` = **le manager**, `status` = **2 (validée)**, `fk_user_valid` = **l'employé** ; un lien « contributeur » du manager est ajouté au projet visé (`project_contacts_created: 1`). Reproduit 2 fois.
@@ -130,7 +130,7 @@ Sévérité = gravité **x** vraisemblance dans le contexte du module. Aucune n'
 - **Correction (PR n° 37).** Les 4 actions de l'import (`previewClockifyImport`, `executeClockifyImport`, `resolveClockifyMapping`, `listUserGroups`) exigent désormais l'administrateur, via le contrôle central de droits (voir A-13). Rejoué : l'employé et le manager reçoivent 403 sur les 4 actions ; le bouton « Importer » de l'interface est masqué pour eux (vérifié dans un vrai navigateur).
 - **Preuve.** `preuves/SECURITE/SEC-07-08/`, `preuves/SECURITE/CORRECTIF-b/`.
 
-### A-04 — Injection de formules dans les exports CSV — **Élevée** (SEC-10) — ✅ *corrigée (PR n° 39)*
+### A-04 — Injection de formules dans les exports CSV — **Élevée** (SEC-10) — ✅ *corrigée (PR n° 39, fusionnée)*
 
 - **Constat.** `frontend/src/utils/csvExport.js` : `csvEscape` double les guillemets et préfixe les dates ISO, mais **ne neutralise aucun préfixe de formule**. Le vrai `downloadCsv` a produit, pour les 8 charges dangereuses (`=1+1`, `+1+1`, `-1+1`, `@SUM(1+1)`, tabulation ou retour chariot + `=`, `=HYPERLINK(…)`, `=cmd|' /C calc'!A0`), des cellules **inchangées** entre guillemets. C'est le **seul** producteur de CSV du module.
 - **Impact.** Un libellé de projet ou une description saisis par un utilisateur s'exécutent dans le tableur du manager qui exporte (exfiltration par lien, exécution de commande selon la configuration du tableur).
@@ -184,7 +184,7 @@ Les changements de statut par `submitEntry`, `validateEntry` et `rejectEntry` n'
 
 Les actions `submitEntry`, `validateEntry` et `rejectEntry` ne vérifient pas `date_delete` : la saisie n° 1 (supprimée le 18 septembre) a été refusée le 26. **Recommandation** : refuser toute action d'état sur une saisie supprimée.
 
-### A-13 — La matrice de droits n'est pas respectée — **Élevée** (SEC-06) — ✅ *corrigée (PR n° 37, en revue)*
+### A-13 — La matrice de droits n'est pas respectée — **Élevée** (SEC-06) — ✅ *corrigée (PR n° 37, fusionnée)*
 
 - **D2 — compte sans aucun droit TimeFlow (25 actions ouvertes).** `getActiveTimer`, `startTimer`, `createManualEntry`, `submitEntry`, `stopTimer`, `restartTimer`, `deleteTimeEntry`, `correctTimeEntry`, `getProjects`, `getTimeFlowProjects`, `getTasks`, `getTimeEntries`, `getTimeEntryUpdates`, `getWeeklyTimesheet`, `getSummaryReports`, `getDashboardFilterOptions`, `getProcessedHistory`, `exportProcessedHistory`, `exportGlobalCsv`, `getModificationHistory`, `saveDailyReport`, `updateDailyReport`, `deleteDailyReport`, `getMyDailyReports`, `getDailyReports` franchissent la barrière de droits (réponse 200 ou erreur métier 400/404 au lieu de 403). L'endpoint ne teste que « module actif, session, jeton » ; seules les actions équipe, validation et import testent un droit.
 - **D1 — import.** `previewClockifyImport`, `executeClockifyImport`, `resolveClockifyMapping`, `listActiveUsers`, `listUserGroups`, `listActiveThirdParties` sont accessibles à `zz_nf_employee` et `zz_nf_manager` (12 cellules). Conséquences prouvées : A-03.
@@ -282,6 +282,8 @@ Une PR par anomalie ou groupe cohérent, **après relecture de ce rapport** :
 
 **Restauration (accord du responsable le 26 septembre).** Les deux lignes n° 1 ont été remises **aux valeurs de la sauvegarde** ; contrôle par requête : 0 ligne différente de la sauvegarde dans `llx_timeflow_timeentry` et `llx_timeflow_daily_report` (statut 2, `fk_user_valid` = `fk_user_submit` = 1, `tms` du 19 septembre pour le compte rendu).
 
+**Cycle (b) — 30 septembre au 5 octobre 2026.** Mêmes quatre comptes `zz_nf_*` recréés pour les essais des PR n° 37 (matrice de droits puis correctif de la fuite `listActiveUsers`/`listActiveThirdParties`), supprimés par l'API Dolibarr à la fin. À partir de ce cycle, le nettoyage de fin de phase n'est plus une suppression ciblée mais une **restauration complète** de `backup_avant_tests.sql` (copie du fichier dans le conteneur puis réimport SQL intégral), effectuée directement par le responsable et confirmée : 13 comptes, aucun compte de test restant.
+
 **Deuxième cycle (SEC-06 et contrôle de la conversion tableau → 1).** Quatre comptes recréés puis supprimés, mêmes contrôles : après nettoyage, comparaison ligne à ligne de toutes les tables avec la sauvegarde — seuls restent les écarts d'horloge indiqués ci-dessus (connexion de `admin`, constantes du module, tâches planifiées, un passage du cron).
 
 Fichiers temporaires : les 1 400 fichiers `imp*` du dossier `/tmp` du conteneur (copies de CSV laissées par mes anciens essais en ligne de commande, propriétaire root, datés du 25 septembre) et mes scripts ont été supprimés ; **aucun envoi web du 26 septembre n'a laissé de fichier**.
@@ -295,12 +297,12 @@ Le statut d'une anomalie passe à « corrigée » à la **fusion** de sa PR ; d'
 | PR | Anomalies | Statut | Cas rejoués | Résultat du rejeu |
 |---|---|---|---|---|
 | **n° 36 — (a)** validation stricte des types, `submitEntry`, saisies supprimées | A-02, A-10, A-11, A-12 | ✅ **corrigées, fusionnée** | SEC-07 / 08 / 19 (83 contrôles), les 18 cas d'erreur 500, « `id` = tableau » sur 7 actions, 3 profils × 6 écrans de l'interface | **83/83** (78/83 avant) ; 18 réponses 500 → 400 ; aucune ligne préexistante modifiée ; 0 faux positif sur 52 appels de l'interface ; 5 tests PHPUnit + 28 cas du validateur, 6 mutants tués |
-| **n° 37 — (b)** matrice de droits, D1–D3 + second ajustement d'annexe A (scope de `listActiveUsers`/`listActiveThirdParties`) | A-03, A-13 | ✅ corrigées, **en revue** | SEC-06 (220 cellules), SEC-07/08/19 (83 contrôles), 14 tests PHPUnit (9 matrice + 5 annuaire scopé), vérification navigateur réel (4 profils + filtre Client/utilisateurs assignés pour l'employé) | **219/220** conformes (écart restant : artefact de méthode, sans lien avec les droits) ; **83/83** ; 6 mutants tués ; écran d'accès refusé sans appel API, bouton Import et bouton Démarrer conformes pour les 4 profils ; employé scopé à 3 utilisateurs/1 client (contre 17/3 pour manager et admin), 0 champ `login`/`firstname`/`lastname`/`email` exposé ; aucune ligne préexistante modifiée ; suite PHPUnit complète 67 tests (4 échecs préexistants chronos, non liés, 0 nouveau) ; suite frontend 507 tests (3 échecs préexistants, non liés, 0 nouveau) |
-| **n° 39 — (c)** neutralisation des formules CSV dans le seul producteur (`downloadCsv`/`csvEscape`) | A-04 | ✅ corrigées, **en revue** | SEC-10 (8 charges), 16 tests Vitest (8 charges + guillemets, délimiteur, date ISO, espace devant, colonne non initiale) sur le vrai `downloadCsv`, suite frontend complète | **8/8** charges neutralisées par une apostrophe en tête de cellule ; 0 régression sur les cas déjà couverts ; suite frontend 523 tests (4 échecs préexistants dus à la dérive de date du 2026-10-05, non liés, 0 nouveau) |
+| **n° 37 — (b)** matrice de droits, D1–D3 + second ajustement d'annexe A (scope de `listActiveUsers`/`listActiveThirdParties`) | A-03, A-13 | ✅ **corrigées, fusionnée** | SEC-06 (220 cellules), SEC-07/08/19 (83 contrôles), 14 tests PHPUnit (9 matrice + 5 annuaire scopé), vérification navigateur réel (4 profils + filtre Client/utilisateurs assignés pour l'employé) | **219/220** conformes (écart restant : artefact de méthode, sans lien avec les droits) ; **83/83** ; 6 mutants tués ; écran d'accès refusé sans appel API, bouton Import et bouton Démarrer conformes pour les 4 profils ; employé scopé à 3 utilisateurs/1 client (contre 17/3 pour manager et admin), 0 champ `login`/`firstname`/`lastname`/`email` exposé ; aucune ligne préexistante modifiée ; suite PHPUnit complète 67 tests (4 échecs préexistants chronos, non liés, 0 nouveau) ; suite frontend 507 tests (3 échecs préexistants, non liés, 0 nouveau) |
+| **n° 39 — (c)** neutralisation des formules CSV dans le seul producteur (`downloadCsv`/`csvEscape`) | A-04 | ✅ **corrigées, fusionnée** | SEC-10 (8 charges), 16 tests Vitest (8 charges + guillemets, délimiteur, date ISO, espace devant, colonne non initiale) sur le vrai `downloadCsv`, suite frontend complète | **8/8** charges neutralisées par une apostrophe en tête de cellule ; 0 régression sur les cas déjà couverts ; suite frontend 523 tests (4 échecs préexistants dus à la dérive de date du 2026-10-05, non liés, 0 nouveau) |
 | (d) `.gitignore`, déploiement | A-01 (prévention), A-05 | à venir | — | — |
 | (e) `react-router` | SEC-13 | à venir | — | — |
 
-**Effet sur les cas** : après fusion de la PR n° 36, SEC-01, 03 et 16 n'ont plus de réponse 500 ; SEC-07 n'a plus d'écart. Après fusion de la PR n° 37 (actuellement en revue), SEC-06 et SEC-08 n'auront plus d'écart.
+**Effet sur les cas** : après fusion de la PR n° 36, SEC-01, 03 et 16 n'ont plus de réponse 500 ; SEC-07 n'a plus d'écart. Après fusion de la PR n° 37, SEC-06 et SEC-08 n'ont plus d'écart. Après fusion de la PR n° 39, SEC-10 n'a plus d'écart.
 
 ---
 
