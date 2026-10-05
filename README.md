@@ -55,6 +55,15 @@ Il permet de :
 2. Activer le module depuis l’interface Dolibarr.
 3. Vérifier que la table llx_timeflow_timeentry est bien créée.
 
+### Déploiement et sécurité (rapport de sécurité, A-05)
+
+**Ne jamais déployer ce module en clonant ce dépôt Git directement sous la racine web** (par exemple `htdocs/custom/timeflow/` servant un checkout avec son `.git/`). Dans cette configuration, `.git/` (historique complet, y compris tout ce qui en a été retiré depuis — voir A-01), `sql/`, `docs/` (ce rapport et ses preuves), `test/`, `frontend/src`, les fichiers de configuration (`composer.json`, `composer.lock`, `package.json`, `frontend/package.json`, `frontend/.env.example`) et les fichiers de langue sont tous servis en clair, sans authentification, dès qu'un tiers en connaît le chemin. Déployer à partir d'une **archive de release** (sans `.git/`, sans les répertoires de développement) évite le problème à la racine.
+
+Si un déploiement par clone est malgré tout nécessaire (environnement de test, par exemple) :
+- des fichiers `.htaccess` sont fournis avec le module (`.htaccess`, `sql/.htaccess`, `docs/.htaccess`, `test/.htaccess`, `frontend/.htaccess`, `frontend/src/.htaccess`, `langs/.htaccess`) et bloquent ces chemins **si `AllowOverride All` (ou au moins `AllowOverride FileInfo Limit`) est actif sur le répertoire** — à vérifier dans la configuration Apache, ces fichiers n'ont aucun effet sinon ;
+- `.git/` ne peut pas porter son propre `.htaccess` suivi par Git : son contenu est généré par le clonage, pas par un commit de ce dépôt. Lancer une fois, depuis la racine du module déployé : `sh scripts/harden-git-deployment.sh`.
+- aucune de ces règles ne dispense de la vraie protection : ne pas déployer par clone. Un fichier oublié par erreur reste exposé.
+
 ### Frontend
 1. Se placer dans le dossier frontend.
 2. Installer les dépendances :

@@ -1,0 +1,12 @@
+# Security report A-05 : règle de repli (voir .htaccess à la racine du module). Ne bloque que les fichiers
+# de configuration nommés ici — frontend/dist/ (le bundle compilé que le navigateur charge réellement) et le
+# reste de ce répertoire restent accessibles.
+<FilesMatch "^(package(-lock)?\.json|\.env(\.example)?)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

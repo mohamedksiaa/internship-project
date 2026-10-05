@@ -1,0 +1,9 @@
+# Security report A-05 : règle de repli (voir .htaccess à la racine du module). Code source du frontend —
+# le navigateur ne charge que le bundle compilé sous frontend/dist/, jamais ces fichiers directement.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
