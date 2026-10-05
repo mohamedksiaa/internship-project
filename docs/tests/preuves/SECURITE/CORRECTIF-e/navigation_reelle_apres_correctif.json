@@ -1,0 +1,21 @@
+{
+  "errors": [],
+  "results": [
+    {
+      "route": "#/timer",
+      "bodyText": "TIONS\nProjet\nIDARA\nINFRA\nLEARN\nTRAINING\nRefonte site web\nRegression Test TimeFlow\ntest\nTB-UNITED\nFacturable\n00:00:00\nDÉMARRER\nHistorique des tâches\n0 entrée\nAucune entrée de temps disponible pour le moment."
+    },
+    {
+      "route": "#/reports",
+      "bodyText": "TIONS\nImport\nExport\nRapports des tâches\nProjets\nHistorique des comptes-rendus\nUtilisateurs\nExporter en CSV\n\nANALYSER\n\nHistorique traité\nValidé et refusé\nValidé\nRefusé\nTous les employés\n[<noms d'employés du jeu de données de test masqués — sans rapport avec ce correctif>]\n"
+    },
+    {
+      "route": "#/dashboard",
+      "bodyText": "TIONS\nDu\nAu\nProjet\nTous\n▾\nClient\nTous\n▾\nEmployé\nTous\n▾\nExporter en CSV\nExporter en PDF\n\nTOTAL\n\nℹ︎\n\n00:00:00\n\nANALYSE\n\nGraphique personnalisé\nDimension\nProjet\nEmployé\nClient\nFacturable\nType de graphique\nBarres\nCamembert\nLigne\nCroiser avec\nAucun\nEmployé\nClient\nFacturable\n\nAucune donnée pour cette péri"
+    },
+    {
+      "route": "#/validations",
+      "bodyText": "TIONS\nDu\nAu\nProjet\nTous\n▾\nClient\nTous\n▾\nEmployé\nTous\n▾\nExporter en CSV\nExporter en PDF\n\nTOTAL\n\nℹ︎\n\n00:00:00\n\nANALYSE\n\nGraphique personnalisé\nDimension\nProjet\nEmployé\nClient\nFacturable\nType de graphique\nBarres\nCamembert\nLigne\nCroiser avec\nAucun\nEmployé\nClient\nFacturable\n\nAucune donnée pour cette péri"
+    }
+  ]
+}

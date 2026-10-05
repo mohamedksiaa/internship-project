@@ -11,6 +11,27 @@
 
 ---
 
+## Résumé exécutif
+
+**Périmètre.** Axe 1 (Sécurité) du plan de tests (`docs/tests/PLAN_DE_TESTS.md`, PR n° 34) : les 20 cas prévus (SEC-01 à SEC-20 — injection SQL, XSS, CSRF, IDOR, élévation de privilèges, matrice de droits, fichiers d'import, secrets du dépôt, fichiers exposés, dépendances, authentification, entrées inattendues, courriels, comptes créés par l'import, fuites par filtres/exports, piste d'audit). Essais du 26 septembre 2026 sur le Docker de test (`docker-timeflow-test`, Dolibarr 19.0.2) ; correctifs (a) à (e) rejoués ensuite sur le même environnement, jamais en production.
+
+**Méthode.** Rejeu scripté (Node) de charges hostiles contre de vraies sessions Dolibarr (quatre profils de droits + anonyme), avec garde-fous (0 reconnexion acceptée en cas d'anomalie, sommes de contrôle des tables avant/après) ; revue statique des concaténations SQL et de l'historique Git (analyseur maison, `gitleaks`/`trufflehog` indisponibles) ; vérifications en vrai navigateur (Puppeteer) avec témoin positif pour les XSS. `sqlmap`/OWASP ZAP non lancés (autorisation écrite pour un scan actif non obtenue) — remplacés par le corpus de charges scripté.
+
+**Chiffres clés.** 20/20 cas exécutés ; environ 70 000 requêtes hostiles rejouées (SQL, second ordre, filtres) sans injection exploitable trouvée. **13 anomalies constatées (A-01 à A-13)** :
+- **7 corrigées** : A-02, A-03, A-04, A-10, A-11, A-12 (PR n° 36 et 37), A-13 (PR n° 37).
+- **1 atténuée, pas corrigée** : A-05 (fichiers internes servis par HTTP en déploiement par clone — PR n° 40 ajoute un filet `.htaccess`, mais ne protège que si `AllowOverride` est actif sur le déploiement réel ; la vraie correction reste de ne jamais cloner le dépôt sous la racine web).
+- **5 ouvertes, aucun correctif engagé** : **A-01** (critique — un vrai `conf.php` dans l'historique public ; seule sa récidive est bloquée par (d), l'exposition déjà commise ne l'est pas — rotation du mot de passe, régénération de l'identifiant d'instance et réécriture de l'historique restent à faire, décisions/actions du responsable) ; **A-06** (jeton CSRF dans l'URL, écritures acceptées en GET) ; **A-07** (durcissement serveur : version PHP exposée, pas de CSP, corps 50 Mo accepté) ; **A-08** (aucune trace d'audit sur soumission/validation/refus) ; **A-09** (validation des fichiers d'import, message SQL brut sur un émoji).
+- **Résiduel hors des 13 anomalies** : avis `dompurify` (GHSA-p98j-92pf-mc4p, faible, DOM XSS), apparu depuis le constat initial de SEC-13, non corrigé — identifié par (e) mais hors de son périmètre (verrou `react-router` seulement).
+
+État détaillé par cas : décompte **✅ 11 · ⚠️ 8 · ❌ 1** sur les 20 (§3) ; détail de chaque anomalie en §4 ; suivi des PR en §8.
+
+**Recommandations restantes, par priorité** (voir §6 pour le détail) :
+1. **Critique** — A-01 : rotation du mot de passe de base, régénération de l'identifiant d'instance (après étude d'impact, §5.2), réécriture de l'historique (tient compte du fork existant) — décisions déjà prises le 26 septembre, exécution hors périmètre de ce rapport.
+2. **Moyenne** — A-06 (jeton CSRF hors URL, refuser l'écriture en GET) ; A-08 (journaliser soumission/validation/refus, auteur + date + motif).
+3. **Faible** — A-09 (en-têtes CSV, limite d'import cohérente avec la doc, `utf8mb4`, message générique) ; A-07 (CSP, masquer la version PHP, refuser un corps surdimensionné) ; avis `dompurify` résiduel.
+
+---
+
 ## 1. Synthèse
 
 Sur les **20 cas** de l'axe, **tous ont été exécutés**. La matrice de droits de `SEC-06` a été **validée par le responsable le 26 septembre** avec trois décisions (D1 : import réservé à l'administrateur ; D2 : un compte sans droit TimeFlow reçoit 403 partout ; D3 : un administrateur Dolibarr peut tout faire sans droit explicite). Les 42 cas « critique » et « élevé » de l'ensemble du plan passent en priorité, conformément à l'arbitrage du 25 septembre.
@@ -87,7 +108,7 @@ Chaque cas a été rejoué par script (Node 24) contre `http://localhost:8080` a
 | SEC-10 | Formules dans les exports CSV | Élevé | ✅ | **A-04 corrigée (PR n° 39)** : les 8 charges sont désormais préfixées d'une apostrophe par le vrai `downloadCsv`, rejouées à l'identique (8/8 neutralisées), 0 régression sur guillemets/délimiteur/date ISO |
 | SEC-11 | Fichiers d'import | Élevé | ⚠️ | 16/20 contrôles conformes : extension, fichier vide, dépassement de taille, nom piégé, chemin local forgé, aucun fichier temporaire conservé, 0 erreur fatale. **Réserves : A-09** (binaire et fichier sans en-têtes acceptés avec « succès » ; limite réelle 2 Mo) |
 | SEC-12 | Secrets dans le dépôt | Critique | ❌ | **A-01** |
-| SEC-13 | Dépendances | Élevé | ⚠️ | `npm audit --omit=dev` : racine **0** ; `frontend` **2 élevées** (`react-router` 7.18.1, avis GHSA-qwww-vcr4-c8h2) mais **non atteignable** (voir §5.4). `composer audit` : 0. Développement : 5 vulnérabilités (`undici`) |
+| SEC-13 | Dépendances | Élevé | ✅ | `react-router` **corrigé (PR n° 42)** : voir §5.4. `composer audit` : 0. **Résiduel, hors périmètre de (e)** : `dompurify` 3.4.13-3.4.15, faible, DOM XSS (GHSA-p98j-92pf-mc4p), apparu depuis le constat initial — à traiter séparément. Développement : 5 vulnérabilités (`undici`) |
 | SEC-14 | Authentification et session | Élevé | ✅ | Sans cookie, cookie inventé, session rejouée après déconnexion, compte désactivé en cours de session : **tous refusés dès la requête suivante**. Jeton : 12 sessions, 12 jetons distincts de 32 caractères |
 | SEC-15 | Divulgation et fichiers exposés | Moyen | ⚠️ | **A-05 atténuée (PR n° 40)** : les 18 chemins du constat initial sont rejoués à 403 (`.htaccess` + script pour `.git/`), mais seulement si `AllowOverride` est actif sur le déploiement — rappel de configuration, pas une correction ; `X-Powered-By: PHP/8.2.7` (A-07) |
 | SEC-16 | Entrées inattendues | Moyen | ⚠️ | 9 formes d'entrée mal formées (JSON, corps) : 0 réponse 5xx ; mais des **tableaux à la place de chaînes** provoquent 18 erreurs 500 (A-10) ; service disponible ensuite ; 12 `startTimer` simultanés : un seul chronomètre actif. **Réserve** : un corps de 50 Mo est accepté et lu en mémoire (A-07) |
@@ -96,7 +117,7 @@ Chaque cas a été rejoué par script (Node 24) contre `http://localhost:8080` a
 | SEC-19 | Fuites par filtres, exports, PDF | Élevé | ✅ | Employé : liste d'employés vide, `getSummaryReports` avec `user_ids` d'autrui sans aucun nom ni total d'autrui. PDF non rejoué (pas de rendu serveur) |
 | SEC-20 | Piste d'audit | Moyen | ⚠️ | **A-08** : soumission, validation et refus ne créent aucune ligne d'audit ; aucune action d'API n'écrit ni ne supprime l'historique |
 
-Décompte : ✅ 10 (04, 05, 06, 07, 08, 10, 14, 17, 18, 19) · ⚠️ 9 (01, 02, 03, 09, 11, 13, 15, 16, 20) · ❌ 1 (12). *(01, 02, 03, 11, 16 gardent leur statut ⚠️ propre — voir leur ligne — indépendamment des correctifs (a)/(b)/(c)/(d) : A-10/A-11/A-12 sont corrigées mais SEC-01/02/03/16 gardaient d'autres réserves. A-04 (SEC-10) corrigée par (c). A-05 (SEC-15) atténuée par (d), reste ⚠️ (dépend de la configuration Apache du déploiement, voir sa ligne). A-01 (SEC-12) reste ❌ : seule sa récidive est empêchée par (d), l'exposition déjà dans l'historique ne l'est pas.)*
+Décompte : ✅ 11 (04, 05, 06, 07, 08, 10, 13, 14, 17, 18, 19) · ⚠️ 8 (01, 02, 03, 09, 11, 15, 16, 20) · ❌ 1 (12). *(01, 02, 03, 11, 16 gardent leur statut ⚠️ propre — voir leur ligne — indépendamment des correctifs (a)/(b)/(c)/(d)/(e) : A-10/A-11/A-12 sont corrigées mais SEC-01/02/03/16 gardaient d'autres réserves. A-04 (SEC-10) corrigée par (c). A-05 (SEC-15) atténuée par (d), reste ⚠️ (dépend de la configuration Apache du déploiement, voir sa ligne). SEC-13 corrigée par (e) (le résiduel `dompurify`, apparu depuis, n'est pas dans son périmètre). A-01 (SEC-12) reste ❌ : seule sa récidive est empêchée par (d), l'exposition déjà dans l'historique ne l'est pas.)*
 
 ---
 
@@ -239,9 +260,11 @@ Le code de Dolibarr 19 (lecture seule) l'utilise comme suit :
 - Le changement de mot de passe invalide les sessions du compte (constaté à la remise du mot de passe initial).
 - Les mots de passe de test du `docker-compose.yml` sont en clair (jetables, documentés au plan, annexe C9).
 
-### 5.4 `react-router` : le mode concerné n'est pas utilisé
+### 5.4 `react-router` : le mode concerné n'est pas utilisé — ✅ *verrou corrigé (PR n° 42)*
 
-L'avis GHSA-qwww-vcr4-c8h2 vise le **mode RSC** (composants serveur React). L'application est une SPA Vite avec `HashRouter` (`frontend/src/App.jsx`) ; aucun appel RSC (`unstable_*`, `react-router/rsc`) dans le code. **Non atteignable.** Le verrou `package-lock.json` épingle pourtant la version 7.18.1 (vulnérable) alors que l'arbre installé localement est en 7.18.4 : **la mise à jour du verrou est recommandée dans une PR séparée**, avec exécution de la suite de tests du frontend.
+L'avis GHSA-qwww-vcr4-c8h2 vise le **mode RSC** (composants serveur React). L'application est une SPA Vite avec `HashRouter` (`frontend/src/App.jsx`) ; aucun appel RSC (`unstable_*`, `react-router/rsc`) dans le code. **Non atteignable**, même avant correctif. Le verrou `package-lock.json` épinglait pourtant la version 7.18.1 (vulnérable) alors que l'arbre installé localement tournait déjà en 7.18.4 (dérive du verrou, pas une vraie régression).
+
+**Correction (PR n° 42).** `frontend/package.json` : `react-router-dom` passé de `^7.18.1` à `^7.18.4` (dernière version 7.x publiée ; pas de migration vers la v8, hors périmètre de cette PR), `package-lock.json` régénéré en conséquence (`npm install react-router-dom@7.18.4`). Diff minimal : 2 fichiers, 1 ligne de version + le verrou. `npm audit --omit=dev` : les 2 alertes élevées disparaissent (reste seulement `dompurify`, faible, apparu depuis le constat initial — voir sa ligne SEC-13, hors périmètre). Suite frontend complète rejouée : 523 tests, 4 échecs préexistants (dérive de date, non liés), 0 nouveau. Vérification manuelle dans un vrai navigateur (Puppeteer, Docker de test) : navigation entre 4 routes (`#/timer`, `#/reports`, `#/dashboard`, `#/validations`) après connexion, chaque route affiche son propre contenu, **0 erreur console**.
 
 ### 5.5 Observations fonctionnelles rencontrées en chemin (à traiter hors sécurité)
 
@@ -314,9 +337,9 @@ Le statut d'une anomalie passe à « corrigée » à la **fusion** de sa PR ; d'
 | **n° 37 — (b)** matrice de droits, D1–D3 + second ajustement d'annexe A (scope de `listActiveUsers`/`listActiveThirdParties`) | A-03, A-13 | ✅ **corrigées, fusionnée** | SEC-06 (220 cellules), SEC-07/08/19 (83 contrôles), 14 tests PHPUnit (9 matrice + 5 annuaire scopé), vérification navigateur réel (4 profils + filtre Client/utilisateurs assignés pour l'employé) | **219/220** conformes (écart restant : artefact de méthode, sans lien avec les droits) ; **83/83** ; 6 mutants tués ; écran d'accès refusé sans appel API, bouton Import et bouton Démarrer conformes pour les 4 profils ; employé scopé à 3 utilisateurs/1 client (contre 17/3 pour manager et admin), 0 champ `login`/`firstname`/`lastname`/`email` exposé ; aucune ligne préexistante modifiée ; suite PHPUnit complète 67 tests (4 échecs préexistants chronos, non liés, 0 nouveau) ; suite frontend 507 tests (3 échecs préexistants, non liés, 0 nouveau) |
 | **n° 39 — (c)** neutralisation des formules CSV dans le seul producteur (`downloadCsv`/`csvEscape`) | A-04 | ✅ **corrigées, fusionnée** | SEC-10 (8 charges), 16 tests Vitest (8 charges + guillemets, délimiteur, date ISO, espace devant, colonne non initiale) sur le vrai `downloadCsv`, suite frontend complète | **8/8** charges neutralisées par une apostrophe en tête de cellule ; 0 régression sur les cas déjà couverts ; suite frontend 523 tests (4 échecs préexistants dus à la dérive de date du 2026-10-05, non liés, 0 nouveau) |
 | **n° 40 — (d)** `.gitignore` (récidive A-01), `.htaccess` de repli + script pour `.git/`, retrait de `composer.phar` | A-01 (prévention), A-05 | ✅ **appliquées, fusionnée** (A-05 reste ⚠️, voir sa ligne — ce n'est pas une correction complète) | SEC-15 (18 chemins), suite frontend complète, smoke-test de l'application (page, bundle, `ajax/`) | **18/18** chemins passés de 200 à 403 (`.git/objects/` inclus) ; `frontend/dist/`, `timeflowindex.php`, `ajax/timeentry.php` toujours 200 ; suite frontend 523 tests (4 échecs préexistants dus à la dérive de date, non liés, 0 nouveau) ; aucun fichier PHP/JS applicatif modifié |
-| (e) `react-router` | SEC-13 | à venir | — | — |
+| **n° 42 — (e)** verrou `react-router-dom` (`^7.18.1` → `^7.18.4`) | SEC-13 | ✅ **corrigée, fusionnée** | `npm audit --omit=dev`, suite frontend complète, navigation réelle (Puppeteer, 4 routes) | **0 alerte élevée** restante (seul `dompurify`, faible, hors périmètre) ; suite frontend 523 tests (4 échecs préexistants dus à la dérive de date, non liés, 0 nouveau) ; 0 erreur console sur 4 routes ; diff minimal (2 fichiers) |
 
-**Effet sur les cas** : après fusion de la PR n° 36, SEC-01, 03 et 16 n'ont plus de réponse 500 ; SEC-07 n'a plus d'écart. Après fusion de la PR n° 37, SEC-06 et SEC-08 n'ont plus d'écart. Après fusion de la PR n° 39, SEC-10 n'a plus d'écart. Après fusion de la PR n° 40, SEC-15 passe de ❌ à ⚠️ (atténuée, pas corrigée — dépend de la configuration Apache du déploiement).
+**Effet sur les cas** : après fusion de la PR n° 36, SEC-01, 03 et 16 n'ont plus de réponse 500 ; SEC-07 n'a plus d'écart. Après fusion de la PR n° 37, SEC-06 et SEC-08 n'ont plus d'écart. Après fusion de la PR n° 39, SEC-10 n'a plus d'écart. Après fusion de la PR n° 40, SEC-15 passe de ❌ à ⚠️ (atténuée, pas corrigée — dépend de la configuration Apache du déploiement). Après fusion de la PR n° 42, SEC-13 n'a plus d'écart élevé.
 
 ---
 

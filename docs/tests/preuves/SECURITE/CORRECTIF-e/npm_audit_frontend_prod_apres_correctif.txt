@@ -1,0 +1,11 @@
+# npm audit report
+
+dompurify  3.4.13 - 3.4.15
+DOMPurify: IN_PLACE: node-removing afterSanitize hook leaves detached subtree event handlers armed, causing DOM XSS - https://github.com/advisories/GHSA-p98j-92pf-mc4p
+fix available via `npm audit fix`
+node_modules/dompurify
+
+1 low severity vulnerability
+
+To address all issues, run:
+  npm audit fix
