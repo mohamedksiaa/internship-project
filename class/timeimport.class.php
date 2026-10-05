@@ -7,6 +7,7 @@ require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php'; // getRandomPassword()
 dol_include_once('/timeflow/class/timeentry.class.php');
+dol_include_once('/timeflow/lib/timeflow.lib.php'); // timeflowQuery(), TimeflowSqlException
 
 /** Thrown when the acting user lacks the right to create Dolibarr accounts (mapped to HTTP 403). */
 class TimeImportForbiddenException extends RuntimeException
@@ -695,10 +696,7 @@ class TimeImportClockify
         $sql .= ' AND source_value = \''.$this->db->escape($sourceValue).'\'';
         $sql .= ' LIMIT 1';
 
-        $res = $this->db->query($sql);
-        if (!$res) {
-            return array();
-        }
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::getExistingMapping');
 
         $obj = $this->db->fetch_object($res);
         if (!$obj) {
@@ -782,10 +780,7 @@ class TimeImportClockify
         $sql .= ' AND entity IN ('.getEntity('user').')';
         $sql .= ' ORDER BY statut DESC, rowid ASC LIMIT 1';
 
-        $res = $this->db->query($sql);
-        if (!$res) {
-            return null;
-        }
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::lookupDolibarrUserByEmail');
 
         $obj = $this->db->fetch_object($res);
         if (!$obj) {
@@ -817,7 +812,7 @@ class TimeImportClockify
         $sql = 'UPDATE '.$this->db->prefix().'timeflow_import_mapping SET';
         $sql .= " target_id = NULL, target_action = 'create_pending', new_label = NULL";
         $sql .= ' WHERE rowid = '.(int) $mappingRowId;
-        $this->db->query($sql);
+        timeflowQuery($this->db, $sql, 'TimeImport::downgradeUserMapping');
     }
 
     /** Whether the Dolibarr record a project / client / group mapping points to still exists. */
@@ -849,7 +844,7 @@ class TimeImportClockify
         $sql = 'UPDATE '.$this->db->prefix().'timeflow_import_mapping SET';
         $sql .= " target_action = 'create_pending', new_label = NULL";
         $sql .= ' WHERE rowid = '.(int) $mappingRowId;
-        $this->db->query($sql);
+        timeflowQuery($this->db, $sql, 'TimeImport::downgradeKeepingTarget');
     }
 
     /**
@@ -934,10 +929,7 @@ class TimeImportClockify
         $sql .= ' AND (LOWER(ref) = LOWER(\''.$this->db->escape($projectLabel).'\') OR LOWER(title) = LOWER(\''.$this->db->escape($projectLabel).'\'))';
         $sql .= ' LIMIT 1';
 
-        $res = $this->db->query($sql);
-        if (!$res) {
-            return 0;
-        }
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::findTimeflowProjectByRefOrTitle');
 
         $obj = $this->db->fetch_object($res);
         return $obj ? (int) $obj->rowid : 0;
@@ -956,10 +948,7 @@ class TimeImportClockify
         $sql .= ' AND LOWER(nom) = LOWER(\''.$this->db->escape($groupName).'\')';
         $sql .= ' LIMIT 1';
 
-        $res = $this->db->query($sql);
-        if (!$res) {
-            return 0;
-        }
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::findUserGroupByName');
 
         $obj = $this->db->fetch_object($res);
         return $obj ? (int) $obj->rowid : 0;
@@ -978,10 +967,7 @@ class TimeImportClockify
         $sql .= ' AND LOWER(nom) = LOWER(\''.$this->db->escape($clientName).'\')';
         $sql .= ' LIMIT 1';
 
-        $res = $this->db->query($sql);
-        if (!$res) {
-            return 0;
-        }
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::findSocieteByName');
 
         $obj = $this->db->fetch_object($res);
         return $obj ? (int) $obj->rowid : 0;
@@ -1493,8 +1479,10 @@ class TimeImportClockify
         $sql .= ' AND statut = 1';
         $sql .= ' AND entity IN ('.getEntity('user').')';
 
-        $res = $this->db->query($sql);
-        return $res && $this->db->num_rows($res) > 0;
+        // A false negative here (SQL failure read as "doesn't exist") would wrongly downgrade a still-valid
+        // mapping back to pending, silently dropping rows that should have been imported — must not guess.
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::userExistsAndActive');
+        return $this->db->num_rows($res) > 0;
     }
 
     protected function timeflowProjectExists($projectId)
@@ -1508,8 +1496,8 @@ class TimeImportClockify
         $sql .= ' WHERE rowid = '.$projectId;
         $sql .= ' AND entity IN ('.getEntity('project').')';
 
-        $res = $this->db->query($sql);
-        return $res && $this->db->num_rows($res) > 0;
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::timeflowProjectExists');
+        return $this->db->num_rows($res) > 0;
     }
 
     protected function usergroupExists($groupId)
@@ -1523,8 +1511,8 @@ class TimeImportClockify
         $sql .= ' WHERE rowid = '.$groupId;
         $sql .= ' AND entity IN ('.getEntity('usergroup').')';
 
-        $res = $this->db->query($sql);
-        return $res && $this->db->num_rows($res) > 0;
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::usergroupExists');
+        return $this->db->num_rows($res) > 0;
     }
 
     protected function societeExists($societeId)
@@ -1538,8 +1526,8 @@ class TimeImportClockify
         $sql .= ' WHERE rowid = '.$societeId;
         $sql .= ' AND entity IN ('.getEntity('societe').')';
 
-        $res = $this->db->query($sql);
-        return $res && $this->db->num_rows($res) > 0;
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::societeExists');
+        return $this->db->num_rows($res) > 0;
     }
 
     // -----------------------------------------------------------------
@@ -1702,7 +1690,10 @@ class TimeImportClockify
         $sql .= ' target_id = '.(int) $newTargetId.',';
         $sql .= " target_action = 'created'";
         $sql .= ' WHERE rowid = '.(int) $mappingRowId;
-        $this->db->query($sql);
+        // Must not fail silently: the Dolibarr record (user/project/client/group) this mapping
+        // points to was just created successfully — if this UPDATE is lost, the mapping stays at
+        // 'create_confirmed' and a re-run of the import would create a DUPLICATE record for it.
+        timeflowQuery($this->db, $sql, 'TimeImport::markMappingCreated');
     }
 
     /**
@@ -1728,8 +1719,11 @@ class TimeImportClockify
         $sql = 'SELECT 1 FROM '.$this->db->prefix().'timeflow_timeentry';
         $sql .= " WHERE import_key = '".$this->db->escape($importKey)."'";
         $sql .= ' LIMIT 1';
-        $resql = $this->db->query($sql);
-        return $resql && $this->db->num_rows($resql) > 0;
+        // This is the ONLY guard against a duplicate time entry: import_key carries no unique
+        // database constraint. A silently-swallowed failure here (treated as "not yet imported")
+        // would let the row below be created again, with no way to detect it afterwards.
+        $resql = timeflowQuery($this->db, $sql, 'TimeImport::timeEntryAlreadyImported');
+        return $this->db->num_rows($resql) > 0;
     }
 
     /**
@@ -1810,10 +1804,7 @@ class TimeImportClockify
         $sql .= " AND project_source_value = '".$this->db->escape($projectSourceValue)."'";
         $sql .= ' LIMIT 1';
 
-        $resql = $this->db->query($sql);
-        if (!$resql) {
-            return 0;
-        }
+        $resql = timeflowQuery($this->db, $sql, 'TimeImport::findResolvedClientIdForProject');
 
         $obj = $this->db->fetch_object($resql);
         if (!$obj) {
@@ -2074,9 +2065,9 @@ class TimeImportClockify
     {
         $sql = 'SELECT 1 FROM '.$this->db->prefix().'usergroup_user';
         $sql .= ' WHERE fk_user = '.((int) $userId).' AND fk_usergroup = '.((int) $groupId).' AND entity = '.((int) $entity);
-        $res = $this->db->query($sql);
+        $res = timeflowQuery($this->db, $sql, 'TimeImport::isGroupMember');
 
-        return $res && $this->db->num_rows($res) > 0;
+        return $this->db->num_rows($res) > 0;
     }
 
     /**
@@ -2878,13 +2869,21 @@ class TimeImportClockify
             'group_memberships_withheld' => array(),
         );
 
-        $this->createConfirmedUsers($user, $report, $scopedValues['user']);
-        $this->createConfirmedClients($user, $report, $scopedValues['client']);
-        $this->createConfirmedProjectsAndGroups($user, $report, $scopedValues['project'], $scopedValues['group']);
-        $this->enrichMatchedUsersFromCsv($csvPath, $user, $report);
-        $this->applyGroupMemberships($report, $scopedValues['user'], $scopedValues['group']);
-        $this->applyProjectContributors($report, $scopedValues['project'], $scopedValues['user']);
-        $this->importTimeEntriesFromCsv($csvPath, $user, $report);
+        try {
+            $this->createConfirmedUsers($user, $report, $scopedValues['user']);
+            $this->createConfirmedClients($user, $report, $scopedValues['client']);
+            $this->createConfirmedProjectsAndGroups($user, $report, $scopedValues['project'], $scopedValues['group']);
+            $this->enrichMatchedUsersFromCsv($csvPath, $user, $report);
+            $this->applyGroupMemberships($report, $scopedValues['user'], $scopedValues['group']);
+            $this->applyProjectContributors($report, $scopedValues['project'], $scopedValues['user']);
+            $this->importTimeEntriesFromCsv($csvPath, $user, $report);
+        } catch (TimeflowSqlException $e) {
+            // So the ajax layer can tell the admin exactly how far this run got before the
+            // database connection was lost — $report already carries every counter filled in
+            // by whichever step above ran to completion before the one that threw.
+            $e->partialReport = $report;
+            throw $e;
+        }
 
         // Keep the response payload bounded regardless of CSV size — the
         // aggregate counters above stay exact either way.
