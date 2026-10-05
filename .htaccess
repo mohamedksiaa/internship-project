@@ -1,0 +1,13 @@
+# Security report A-05 : règle Apache de repli. La vraie protection est de ne JAMAIS déployer ce module en
+# clonant le dépôt Git directement sous la racine web (voir README.md > Installation > Déploiement et
+# sécurité) ; ce fichier ne couvre que le cas où c'est quand même fait (comme le Docker de test), pour que
+# les fichiers listés ici ne soient plus servis en clair une fois AllowOverride activé sur le répertoire.
+<FilesMatch "^(composer\.(json|lock|phar)|package(-lock)?\.json|README\.md|ChangeLog\.md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

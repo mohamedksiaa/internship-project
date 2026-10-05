@@ -7,3 +7,17 @@ vendor/
 git-history-cleanup/history-cleanup-workspace/
 git-history-cleanup/replacements.txt
 git-history-cleanup/terms.sh
+
+# Security report A-01 (prévention) : un vrai conf.php (mot de passe BDD, clé d'instance) a été commité par
+# le passé (commit f6cfa06c) via un arbre Dolibarr entier ajouté par erreur. Empêche la récidive — n'efface
+# rien de l'historique existant (réécriture prévue séparément).
+conf.php
+conf/conf.php*
+
+# Ancré à la racine (/*.sql, pas *.sql) : ne touche jamais sql/*.sql, les schémas de tables suivis
+# (llx_timeflow_*.sql) indispensables à l'installation du module. backup_*.sql ci-dessus reste explicite.
+/*.sql
+*.dump
+
+# Security report A-05 : outil de build, jamais du code applicatif ; téléchargé/réinstallé localement si besoin.
+composer.phar
