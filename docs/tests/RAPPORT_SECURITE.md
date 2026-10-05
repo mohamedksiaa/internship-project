@@ -84,7 +84,7 @@ Chaque cas a été rejoué par script (Node 24) contre `http://localhost:8080` a
 | SEC-07 | IDOR | Critique | ✅ | **A-02, corrigée (PR n° 36)** : `submitEntry` refuse désormais tout appelant autre que le propriétaire (rejoué : 0 écart). Les 30 autres contrôles (arrêt, redémarrage, suppression, correction, comptes rendus, historique, exports, notifications, projets et clients non visibles, énumération d'identifiants) : conformes. Voir §8 |
 | SEC-08 | Élévation de privilèges | Critique | ✅ | **A-02 corrigée (PR n° 36)** : une saisie validée ne repasse plus à « soumise ». **A-03 corrigée (PR n° 37)** : l'import est réservé à l'administrateur, l'attaque par import n'est plus possible avec le seul droit `write`. Champs réservés toujours ignorés ; auto-validation, validation d'un compte rendu, absence prévue sans `validate`, suppression d'une saisie validée : toujours refusées. Voir §8 |
 | SEC-09 | CSRF et méthode HTTP | Élevé | ⚠️ | 20 combinaisons sans jeton valide + formulaire inter-domaine + `text/plain` : **toutes 403**, 0 écriture. CORS fermé. Cookie `HttpOnly; SameSite=Lax`. **Réserves : A-06** (jeton dans l'URL, présent dans les journaux ; écritures acceptées en GET) |
-| SEC-10 | Formules dans les exports CSV | Élevé | ❌ | **A-04** : 8 charges sur 8 conservées telles quelles par le vrai `downloadCsv` |
+| SEC-10 | Formules dans les exports CSV | Élevé | ✅ | **A-04 corrigée (PR n° 39)** : les 8 charges sont désormais préfixées d'une apostrophe par le vrai `downloadCsv`, rejouées à l'identique (8/8 neutralisées), 0 régression sur guillemets/délimiteur/date ISO |
 | SEC-11 | Fichiers d'import | Élevé | ⚠️ | 16/20 contrôles conformes : extension, fichier vide, dépassement de taille, nom piégé, chemin local forgé, aucun fichier temporaire conservé, 0 erreur fatale. **Réserves : A-09** (binaire et fichier sans en-têtes acceptés avec « succès » ; limite réelle 2 Mo) |
 | SEC-12 | Secrets dans le dépôt | Critique | ❌ | **A-01** |
 | SEC-13 | Dépendances | Élevé | ⚠️ | `npm audit --omit=dev` : racine **0** ; `frontend` **2 élevées** (`react-router` 7.18.1, avis GHSA-qwww-vcr4-c8h2) mais **non atteignable** (voir §5.4). `composer audit` : 0. Développement : 5 vulnérabilités (`undici`) |
@@ -96,7 +96,7 @@ Chaque cas a été rejoué par script (Node 24) contre `http://localhost:8080` a
 | SEC-19 | Fuites par filtres, exports, PDF | Élevé | ✅ | Employé : liste d'employés vide, `getSummaryReports` avec `user_ids` d'autrui sans aucun nom ni total d'autrui. PDF non rejoué (pas de rendu serveur) |
 | SEC-20 | Piste d'audit | Moyen | ⚠️ | **A-08** : soumission, validation et refus ne créent aucune ligne d'audit ; aucune action d'API n'écrit ni ne supprime l'historique |
 
-Décompte : ✅ 10 (04, 05, 06, 07, 08, 14, 17, 18, 19) · ⚠️ 8 (01, 02, 03, 09, 11, 13, 16, 20) · ❌ 2 (12, 15). *(01, 02, 03, 10, 11, 16 gardent leur statut ⚠️/❌ propre — voir leur ligne — indépendamment des correctifs (a)/(b) : A-10/A-11/A-12 sont corrigées mais SEC-01/02/03/16 gardaient d'autres réserves ; A-04 (SEC-10) n'est pas encore corrigée, voir (c).)*
+Décompte : ✅ 10 (04, 05, 06, 07, 08, 10, 14, 17, 18, 19) · ⚠️ 8 (01, 02, 03, 09, 11, 13, 16, 20) · ❌ 2 (12, 15). *(01, 02, 03, 11, 16 gardent leur statut ⚠️ propre — voir leur ligne — indépendamment des correctifs (a)/(b)/(c) : A-10/A-11/A-12 sont corrigées mais SEC-01/02/03/16 gardaient d'autres réserves. A-04 (SEC-10) corrigée par (c). A-01 (SEC-12) et A-05 (SEC-15) restent ❌, non traitées à ce stade.)*
 
 ---
 
@@ -130,12 +130,13 @@ Sévérité = gravité **x** vraisemblance dans le contexte du module. Aucune n'
 - **Correction (PR n° 37).** Les 4 actions de l'import (`previewClockifyImport`, `executeClockifyImport`, `resolveClockifyMapping`, `listUserGroups`) exigent désormais l'administrateur, via le contrôle central de droits (voir A-13). Rejoué : l'employé et le manager reçoivent 403 sur les 4 actions ; le bouton « Importer » de l'interface est masqué pour eux (vérifié dans un vrai navigateur).
 - **Preuve.** `preuves/SECURITE/SEC-07-08/`, `preuves/SECURITE/CORRECTIF-b/`.
 
-### A-04 — Injection de formules dans les exports CSV — **Élevée** (SEC-10)
+### A-04 — Injection de formules dans les exports CSV — **Élevée** (SEC-10) — ✅ *corrigée (PR n° 39)*
 
 - **Constat.** `frontend/src/utils/csvExport.js` : `csvEscape` double les guillemets et préfixe les dates ISO, mais **ne neutralise aucun préfixe de formule**. Le vrai `downloadCsv` a produit, pour les 8 charges dangereuses (`=1+1`, `+1+1`, `-1+1`, `@SUM(1+1)`, tabulation ou retour chariot + `=`, `=HYPERLINK(…)`, `=cmd|' /C calc'!A0`), des cellules **inchangées** entre guillemets. C'est le **seul** producteur de CSV du module.
 - **Impact.** Un libellé de projet ou une description saisis par un utilisateur s'exécutent dans le tableur du manager qui exporte (exfiltration par lien, exécution de commande selon la configuration du tableur).
 - **Limite.** L'évaluation par un tableur réel n'a pas pu être observée (LibreOffice absent) ; le défaut est établi au niveau du fichier.
-- **Recommandation.** Préfixer d'une apostrophe toute cellule commençant par `=`, `+`, `-`, `@`, tabulation ou retour chariot (en conservant les dates et nombres légitimes) ; tests unitaires sur l'ensemble des charges.
+- **Correction (PR n° 39).** `csvEscape` préfixe désormais d'une apostrophe toute cellule dont le **premier** caractère est `=`, `+`, `-`, `@`, une tabulation ou un retour chariot — même convention que celle déjà utilisée pour les dates ISO, reconnue par Excel/LibreOffice/Google Sheets pour forcer une cellule en texte brut. Une cellule précédée d'espace(s) (`"  =1+1"`) reste inchangée : la formule n'y est de toute façon jamais interprétée par aucun de ces tableurs (le déclencheur doit être le tout premier caractère), donc l'y préfixer serait un faux positif sans effet de sécurité. 16 tests unitaires (`csvExport.test.js`) rejouent les 8 charges du SEC-10 à travers le vrai `downloadCsv`, plus les cas déjà couverts (guillemets, délimiteur, date ISO) pour non-régression.
+- **Preuve.** `preuves/SECURITE/SEC-10/`, `preuves/SECURITE/CORRECTIF-c/`.
 
 ### A-05 — Fichiers internes servis par HTTP, dont `.git` — **Élevée** en déploiement par clone (SEC-15)
 
@@ -295,7 +296,7 @@ Le statut d'une anomalie passe à « corrigée » à la **fusion** de sa PR ; d'
 |---|---|---|---|---|
 | **n° 36 — (a)** validation stricte des types, `submitEntry`, saisies supprimées | A-02, A-10, A-11, A-12 | ✅ **corrigées, fusionnée** | SEC-07 / 08 / 19 (83 contrôles), les 18 cas d'erreur 500, « `id` = tableau » sur 7 actions, 3 profils × 6 écrans de l'interface | **83/83** (78/83 avant) ; 18 réponses 500 → 400 ; aucune ligne préexistante modifiée ; 0 faux positif sur 52 appels de l'interface ; 5 tests PHPUnit + 28 cas du validateur, 6 mutants tués |
 | **n° 37 — (b)** matrice de droits, D1–D3 + second ajustement d'annexe A (scope de `listActiveUsers`/`listActiveThirdParties`) | A-03, A-13 | ✅ corrigées, **en revue** | SEC-06 (220 cellules), SEC-07/08/19 (83 contrôles), 14 tests PHPUnit (9 matrice + 5 annuaire scopé), vérification navigateur réel (4 profils + filtre Client/utilisateurs assignés pour l'employé) | **219/220** conformes (écart restant : artefact de méthode, sans lien avec les droits) ; **83/83** ; 6 mutants tués ; écran d'accès refusé sans appel API, bouton Import et bouton Démarrer conformes pour les 4 profils ; employé scopé à 3 utilisateurs/1 client (contre 17/3 pour manager et admin), 0 champ `login`/`firstname`/`lastname`/`email` exposé ; aucune ligne préexistante modifiée ; suite PHPUnit complète 67 tests (4 échecs préexistants chronos, non liés, 0 nouveau) ; suite frontend 507 tests (3 échecs préexistants, non liés, 0 nouveau) |
-| (c) formules CSV | A-04 | à venir | — | — |
+| **n° 39 — (c)** neutralisation des formules CSV dans le seul producteur (`downloadCsv`/`csvEscape`) | A-04 | ✅ corrigées, **en revue** | SEC-10 (8 charges), 16 tests Vitest (8 charges + guillemets, délimiteur, date ISO, espace devant, colonne non initiale) sur le vrai `downloadCsv`, suite frontend complète | **8/8** charges neutralisées par une apostrophe en tête de cellule ; 0 régression sur les cas déjà couverts ; suite frontend 523 tests (4 échecs préexistants dus à la dérive de date du 2026-10-05, non liés, 0 nouveau) |
 | (d) `.gitignore`, déploiement | A-01 (prévention), A-05 | à venir | — | — |
 | (e) `react-router` | SEC-13 | à venir | — | — |
 

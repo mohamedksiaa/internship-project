@@ -26,9 +26,21 @@ function todayStamp() {
 // apostrophe is the standard CSV convention both apps honor to force text.
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+// A cell whose text starts with '=', '+', '-', '@', a tab or a carriage return is read as a formula by
+// Excel/LibreOffice/Google Sheets even inside a quoted CSV field (CWE-1236, security report A-04) — a
+// project title, description, correction reason or client name a user typed can otherwise run an external
+// command or exfiltrate data as soon as whoever exports opens the file. Leading whitespace defeats this on
+// every one of those apps (a formula must be the very first character), so "  =1+1" is already inert and is
+// deliberately left alone — only an un-prefixed leading trigger character is neutralized. A leading
+// apostrophe is the standard convention all three honor to force the cell back to plain text, same as the
+// ISO-date case just below.
+const FORMULA_PREFIX_PATTERN = /^[=+\-@\t\r]/;
+
 function csvEscape(value) {
   let text = String(value ?? '');
   if (ISO_DATE_PATTERN.test(text)) {
+    text = `'${text}`;
+  } else if (FORMULA_PREFIX_PATTERN.test(text)) {
     text = `'${text}`;
   }
   return `"${text.replaceAll('"', '""')}"`;
