@@ -93,6 +93,11 @@ export default function TimeEntryList({
   projects = [],
   showWorker = false,
   showValidationActions = false,
+  // Own-entry write actions (submit/correct/delete/restart) are refused by the backend's central rights gate
+  // without the TimeFlow write right (security report A-13, decision D2) — hiding them here for a caller
+  // that says canWrite=false is only a courtesy so the row doesn't offer a click that can only 403. Validation
+  // is unaffected: approve/reject need 'validate', not 'write', and are gated at the route level (App.jsx).
+  canWrite = true,
   onRestartEntry,
   activeEntryId = null,
   activeSeconds = 0,
@@ -429,7 +434,7 @@ export default function TimeEntryList({
           employee curating their own drafts) — Validation is a read/approve/
           reject manager view with no delete action of its own, see the
           per-row checkbox and its column header below for the same guard. */}
-      {!showValidationActions && selectedIds.size > 0 && (
+      {canWrite && !showValidationActions && selectedIds.size > 0 && (
         <div className="tw-flex tw-justify-end">
           <button
             type="button"
@@ -461,8 +466,8 @@ export default function TimeEntryList({
           <div key={key} className="tw-border-b-4 tw-border-[#e3ebef] dark:tw-border-slate-800 tw-bg-white dark:tw-bg-slate-900 tw-overflow-x-auto">
             <div className="tw-flex tw-items-center tw-justify-between tw-bg-[#e5edf1] dark:tw-bg-slate-800 tw-px-5 tw-py-2 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">
               <div className="tw-flex tw-items-center tw-gap-3">
-                {/** group selection checkbox — bulk delete only, never in Validation */}
-                {!showValidationActions && (() => {
+                {/** group selection checkbox — bulk delete only, never in Validation, never without write */}
+                {canWrite && !showValidationActions && (() => {
                   const allSelected = group.every((e) => selectedIds.has(e.id));
                   return (
                     <input
@@ -484,7 +489,7 @@ export default function TimeEntryList({
             <table className="tw-w-full tw-text-left tw-border-collapse">
               <thead>
                 <tr className="tw-border-b tw-border-[#dce5ea] dark:tw-border-slate-700 tw-bg-white dark:tw-bg-slate-900 tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wide tw-text-[#8a9aa4] dark:tw-text-slate-400">
-                  {!showValidationActions && <th className="tw-px-3 tw-py-2" />}
+                  {canWrite && !showValidationActions && <th className="tw-px-3 tw-py-2" />}
                   <th className="tw-px-5 tw-py-2">{t('timeentry.col_task')}</th>
                   <th className="tw-px-3 tw-py-2">{t('timeentry.col_project')}</th>
                   {showWorker && <th className="tw-px-3 tw-py-2">{t('timeentry.col_who')}</th>}
@@ -500,7 +505,7 @@ export default function TimeEntryList({
               <tbody>
                 {group.map((entry) => (
                   <tr key={entry.id} className="tw-border-b tw-border-[#dce5ea] dark:tw-border-slate-700 hover:tw-bg-[#f9fbfd] dark:hover:tw-bg-slate-800 tw-text-sm tw-text-[#2c3e49] dark:tw-text-slate-200">
-                    {!showValidationActions && (
+                    {canWrite && !showValidationActions && (
                       <td className="tw-px-3 tw-py-3 tw-w-8">
                         <input
                           type="checkbox"
@@ -553,7 +558,7 @@ export default function TimeEntryList({
                       {formatDuration(displayedDuration(entry))}
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-text-center tw-whitespace-nowrap">
-                      {!showValidationActions && entry.id != null && entry.manual_editable ? (
+                      {canWrite && !showValidationActions && entry.id != null && entry.manual_editable ? (
                         <button
                           type="button"
                           onClick={() => toggleBillable(entry)}
@@ -577,7 +582,7 @@ export default function TimeEntryList({
                     </td>
                     <td className="tw-px-5 tw-py-3 tw-text-right tw-whitespace-nowrap">
                       <div className="tw-flex tw-justify-end tw-items-center tw-gap-2 tw-text-[#78909c] dark:tw-text-slate-400">
-                        {entry.id != null && entry.status === 0 && entry.date_end && (
+                        {canWrite && entry.id != null && entry.status === 0 && entry.date_end && (
                           <button
                             title={t('timeentry.title_submit')}
                             onClick={() => openSubmitConfirmation(entry)}
@@ -607,7 +612,7 @@ export default function TimeEntryList({
                             </button>
                           </>
                         )}
-                        {entry.id != null && onRestartEntry && <button
+                        {canWrite && entry.id != null && onRestartEntry && <button
                           title={t('timeentry.title_restart')}
                           onClick={() => restartEntry(entry)}
                           disabled={busyId !== null}
@@ -618,7 +623,7 @@ export default function TimeEntryList({
                         {/* Validation is a strictly read/approve/reject manager view.
                             Never render a manual-edit control there, even if an API
                             payload incorrectly flags an entry as editable. */}
-                        {!showValidationActions && entry.id != null && entry.manual_editable && (
+                        {canWrite && !showValidationActions && entry.id != null && entry.manual_editable && (
                           <button
                             type="button"
                             title={t('timeentry.title_edit')}
@@ -630,7 +635,7 @@ export default function TimeEntryList({
                             {t('timeentry.title_edit')}
                           </button>
                         )}
-                        {!showValidationActions && entry.id != null && entry.delete_allowed && (
+                        {canWrite && !showValidationActions && entry.id != null && entry.delete_allowed && (
                           <button
                             type="button"
                             title={t('timeentry.title_delete')}

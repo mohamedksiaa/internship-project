@@ -96,3 +96,4 @@ TimeFlowLateOutDoneSkipped = رسائل مُتجاوَزة __SKIPPED__
 TimeFlowLateOutDoneFailed = رسائل فاشلة __FAILED__
 TimeFlowLateOutDoneTail = (الوقت الأقصى __CUTOFF__ = الحد __THRESHOLD__ + السماح __GRACE__ دقيقة، وقت الخادم __NOW__).
 TimeFlowLateMailIntroAdded = موظفون إضافيون لم يبدؤوا أي مؤقّت قبل %s في %s:
+TimeFlowNoAccessMessage = ليست لديك صلاحية الوصول إلى TimeFlow. يُرجى التواصل مع المسؤول للحصول على الصلاحيات اللازمة.

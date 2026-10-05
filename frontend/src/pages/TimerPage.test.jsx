@@ -72,3 +72,36 @@ describe('TimerPage — "Facturable uniquement" filter removed', () => {
     await waitFor(() => expect(getTimeEntries).toHaveBeenLastCalledWith(2, 20, false));
   });
 });
+
+describe('TimerPage — write-right gating (security report A-13, decision D2)', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('fr');
+    getActiveTimer.mockReset().mockResolvedValue(null);
+    getProjects.mockReset().mockResolvedValue([{ id: 1, title: 'Projet Alpha' }]);
+    getTasks.mockReset().mockResolvedValue([]);
+    getTimeEntries.mockReset().mockResolvedValue({ entries: [], pagination: { page: 1, per_page: 20, total: 0, pages: 1 } });
+    getTimeEntryUpdates.mockReset().mockResolvedValue({ marker: '', changed: false, entries: [] });
+  });
+
+  afterEach(() => {
+    cleanup();
+    delete window.TIMEFLOW_CAN_WRITE;
+  });
+
+  it('disables START and shows the read-only notice without window.TIMEFLOW_CAN_WRITE', async () => {
+    window.TIMEFLOW_CAN_WRITE = false;
+    render(<TimerPage />);
+    await screen.findByRole('option', { name: 'Projet Alpha' });
+    expect(screen.getByRole('button', { name: i18n.t('timer_widget.start') })).toBeDisabled();
+    expect(screen.getByText(i18n.t('timer_widget.read_only_notice'))).toBeInTheDocument();
+  });
+
+  it('enables START once a project and description are filled with window.TIMEFLOW_CAN_WRITE=true', async () => {
+    window.TIMEFLOW_CAN_WRITE = true;
+    const user = userEvent.setup();
+    render(<TimerPage />);
+    await user.selectOptions(await screen.findByLabelText(i18n.t('timer_widget.project_label')), '1');
+    await user.type(screen.getByLabelText(i18n.t('timer_widget.description_label')), 'abc');
+    expect(screen.getByRole('button', { name: i18n.t('timer_widget.start') })).toBeEnabled();
+  });
+});

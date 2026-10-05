@@ -231,6 +231,95 @@ function timeflowCanReadAllTimeEntries($user)
 }
 
 /**
+ * The rights matrix validated by the module owner on 2026-09-30 (security report annex A, decisions D1–D3):
+ * every one of the 44 ajax/timeentry.php actions requires exactly one of these minimal rights, checked once
+ * before the switch (see ajax/timeentry.php). Finer per-action rules — ownership, entry status, project
+ * visibility, the "own data only" scoping inside a reader — still run inside their own case; this only fixes
+ * the actions that previously had no right check at all (report anomaly A-13 / decision D2), and centralizes
+ * the ones that did, so the matrix and the code cannot silently drift apart again.
+ *
+ * D1: the Clockify import (preview, execute, resolve mapping, and its three read-only pickers) is an
+ * administration tool — 'admin' below, not a right an ordinary write user ever holds.
+ * D2: an account with none of TimeFlow's rights gets 403 everywhere, including read-only actions like
+ * getActiveTimer — there is no "public" action left unlisted here.
+ * D3: an administrator has every TimeFlow right implicitly, without it being explicitly assigned (see
+ * timeflowUserHasRequiredRight()) — except 'admin' itself (D1) and the ownership checks some actions still run
+ * afterwards: submitEntry and correctTimeEntry stay the *owner's* action, deliberately, even for an
+ * administrator (submitting or correcting someone else's entry is not "having every right", it is acting in
+ * their place, which nothing in D3 asks for).
+ *
+ * @return array<string,string> action => 'read'|'write'|'readall'|'validate'|'readall+validate'|'admin'
+ */
+function timeflowActionRightsMatrix()
+{
+    return array(
+        // Personal read (own data unless the reader itself widens it for a readall/validate caller).
+        'getActiveTimer' => 'read', 'getProjects' => 'read', 'getTimeFlowProjects' => 'read', 'getTasks' => 'read',
+        'getTimeEntries' => 'read', 'getWeeklyTimesheet' => 'read', 'getSummaryReports' => 'read',
+        'getDashboardFilterOptions' => 'read', 'getProcessedHistory' => 'read', 'exportProcessedHistory' => 'read',
+        'exportGlobalCsv' => 'read', 'getMyDailyReports' => 'read', 'getDailyReports' => 'read',
+        'getTimeEntryUpdates' => 'read', 'getModificationHistory' => 'read',
+        // Annex A adjustment (2026-09-30): these two are read-only lookups reused OUTSIDE the import flow —
+        // listActiveThirdParties feeds the Projects tab's plain "Client" filter, listActiveUsers labels the
+        // Projects tab's "assigned users" column — for every TimeFlow reader, not just an administrator. They
+        // carry no import-specific data, so unlike the rest of D1 below they stay 'read', not 'admin'.
+        'listActiveThirdParties' => 'read', 'listActiveUsers' => 'read',
+
+        // Personal write (own data; each case additionally checks ownership where it applies).
+        'startTimer' => 'write', 'createManualEntry' => 'write', 'submitEntry' => 'write', 'stopTimer' => 'write',
+        'restartTimer' => 'write', 'deleteTimeEntry' => 'write', 'correctTimeEntry' => 'write',
+        'saveDailyReport' => 'write', 'updateDailyReport' => 'write', 'deleteDailyReport' => 'write',
+
+        // Team-wide (the Users report, the bell, and its own preferences — see the case for why the bell needs readall).
+        'getTimeFlowUsers' => 'readall', 'getUsersPresence' => 'readall', 'getMyNotifications' => 'readall',
+        'markNotificationsRead' => 'readall', 'getAlertPreferences' => 'readall', 'saveAlertPreferences' => 'readall',
+
+        // Validation queue and decisions.
+        'getValidationEntries' => 'validate', 'validateEntry' => 'validate', 'rejectEntry' => 'validate',
+        'validateDailyReport' => 'validate', 'rejectDailyReport' => 'validate',
+
+        // Expected absences: picked from the team-wide Users report, and a manager decision.
+        'saveExpectedAbsence' => 'readall+validate', 'deleteExpectedAbsence' => 'readall+validate',
+
+        // D1: import is administration only.
+        'previewClockifyImport' => 'admin', 'executeClockifyImport' => 'admin', 'resolveClockifyMapping' => 'admin',
+        'listUserGroups' => 'admin',
+    );
+}
+
+/**
+ * Whether $user holds the right an action requires, per timeflowActionRightsMatrix() (D1–D3 above).
+ *
+ * @param User   $user
+ * @param string $need One of the matrix's values
+ * @return bool
+ */
+function timeflowUserHasRequiredRight($user, $need)
+{
+    if ($need === 'admin') {
+        // D1: never granted implicitly through another right — only real admin.
+        return !empty($user->admin);
+    }
+    if (!empty($user->admin)) {
+        // D3.
+        return true;
+    }
+    switch ($need) {
+        case 'read':
+            return $user->hasRight('timeflow', 'timeentry', 'read');
+        case 'write':
+            return $user->hasRight('timeflow', 'timeentry', 'write');
+        case 'readall':
+            return $user->hasRight('timeflow', 'timeentry', 'readall');
+        case 'validate':
+            return $user->hasRight('timeflow', 'timeentry', 'validate');
+        case 'readall+validate':
+            return $user->hasRight('timeflow', 'timeentry', 'readall') && $user->hasRight('timeflow', 'timeentry', 'validate');
+    }
+    return false;
+}
+
+/**
  * Request parameters that legitimately carry a list (everything else is a scalar).
  *
  * @return string[]
@@ -552,6 +641,147 @@ function timeflowCanAccessProject($db, $user, $fkProject)
     }
 
     return in_array((string) (int) $fkProject, explode(',', $authorized), true);
+}
+
+/**
+ * Active-user directory: `listActiveUsers`, read by every TimeFlow reader (annex A adjustment, security
+ * report A-13) — reused by the Clockify import's user picker (admin only, D1) AND by the Projects tab's
+ * "assigned users" labels (any reader, ReportsPage.jsx). The two callers need different things: an admin
+ * resolving import identities needs the full directory (login/firstname/lastname, for suggesting an
+ * identity — see ImportUserMappingList.jsx); a plain reader only needs enough to label a name they can
+ * already see (assigned_user_ids on a project they can already see) — never a company-wide directory with
+ * logins, which is the actual data this function used to hand out to anyone with the base 'read' right
+ * once D2 stopped requiring 'write' for it. So a caller who may not read every entry gets a *different*
+ * shape, not a filtered copy of the same one: id and a display label only, for users who contribute to a
+ * project this caller can already access (the same native Dolibarr project-assignment rule every other
+ * project-scoped read in this file already uses — timeflowAuthorizedProjectIdList()).
+ *
+ * @param DoliDB    $db
+ * @param User|null $user Acting user. Full directory when null (defensive default) or when they may read
+ *                        every entry (admin or readall); otherwise scoped + minimal fields (see above).
+ * @return array
+ */
+function timeflowFetchActiveUsers($db, $user = null)
+{
+    $unrestricted = $user === null || timeflowCanReadAllTimeEntries($user);
+    $users = array();
+
+    if ($unrestricted) {
+        $sql = 'SELECT rowid, login, firstname, lastname';
+        $sql .= ' FROM '.$db->prefix().'user';
+        $sql .= ' WHERE statut = 1';
+        $sql .= ' AND entity IN ('.getEntity('user').')';
+        $sql .= ' ORDER BY lastname ASC, firstname ASC, login ASC';
+
+        $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveUsers');
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+                $users[] = array(
+                    'id' => (int) $obj->rowid,
+                    'rowid' => (int) $obj->rowid,
+                    'login' => (string) $obj->login,
+                    'firstname' => (string) $obj->firstname,
+                    'lastname' => (string) $obj->lastname,
+                    'label' => $fullName !== '' ? $fullName : (string) $obj->login,
+                );
+            }
+            $db->free($resql);
+        }
+        return $users;
+    }
+
+    $authorizedProjects = timeflowAuthorizedProjectIdList($db, $user);
+    if ($authorizedProjects === '0') {
+        return array();
+    }
+    $sql = 'SELECT DISTINCT u.rowid, u.firstname, u.lastname';
+    $sql .= ' FROM '.$db->prefix().'user AS u';
+    $sql .= ' INNER JOIN '.$db->prefix().'element_contact AS ec ON ec.fk_socpeople = u.rowid';
+    $sql .= ' INNER JOIN '.$db->prefix().'c_type_contact AS tc ON tc.rowid = ec.fk_c_type_contact';
+    $sql .= " WHERE tc.element = 'project' AND tc.source = 'internal' AND tc.code = 'PROJECTCONTRIBUTOR' AND ec.statut = 4";
+    // $authorizedProjects is null here only if timeflowCanReadAllTimeEntries() already sent this caller
+    // through the unrestricted branch above — never reached with an unsafe/empty value.
+    $sql .= ' AND ec.element_id IN ('.$authorizedProjects.')';
+    $sql .= ' AND u.statut = 1 AND u.entity IN ('.getEntity('user').')';
+    $sql .= ' ORDER BY u.lastname ASC, u.firstname ASC';
+
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveUsers:scoped');
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $fullName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+            // Deliberately no 'login', 'firstname', 'lastname' fields: this branch is read by a caller who
+            // may not read every entry, so it hands out only what a display label needs — never the
+            // directory shape above, which a plain employee must not receive company-wide (security report
+            // A-13 follow-up: listActiveUsers must not be a full user directory for a non-readall caller).
+            $users[] = array('id' => (int) $obj->rowid, 'rowid' => (int) $obj->rowid, 'label' => $fullName !== '' ? $fullName : '#'.(int) $obj->rowid);
+        }
+        $db->free($resql);
+    }
+
+    return $users;
+}
+
+/**
+ * Active-client directory: `listActiveThirdParties`, read by every TimeFlow reader (annex A adjustment,
+ * security report A-13) — reused by the Clockify import's client picker (admin only, D1) AND by the
+ * Projects tab's plain "Client" filter (any reader, ReportsPage.jsx). Same reasoning as
+ * timeflowFetchActiveUsers() just above: a caller who may not read every entry gets only the clients of
+ * projects they can already see — never every company-wide client (the follow-up to A-13 that prompted
+ * this: the annex A adjustment must not itself become a company-wide directory leak for a plain employee).
+ *
+ * @param DoliDB    $db
+ * @param User|null $user Acting user. Full list when null (defensive default) or when they may read every
+ *                        entry (admin or readall); otherwise scoped to their visible projects' clients.
+ * @return array
+ */
+function timeflowFetchActiveThirdParties($db, $user = null)
+{
+    $unrestricted = $user === null || timeflowCanReadAllTimeEntries($user);
+    $thirdParties = array();
+
+    if ($unrestricted) {
+        $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
+        $sql .= ' WHERE entity IN ('.getEntity('societe').')';
+        $sql .= ' AND status = 1';
+        $sql .= ' AND client <> 0';
+        $sql .= ' ORDER BY nom ASC';
+
+        $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveThirdParties');
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $thirdParties[] = array(
+                    'id' => (int) $obj->rowid,
+                    'rowid' => (int) $obj->rowid,
+                    'title' => (string) $obj->nom,
+                    'label' => (string) $obj->nom,
+                );
+            }
+        }
+        return $thirdParties;
+    }
+
+    $authorizedProjects = timeflowAuthorizedProjectIdList($db, $user);
+    if ($authorizedProjects === '0') {
+        return array();
+    }
+    $sql = 'SELECT DISTINCT s.rowid, s.nom FROM '.$db->prefix().'societe AS s';
+    $sql .= ' INNER JOIN '.$db->prefix().'projet AS p ON p.fk_soc = s.rowid';
+    $sql .= ' WHERE s.entity IN ('.getEntity('societe').')';
+    $sql .= ' AND s.status = 1 AND s.client <> 0';
+    // $authorizedProjects is null here only if timeflowCanReadAllTimeEntries() already sent this caller
+    // through the unrestricted branch above — never reached with an unsafe/empty value.
+    $sql .= ' AND p.rowid IN ('.$authorizedProjects.')';
+    $sql .= ' ORDER BY s.nom ASC';
+
+    $resql = timeflowQuery($db, $sql, 'timeflowFetchActiveThirdParties:scoped');
+    if ($resql) {
+        while ($obj = $db->fetch_object($resql)) {
+            $thirdParties[] = array('id' => (int) $obj->rowid, 'rowid' => (int) $obj->rowid, 'title' => (string) $obj->nom, 'label' => (string) $obj->nom);
+        }
+    }
+
+    return $thirdParties;
 }
 
 /**

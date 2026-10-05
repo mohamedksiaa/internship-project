@@ -105,6 +105,25 @@ if (empty($user->id)) {
 if (!isModEnabled('timeflow')) {
 	accessforbidden('Module not enabled');
 }
+
+// Rights matrix (security report A-13, decisions D1–D3, see lib/timeflow.lib.php's
+// timeflowActionRightsMatrix()): a session with none of TimeFlow's rights would otherwise still get the whole
+// React shell, then watch every single API call it makes come back 403 — a broken-looking app instead of a
+// clear message. D2 says this account should be refused everywhere; refusing it right here, before any API
+// call is even made, is the same rule applied where it is cheapest and clearest.
+$timeflowCanRead = (bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'read'));
+$timeflowCanWrite = (bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'write'));
+$timeflowCanReadAll = (bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'readall'));
+$timeflowCanValidateFlag = (bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'validate'));
+if (!$timeflowCanRead && !$timeflowCanWrite && !$timeflowCanReadAll && !$timeflowCanValidateFlag) {
+	llxHeader('', $langs->trans('TimeFlowArea'));
+	print '<div class="center" style="max-width:32em;margin:4em auto;padding:1.5em;font-size:1.05em;">';
+	print img_picto('', 'lock', 'class="pictofixedwidth"').' '.$langs->trans('TimeFlowNoAccessMessage');
+	print '</div>';
+	llxFooter();
+	$db->close();
+	exit;
+}
 //if (! $user->hasRight('timeflow', 'myobject', 'read')) {
 //	accessforbidden();
 //}
@@ -191,14 +210,18 @@ print 'window.TIMEFLOW_TOKEN = '.json_encode(currentToken()).';';
 print 'window.TIMEFLOW_AJAX_URL = '.json_encode(dol_buildpath('/custom/timeflow/ajax/timeentry.php', 1)).';';
 // Expose the current user id to the client for diagnostics (temporary).
 print 'window.TIMEFLOW_USER_ID = '.json_encode((int) $user->id).';';
-$canReadAllFlag = (bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'readall'));
-print 'window.TIMEFLOW_CAN_READALL = '.json_encode($canReadAllFlag).';';
-print 'window.TIMEFLOW_CAN_VALIDATE = '.json_encode((bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'validate'))).';';
+print 'window.TIMEFLOW_CAN_READALL = '.json_encode($timeflowCanReadAll).';';
+print 'window.TIMEFLOW_CAN_VALIDATE = '.json_encode($timeflowCanValidateFlag).';';
 // Same gate as every write action in ajax/timeentry.php that requires the
 // 'write' right (e.g. createManualEntry, the Clockify import endpoints) —
 // lets the UI hide controls a request would be refused for anyway. The
 // backend re-checks this on every call; this flag is a UI convenience only.
-print 'window.TIMEFLOW_CAN_WRITE = '.json_encode((bool) ($user->admin || $user->hasRight('timeflow', 'timeentry', 'write'))).';';
+print 'window.TIMEFLOW_CAN_WRITE = '.json_encode($timeflowCanWrite).';';
+// Exposed for the frontend's own "hide it if it will 403 anyway" checks (SEC-06 / A-13): the base read right,
+// and whether the session is a real Dolibarr administrator (D1: the Clockify import stays admin-only, never
+// granted through 'write' alone — see the "Importer" button in ReportsPage.jsx).
+print 'window.TIMEFLOW_CAN_READ = '.json_encode($timeflowCanRead).';';
+print 'window.TIMEFLOW_IS_ADMIN = '.json_encode((bool) $user->admin).';';
 
 // Dolibarr's dark mode setting (admin/ihm.php "Dark theme mode") is applied
 // server-side as plain CSS on Dolibarr's own chrome — there is no DOM class

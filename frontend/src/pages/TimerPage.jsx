@@ -9,6 +9,11 @@ const canReadAll = typeof window !== 'undefined' && window.TIMEFLOW_CAN_READALL 
 
 export default function TimerPage() {
   const { t } = useTranslation();
+  // Hides write-only controls (Démarrer, soumettre, corriger, supprimer, relancer) for a profile without the
+  // TimeFlow write right — the backend's central rights gate is what actually refuses these calls (security
+  // report A-13, decision D2); this only avoids inviting a click that can never succeed. Read per render (not
+  // at module scope, unlike canReadAll above) so a test can toggle window.TIMEFLOW_CAN_WRITE between cases.
+  const canWrite = typeof window !== 'undefined' && window.TIMEFLOW_CAN_WRITE === true;
   const timer = useTimer();
   const [projects, setProjects] = useState([]);
   const [historyTasks, setHistoryTasks] = useState([]); // Master list of tasks for the history
@@ -167,6 +172,7 @@ export default function TimerPage() {
         timer={timer}
         projects={projects}
         projectsError={projectsError}
+        canWrite={canWrite}
         onProjectChange={handleProjectChange}
         onProjectSelectorOpen={refreshProjects}
         onEntryCreated={handleEntryCreated}
@@ -188,6 +194,7 @@ export default function TimerPage() {
           projects={projects}
           tasks={historyTasks} // Pass the newly fetched master list here!
           showWorker={canReadAll}
+          canWrite={canWrite}
           onRestartEntry={handleRestartEntry}
           activeEntryId={timer.activeEntry?.id}
           activeSeconds={timer.seconds}

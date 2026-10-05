@@ -1,0 +1,385 @@
+[
+ {
+  "profile": "employee",
+  "users_status": 200,
+  "users_count": 3,
+  "users_fields": [
+   "id",
+   "rowid",
+   "label"
+  ],
+  "users": [
+   {
+    "id": 6733,
+    "rowid": 6733,
+    "label": "Test NF-nf_employee"
+   },
+   {
+    "id": 4,
+    "rowid": 4,
+    "label": "kardashian nicole"
+   },
+   {
+    "id": 1,
+    "rowid": 1,
+    "label": "SuperAdmin"
+   }
+  ],
+  "clients_status": 200,
+  "clients_count": 1,
+  "clients": [
+   {
+    "id": 1,
+    "rowid": 1,
+    "title": "Acme Corp",
+    "label": "Acme Corp"
+   }
+  ]
+ },
+ {
+  "profile": "manager",
+  "users_status": 200,
+  "users_count": 17,
+  "users_fields": [
+   "id",
+   "rowid",
+   "login",
+   "firstname",
+   "lastname",
+   "label"
+  ],
+  "users": [
+   {
+    "id": 3,
+    "rowid": 3,
+    "login": "alex",
+    "firstname": "waternson",
+    "lastname": "alex",
+    "label": "waternson alex"
+   },
+   {
+    "id": 6136,
+    "rowid": 6136,
+    "login": "bacem.touzi",
+    "firstname": "",
+    "lastname": "bacem",
+    "label": "bacem"
+   },
+   {
+    "id": 6141,
+    "rowid": 6141,
+    "login": "imen.benhassen",
+    "firstname": "Imen",
+    "lastname": "Ben Hassen",
+    "label": "Imen Ben Hassen"
+   },
+   {
+    "id": 6135,
+    "rowid": 6135,
+    "login": "mohamed.chouaieb",
+    "firstname": "Mohamed",
+    "lastname": "Chouaieb",
+    "label": "Mohamed Chouaieb"
+   },
+   {
+    "id": 6134,
+    "rowid": 6134,
+    "login": "samir.chouaieb",
+    "firstname": "Samir",
+    "lastname": "Chouaieb",
+    "label": "Samir Chouaieb"
+   },
+   {
+    "id": 6140,
+    "rowid": 6140,
+    "login": "soyah.chouaieb",
+    "firstname": "Soyah",
+    "lastname": "chouaieb",
+    "label": "Soyah chouaieb"
+   },
+   {
+    "id": 6138,
+    "rowid": 6138,
+    "login": "wissal.ftiti",
+    "firstname": "Wissal",
+    "lastname": "Ftiti",
+    "label": "Wissal Ftiti"
+   },
+   {
+    "id": 6137,
+    "rowid": 6137,
+    "login": "khairi.aichi",
+    "firstname": "",
+    "lastname": "khairi.aichi",
+    "label": "khairi.aichi"
+   },
+   {
+    "id": 4999,
+    "rowid": 4999,
+    "login": "mksiaa",
+    "firstname": "mohamed",
+    "lastname": "ksiaa",
+    "label": "mohamed ksiaa"
+   },
+   {
+    "id": 6731,
+    "rowid": 6731,
+    "login": "zz_nf_admin",
+    "firstname": "Test",
+    "lastname": "NF-nf_admin",
+    "label": "Test NF-nf_admin"
+   },
+   {
+    "id": 6733,
+    "rowid": 6733,
+    "login": "zz_nf_employee",
+    "firstname": "Test",
+    "lastname": "NF-nf_employee",
+    "label": "Test NF-nf_employee"
+   },
+   {
+    "id": 6732,
+    "rowid": 6732,
+    "login": "zz_nf_manager",
+    "firstname": "Test",
+    "lastname": "NF-nf_manager",
+    "label": "Test NF-nf_manager"
+   },
+   {
+    "id": 6734,
+    "rowid": 6734,
+    "login": "zz_nf_norights",
+    "firstname": "Test",
+    "lastname": "NF-nf_norights",
+    "label": "Test NF-nf_norights"
+   },
+   {
+    "id": 4,
+    "rowid": 4,
+    "login": "knicole",
+    "firstname": "kardashian",
+    "lastname": "nicole",
+    "label": "kardashian nicole"
+   },
+   {
+    "id": 1,
+    "rowid": 1,
+    "login": "admin",
+    "firstname": "",
+    "lastname": "SuperAdmin",
+    "label": "SuperAdmin"
+   },
+   {
+    "id": 5997,
+    "rowid": 5997,
+    "login": "test",
+    "firstname": "",
+    "lastname": "test",
+    "label": "test"
+   },
+   {
+    "id": 6139,
+    "rowid": 6139,
+    "login": "wafa.zaier",
+    "firstname": "Wafa",
+    "lastname": "Zaier",
+    "label": "Wafa Zaier"
+   }
+  ],
+  "clients_status": 200,
+  "clients_count": 3,
+  "clients": [
+   {
+    "id": 1,
+    "rowid": 1,
+    "title": "Acme Corp",
+    "label": "Acme Corp"
+   },
+   {
+    "id": 81,
+    "rowid": 81,
+    "title": "imbus AG",
+    "label": "imbus AG"
+   },
+   {
+    "id": 82,
+    "rowid": 82,
+    "title": "imbus TN",
+    "label": "imbus TN"
+   }
+  ]
+ },
+ {
+  "profile": "admin",
+  "users_status": 200,
+  "users_count": 17,
+  "users_fields": [
+   "id",
+   "rowid",
+   "login",
+   "firstname",
+   "lastname",
+   "label"
+  ],
+  "users": [
+   {
+    "id": 3,
+    "rowid": 3,
+    "login": "alex",
+    "firstname": "waternson",
+    "lastname": "alex",
+    "label": "waternson alex"
+   },
+   {
+    "id": 6136,
+    "rowid": 6136,
+    "login": "bacem.touzi",
+    "firstname": "",
+    "lastname": "bacem",
+    "label": "bacem"
+   },
+   {
+    "id": 6141,
+    "rowid": 6141,
+    "login": "imen.benhassen",
+    "firstname": "Imen",
+    "lastname": "Ben Hassen",
+    "label": "Imen Ben Hassen"
+   },
+   {
+    "id": 6135,
+    "rowid": 6135,
+    "login": "mohamed.chouaieb",
+    "firstname": "Mohamed",
+    "lastname": "Chouaieb",
+    "label": "Mohamed Chouaieb"
+   },
+   {
+    "id": 6134,
+    "rowid": 6134,
+    "login": "samir.chouaieb",
+    "firstname": "Samir",
+    "lastname": "Chouaieb",
+    "label": "Samir Chouaieb"
+   },
+   {
+    "id": 6140,
+    "rowid": 6140,
+    "login": "soyah.chouaieb",
+    "firstname": "Soyah",
+    "lastname": "chouaieb",
+    "label": "Soyah chouaieb"
+   },
+   {
+    "id": 6138,
+    "rowid": 6138,
+    "login": "wissal.ftiti",
+    "firstname": "Wissal",
+    "lastname": "Ftiti",
+    "label": "Wissal Ftiti"
+   },
+   {
+    "id": 6137,
+    "rowid": 6137,
+    "login": "khairi.aichi",
+    "firstname": "",
+    "lastname": "khairi.aichi",
+    "label": "khairi.aichi"
+   },
+   {
+    "id": 4999,
+    "rowid": 4999,
+    "login": "mksiaa",
+    "firstname": "mohamed",
+    "lastname": "ksiaa",
+    "label": "mohamed ksiaa"
+   },
+   {
+    "id": 6731,
+    "rowid": 6731,
+    "login": "zz_nf_admin",
+    "firstname": "Test",
+    "lastname": "NF-nf_admin",
+    "label": "Test NF-nf_admin"
+   },
+   {
+    "id": 6733,
+    "rowid": 6733,
+    "login": "zz_nf_employee",
+    "firstname": "Test",
+    "lastname": "NF-nf_employee",
+    "label": "Test NF-nf_employee"
+   },
+   {
+    "id": 6732,
+    "rowid": 6732,
+    "login": "zz_nf_manager",
+    "firstname": "Test",
+    "lastname": "NF-nf_manager",
+    "label": "Test NF-nf_manager"
+   },
+   {
+    "id": 6734,
+    "rowid": 6734,
+    "login": "zz_nf_norights",
+    "firstname": "Test",
+    "lastname": "NF-nf_norights",
+    "label": "Test NF-nf_norights"
+   },
+   {
+    "id": 4,
+    "rowid": 4,
+    "login": "knicole",
+    "firstname": "kardashian",
+    "lastname": "nicole",
+    "label": "kardashian nicole"
+   },
+   {
+    "id": 1,
+    "rowid": 1,
+    "login": "admin",
+    "firstname": "",
+    "lastname": "SuperAdmin",
+    "label": "SuperAdmin"
+   },
+   {
+    "id": 5997,
+    "rowid": 5997,
+    "login": "test",
+    "firstname": "",
+    "lastname": "test",
+    "label": "test"
+   },
+   {
+    "id": 6139,
+    "rowid": 6139,
+    "login": "wafa.zaier",
+    "firstname": "Wafa",
+    "lastname": "Zaier",
+    "label": "Wafa Zaier"
+   }
+  ],
+  "clients_status": 200,
+  "clients_count": 3,
+  "clients": [
+   {
+    "id": 1,
+    "rowid": 1,
+    "title": "Acme Corp",
+    "label": "Acme Corp"
+   },
+   {
+    "id": 81,
+    "rowid": 81,
+    "title": "imbus AG",
+    "label": "imbus AG"
+   },
+   {
+    "id": 82,
+    "rowid": 82,
+    "title": "imbus TN",
+    "label": "imbus TN"
+   }
+  ]
+ }
+]

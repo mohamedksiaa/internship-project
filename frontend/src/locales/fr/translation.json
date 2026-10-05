@@ -194,6 +194,7 @@
   },
   "daily_report": {
     "section_title": "Rapport journalier",
+    "read_only_notice": "Votre profil ne dispose pas du droit d'écriture TimeFlow : vous pouvez consulter les comptes rendus mais pas en rédiger.",
     "heading": "Mon rapport",
     "date_label": "Date",
     "date_aria": "Date du rapport",
@@ -235,6 +236,7 @@
     "start": "DÉMARRER",
     "stop": "ARRÊTER",
     "ready_to_start": "Prêt à démarrer.",
+    "read_only_notice": "Votre profil ne dispose pas du droit d'écriture TimeFlow : vous pouvez consulter vos saisies mais pas démarrer de chronomètre.",
     "start_without_project": "Vous pouvez tout de même démarrer un chrono sans projet.",
     "long_running_warning": "Ce chrono tourne depuis plus de 12h. Vérifiez que vous ne l'avez pas oublié.",
     "billable_label": "Facturable"
