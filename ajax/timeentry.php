@@ -3484,7 +3484,12 @@ function timeflowClockifyImportSqlErrorPayload(TimeflowSqlException $e, $user)
         ? implode(', ', $progress).' déjà créé(s) avant l’interruption.'
         : 'Aucun élément créé avant l’interruption.';
 
+    // 'message' below is a server-side, French-only fallback — never shown as-is in the
+    // SPA, which recognizes 'code' === 'import_sql_error' and rebuilds the sentence from
+    // 'data' through i18next (frontend/src/api/timeflowApi.js), in the viewer's own
+    // language. Kept here for any caller that isn't that frontend (CLI scripts, logs).
     $payload = timeflowSqlErrorPayload($e, $user);
+    $payload['code'] = 'import_sql_error';
     $payload['message'] = 'La connexion à la base de données a été perdue pendant l’import. '.$progressText
         .' Relancez le même fichier : les éléments déjà importés seront reconnus automatiquement, sans doublon.';
     $payload['data'] = $partial;

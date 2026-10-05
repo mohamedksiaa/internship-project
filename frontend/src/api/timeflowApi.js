@@ -1,4 +1,5 @@
 // frontend/src/api/timeflowApi.js
+import i18n from '../i18n';
 
 const MODULE_AJAX_URL = (typeof window !== 'undefined' && (window.TIMEFLOW_AJAX_URL || window.DOL_URL_ROOT))
   ? (window.TIMEFLOW_AJAX_URL || `${window.DOL_URL_ROOT.replace(/\/$/, '')}/custom/timeflow/ajax/timeentry.php`)
@@ -94,12 +95,19 @@ async function moduleTimerRequest(action, body = null) {
   // Instrumentation: record timing and response size for diagnostics
   const url = `${buildApiUrl(action)}&token=${encodeURIComponent(TIMEFLOW_TOKEN)}`;
   const start = Date.now();
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: getApiHeaders(body),
-    credentials: 'include',
-    body: body ? JSON.stringify(body) : null,
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getApiHeaders(body),
+      credentials: 'include',
+      body: body ? JSON.stringify(body) : null,
+    });
+  } catch {
+    // fetch() itself rejected: no response reached the browser at all (offline, DNS/TLS
+    // failure, CORS) — distinct from a response that arrived but wasn't usable JSON.
+    throw new Error(i18n.t('app.network_error'));
+  }
 
   const responseText = await response.text();
   const durationMs = Date.now() - start;
@@ -119,11 +127,21 @@ async function moduleTimerRequest(action, body = null) {
   try {
     data = responseText ? JSON.parse(responseText) : null;
   } catch {
-    throw new Error(responseText || 'Réponse invalide du serveur.');
+    // Not JSON: either Dolibarr's own fatal-error page (core/lib/functions.lib.php
+    // dol_print_error(), sent with a 202/5xx status, deliberately not JSON — see
+    // ANO-PANNES-01) or, followed automatically by fetch() on a redirect, the login
+    // page HTML when the session has expired. Both carry no "status" field at all.
+    if (response.status === 200 && /name="actionlogin"/.test(responseText)) {
+      throw new Error(i18n.t('app.session_expired'));
+    }
+    throw new Error(i18n.t('app.service_unavailable'));
   }
 
   if (!response.ok || data?.status === 'error') {
-    throw new Error(data?.message || data?.error || `Erreur du chrono (${response.status})`);
+    const err = new Error(data?.message || data?.error || `Erreur du chrono (${response.status})`);
+    if (data?.code) err.code = data.code;
+    if (data?.data !== undefined) err.data = data.data;
+    throw err;
   }
 
   return data;

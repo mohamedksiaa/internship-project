@@ -15,8 +15,8 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 
 - Cas prévus : 15 · exécutés (au moins partiellement) : 10 (tous les Critique + tous les Élevé) · non exécutés : 5 (PAN-05, 12, 13, 14, 15 — Moyen)
 - Statuts : ✅ 5 (PAN-03, 04, 07, 10, 11) · ⚠️ 5 (PAN-01, 02, 06, 08, 09 — testés avec une réserve ou une couverture partielle) · ❌ 0
-- Anomalies : Moyen 2 trouvées (ANO-PANNES-01, 02), **1 corrigée** (ANO-PANNES-02, PR n° 49) · Critique/Élevé/Faible 0
-- **Conclusion.** Aucune perte ni corruption de données constatée sur les 10 cas exécutés, y compris sous panne combinée (PAN-08) ou interruption en pleine écriture (PAN-02, PAN-06, PAN-10) — l'atomicité par transaction et la déduplication par clé (`import_key`, contraintes uniques) tiennent dans tous les essais. Les deux réserves trouvées sont des problèmes de **diagnostic** (message trompeur ou format de réponse non exploitable), pas de perte de données. Les cas Moyen restants (PAN-05, 12-15) et les sous-scénarios non couverts de PAN-03/06/08/09 restent à rejouer.
+- Anomalies : Moyen 2 trouvées (ANO-PANNES-01, 02), **2 corrigées** (ANO-PANNES-02 PR n° 49, ANO-PANNES-01 PR n° 50) · Critique/Élevé/Faible 0
+- **Conclusion.** Aucune perte ni corruption de données constatée sur les 10 cas exécutés, y compris sous panne combinée (PAN-08) ou interruption en pleine écriture (PAN-02, PAN-06, PAN-10) — l'atomicité par transaction et la déduplication par clé (`import_key`) tiennent dans tous les essais **rejoués** ; voir cependant en §6 la réserve sur l'absence de contrainte unique en base sur `import_key`, qui ne protège pas contre deux imports simultanés. Les deux anomalies trouvées étaient des problèmes de **diagnostic** (message trompeur ou format de réponse non exploitable), jamais de perte de données, et sont maintenant corrigées. Les cas Moyen restants (PAN-05, 12-15) et les sous-scénarios non couverts de PAN-03/06/08/09 restent à rejouer.
 
 ## 2. Tableau récapitulatif
 
@@ -42,9 +42,9 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 - **Reproduction** : `docker stop timeflow-mariadb` ; `curl http://localhost:8080/custom/timeflow/ajax/timeentry.php?action=getActiveTimer`.
 - **Impact** : le frontend (qui attend du JSON, voir `timeflowJsonResponse()`) ne peut pas afficher un message traduit propre à partir de cette réponse — l'utilisateur verrait vraisemblablement une erreur générique du navigateur ou un écran blanc selon la gestion d'erreur réseau du code React, pas le message clair attendu par le critère du plan. Le code **202 Accepted** est en outre sémantiquement incorrect pour une panne (devrait être 503).
 - **Preuve** : `preuves/PANNES/PAN-01/resultat.json`.
-- **Cause probable** : comportement du noyau Dolibarr (`main.inc.php` / gestion de connexion `DoliDB`) avant même d'atteindre `ajax/timeentry.php` — la connexion à la base échoue plus tôt dans le bootstrap. Pas encore localisé précisément au fichier/ligne.
-- **Recommandation** : si modifiable sans toucher au noyau, intercepter ce cas dans `ajax/timeentry.php` ou en amont (ex. vérification de connexion avant le routage des actions) pour renvoyer un JSON `{"status":"error","message":"..."}` avec un code 503 ; sinon, documenter la limite (dépendance au comportement du noyau) et traiter côté frontend (détection d'une réponse non-JSON → message générique de maintenance).
-- **Correctif** : à planifier (PR séparée, après relecture) · **Re-test** : non encore fait
+- **Cause confirmée** : `master.inc.php` (cœur Dolibarr, ligne ~141-160) — `$db = getDoliDBInstance(...); if ($db->error) { dol_print_error($db, ...); exit; }`. `dol_print_error()` (`core/lib/functions.lib.php`) envoie délibérément `http_response_code(202)`, avec le commentaire du cœur lui-même : *"If we use 500, message is not output with some command line tools"*. C'est un choix volontaire du cœur, avant tout code du module — **non modifiable sans toucher au cœur Dolibarr**, ce qui est exclu.
+- **Correctif** : ✅ corrigé côté frontend uniquement (PR n° 50) — `moduleTimerRequest()` (`frontend/src/api/timeflowApi.js`) détecte désormais une réponse non-JSON et distingue trois cas : panne serveur (code 202/5xx ou tout non-JSON hors page de connexion) → message traduit "Service momentanément indisponible, réessayez" ; page de connexion Dolibarr renvoyée (session expirée, détectée via le marqueur `name="actionlogin"`) → "Votre session a expiré, reconnectez-vous" ; `fetch()` lui-même rejeté (hors ligne, DNS, CORS) → message réseau dédié. Les 3 messages existent en français, anglais, allemand et arabe.
+- **Re-test** : ✅ rejoué en conditions réelles sur `docker-timeflow-test` : `docker stop timeflow-mariadb` → réponse réelle confirmée **HTTP 202**, sans marqueur de connexion → chemin "service indisponible". Requête non authentifiée (session expirée) → réponse réelle confirmée **HTTP 200** avec `name="actionlogin"` présent → chemin "session expirée", distinct du premier. Suite frontend 527/527 OK (523 + 4 nouveaux tests), PHPUnit 76/76 OK.
 
 ### ANO-PANNES-02 — Import : perte de connexion pendant la boucle classée à tort « utilisateur introuvable »
 - **Cas concerné** : PAN-02
@@ -78,4 +78,15 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 
 - Rejouer PAN-05, 12, 13, 14, 15 (Moyen) dans une session dédiée.
 - Compléter PAN-06 (7 points d'interruption restants), PAN-08 ((c)/(e)) et PAN-09 (émulation réseau réelle via Puppeteer) pour une couverture complète du plan.
-- Les deux anomalies trouvées (diagnostic trompeur sous panne, pas de perte de données) sont candidates à des PR de correctif séparées, après relecture du responsable.
+- Les deux anomalies trouvées (diagnostic trompeur sous panne, pas de perte de données) sont maintenant corrigées (PR n° 49 et 50).
+
+### Recommandation non implémentée — absence de contrainte d'unicité sur `import_key`
+
+`llx_timeflow_timeentry.import_key` (`sql/llx_timeflow_timeentry.sql`) est un simple `varchar(14)`, **sans index unique**. La protection anti-doublon de l'import repose entièrement sur une lecture applicative (`TimeImport::timeEntryAlreadyImported()`, corrigée en PR n° 49 pour ne plus confondre un échec SQL avec « rien trouvé ») suivie d'une création séparée — un cycle **vérifier puis insérer qui n'est pas atomique**. Deux imports du **même fichier lancés simultanément** (ex. deux onglets, ou un admin qui relance pendant qu'un cron/import précédent tourne encore) pourraient tous les deux passer la vérification avant que l'un des deux n'écrive, et créer deux saisies avec le même `import_key` — un vrai doublon, non détecté depuis.
+
+- **Recommandation** : ajouter un index unique sur `import_key` (probablement `UNIQUE KEY uk_import_key (import_key)`, en laissant passer les valeurs `NULL` des saisies non importées — MySQL/MariaDB autorisent plusieurs `NULL` dans un index unique). La création échouerait alors proprement sur la seconde tentative concurrente (erreur 1062), détectable et déjà gérée ailleurs dans le module (voir `persistMapping()`).
+- **Ce que ça impliquerait** (non fait ici, à la décision du responsable) :
+  1. **Changement de schéma** : nouvelle version de `sql/llx_timeflow_timeentry.sql` + un script de migration (`sql/llx_timeflow_timeentry.key.sql` ou équivalent, selon la convention Dolibarr de montée de version) pour les installations existantes.
+  2. **Vérification préalable obligatoire** : chercher d'abord s'il existe déjà des doublons d'`import_key` en base (`SELECT import_key, COUNT(*) FROM llx_timeflow_timeentry WHERE import_key IS NOT NULL GROUP BY import_key HAVING COUNT(*) > 1`) — si oui, les résoudre avant de poser la contrainte, sinon la migration échoue purement et simplement.
+  3. **Réactivation du module** après la migration (Dolibarr relit la structure SQL du module à l'activation/désactivation-réactivation), à faire sur l'environnement de test avant toute mise en production.
+- **Non implémenté dans cette session**, conformément à la consigne — décision à prendre par le responsable.
