@@ -1727,6 +1727,15 @@ class TimeEntry extends CommonObject
 			$this->errors = $next->errors;
 			return -1;
 		}
+		// create() fills date_creation (and other auto fields) in the INSERT it sends, but never writes
+		// that value back onto the PHP object — $next->date_creation stays null in memory. Harmless if
+		// $next is only ever read from here on, but a session spanning 2+ midnights reuses this exact
+		// object as $current for the *next* closeSegmentAndOpenNext() call (or stopTimer()'s final
+		// update(), for a single crossing), which re-sends every field including the still-null
+		// date_creation — rejected by the column's NOT NULL constraint. Re-fetching makes the in-memory
+		// object match what was actually stored, the same way ajax/timeentry.php already re-fetches right
+		// after createManualEntry() before handing the object to a caller.
+		$next->fetch($next->id);
 		return $next;
 	}
 
