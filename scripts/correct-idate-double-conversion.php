@@ -4,18 +4,29 @@
  * closeSegmentAndOpenNext() pre-formatting date_start/date_end before create()'s own conversion — see
  * class/timeentry.class.php and docs/tests/RAPPORT_SECURITE.md for the full root-cause writeup).
  *
- * SIMULATION ONLY. This script never writes to the database. It lists every row it believes is affected,
- * the correction it would make, and why — nothing more. An --apply mode is intentionally not implemented
- * yet: do not add one and run it without explicit sign-off from the module owner, on any database.
+ * Simulation by default, writes only with --apply. Every --apply run requires --user-id and
+ * --export-dir — there is no way to apply without producing a before/after export.
  *
- * Usage (run from within the Dolibarr instance whose database you want to inspect — the "target database"
- * is therefore whichever instance's own master.inc.php/conf.php this script is run under, same as every
- * other CLI script in this module):
- *   php scripts/correct-idate-double-conversion.php [--database=<name>] [--before=<Y-m-d H:i:s>]
+ * Usage (run from within the Dolibarr instance whose database you want to inspect/correct — the "target
+ * database" is therefore whichever instance's own master.inc.php/conf.php this script is run under, same
+ * as every other CLI script in this module):
  *
- *   --database   Optional override of $dolibarr_main_db_name, if this instance's conf.php is shared by
- *                several Dolibarr databases and the one you want is not the default. Rarely needed.
- *   --before     Optional upper bound on date_creation (default: now) — mostly for reproducible test runs.
+ *   Simulation (default, never writes):
+ *     php scripts/correct-idate-double-conversion.php [--database=<name>] [--before=<Y-m-d H:i:s>]
+ *
+ *   Application (writes — only run this after reviewing a simulation run on the same database):
+ *     php scripts/correct-idate-double-conversion.php --apply --user-id=<id> --export-dir=<path> [--database=<name>] [--before=<Y-m-d H:i:s>]
+ *
+ *   --database    Optional override of $dolibarr_main_db_name, if this instance's conf.php is shared by
+ *                 several Dolibarr databases and the one you want is not the default. Rarely needed.
+ *   --before      Optional upper bound on date_creation (default: now) — mostly for reproducible test runs.
+ *   --apply       Writes the "clean" corrections (see below) instead of only listing them. Everything
+ *                 else below this line only matters when --apply is passed.
+ *   --user-id     Required with --apply. A real, active Dolibarr user id, recorded as the author of every
+ *                 correction (TimeEntry::update()'s $user, fk_user_modif, the audit row's fk_user_creat).
+ *   --export-dir  Required with --apply. Directory (created if missing) where the before/after export is
+ *                 written as idate-correction-<timestamp>.json, one entry per corrected row, before this
+ *                 script writes anything else.
  *
  * Identification (three buckets, each explained in its own report section):
  *   (A) import_key IS NOT NULL                        -> Clockify import, 100% reliable regardless of the
@@ -49,6 +60,17 @@
  * it reproduces the stored string byte for byte before trusting the candidate. Any row where that replay
  * does not match after the obvious +/-1h adjustment search is flagged "a verifier manuellement" rather than
  * corrected automatically — expected only exactly at a DST transition hour, if ever.
+ *
+ * Application mechanics: a "clean" row is corrected through TimeEntry::update() (not raw SQL) — the exact
+ * same generic, now-single-conversion path this bug's own fix (PR n° 43) put in place, so a corrected row
+ * is written exactly the same way a fresh, correct entry would be. update() is called with
+ * TimeEntry::MOD_ACTION_DATA_FIX (not MOD_ACTION_MANUAL_EMPLOYEE/MANAGER — this is a script retroactively
+ * fixing a known bug, not a human correcting a timesheet, so it deliberately does not flip
+ * is_manually_edited or write to llx_timeflow_time_edit_log) and a fixed, greppable $reason, which makes
+ * logModifications() write one audit row per field that actually changed (date_start, and date_end when
+ * applicable) — "une ligne d'audit par correction" in the sense the module already uses everywhere else:
+ * one row per changed field, attributing who/when/old/new, not one single opaque "something changed" line.
+ * Everything runs inside one transaction: if any row fails unexpectedly, nothing is kept.
  */
 
 global $conf, $user, $langs, $db;
@@ -71,14 +93,40 @@ if (!$foundBootstrap) {
     fwrite(STDERR, "master.inc.php not found above " . __DIR__ . " — run this script from inside a Dolibarr instance.\n");
     exit(1);
 }
+$moduleRoot = dirname(__DIR__);
+require_once $moduleRoot . '/class/timeentry.class.php';
 
-$options = getopt('', array('database::', 'before::'));
+$options = getopt('', array('database::', 'before::', 'apply', 'user-id::', 'export-dir::'));
 if (!empty($options['database'])) {
     // Deliberately late, explicit override — the instance this script runs under decides the connection
     // otherwise, exactly like every other CLI script in this module.
     $db->database_name = $options['database'];
 }
 $before = !empty($options['before']) ? $options['before'] : date('Y-m-d H:i:s');
+$applyMode = isset($options['apply']);
+
+$actingUser = null;
+$exportDir = null;
+if ($applyMode) {
+    if (empty($options['user-id'])) {
+        fwrite(STDERR, "--apply requires --user-id=<id> (a real, active Dolibarr user, recorded as the author of every correction).\n");
+        exit(1);
+    }
+    if (empty($options['export-dir'])) {
+        fwrite(STDERR, "--apply requires --export-dir=<path> — a before/after export is written there before anything else.\n");
+        exit(1);
+    }
+    $actingUser = new User($db);
+    if ($actingUser->fetch((int) $options['user-id']) <= 0 || (int) $actingUser->statut !== 1) {
+        fwrite(STDERR, "--user-id=" . $options['user-id'] . " is not a real, active Dolibarr user.\n");
+        exit(1);
+    }
+    $exportDir = rtrim($options['export-dir'], '/\\');
+    if (!is_dir($exportDir) && !mkdir($exportDir, 0775, true) && !is_dir($exportDir)) {
+        fwrite(STDERR, "Could not create --export-dir=$exportDir\n");
+        exit(1);
+    }
+}
 
 $prefix = $db->prefix();
 $auditFixCommitTimestamp = '2026-09-09 12:29:15';
@@ -97,9 +145,14 @@ function q($db, $sql)
     return $rows;
 }
 
-echo "=== idate() double-conversion — data correction, SIMULATION ONLY (no write) ===\n";
+echo "=== idate() double-conversion — data correction " . ($applyMode ? "— APPLY MODE (writes to the database)" : "— SIMULATION ONLY (no write)") . " ===\n";
 echo "Database: " . ($options['database'] ?? '(default of this instance\'s conf.php)') . "\n";
-echo "Cutoff considered: rows created before $before\n\n";
+echo "Cutoff considered: rows created before $before\n";
+if ($applyMode) {
+    echo "Acting user: " . $actingUser->login . " (id " . $actingUser->id . ")\n";
+    echo "Export directory: $exportDir\n";
+}
+echo "\n";
 
 // --- Audit coverage check (requested verification: compare the two counts, explain any gap) ---
 $importCount = q($db, "SELECT COUNT(*) n FROM {$prefix}timeflow_timeentry WHERE import_key IS NOT NULL AND import_key <> '' AND date_creation <= '$before'")[0]->n;
@@ -187,8 +240,9 @@ function computeTrueEpoch($db, $storedString)
     return array('epoch' => null, 'clean' => false);
 }
 
-$results = array('clean' => 0, 'review' => 0, 'excluded_corrected_since' => 0);
-echo "--- Simulation détaillée ---\n";
+$results = array('clean' => 0, 'review' => 0, 'excluded_corrected_since' => 0, 'applied' => 0, 'apply_failed' => 0);
+$toApply = array(); // rowid => array('start' => epoch, 'end' => epoch|null)
+echo "--- " . ($applyMode ? "Plan (vérifié avant toute écriture)" : "Simulation détaillée") . " ---\n";
 foreach ($allCandidates as $rowid => $info) {
     $row = $info['row'];
 
@@ -210,15 +264,84 @@ foreach ($allCandidates as $rowid => $info) {
         $newEnd = $endFix['epoch'] !== null ? $db->idate($endFix['epoch']) : null;
         echo "rowid=$rowid [{$info['origin']}] date_start: {$row->date_start} -> $newStart"
             . ($newEnd !== null ? " | date_end: {$row->date_end} -> $newEnd" : '') . "\n";
+        $toApply[$rowid] = array('start' => $startFix['epoch'], 'end' => $endFix['epoch']);
     } else {
         $results['review']++;
         echo "rowid=$rowid [{$info['origin']}] A REVOIR MANUELLEMENT — proche d'une transition d'heure d'été, pas de correction fiable calculée automatiquement.\n";
     }
 }
 
-echo "\n=== Résumé ===\n";
-echo "Corrections propres (prêtes pour un futur mode application) : {$results['clean']}\n";
+echo "\n=== Résumé du plan ===\n";
+echo "Corrections propres (" . ($applyMode ? "à appliquer" : "prêtes pour un futur mode application") . ") : {$results['clean']}\n";
 echo "A revoir manuellement (transition heure d'été) : {$results['review']}\n";
 echo "Exclues (déjà corrigées manuellement depuis) : {$results['excluded_corrected_since']}\n";
 echo "Zone non classifiable (hors périmètre de ce script) : $unclassifiable\n";
-echo "\nAucune écriture effectuée. Mode application non implémenté — ne pas l'ajouter ni l'exécuter sans accord explicite du responsable du module.\n";
+
+if (!$applyMode) {
+    echo "\nAucune écriture effectuée. Relancer avec --apply --user-id=<id> --export-dir=<path> pour appliquer les {$results['clean']} corrections propres listées ci-dessus.\n";
+    exit(0);
+}
+
+if (empty($toApply)) {
+    echo "\nRien à appliquer (0 correction propre). Aucune écriture effectuée.\n";
+    exit(0);
+}
+
+// --- Application: export BEFORE state, then write, then export AFTER state, before touching anything
+// else — if this export fails, nothing below it runs. ---
+$exportBefore = array();
+foreach ($toApply as $rowid => $fix) {
+    $before_row = q($db, "SELECT * FROM {$prefix}timeflow_timeentry WHERE rowid = $rowid")[0];
+    $exportBefore[$rowid] = $before_row;
+}
+$exportPath = $exportDir . '/idate-correction-' . date('Ymd-His') . '.json';
+$exportPayload = array(
+    'started_at' => date('c'),
+    'acting_user' => array('id' => $actingUser->id, 'login' => $actingUser->login),
+    'before' => $exportBefore,
+    'after' => null, // filled in and rewritten once every row has been processed
+);
+if (file_put_contents($exportPath, json_encode($exportPayload, JSON_PRETTY_PRINT)) === false) {
+    fwrite(STDERR, "Could not write the before-export to $exportPath — aborting, nothing applied.\n");
+    exit(1);
+}
+echo "\nBefore-state exported to $exportPath\n";
+
+echo "Applying {$results['clean']} corrections...\n";
+$db->begin();
+$reason = 'Correction du décalage idate() (RAPPORT_SECURITE.md §5.5, correctif PR n° 43) — '
+    . 'script scripts/correct-idate-double-conversion.php, execution le ' . date('Y-m-d H:i:s');
+$appliedIds = array();
+foreach ($toApply as $rowid => $fix) {
+    $entry = new TimeEntry($db);
+    if ($entry->fetch($rowid) <= 0) {
+        $results['apply_failed']++;
+        fwrite(STDERR, "rowid=$rowid: fetch() a échoué, abandon.\n");
+        $db->rollback();
+        exit(1);
+    }
+    $entry->date_start = $fix['start'];
+    $entry->date_end = $fix['end'];
+    $updateResult = $entry->update($actingUser, 0, $reason, TimeEntry::MOD_ACTION_DATA_FIX);
+    if ($updateResult <= 0) {
+        $results['apply_failed']++;
+        fwrite(STDERR, "rowid=$rowid: update() a échoué (" . ($entry->error ?: implode(', ', (array) $entry->errors)) . "), abandon — rien n'est conservé.\n");
+        $db->rollback();
+        exit(1);
+    }
+    $results['applied']++;
+    $appliedIds[] = $rowid;
+}
+$db->commit();
+echo "Appliqué : {$results['applied']} ligne(s), 0 échec (un échec aurait annulé l'ensemble).\n";
+
+// --- AFTER export, same file, now that the transaction is committed. ---
+$exportAfter = array();
+foreach ($appliedIds as $rowid) {
+    $exportAfter[$rowid] = q($db, "SELECT * FROM {$prefix}timeflow_timeentry WHERE rowid = $rowid")[0];
+}
+$exportPayload['after'] = $exportAfter;
+$exportPayload['finished_at'] = date('c');
+file_put_contents($exportPath, json_encode($exportPayload, JSON_PRETTY_PRINT));
+echo "Before/after export complete: $exportPath\n";
+echo "Une ligne d'audit par champ corrigé (date_start, et date_end le cas échéant) a été écrite dans llx_timeflow_timeentry_modification, action='" . TimeEntry::MOD_ACTION_DATA_FIX . "'.\n";

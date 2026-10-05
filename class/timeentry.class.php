@@ -178,6 +178,11 @@ class TimeEntry extends CommonObject
     const MOD_ACTION_MANUAL_EMPLOYEE = 'manual_employee';
     const MOD_ACTION_MANUAL_MANAGER = 'manual_manager';
     const MOD_ACTION_MANUAL_CREATE = 'manual_create';
+    // A script-driven data-integrity fix (e.g. scripts/correct-idate-double-conversion.php's --apply
+    // mode) — deliberately distinct from MOD_ACTION_MANUAL_EMPLOYEE/MANAGER, which also flip
+    // is_manually_edited and write a llx_timeflow_time_edit_log row: this is not a human correcting a
+    // timesheet, it's retroactively fixing a value a known bug stored wrong.
+    const MOD_ACTION_DATA_FIX = 'data_fix';
     const MOD_ACTION_DELETE = 'delete';
     const MOD_ACTION_DELETE_DRAFT_HARD = 'delete_draft_hard';
     const MOD_ACTION_DELETE_SUBMITTED_HARD = 'delete_submit_hard';
