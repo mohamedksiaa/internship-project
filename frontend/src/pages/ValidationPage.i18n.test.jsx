@@ -22,6 +22,7 @@ describe('ValidationPage i18n integration', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('renders french by default and switches to arabic (rtl) and german (ltr)', async () => {
@@ -82,6 +83,14 @@ describe('ValidationPage i18n integration', () => {
   });
 
   it('renders a submitted entry inside the default validation period', async () => {
+    // The component defaults its date filter to "the current month" (new Date() at mount) when the user
+    // hasn't picked one — the fixture below and the expectation at the end are both hardcoded to September
+    // 2026, so the real clock has to land inside that month too, or the component's own default drifts
+    // away from the fixture as soon as this test runs in a later month.
+    // toFake: ['Date'] only — leaving setTimeout/setInterval real so testing-library's own async
+    // polling (waitFor/findByText) keeps working instead of hanging against a frozen clock.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-15T12:00:00Z'));
     await i18n.changeLanguage('fr');
     getValidationEntries.mockResolvedValue({
       entries: [{
