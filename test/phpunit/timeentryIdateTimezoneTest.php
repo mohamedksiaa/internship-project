@@ -220,30 +220,27 @@ class TimeentryIdateTimezoneTest extends PHPUnit\Framework\TestCase // @phan-sup
 	// one server-offset late. closeSegmentAndOpenNext() computes the boundary in UTC regardless of server
 	// timezone (see its own comment), so unlike the two groups above, $localDateTime here only has to
 	// place the start far enough before a UTC midnight for the cap to force exactly one split; the date
-	// itself (winter/summer) still exercises a different DST offset on the storage side of the bug. ---
+	// itself (winter/summer) still exercises a different DST offset on the storage side of the bug.
 	//
-	// SKIPPED, all three: reproduced a SEPARATE, pre-existing bug (present on main before this PR's own
-	// changes — confirmed by running the exact same scenario against an unmodified checkout) that makes
-	// closeSegmentAndOpenNext() fail outright: "Column 'date_creation' cannot be null" when the generic
-	// create() inserts the successor segment. CommonObject::createCommon()'s auto-fill for an empty
-	// date_creation (core, setSaveQuery()) does not end up applying for this call path — not yet
-	// diagnosed further, out of scope for the idate() double-conversion fix this PR is about. The
-	// midnight-split feature cannot be exercised, fixed, or verified end-to-end until that is fixed
-	// separately; until then this is reported, not silently left green.
+	// Was skipped: closeSegmentAndOpenNext() used to fail outright ("Column 'date_creation' cannot be
+	// null") whenever its returned segment was later update()'d — the real stop in stopTimer(), or a
+	// second midnight crossing in closeStaleActiveTimersAtMidnight(). Root cause: create() fills
+	// date_creation in the INSERT it sends but never writes it back onto the PHP object; re-fetching
+	// after create() (this PR) fixes it. Re-enabled now that the fix is in. ---
 
 	public function testMidnightSplitAfricaTunis()
 	{
-		$this->markTestSkipped('closeSegmentAndOpenNext() fails on main independently of the idate() bug — see comment above.');
+		$this->assertMidnightSplitSegmentStartsExactlyAtTheUtcBoundary('Africa/Tunis', '2026-10-02 14:00:00');
 	}
 
 	public function testMidnightSplitEuropeParisWinter()
 	{
-		$this->markTestSkipped('closeSegmentAndOpenNext() fails on main independently of the idate() bug — see comment above.');
+		$this->assertMidnightSplitSegmentStartsExactlyAtTheUtcBoundary('Europe/Paris', '2026-01-15 14:00:00');
 	}
 
 	public function testMidnightSplitEuropeParisSummer()
 	{
-		$this->markTestSkipped('closeSegmentAndOpenNext() fails on main independently of the idate() bug — see comment above.');
+		$this->assertMidnightSplitSegmentStartsExactlyAtTheUtcBoundary('Europe/Paris', '2026-07-15 14:00:00');
 	}
 
 	private function assertMidnightSplitSegmentStartsExactlyAtTheUtcBoundary($timezone, $localDateTime)

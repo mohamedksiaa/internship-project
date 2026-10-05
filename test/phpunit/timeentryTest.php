@@ -674,7 +674,7 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$startResult = $previous->startTimer($user->id, $fkProject, 0, 'Tâche à reprendre — test', $user);
 		$this->assertGreaterThan(0, $startResult, $previous->error ?: implode(', ', $previous->errors));
 		$stopResult = $previous->stopTimer($startResult, $user);
-		$this->assertGreaterThan(0, $stopResult, $previous->error);
+		$this->assertGreaterThan(0, $stopResult, (string) $previous->error);
 
 		$previousBefore = new TimeEntry($db);
 		$previousBefore->fetch($startResult);
