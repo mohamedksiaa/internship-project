@@ -1164,6 +1164,15 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		return $obj ? (int) $obj->status : null;
 	}
 
+	/** Reads date_delete of a row straight from the database (null if not soft-deleted or absent). */
+	private function rawDateDelete($id)
+	{
+		global $db;
+		$res = $db->query('SELECT date_delete FROM '.$db->prefix().'timeflow_timeentry WHERE rowid = '.((int) $id));
+		$obj = $res ? $db->fetch_object($res) : null;
+		return ($obj && !empty($obj->date_delete)) ? $obj->date_delete : null;
+	}
+
 	/** SEC-07 / A-02: a user cannot submit somebody else's draft; the row stays untouched. */
 	public function testSubmitEntryRefusesANonOwner()
 	{
@@ -1303,5 +1312,165 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$allNotes = array_map(static fn ($row) => $row[3], array_merge($batch1['rows'], $batch2['rows'], $batch3['rows']));
 		sort($allNotes);
 		$this->assertSame(['phpunit_cursor_r1', 'phpunit_cursor_r2', 'phpunit_cursor_r4', 'phpunit_cursor_r5'], $allNotes, 'r3 must be absent (deleted), nothing else skipped, nothing duplicated');
+	}
+
+	/**
+	 * Converts a fetched TimeEntry into the same associative-array shape
+	 * timeflowExportTimeEntry() produces (ajax/timeentry.php) — not reachable
+	 * from this test without pulling in that file's HTTP dispatch, so the
+	 * handful of fields timeflowBuildSummary() actually reads are replicated
+	 * directly here, including the same project/user label fallback order
+	 * (title then ref; "firstname lastname" then login) so the equivalence
+	 * test's label_* dictionaries are a genuine match, not an artifact of a
+	 * missing field defaulting to a generic placeholder on one side only.
+	 */
+	private function exportForSummaryLegacy($entry, $db)
+	{
+		$projectLabel = null;
+		if ($entry->fk_project > 0) {
+			$res = $db->query('SELECT title, ref FROM '.$db->prefix().'projet WHERE rowid = '.(int) $entry->fk_project);
+			$obj = $res ? $db->fetch_object($res) : null;
+			if ($obj) {
+				$projectLabel = !empty($obj->title) ? $obj->title : (!empty($obj->ref) ? $obj->ref : null);
+			}
+		}
+		$userLabel = null;
+		$res = $db->query('SELECT login, firstname, lastname FROM '.$db->prefix().'user WHERE rowid = '.(int) $entry->fk_user);
+		$obj = $res ? $db->fetch_object($res) : null;
+		if ($obj) {
+			$full = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+			$userLabel = $full !== '' ? $full : ((string) $obj->login !== '' ? $obj->login : null);
+		}
+
+		return array(
+			'fk_project' => (int) $entry->fk_project,
+			'fk_user' => (int) $entry->fk_user,
+			'duration' => (int) $entry->duration,
+			'billable' => (int) $entry->billable,
+			'status' => (int) $entry->status,
+			'tags' => (string) $entry->tags,
+			'project_label' => $projectLabel,
+			'user_label' => $userLabel,
+		);
+	}
+
+	/**
+	 * F2 (SCAL-02 fix) equivalence test: on data small enough that the OLD
+	 * code's row cap never truncated it either (a dedicated test project, not
+	 * the 563-row reference set itself, for a clean, fully-known expected
+	 * result — same filter mechanism either way), the NEW
+	 * timeflowBuildSummaryFromAggregates() (one SQL aggregation) and the OLD
+	 * timeflowBuildSummary() (PHP loop over a plain fetchAll()) must return
+	 * identical total_seconds/billable_seconds/non_billable_seconds/by_*/
+	 * *_labels/by_status for the same filter — field by field, across
+	 * several filter combinations, and specifically covering three edge
+	 * cases the two code paths must treat identically:
+	 *  - an active timer (date_end NULL, duration 0): must still count in
+	 *    by_status (both paths count entries regardless of date_end) but
+	 *    contribute 0 to every duration sum;
+	 *  - a soft-deleted entry (date_delete set, validated-then-deleted so it
+	 *    is soft- not hard-deleted — see testSoftDeleteSetsDateAndUser()):
+	 *    must be excluded from both, the same way fetchAll()'s built-in
+	 *    "date_delete IS NULL" is matched by the new path's own condition;
+	 *  - an entry whose date_start is right before the period (excluded by
+	 *    both — the period filter is date_start-only, not an overlap test)
+	 *    and one whose date_end runs past the period's end (included by
+	 *    both, with its FULL duration, not clipped to the period).
+	 */
+	public function testDashboardSummaryAggregateMatchesLegacyComputation()
+	{
+		global $conf, $user, $langs, $db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
+
+		require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
+		$proj = new Project($db);
+		$proj->ref = 'PHPUNIT-F2-'.mt_rand(100000, 999999);
+		$proj->title = 'PHPUnit F2 equivalence test project';
+		$proj->socid = 1; // reuses the existing "Acme Corp" test client.
+		$proj->status = Project::STATUS_VALIDATED;
+		$proj->usage_task = 1;
+		$projectId = $proj->create($user);
+		$this->assertGreaterThan(0, $projectId, $proj->error);
+
+		$periodFrom = '2026-01-01';
+		$periodTo = '2026-01-31';
+		$base = strtotime($periodFrom.' 09:00:00 UTC');
+
+		// r1: validated, billable — the plain case.
+		$e1 = new TimeEntry($db);
+		$r1 = $e1->createManualEntry((int) $user->id, $projectId, 0, $base, $base + 3600, 'r1', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
+		$this->assertGreaterThan(0, $r1, $e1->error);
+
+		// r2: submitted, non-billable.
+		$e2 = new TimeEntry($db);
+		$r2 = $e2->createManualEntry((int) $user->id, $projectId, 0, $base + 7200, $base + 7200 + 1800, 'r2', '', 0, $user, null, TimeEntry::STATUS_SUBMITTED);
+		$this->assertGreaterThan(0, $r2, $e2->error);
+
+		// r3: active timer (date_end NULL, duration 0) inside the period — must count in by_status, contribute 0 to every sum.
+		$e3 = new TimeEntry($db);
+		$r3 = $e3->startTimer((int) $user->id, $projectId, 0, 'r3 active timer', $user);
+		$this->assertGreaterThan(0, $r3, implode(', ', $e3->errors));
+		$this->assertNotFalse($db->query('UPDATE '.$db->prefix().'timeflow_timeentry SET date_start = \''.$db->idate($base + 10800).'\' WHERE rowid = '.(int) $r3));
+
+		// r4: validated then soft-deleted — must be excluded from both paths.
+		$e4 = new TimeEntry($db);
+		$r4 = $e4->createManualEntry((int) $user->id, $projectId, 0, $base + 14400, $base + 14400 + 900, 'r4 soft-deleted', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
+		$this->assertGreaterThan(0, $r4, $e4->error);
+		$admin = new User($db);
+		$admin->fetch(1);
+		$toDelete = new TimeEntry($db);
+		$this->assertGreaterThan(0, $toDelete->fetch($r4));
+		$this->assertGreaterThan(0, $toDelete->delete($admin), $toDelete->error);
+		$this->assertNotNull($this->rawDateDelete($r4), 'r4 must be soft-deleted (date_delete set), not hard-deleted, for this test to mean anything');
+
+		// r5: date_start strictly before the period — excluded by both (date_start-only boundary, not an overlap test).
+		$e5 = new TimeEntry($db);
+		$r5 = $e5->createManualEntry((int) $user->id, $projectId, 0, strtotime('2025-12-31 23:00:00 UTC'), strtotime('2026-01-01 02:00:00 UTC'), 'r5 before period', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
+		$this->assertGreaterThan(0, $r5, $e5->error);
+
+		// r6: date_start inside the period but date_end well past it — included by both, with its FULL duration (not clipped at the period boundary).
+		$e6 = new TimeEntry($db);
+		$r6DateStart = strtotime('2026-01-30 20:00:00 UTC');
+		$r6DateEnd = strtotime('2026-02-05 20:00:00 UTC'); // 6 days later, past periodTo.
+		$r6 = $e6->createManualEntry((int) $user->id, $projectId, 0, $r6DateStart, $r6DateEnd, 'r6 straddles end', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
+		$this->assertGreaterThan(0, $r6, $e6->error);
+
+		// --- Build the same WHERE/filter the two getSummaryReports code paths use, scoped to this one test project. ---
+		$filter = '(t.fk_project:=:'.$projectId.')';
+		$dateRangeSql = timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $periodFrom.' 00:00:00');
+		$dateRangeSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $periodTo.' 23:59:59');
+
+		$whereSql = ' WHERE t.entity IN ('.getEntity('timeentry').')';
+		$whereSql .= ' AND t.date_delete IS NULL';
+		$whereSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $periodFrom.' 00:00:00');
+		$whereSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $periodTo.' 23:59:59');
+		$whereSql .= ' AND t.fk_project = '.$projectId;
+
+		// --- OLD path: plain fetchAll() (no cap here — proving equivalence requires an untruncated baseline) + PHP loop. ---
+		$legacyEntry = new TimeEntry($db);
+		$fetched = timeflowRequireRows($legacyEntry->fetchAll('DESC', 't.date_start', 100000, 0, $filter, 'AND', $dateRangeSql), $legacyEntry, 'test:legacy');
+		$legacyRows = array();
+		foreach ($fetched as $obj) {
+			$legacyRows[] = $this->exportForSummaryLegacy($obj, $db);
+		}
+		$oldSummary = timeflowBuildSummary($legacyRows, $db);
+
+		// --- NEW path: one SQL aggregation. ---
+		$newSummary = timeflowBuildSummaryFromAggregates($db, $whereSql);
+
+		// Expect exactly r1, r2, r3 (0s), r6 — r4 (deleted) and r5 (before period) excluded.
+		$this->assertCount(4, $legacyRows, 'sanity check on the OLD path\'s own row count before comparing');
+
+		foreach (array('total_seconds', 'billable_seconds', 'non_billable_seconds', 'by_project', 'project_labels', 'by_client', 'client_labels', 'by_user', 'user_labels', 'by_status', 'by_project_employee', 'by_project_client', 'by_project_billable', 'by_employee_client', 'by_employee_billable', 'by_client_billable') as $field) {
+			$this->assertSame($oldSummary[$field], $newSummary[$field], "Field '$field' differs between the legacy and the new aggregate computation");
+		}
+
+		// Pin down the actual expected values too, not just old==new (both could agree on a shared bug).
+		$this->assertSame(3600 + 1800 + 0 + (int) ($r6DateEnd - $r6DateStart), $newSummary['total_seconds']);
+		$this->assertSame(3600 + 0 + (int) ($r6DateEnd - $r6DateStart), $newSummary['billable_seconds'], 'r1 and r6 are billable, r2 is not, r3 contributes 0');
+		$this->assertSame(4, array_sum($newSummary['by_status']), 'r1..r3 and r6 must all be counted once in by_status, r3 included despite duration=0');
 	}
 	}  // @phan-suppress-current-line PhanUndeclaredClass
