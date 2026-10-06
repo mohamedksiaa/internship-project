@@ -1166,9 +1166,13 @@ function timeflowBuildGlobalCsvRows($db, $user, $afterId = 0, $limit = 10000)
  * decision): an employee can belong to several groups at once and `tags` is
  * a free-text comma-separated column, so neither is a clean SQL GROUP BY at
  * this grain. Neither is reachable from the dashboard's dimension/cross-with
- * selectors today (crossDimensions.js) — the caller still computes both from
- * the existing capped-row path (timeflowBuildSummary()) unchanged, and
- * merges them in; see ajax/timeentry.php's 'getSummaryReports'.
+ * selectors today (crossDimensions.js), confirmed by searching the whole
+ * frontend for every read of by_group/by_tag/group_labels/entries_returned/
+ * entries_total_in_period — none exist outside a code comment and the mock
+ * API's fixture shape. 'getSummaryReports' returns them empty/null rather
+ * than paying for the separate capped fetchAll() this function used to be
+ * called from just to compute these two unused fields (~300ms of the
+ * measured p95 at 100 562 rows, for data nothing displays).
  *
  * @param DoliDB $db
  * @param string $whereSql Full ' WHERE ...' clause (entity, date_delete,
@@ -1331,14 +1335,16 @@ function timeflowBuildSummaryFromAggregates($db, $whereSql)
  * frontend to translate ("Sans projet"/"Client inconnu"/"Sans groupe"), the
  * same way it already handles the project '0' bucket — no i18n in this file.
  *
- * Since F2 (SCAL-02 fix), only by_group/by_tag from this function's result
- * are actually used in production (see case 'getSummaryReports') — every
- * other field is now computed exactly, for the whole period, by
- * timeflowBuildSummaryFromAggregates() instead. This function is kept
- * unchanged so by_group/by_tag's existing behavior is untouched, and so the
- * equivalence test (timeentryTest.php) can compare its full output against
- * the new aggregate path's on data small enough that this one was never
- * truncated either.
+ * Since the F2 follow-up (SCAL-02 fix), this function is called ONLY from
+ * the PHPUnit equivalence test (timeentryTest.php) as the legacy reference
+ * to compare timeflowBuildSummaryFromAggregates() against — 'getSummaryReports'
+ * no longer calls it in production. by_group/by_tag/group_labels are
+ * returned empty there instead of recomputed (see
+ * timeflowBuildSummaryFromAggregates()'s doc-comment for why: unused by the
+ * dashboard today, and the capped fetchAll() this function needs was costing
+ * ~300ms of the measured p95 for those two fields alone). Kept here, not
+ * deleted, specifically so the equivalence test still has a real second
+ * implementation to compare against, not just a hardcoded expectation.
  *
  * @param array $entries Exported time entries (see timeflowExportTimeEntry)
  * @param DoliDB $db
