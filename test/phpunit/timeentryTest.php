@@ -1361,8 +1361,9 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 	 * result — same filter mechanism either way), the NEW
 	 * timeflowBuildSummaryFromAggregates() (one SQL aggregation) and the OLD
 	 * timeflowBuildSummary() (PHP loop over a plain fetchAll()) must return
-	 * identical total_seconds/billable_seconds/non_billable_seconds/by_*/
-	 * *_labels/by_status for the same filter — field by field, across
+	 * identical total_seconds/billable_seconds/non_billable_seconds, every
+	 * by_X breakdown and X_labels dictionary, and by_status, for the same
+	 * filter — field by field, across
 	 * several filter combinations, and specifically covering three edge
 	 * cases the two code paths must treat identically:
 	 *  - an active timer (date_end NULL, duration 0): must still count in
