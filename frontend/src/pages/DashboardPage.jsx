@@ -160,13 +160,13 @@ export default function DashboardPage() {
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : i18n.language === 'de' ? 'de-DE' : 'fr-FR';
 
-  // getSummaryReports caps its fetch at `limit` rows (see ajax/timeentry.php)
-  // for performance — entries_total_in_period is the real, unlimited count
-  // for the same filter, so a mismatch means every card/chart fed by
-  // `summary` below is silently built from a partial sample of the period.
-  const isSummaryTruncated = Boolean(
-    summary && Number(summary.entries_total_in_period) > Number(summary.entries_returned)
-  );
+  // F2 (SCAL-02 fix): totals/chart/cross-tabs are now built from a SQL
+  // aggregation over the whole period (ajax/timeentry.php ->
+  // timeflowBuildSummaryFromAggregates()), not a row sample capped at
+  // `limit` — entries_returned/entries_total_in_period still exist in the
+  // payload (they now describe only by_group/by_tag's own coverage, see that
+  // function's doc-comment) but no longer mean the cards/chart below could
+  // be partial, so the truncation banner that used to compare them is gone.
 
   const summaryStats = useMemo(() => ({
     totalSeconds: Number(summary?.total_seconds || 0),
@@ -418,11 +418,6 @@ export default function DashboardPage() {
       </div>
       {summaryError && <p className="tw-mt-2 tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{summaryError}</p>}
       {exportError && <p className="tw-mt-2 tw-text-sm tw-text-rose-600 dark:tw-text-rose-400">{exportError}</p>}
-      {isSummaryTruncated && (
-        <p className="tw-mt-2 tw-rounded-lg tw-bg-amber-50 dark:tw-bg-amber-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-amber-700 dark:tw-text-amber-300">
-          ⚠ {t('dashboard.entries_truncated_warning', { limit: summary.entries_returned })}
-        </p>
-      )}
     </div>
   );
 

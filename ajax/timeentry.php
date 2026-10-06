@@ -1468,196 +1468,11 @@ function timeflowFetchWeeklyTimesheet($timeentry, $user, $weekStart = null)
     return $resultPayload;
 }
 
-/**
- * Builds the dashboard/reports aggregate summary for a set of already-fetched
- * time entries: one pass computes every "by_X" breakdown at once (project,
- * client, employee, group, tag, status) so a single getSummaryReports call
- * can feed the period cards AND the customizable chart widget together.
- *
- * Label sentinel keys (project '0', client '0', group '0') are left for the
- * frontend to translate ("Sans projet"/"Client inconnu"/"Sans groupe"), the
- * same way it already handles the project '0' bucket — no i18n in this file.
- *
- * @param array $entries Exported time entries (see timeflowExportTimeEntry)
- * @param DoliDB $db
- * @return array
- */
-function timeflowBuildSummary($entries, $db)
-{
-    $summary = array(
-        'total_seconds' => 0,
-        'billable_seconds' => 0,
-        'non_billable_seconds' => 0,
-        'by_project' => array(),
-        'project_labels' => array(),
-        'by_client' => array(),
-        'client_labels' => array(),
-        'by_user' => array(),
-        'user_labels' => array(),
-        'by_group' => array(),
-        'group_labels' => array(),
-        'by_tag' => array(),
-        'by_status' => array(),
-        // Composite (2-dimension) breakdowns for the customizable chart's
-        // "cross with" stacking. Keyed "<dim1Value>|<dim2Value>" using a fixed
-        // canonical pair order (project, employee, client, billable) so each
-        // pair is stored once and the frontend pivots either dimension to the
-        // X axis. "group" is deliberately excluded: a duration can land in
-        // several groups at once (see by_group below), so stacking it would
-        // make a bar's segments sum to more than its real total.
-        'by_project_employee' => array(),
-        'by_project_client' => array(),
-        'by_project_billable' => array(),
-        'by_employee_client' => array(),
-        'by_employee_billable' => array(),
-        'by_client_billable' => array(),
-    );
-
-    // fk_project -> fk_soc, one query for every project actually referenced.
-    $projectClientMap = array();
-    $projectIds = array();
-    foreach ($entries as $entry) {
-        $pid = (int) ($entry['fk_project'] ?? 0);
-        if ($pid > 0) {
-            $projectIds[$pid] = true;
-        }
-    }
-    if (!empty($projectIds)) {
-        $sql = 'SELECT rowid, fk_soc FROM '.$db->prefix().'projet';
-        $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', array_keys($projectIds))).')';
-        $resql = timeflowQuery($db, $sql, 'timeflowBuildSummary:projectClients');
-        if ($resql) {
-            while ($obj = $db->fetch_object($resql)) {
-                $projectClientMap[(int) $obj->rowid] = (int) $obj->fk_soc;
-            }
-        }
-    }
-
-    // fk_soc -> nom, one query for every client actually referenced.
-    $clientLabelMap = array();
-    $clientIds = array_values(array_unique(array_filter($projectClientMap)));
-    if (!empty($clientIds)) {
-        $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
-        $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', $clientIds)).')';
-        $resql = timeflowQuery($db, $sql, 'timeflowBuildSummary:clientLabels');
-        if ($resql) {
-            while ($obj = $db->fetch_object($resql)) {
-                $clientLabelMap[(int) $obj->rowid] = (string) $obj->nom;
-            }
-        }
-    }
-
-    // fk_user -> [fk_usergroup...] + group labels. Table is tiny today (no
-    // group-management UI exists yet beyond the CSV import mapping), so a
-    // single unfiltered join is simplest and still cheap at any realistic size.
-    $userGroupsMap = array();
-    $groupLabelMap = array();
-    $sql = 'SELECT ug.fk_user, ug.fk_usergroup, g.nom FROM '.$db->prefix().'usergroup_user AS ug';
-    $sql .= ' INNER JOIN '.$db->prefix().'usergroup AS g ON g.rowid = ug.fk_usergroup';
-    $resql = timeflowQuery($db, $sql, 'timeflowBuildSummary:userGroups');
-    if ($resql) {
-        while ($obj = $db->fetch_object($resql)) {
-            $userGroupsMap[(int) $obj->fk_user][] = (int) $obj->fk_usergroup;
-            $groupLabelMap[(int) $obj->fk_usergroup] = (string) $obj->nom;
-        }
-    }
-
-    foreach ($entries as $entry) {
-        $duration = (int) ($entry['duration'] ?? 0);
-        $summary['total_seconds'] += $duration;
-        if (!empty($entry['billable'])) {
-            $summary['billable_seconds'] += $duration;
-        } else {
-            $summary['non_billable_seconds'] += $duration;
-        }
-
-        $fkProject = (int) ($entry['fk_project'] ?? 0);
-        $projectKey = (string) $fkProject;
-        if (!isset($summary['by_project'][$projectKey])) {
-            $summary['by_project'][$projectKey] = 0;
-        }
-        $summary['by_project'][$projectKey] += $duration;
-        if (!isset($summary['project_labels'][$projectKey])) {
-            $summary['project_labels'][$projectKey] = $entry['project_label'] ?? ('Projet #'.$projectKey);
-        }
-
-        // Client, via the entry's project's fk_soc. No project or no client on
-        // the project both land in the same "0" bucket (frontend: "Client inconnu").
-        $fkSoc = $fkProject > 0 ? ($projectClientMap[$fkProject] ?? 0) : 0;
-        $clientKey = (string) $fkSoc;
-        if (!isset($summary['by_client'][$clientKey])) {
-            $summary['by_client'][$clientKey] = 0;
-        }
-        $summary['by_client'][$clientKey] += $duration;
-        if ($fkSoc > 0 && !isset($summary['client_labels'][$clientKey])) {
-            $summary['client_labels'][$clientKey] = $clientLabelMap[$fkSoc] ?? ('Client #'.$clientKey);
-        }
-
-        $fkUser = (int) ($entry['fk_user'] ?? 0);
-        $userKey = (string) $fkUser;
-        if (!isset($summary['by_user'][$userKey])) {
-            $summary['by_user'][$userKey] = 0;
-        }
-        $summary['by_user'][$userKey] += $duration;
-        if (!isset($summary['user_labels'][$userKey])) {
-            $summary['user_labels'][$userKey] = $entry['user_label'] ?? ('Utilisateur #'.$userKey);
-        }
-
-        $billableKey = !empty($entry['billable']) ? '1' : '0';
-
-        $pairKey = $projectKey.'|'.$userKey;
-        $summary['by_project_employee'][$pairKey] = ($summary['by_project_employee'][$pairKey] ?? 0) + $duration;
-        $pairKey = $projectKey.'|'.$clientKey;
-        $summary['by_project_client'][$pairKey] = ($summary['by_project_client'][$pairKey] ?? 0) + $duration;
-        $pairKey = $projectKey.'|'.$billableKey;
-        $summary['by_project_billable'][$pairKey] = ($summary['by_project_billable'][$pairKey] ?? 0) + $duration;
-        $pairKey = $userKey.'|'.$clientKey;
-        $summary['by_employee_client'][$pairKey] = ($summary['by_employee_client'][$pairKey] ?? 0) + $duration;
-        $pairKey = $userKey.'|'.$billableKey;
-        $summary['by_employee_billable'][$pairKey] = ($summary['by_employee_billable'][$pairKey] ?? 0) + $duration;
-        $pairKey = $clientKey.'|'.$billableKey;
-        $summary['by_client_billable'][$pairKey] = ($summary['by_client_billable'][$pairKey] ?? 0) + $duration;
-
-        // Group(s): an employee can belong to several groups at once, so a
-        // single entry's duration can be counted into more than one bucket
-        // — this is a deliberate departure from the other dimensions, which
-        // partition duration exactly once. Employees with no group land in
-        // an explicit "0" bucket (frontend: "Sans groupe").
-        $groupsForUser = $userGroupsMap[$fkUser] ?? array();
-        if (empty($groupsForUser)) {
-            if (!isset($summary['by_group']['0'])) {
-                $summary['by_group']['0'] = 0;
-            }
-            $summary['by_group']['0'] += $duration;
-        } else {
-            foreach ($groupsForUser as $fkGroup) {
-                $groupKey = (string) $fkGroup;
-                if (!isset($summary['by_group'][$groupKey])) {
-                    $summary['by_group'][$groupKey] = 0;
-                }
-                $summary['by_group'][$groupKey] += $duration;
-                if (!isset($summary['group_labels'][$groupKey])) {
-                    $summary['group_labels'][$groupKey] = $groupLabelMap[$fkGroup] ?? ('Groupe #'.$groupKey);
-                }
-            }
-        }
-
-        foreach (preg_split('/\s*,\s*/', (string) ($entry['tags'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $tag) {
-            if (!isset($summary['by_tag'][$tag])) {
-                $summary['by_tag'][$tag] = 0;
-            }
-            $summary['by_tag'][$tag] += $duration;
-        }
-
-        $statusKey = (string) ($entry['status'] ?? 0);
-        if (!isset($summary['by_status'][$statusKey])) {
-            $summary['by_status'][$statusKey] = 0;
-        }
-        $summary['by_status'][$statusKey] += 1;
-    }
-
-    return $summary;
-}
+// timeflowBuildSummary() moved to lib/timeflow.lib.php (already included
+// above) so it can be exercised by a PHPUnit test without pulling in this
+// file's own HTTP dispatch — same reasoning as timeflowBuildGlobalCsvRows()
+// (ANO-SCAL-01 fix). It is now only used for by_group/by_tag (F2, SCAL-02
+// fix) — see case 'getSummaryReports'.
 
 /**
  * Counts how many timeflow_timeentry rows match the same Universal Search
@@ -2833,6 +2648,41 @@ switch ($action) {
         if (!empty($user->admin) && GETPOST('debug', 'int')) {
             dol_syslog('timeflow.getSummaryReports user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' dateFrom='.(string)$dateFrom.' dateTo='.(string)$dateTo, LOG_DEBUG);
         }
+
+        // F2 (SCAL-02 fix): total/by_project/by_client/by_user/by_status and
+        // every cross-tab the chart offers now come from ONE SQL aggregation
+        // over the WHOLE period (timeflowBuildSummaryFromAggregates()) —
+        // exact regardless of volume, no row cap. $whereSql below is the same
+        // entity/read-scope/period/project/client/employee conditions as
+        // $filter+$dateRangeSql above, just as one raw SQL string (an
+        // aggregate query has no use for the Universal Search filter format).
+        $whereSql = ' WHERE t.entity IN ('.getEntity('timeentry').')';
+        if (timeflowHasDateDeleteColumn($db)) {
+            $whereSql .= ' AND t.date_delete IS NULL';
+        }
+        if (!timeflowCanReadAllTimeEntries($user)) {
+            $whereSql .= ' AND t.fk_user = '.((int) $user->id);
+        }
+        if ($onlyValidated) {
+            $whereSql .= ' AND t.status = '.TimeEntry::STATUS_VALIDATED;
+        }
+        if ($dateFrom !== '') {
+            $whereSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $dateFrom.' 00:00:00');
+        }
+        if ($dateTo !== '') {
+            $whereSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $dateTo.' 23:59:59');
+        }
+        $whereSql .= timeflowSummaryFilterSql($db, $projectIds, $clientIds, $userIds);
+        $summaryData = timeflowBuildSummaryFromAggregates($db, $whereSql);
+
+        // by_group/by_tag are deliberately NOT part of the aggregate above
+        // (see its doc-comment) and are not reachable from the dashboard's
+        // dimension/cross-with selectors today — kept on the old capped-row
+        // path, unchanged, rather than recomputed. This capped fetch (and
+        // entries_returned/entries_total_in_period below) now describes only
+        // these two fields' own coverage, not the totals/chart, which are
+        // always exact above — see the removed truncation banner in
+        // DashboardPage.jsx.
         $result = timeflowRequireRows($timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter, 'AND', $dateRangeSql), $timeentry, 'getSummaryReports:rows');
         $rows = array();
         if (is_array($result)) {
@@ -2840,9 +2690,10 @@ switch ($action) {
                 $rows[] = timeflowExportTimeEntry($obj);
             }
         }
-        $summaryData = timeflowBuildSummary($rows, $db);
-        // Lets the frontend warn when the period holds more rows than $limit
-        // fetched above, instead of silently charting an incomplete sample.
+        $legacySummary = timeflowBuildSummary($rows, $db);
+        $summaryData['by_group'] = $legacySummary['by_group'];
+        $summaryData['group_labels'] = $legacySummary['group_labels'];
+        $summaryData['by_tag'] = $legacySummary['by_tag'];
         $summaryData['entries_returned'] = count($rows);
         $summaryData['entries_total_in_period'] = timeflowCountEntriesMatchingFilter($db, $filter, $dateRangeSql);
         timeflowJsonResponse(array('status' => 'success', 'data' => $summaryData));

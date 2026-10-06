@@ -1,0 +1,43 @@
+{
+  "cas": "F2 - totaux du tableau de bord calcules par agregation SQL (correctif SCAL-02)",
+  "choix_architecture": {
+    "option_retenue": "une seule requete SQL au grain le plus fin (fk_project, fk_user, billable, status), tout derive en PHP",
+    "option_ecartee": "8-11 requetes separees (une par dimension/croisement)",
+    "mesure_comparative_100562_lignes_cette_annee": {
+      "grain_fin_unique": { "duree_ms": 61.5, "lignes_renvoyees": 419 },
+      "huit_requetes_separees": { "duree_ms": 492.9, "lignes_renvoyees_total": 1420 },
+      "mesure_mois": { "grain_fin_ms": 2.9, "huit_requetes_ms": 17.1 },
+      "mesure_trimestre": { "grain_fin_ms": 37.3, "huit_requetes_ms": 372.4 },
+      "conclusion": "la requete unique est 5 a 8x plus rapide a chaque palier et renvoie 2 a 3x moins de lignes - chaque requete separee rebalaie independamment les memes lignes filtrees"
+    }
+  },
+  "perimetre": {
+    "deplace_en_sql": ["total_seconds", "billable_seconds", "non_billable_seconds", "by_project", "by_client", "by_user", "by_project_employee", "by_project_client", "by_project_billable", "by_employee_client", "by_employee_billable", "by_client_billable", "by_status (comptages)"],
+    "inchange_documente": ["by_group (multi-appartenance aux groupes, pas un GROUP BY simple)", "by_tag (texte libre separe par virgules, pas une colonne groupable)"],
+    "plafond_1000_lignes_et_avertissement": "retires - plus aucun total/graphique affiche ne peut etre partiel ; le champ entries_returned/entries_total_in_period reste dans la reponse mais ne decrit plus que la couverture de by_group/by_tag (non affiches par l'interface actuelle)"
+  },
+  "test_equivalence_phpunit": {
+    "nom": "test/phpunit/timeentryTest.php::testDashboardSummaryAggregateMatchesLegacyComputation",
+    "methode": "projet de test dedie, 6 lignes connues, compare champ par champ l'ancien calcul (timeflowBuildSummary sur un fetchAll non plafonne) au nouveau (timeflowBuildSummaryFromAggregates)",
+    "cas_couverts": {
+      "chrono_actif_date_end_null": "duration=0, compte dans by_status, ne contribue a aucune somme - identique des deux cotes",
+      "saisie_soft_supprimee": "validee puis supprimee (soft-delete reel, verifie via date_delete), exclue des deux cotes",
+      "saisie_avant_la_periode": "date_start hors periode, exclue des deux cotes (borne sur date_start uniquement)",
+      "saisie_a_cheval_sur_la_fin": "date_start dans la periode, date_end 6 jours apres - incluse des deux cotes avec sa duree COMPLETE, non tronquee"
+    },
+    "resultat": "27/27 tests de la suite passent (1 skip preexistant, sans rapport)"
+  },
+  "mesure_p95_100562_lignes": {
+    "mois": { "echantillon_ms": [665,686,701,735,762,765,803,804,868,868,879,919,930,937,973], "p95_ms": 973 },
+    "annee": { "echantillon_ms": [668,672,697,700,710,733,816,866,873,954,979,993,1009,1040,1083], "p95_ms": 1083 },
+    "seuil": "2000 ms",
+    "conclusion": "largement sous le seuil aux deux paliers"
+  },
+  "preuve_exactitude_sql_brut_independant": {
+    "total_annee": { "api": 363756202, "sql_brut": 363756202, "ecart": 0 },
+    "by_project_92": { "api": 3083195, "sql_brut": 3083195, "ecart": 0 },
+    "by_user_1": { "api": 16252, "sql_brut": 16252, "ecart": 0 },
+    "perimetre_droits": "zz_nf_employee (non readall, 0 saisie propre) recoit total_seconds=0 et by_user vide, pas les donnees des autres employes - confirme que la restriction fk_user=X s'applique bien a la nouvelle requete d'agregation"
+  },
+  "conclusion": "SCAL-02 repasse a (Correctif implémenté, totaux exacts a tout volume, p95 largement sous seuil, aucune regression sur by_group/by_tag ni sur les cas limites verifies)."
+}

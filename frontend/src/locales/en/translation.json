@@ -95,7 +95,6 @@
     "chart_type_label": "Chart type",
     "cross_with_label": "Cross with",
     "cross_with_none": "None",
-    "entries_truncated_warning": "The data shown is limited to the first {{limit}} entries in this period — narrow your date filter for a complete view.",
     "billable_label": "Billable",
     "non_billable_label": "Non-billable",
     "other_bucket": "Other",

@@ -96,7 +96,6 @@
     "chart_type_label": "Type de graphique",
     "cross_with_label": "Croiser avec",
     "cross_with_none": "Aucun",
-    "entries_truncated_warning": "Les données affichées sont limitées aux {{limit}} premières entrées de la période — affinez votre filtre de dates pour une vue complète.",
     "billable_label": "Facturable",
     "non_billable_label": "Non facturable",
     "other_bucket": "Autres",

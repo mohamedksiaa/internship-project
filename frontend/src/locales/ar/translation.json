@@ -116,7 +116,6 @@
     "chart_type_label": "نوع الرسم البياني",
     "cross_with_label": "تقاطع مع",
     "cross_with_none": "بدون",
-    "entries_truncated_warning": "البيانات المعروضة محدودة بأول {{limit}} سجل في هذه الفترة — ضيّق نطاق التاريخ للحصول على عرض كامل.",
     "billable_label": "قابل للفوترة",
     "non_billable_label": "غير قابل للفوترة",
     "other_bucket": "أخرى",
