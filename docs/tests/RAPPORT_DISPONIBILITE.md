@@ -12,9 +12,9 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 ## 1. Résumé
 
 - Cas prévus : 12 · exécutés : 8 (DISP-01, 02, 03, 04, 05, 08, 09, 11) · préparés sans exécution (procédure seule) : 2 (DISP-06, 07) · non exécutés : 2 (DISP-10 optionnel, DISP-12 sans objet — un seul environnement 19.0.2 disponible)
-- Statuts : ✅ 3 (DISP-01, 08, 09) · ⚠️ 3 (DISP-03, 04, 05 — testés avec une réserve) · ❌ 1 (DISP-02) · ℹ️ informatif 1 (DISP-11)
-- Anomalies : 3 trouvées (ANO-DISP-01 Élevé, ANO-DISP-02 Faible, ANO-DISP-03 Moyen) · 0 corrigée (consigne : documentées, pas corrigées en phase de disponibilité)
-- **Conclusion.** Le redémarrage propre (DISP-01), la pile complète (DISP-03) et la désactivation/réactivation du module (DISP-08) sont fiables, sans perte de donnée. La sauvegarde fonctionne réellement et couvre 100 % des tables du module (DISP-05), avec deux réserves mineures côté cœur Dolibarr. **La découverte la plus significative** : la politique `restart: unless-stopped` ne relance aucun des 4 conteneurs après un plantage brutal (`kill -9`) sur cette installation — 4 cas sur 4, reproductible — ce qui veut dire qu'un vrai plantage (OOM, bug du moteur) laisserait le service indisponible jusqu'à une intervention manuelle, malgré la configuration déclarée. Aucune perte ni corruption de données constatée dans aucun des cas destructifs exécutés.
+- Statuts : ✅ 4 (DISP-01, 02, 08, 09) · ⚠️ 3 (DISP-03, 04, 05 — testés avec une réserve) · ℹ️ informatif 1 (DISP-11)
+- Anomalies : 2 réelles (ANO-DISP-02 Faible, ANO-DISP-03 Moyen) · 1 **invalidée après vérification** (ANO-DISP-01 — erreur de méthode de test, voir §3, gardée pour mémoire) · 0 corrigée (consigne : documentées, pas corrigées en phase de disponibilité)
+- **Conclusion.** Le redémarrage propre (DISP-01), la politique de redémarrage pour un vrai plantage (DISP-02, rejoué avec un OOM-kill réel après correction de méthode), la pile complète (DISP-03) et la désactivation/réactivation du module (DISP-08) sont tous fiables, sans perte de donnée. La sauvegarde fonctionne réellement et couvre 100 % des tables du module (DISP-05), avec deux réserves mineures côté cœur Dolibarr. Aucune perte ni corruption de données constatée dans aucun des cas destructifs exécutés.
 
 ## 2. Tableau récapitulatif
 
@@ -22,7 +22,7 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 |---|---|---|---|---|---|
 | DISP-04 | Sondes de santé | Lecture de `docker-compose.yml` + `docker inspect` : seul `mariadb` a une sonde déclarée (compose) ; `mailpit` en a une **intégrée à l'image** (`/mailpit readyz`), pas déclarée dans compose ; `dolibarr` et `dolibarr-cron` n'en ont **aucune**. Simulation réelle : fichier PHP en erreur fatale déposé sur le clone (`disp04_broken_test.php`, supprimé après test) → la requête renvoie **HTTP 500** (vraie panne applicative), mais `docker ps`/`docker inspect` affichent `dolibarr` comme `Up`/`running`, **sans aucun signal d'anomalie** — Docker ne peut pas voir une panne applicative sur ce service. | Tableau sonde/service complété **(✅)** ; recommandation chiffrée **(✅, voir §5)** | ℹ️ informatif | — |
 | DISP-01 | Redémarrage propre de chaque conteneur | `docker restart` sur les 4 conteneurs, un par un, sonde 1 s : **dolibarr 1,85 s**, **mailpit 1,0 s**, **dolibarr-cron 1,75 s** (process actif), **mariadb 13,2 s** (jusqu'à `healthy`). Comptages sur 9 tables `llx_timeflow_*` identiques avant/après (ex. `timeentry` 567/567, `timeentry_modification` 6012/6012). Journaux post-retour : 0 nouvelle erreur attribuable à ce test (une ligne d'erreur HTTP 500 dans les logs dolibarr vient du test DISP-04 qui précède, une ligne de panne base dans les logs cron est horodatée avant le début de cette séquence — résidu d'un test antérieur dans la session). | RTO ≤ 60 s web/cron/mail **(✅)** ; RTO ≤ 120 s base **(✅ 13,2 s)** ; comptages identiques **(✅)** ; 0 erreur attribuable **(✅)** | ✅ | — |
-| DISP-02 | Plantage brutal (`kill -9`) et politique de redémarrage | `docker kill` sur les 4 conteneurs **séparément**, sans aucune action manuelle, attente ≥ 15-20 s chacun. **Les 4 sur 4 sont restés `Exited (137)`, `RestartCount=0` — aucun n'a redémarré seul**, malgré `restart: unless-stopped` déclaré pour les 4 dans `docker-compose.yml`. Relancés manuellement (`docker start`) entre chaque test et à la fin. `CHECK TABLE` sur 4 tables clés après la reprise de la base : **OK** (récupération InnoDB propre). Comptage `timeentry` identique (567) après toute la séquence. `docker version` : Client/Server 29.5.3. | Relance sans intervention pour 4 conteneurs sur 4 **(❌ 0/4)** ; RTO ≤ 5 min **(sans objet, jamais relancé seul)** ; `CHECK TABLE` sans erreur **(✅)** | ❌ | — |
+| DISP-02 | Plantage brutal et politique de redémarrage | **Premier essai invalidé** : `docker kill` sur les 4 conteneurs séparément → aucun n'a redémarré seul — mais `docker kill` est compté par Docker comme un arrêt volontaire, que `unless-stopped` ignore par conception (voir ANO-DISP-01, requalifiée). **Rejoué avec un vrai plantage** (`docker update --memory=<sous l'empreinte réelle>`, OOM-kill déclenché par le noyau, jamais de `docker kill`/`stop`) : `mailpit` `RestartCount` 0→7, `dolibarr` 0→1, `mariadb` 0→6 (`CHECK TABLE` OK après), tous revenus seuls, sans aucune action manuelle. `dolibarr-cron` non concluant (empreinte trop légère pour forcer un OOM même à la limite minimale Docker). | Relance sans intervention **(✅ 3/4 confirmés, 1/4 non concluant)** ; `CHECK TABLE` sans erreur **(✅)** | ✅ | — |
 | DISP-03 | Redémarrage complet de la pile et ordre de démarrage | `docker compose stop` (note : `dolibarr-cron` a mis plus que le délai de grâce et est sorti en 137, les 3 autres en 0) puis `docker compose start` — `mariadb` et `dolibarr` démarrent **simultanément** (`depends_on` sans condition de santé, confirmé par lecture de `docker-compose.yml`). Sonde HTTP à 1 Hz pendant 60 s après le démarrage : **200 dès la première seconde, aucune fenêtre d'erreur mesurée** — l'image `dolibarr` semble gérer elle-même l'attente de la base avant de servir Apache. `docker logs` cron sur cette fenêtre : aucune exécution de job (aucun tic de 5 min ne tombait dans la fenêtre observée, donc non concluant sur « tâche cron à vide »). Comptage `timeentry` inchangé (567). | Service nominal en ≤ 5 min **(✅, immédiat)** ; 0 donnée altérée **(✅)** ; fenêtre d'erreur mesurée et rapportée **(✅, 0 s mesurée — voir réserve)** | ⚠️ | — |
 | DISP-05 | Sauvegarde : activation, exécution, contenu | Job « Sauvegarde locale de base » (rowid 3, `MakeLocalDatabaseDumpShort`) **activé via le vrai mécanisme admin** (`cron/card.php?action=activate`), exécuté via `cron_run_jobs.php` (identique au mécanisme réel du conteneur cron). Fichier produit sur `/var/www/documents/admin/backup/` — **volume nommé persistant** `dolibarr_documents`, pas l'intérieur éphémère du conteneur. 1,86 Mo, marqueur de fin propre (pas de troncature). **15/15 tables `llx_timeflow_*` présentes**, 566 séparateurs de lignes pour `timeentry` = 567 lignes réelles. Relancé 7 fois au total en < 2 min : **seulement 2 fichiers distincts** — le nom de fichier a une granularité **par minute**, donc plusieurs exécutions dans la même minute s'écrasent silencieusement (limite du test : ne reproduit pas un espacement réaliste). Lecture du code cœur (`Utils::dumpDatabase()`) : le mot de passe **est bien passé en ligne de commande** à `mysqldump` (confirmé par le filtrage explicite de l'avertissement mysqldump correspondant) — comportement du cœur, non modifiable. | Fichier produit à chaque exécution **(✅, hors collision de nom)** ; 100 % des tables du module présentes **(✅)** ; taille cohérente **(✅)** ; stocké sur volume persistant **(✅)** | ⚠️ | `preuves/DISP/DISP-05/` |
 | DISP-08 | Désactivation puis réactivation du module | Comptages sur 9 tables + 2 tâches planifiées + 13 constantes `TIMEFLOW_*` relevés avant ; désactivation puis réactivation via le **vrai mécanisme admin** (`admin/modules.php?action=reset\|set&value=modTimeFlow`, compte superadmin réel, pas une manipulation directe de la base). Après réactivation : **2 tâches planifiées exactement (pas 4)**, mêmes rowid (1, 6) ; **13/13 constantes identiques** ; **9/9 comptages de tables identiques** (ex. `timeentry` 567/567) ; application de nouveau accessible (200). Observation (non bloquante) : pendant la désactivation, `timeflowindex.php` pour un utilisateur connecté renvoie une page Dolibarr standard **vide** (menu seul, aucun message explicite "module désactivé") plutôt qu'un message clair — à rapprocher de DISP-11. | Comptages identiques **(✅)** ; 2 tâches planifiées exactement **(✅)** ; réglages inchangés **(✅)** | ✅ | — |
@@ -31,16 +31,18 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 
 ## 3. Détail des anomalies
 
-### ANO-DISP-01 — `restart: unless-stopped` ne relance aucun des 4 conteneurs après un `kill -9`
+### ANO-DISP-01 — requalifiée : erreur de méthode de test, pas une anomalie du produit (gardée ici, instructive)
 - **Cas concerné** : DISP-02
-- **Gravité** : Élevé (opérationnel — un plantage brutal de n'importe quel conteneur reste indéfiniment arrêté sans intervention manuelle, pas de perte de données constatée)
-- **Description** : les 4 services ont `restart: unless-stopped` dans `docker-compose.yml`. Un `docker kill` (SIGKILL) sur chacun, testé séparément sans aucune action manuelle entre le kill et la vérification, montre dans les 4 cas : conteneur `Exited (137)`, `RestartCount=0`, toujours arrêté après 15-20 s d'attente. Aucun des 4 n'est revenu seul.
-- **Reproduction** : `docker kill <conteneur>` puis `docker ps -a` / `docker inspect --format '{{.RestartCount}}'` après ≥ 15 s, sans `docker start`. Reproduit pour `timeflow-mailpit`, `timeflow-dolibarr`, `timeflow-dolibarr-cron`, `timeflow-mariadb`, un par un.
-- **Impact** : pas de perte ni de corruption de données constatée (reprise InnoDB propre après relance manuelle de la base, `CHECK TABLE` OK, comptages identiques) — mais la **disponibilité réelle dépend entièrement d'une relance manuelle** après tout plantage brutal (OOM, erreur du moteur, `kill -9` externe), ce qui contredit l'hypothèse de départ du plan (RTO ≤ 5 min *sans intervention*).
-- **Cause probable** : non élucidée avec certitude depuis l'intérieur des conteneurs — `docker version` (Client/Server 29.5.3), `docker info` (`CgroupDriver=cgroupfs`, `LiveRestoreEnabled=false`, backend WSL2, noyau `6.18.33.1-microsoft-standard-WSL2`) ne montrent rien d'anormal par rapport à une configuration par défaut. La configuration `restart: unless-stopped` est conforme à ce qui devrait fonctionner nativement. Piste la plus probable : particularité du moteur Docker Desktop (backend WSL2) sur cette machine vis-à-vis de l'application des politiques de redémarrage après un SIGKILL — **non confirmée**, seulement l'observation empirique reproductible 4 fois sur 4.
-- **Recommandation** : vérifier `docker info` (pilote cgroup, `Live Restore Enabled`) et la configuration de Docker Desktop ; en test rapide, confirmer avec un conteneur hors de ce projet si le même phénomène se produit (isolerait un problème d'environnement plutôt que de configuration du projet). Si confirmé comme une limite de l'environnement Docker Desktop plutôt que du projet, documenter que la surveillance externe (ex. un service qui relance les conteneurs arrêtés) reste nécessaire en attendant, puisque la politique native ne suffit pas sur cette plateforme.
-- **Correctif** : non applicable ici — `docker-compose.yml` n'est pas modifié (consigne) ; recommandation ci-dessus à votre décision.
-- **Re-test** : non refait sur un autre moteur Docker (hors de portée de cette session).
+- **Statut** : ❌ **invalidée** — ce n'est pas une anomalie du module ni de l'environnement, signalé et vérifié par le responsable.
+- **Description initiale (gardée pour mémoire)** : `docker kill` (SIGKILL) sur chacun des 4 conteneurs séparément, sans action manuelle, montrait dans les 4 cas `Exited (137)`, `RestartCount=0` — aucun n'était revenu seul.
+- **Explication réelle** : `docker kill`/`docker stop` sont enregistrés par Docker comme un **arrêt intentionnel de l'utilisateur**. La politique `unless-stopped` est documentée pour **ignorer précisément ce cas** : elle ne relance jamais un conteneur que l'utilisateur a explicitement arrêté/tué via l'API Docker — c'est le sens même de « unless stopped ». Le test initial simulait donc un arrêt volontaire, pas un plantage.
+- **Re-test avec un vrai plantage (sans `docker kill`)** : tuer le PID 1 *depuis l'intérieur* du conteneur s'est révélé sans effet (`docker exec <conteneur> kill -9 1` : sortie 0, aucun changement) — le noyau Linux ignore tout signal, y compris SIGKILL, envoyé à l'« init » d'un espace de noms PID tant qu'il n'a pas de gestionnaire installé pour ce signal. Utilisé à la place une **vraie cause de plantage initiée par le noyau** : `docker update --memory=<valeur sous l'empreinte réelle>` pour forcer un **OOM-kill**, sans jamais appeler `docker kill`/`stop` moi-même.
+  - `timeflow-mailpit` (empreinte ~12 Mo) → limite 8 Mo : **`RestartCount` 0→7 en quelques secondes**, `OOMKilled=true` confirmé, revenu `running`, HTTP 200 après restauration de la limite.
+  - `timeflow-dolibarr` (empreinte ~21 Mo) → limite 16 Mo : **`RestartCount` 0→1**, revenu `Up`, HTTP 200.
+  - `timeflow-mariadb` (empreinte ~211 Mo) → limite 120 Mo : **`RestartCount` 0→6**, revenu `healthy`, `CHECK TABLE` OK sur les tables du module, 0 corruption.
+  - `timeflow-dolibarr-cron` : empreinte trop légère (~2 Mo) pour déclencher un OOM même à la limite minimale autorisée par Docker (6 Mo) au repos — **non concluant pour ce conteneur spécifiquement**, faute d'une charge active au moment du test ; les 3 autres suffisent à confirmer le mécanisme.
+- **Conclusion confirmée** : la politique `restart: unless-stopped` **fonctionne correctement** pour un vrai plantage (initié par le noyau, pas par une commande Docker explicite), sur 3 conteneurs sur 4 testés avec succès (le 4ᵉ non concluant par manque de charge, pas par échec du mécanisme).
+- **Leçon de méthode** : pour simuler un plantage dans un futur test, ne jamais utiliser `docker kill`/`docker stop` (comptés comme arrêt volontaire) ; utiliser une cause réelle (OOM via `docker update --memory`, erreur fatale du processus lui-même, etc.).
 
 ### ANO-DISP-02 — Le nom de fichier de sauvegarde a une granularité à la minute : des exécutions rapprochées s'écrasent
 - **Cas concerné** : DISP-05
@@ -93,10 +95,8 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 
 **Changement exact proposé** : remplacer `image: tuxgasy/dolibarr:latest` par le tag de version exacte actuellement utilisée (à déterminer avec `docker inspect timeflow-dolibarr --format '{{.Config.Image}}'` puis en consultant les tags disponibles sur le registre tuxgasy, ou en épinglant par digest `tuxgasy/dolibarr@sha256:...` pour une reproductibilité totale).
 
-### R3 — Politique de redémarrage : `restart: unless-stopped` ne suffit pas sur cet hôte
-**Constat (ANO-DISP-01, DISP-02)** : vérifié 4 fois sur 4 — aucun conteneur ne redémarre seul après un `kill -9`, malgré la politique déclarée.
-
-**Recommandation** (pas un changement de fichier à proposer tant que la cause n'est pas confirmée) : avant de modifier quoi que ce soit, confirmer si le phénomène est propre à cette installation de Docker Desktop (tester avec un conteneur hors de ce projet) ou au projet. Si confirmé comme une limite de la plateforme, une supervision externe (ex. un service qui vérifie et relance les conteneurs arrêtés) devient nécessaire en attendant une correction de l'environnement — ne concerne pas `docker-compose.yml`.
+### R3 — retirée
+**ANO-DISP-01 a été invalidée après vérification** (erreur de méthode de test : `docker kill` est un arrêt volontaire pour Docker, `unless-stopped` l'ignore par conception). Le re-test avec un vrai plantage (OOM-kill) confirme que la politique fonctionne correctement — aucun changement de configuration n'est recommandé sur ce point.
 
 ### R4 — Observabilité des pannes (DISP-11)
 
@@ -111,49 +111,89 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 
 **Recommandation générale** : au-delà de R1 (sonde HTTP), une vérification périodique de `llx_cronjob.dateexecution` par rapport à la fréquence attendue (alerte si un job actif n'a pas tourné depuis N× sa fréquence) détecterait le cas « cron arrêté » qu'aucune sonde HTTP ne couvre. Hors périmètre d'implémentation de cette session (supervision externe, cf. plan §3.2).
 
+### R5 — Activer le job de sauvegarde quotidien en production, et prévoir une copie hors site
+
+**Constat (DISP-05)** : le job « Sauvegarde locale de base » est **désactivé par défaut** — il ne tourne pas tout seul tant que personne ne l'active. La restauration de référence que vous effectuez entre chaque phase de test **le désactive à nouveau** (le dump restauré ne contenait pas l'activation faite pendant cette session), donc l'état « activé » ne survit pas à une restauration sans action explicite.
+
+**Recommandation** :
+1. En production, activer le job et vérifier sa fréquence (actuellement configuré pour tourner selon la planification cron native de Dolibarr — à régler explicitement, ex. quotidienne, via `cron/card.php` du job rowid correspondant à `MakeLocalDatabaseDumpShort`).
+2. Après toute restauration de base (y compris de référence pour les tests), **revérifier et réactiver ce job** s'il doit rester actif — il ne se réactive pas de lui-même.
+3. **La sauvegarde reste sur la même machine** (`dolibarr_documents`, le même volume Docker que l'application) : si le disque, la VM ou l'hôte est perdu, la sauvegarde l'est aussi avec le reste. Ce n'est pas un vrai plan de reprise d'activité tant qu'une **copie hors de cette machine** (stockage externe, autre serveur, service de sauvegarde cloud) n'est pas mise en place — hors périmètre technique du module, mais nécessaire pour tout objectif de RPO/RTO réel au-delà d'une panne locale.
+
+**Correctif** : non applicable (changement opérationnel/infrastructure, pas de code) — à votre décision.
+
 ## 6. Procédures préparées (à exécuter par le responsable)
 
 ### Procédure DISP-06 — Restauration complète testée (RPO/RTO)
 
 **Pourquoi vous l'exécutez vous-même** : consigne explicite, aucune restauration n'est faite par l'exécutant, y compris sur une base de vérification jetable.
 
-**Fichier de référence** : `/var/www/documents/admin/backup/mysqldump_dolibarr_19.0.2_2610060934.sql` (produit en DISP-05, sur le volume persistant `dolibarr_documents` — toujours là après un redémarrage des conteneurs). RPO au moment de l'écriture de cette procédure : **0** (sauvegarde fraîche, produite dans cette même session).
+**Corrections apportées à la version précédente** (signalées par le responsable) :
+- Le fichier de sauvegarde est sur le volume `dolibarr_documents`, monté dans `timeflow-dolibarr`/`timeflow-dolibarr-cron`, **pas dans `timeflow-mariadb`** — la restauration doit d'abord faire sortir le fichier, puis l'amener dans `timeflow-mariadb`, pas le lire directement depuis ce dernier.
+- Les sommes de contrôle doivent être prises **immédiatement après** la sauvegarde fraîche (même instant), pas après coup sur un état qui a pu changer depuis.
 
-**Sommes de contrôle de référence** (base actuelle, avant toute restauration — à comparer après) :
+**Script PowerShell complet** (à exécuter vous-même, dans l'ordre ; copier-coller le bloc entier ou étape par étape) :
 
-| Table | CHECKSUM |
-|---|---|
-| `llx_timeflow_daily_report` | 521365803 |
-| `llx_timeflow_expected_absence` | 0 |
-| `llx_timeflow_import_mapping` | 933732900 |
-| `llx_timeflow_late_check` | 1763371351 |
-| `llx_timeflow_notification` | 3069046961 |
-| `llx_timeflow_timeentry` | 2229791062 |
-| `llx_timeflow_timeentry_modification` | 2187528318 |
-| `llx_timeflow_time_edit_log` | 1298025706 |
-| `llx_timeflow_task` | 2384024763 |
+```powershell
+# Dossier de travail sur votre disque — adapter si besoin
+$hostDir = "C:\Users\GIGABYTE\docker-timeflow-test\restore-test"
+New-Item -ItemType Directory -Force -Path $hostDir | Out-Null
 
-**Étapes** :
-1. Chronométrer le départ (RTO).
-2. Créer un schéma vierge dans le **même** conteneur `timeflow-mariadb` (n'affecte pas `dolibarr`) :
-   ```
-   docker exec timeflow-mariadb mariadb -uroot -prootpass -e "CREATE DATABASE dolibarr_restore_test;"
-   ```
-3. Restaurer le dump dedans (jamais dans `dolibarr`) :
-   ```
-   docker exec -i timeflow-mariadb mariadb -uroot -prootpass dolibarr_restore_test < "C:\Users\GIGABYTE\docker-timeflow-test\timeflow\..\..." 
-   ```
-   (adapter le chemin pour pointer vers le fichier copié hors du conteneur, ou utiliser `docker exec timeflow-mariadb sh -c "mariadb -uroot -prootpass dolibarr_restore_test < /var/www/documents/admin/backup/mysqldump_dolibarr_19.0.2_2610060934.sql"` directement depuis l'intérieur du conteneur cron/dolibarr où le volume est monté, sans sortir le fichier).
-4. Comparer les sommes de contrôle avec la table ci-dessus :
-   ```
-   docker exec timeflow-mariadb mariadb -uroot -prootpass -e "CHECKSUM TABLE dolibarr_restore_test.llx_timeflow_timeentry, dolibarr_restore_test.llx_timeflow_notification, ...;"
-   ```
-5. Arrêter le chronomètre (RTO de restauration).
-6. Nettoyer :
-   ```
-   docker exec timeflow-mariadb mariadb -uroot -prootpass -e "DROP DATABASE dolibarr_restore_test;"
-   ```
-7. (Optionnel, plus représentatif mais plus lourd) Pointer une instance Dolibarr de test séparée sur `dolibarr_restore_test` pour comparer visuellement le tableau de bord — nécessite un second conteneur `dolibarr`, non mis en place dans cette session.
+# Les 15 tables du module
+$tableNames = @(
+  "llx_timeflow_daily_report","llx_timeflow_expected_absence","llx_timeflow_import_mapping",
+  "llx_timeflow_import_project_client_link","llx_timeflow_import_project_user_link",
+  "llx_timeflow_import_user_group_link","llx_timeflow_late_check","llx_timeflow_notification",
+  "llx_timeflow_project","llx_timeflow_project_text","llx_timeflow_task","llx_timeflow_timeentry",
+  "llx_timeflow_timeentry_extrafields","llx_timeflow_timeentry_modification","llx_timeflow_time_edit_log"
+)
+
+# --- (a) Lancer une sauvegarde fraîche ---
+docker exec timeflow-dolibarr-cron php /var/www/scripts/cron/cron_run_jobs.php testcronkey admin 3 --force
+
+# Nom exact (avec chemin) du fichier qui vient d'être produit (le plus récent du dossier)
+$backupFile = (docker exec timeflow-dolibarr-cron sh -c "ls -t /var/www/documents/admin/backup/*.sql | head -1").Trim()
+Write-Host "Fichier de sauvegarde : $backupFile"
+
+# --- (b) Prendre immédiatement les sommes de contrôle de référence (même instant que la sauvegarde) ---
+$refList = ($tableNames | ForEach-Object { "dolibarr.$_" }) -join ", "
+docker exec timeflow-mariadb mariadb -udolibarr -pdolibarrpass -e "CHECKSUM TABLE $refList;" |
+  Out-File "$hostDir\disp06_reference_checksums.txt"
+Write-Host "Sommes de contrôle de référence enregistrées dans $hostDir\disp06_reference_checksums.txt"
+
+# --- (c) Copier le fichier vers votre disque, puis dans timeflow-mariadb ---
+$fileName = Split-Path $backupFile -Leaf
+docker cp "timeflow-dolibarr-cron:${backupFile}" "$hostDir\$fileName"
+docker cp "$hostDir\$fileName" "timeflow-mariadb:/tmp/$fileName"
+Write-Host "Copié sur le disque ($hostDir\$fileName) puis dans timeflow-mariadb (/tmp/$fileName)"
+
+# --- (d) Restaurer dans une base de test, jamais dans "dolibarr" ---
+docker exec timeflow-mariadb mariadb -uroot -prootpass -e "DROP DATABASE IF EXISTS dolibarr_restore_test; CREATE DATABASE dolibarr_restore_test;"
+
+$t0 = Get-Date
+docker exec timeflow-mariadb sh -c "mariadb -uroot -prootpass dolibarr_restore_test < /tmp/$fileName"
+$t1 = Get-Date
+
+# --- (f) Mesurer le temps (RTO de restauration) ---
+$rto = $t1 - $t0
+Write-Host "RTO de restauration : $($rto.TotalSeconds) secondes"
+
+# --- (e) Comparer les sommes de contrôle ---
+$testList = ($tableNames | ForEach-Object { "dolibarr_restore_test.$_" }) -join ", "
+docker exec timeflow-mariadb mariadb -uroot -prootpass -e "CHECKSUM TABLE $testList;" |
+  Out-File "$hostDir\disp06_restored_checksums.txt"
+Write-Host "Comparaison (rien affiché = identique) :"
+Compare-Object (Get-Content "$hostDir\disp06_reference_checksums.txt") (Get-Content "$hostDir\disp06_restored_checksums.txt")
+
+# --- (g) Supprimer la base de test ---
+docker exec timeflow-mariadb mariadb -uroot -prootpass -e "DROP DATABASE dolibarr_restore_test;"
+Write-Host "Base de test supprimée."
+```
+
+**Notes** :
+- Les deux fichiers `disp06_reference_checksums.txt` et `disp06_restored_checksums.txt` ont les tables dans le même ordre (`$tableNames` sert aux deux), donc `Compare-Object` ligne à ligne est valide tel quel — seul le nom de la base (`dolibarr.` vs `dolibarr_restore_test.`) diffère dans la colonne "Table", ce qui est normal et attendu.
+- `Compare-Object` ne doit rien afficher si les sommes `Checksum` sont identiques — toute ligne affichée au-delà du nom de base attendu signale une divergence réelle.
+- (Optionnel, plus représentatif mais plus lourd) Pointer une instance Dolibarr de test séparée sur `dolibarr_restore_test` pour comparer visuellement le tableau de bord — nécessite un second conteneur `dolibarr`, non mis en place dans cette session.
 
 **Critère de réussite** : sommes de contrôle égales à 100 % ; RTO ≤ 15 min.
 
