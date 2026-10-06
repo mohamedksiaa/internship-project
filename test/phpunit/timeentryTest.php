@@ -1481,7 +1481,7 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		// Combination 3: same project, filtered to the ORIGINAL employee only — must exclude r7 (the
 		// other employee) identically on both sides, in addition to r4/r5 as before: r1, r2, r3, r6 = 4.
 		$count3 = $this->assertEquivalentSummary(
-			'(t.fk_project:=:'.$projectId.')(t.fk_user:=:'.((int) $user->id).')',
+			'(t.fk_project:=:'.$projectId.') AND (t.fk_user:=:'.((int) $user->id).')',
 			$periodFilter,
 			' AND t.fk_project = '.$projectId.timeflowSummaryFilterSql($db, array(), array(), array((int) $user->id)),
 			'filtre par employe'
@@ -1491,7 +1491,7 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		// Combination 4: same project, only_validated — must reduce to r1, r6 and r7 (all VALIDATED) on
 		// both sides, excluding r2 (SUBMITTED) and r3 (DRAFT, the active timer).
 		$count4 = $this->assertEquivalentSummary(
-			'(t.fk_project:=:'.$projectId.')(t.status:=:'.TimeEntry::STATUS_VALIDATED.')',
+			'(t.fk_project:=:'.$projectId.') AND (t.status:=:'.TimeEntry::STATUS_VALIDATED.')',
 			$periodFilter,
 			' AND t.fk_project = '.$projectId.' AND t.status = '.TimeEntry::STATUS_VALIDATED,
 			'only_validated'
