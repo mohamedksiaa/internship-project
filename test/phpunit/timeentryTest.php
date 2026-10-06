@@ -1472,8 +1472,19 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		// Expect exactly r1, r2, r3 (0s), r6 — r4 (deleted) and r5 (before period) excluded.
 		$this->assertCount(4, $legacyRows, 'sanity check on the OLD path\'s own row count before comparing');
 
+		// ksort both sides before comparing the dictionary-shaped fields: the two code paths build their
+		// by_X arrays by iterating in different row orders (fetchAll() is ORDER BY date_start DESC, the SQL
+		// aggregate's GROUP BY order is unspecified), so the KEYS' insertion order can legitimately differ
+		// without the CONTENT differing — and both the frontend and this test only ever do keyed lookups,
+		// never rely on array order, so that difference is not something this equivalence check should fail on.
 		foreach (array('total_seconds', 'billable_seconds', 'non_billable_seconds', 'by_project', 'project_labels', 'by_client', 'client_labels', 'by_user', 'user_labels', 'by_status', 'by_project_employee', 'by_project_client', 'by_project_billable', 'by_employee_client', 'by_employee_billable', 'by_client_billable') as $field) {
-			$this->assertSame($oldSummary[$field], $newSummary[$field], "Field '$field' differs between the legacy and the new aggregate computation");
+			$oldValue = $oldSummary[$field];
+			$newValue = $newSummary[$field];
+			if (is_array($oldValue)) {
+				ksort($oldValue);
+				ksort($newValue);
+			}
+			$this->assertSame($oldValue, $newValue, "Field '$field' differs between the legacy and the new aggregate computation");
 		}
 
 		// Pin down the actual expected values too, not just old==new (both could agree on a shared bug).
