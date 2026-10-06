@@ -1427,9 +1427,11 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$this->assertGreaterThan(0, $toDelete->delete($admin), (string) $toDelete->error);
 		$this->assertNotNull($this->rawDateDelete($r4), 'r4 must be soft-deleted (date_delete set), not hard-deleted, for this test to mean anything');
 
-		// r5: date_start strictly before the period — excluded by both (date_start-only boundary, not an overlap test).
+		// r5: date_start well before the period (several days, not just across midnight — a timezone
+		// conversion on the stored date_start must never be able to push it across the boundary) —
+		// excluded by both (date_start-only boundary, not an overlap test).
 		$e5 = new TimeEntry($db);
-		$r5 = $e5->createManualEntry((int) $user->id, $projectId, 0, strtotime('2025-12-31 23:00:00 UTC'), strtotime('2026-01-01 02:00:00 UTC'), 'r5 before period', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
+		$r5 = $e5->createManualEntry((int) $user->id, $projectId, 0, strtotime('2025-12-20 10:00:00 UTC'), strtotime('2025-12-20 13:00:00 UTC'), 'r5 before period', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
 		$this->assertGreaterThan(0, $r5, (string) $e5->error);
 
 		// r6: date_start inside the period but date_end well past it — included by both, with its FULL duration
