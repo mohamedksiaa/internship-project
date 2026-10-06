@@ -16,6 +16,35 @@ function rowKey(row) {
   return `${row.mapping_type}:${row.source_value}`;
 }
 
+/**
+ * Rebuilds the "connection lost mid-import" sentence from the backend's structured partial
+ * report (see TimeflowSqlException::$partialReport, ajax/timeentry.php's
+ * timeflowClockifyImportSqlErrorPayload()) in the viewer's own language — the server only
+ * ever sends a French fallback string for non-browser callers, never shown here as-is.
+ */
+function buildImportSqlErrorMessage(t, partial = {}) {
+  const parts = [];
+  if (partial.time_entries_created > 0) {
+    parts.push(t('processed_history.import.sql_error_progress_time_entries', { count: partial.time_entries_created }));
+  }
+  if (partial.users_created?.length > 0) {
+    parts.push(t('processed_history.import.sql_error_progress_users', { count: partial.users_created.length }));
+  }
+  if (partial.projects_created?.length > 0) {
+    parts.push(t('processed_history.import.sql_error_progress_projects', { count: partial.projects_created.length }));
+  }
+  if (partial.clients_created?.length > 0) {
+    parts.push(t('processed_history.import.sql_error_progress_clients', { count: partial.clients_created.length }));
+  }
+  if (partial.groups_created?.length > 0) {
+    parts.push(t('processed_history.import.sql_error_progress_groups', { count: partial.groups_created.length }));
+  }
+  const progress = parts.length > 0
+    ? t('processed_history.import.sql_error_progress_some', { list: parts.join(', ') })
+    : t('processed_history.import.sql_error_progress_none');
+  return t('processed_history.import.sql_error_message', { progress });
+}
+
 function MappingStatusBadge({ status }) {
   const { t } = useTranslation();
   const colorClass = STATUS_STYLES[status] ?? STATUS_STYLES.ignored;
@@ -289,7 +318,9 @@ export default function ImportPreviewModal({ open, loading, error, data, file, o
       setExecuteReport(report);
       setExecutePhase('done');
     } catch (err) {
-      setExecuteError(err.message || t('processed_history.import.execute_generic_error'));
+      setExecuteError(err.code === 'import_sql_error'
+        ? buildImportSqlErrorMessage(t, err.data)
+        : (err.message || t('processed_history.import.execute_generic_error')));
       setExecutePhase('done');
     }
   }

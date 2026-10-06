@@ -280,6 +280,21 @@ describe('ImportPreviewModal — automatic user creation', () => {
     expect(screen.getByText(T('ready_message'))).toBeInTheDocument();
   });
 
+  it('a connection lost mid-import (ANO-PANNES-02) shows the translated progress sentence, never the server\'s French fallback', async () => {
+    const user = userEvent.setup();
+    const err = new Error('Connexion perdue pendant l’import (fallback serveur, jamais affiché ici).');
+    err.code = 'import_sql_error';
+    err.data = { time_entries_created: 123, users_created: [], projects_created: [], clients_created: [], groups_created: [] };
+    executeClockifyImport.mockRejectedValue(err);
+    renderModal(makeData({ users: [], projects: [], groups: [], clients: [] }));
+    await user.click(await screen.findByRole('button', { name: T('execute_button') }));
+    await user.click(screen.getByRole('button', { name: T('confirm_execute_button') }));
+    const expected = T('sql_error_message', {
+      progress: T('sql_error_progress_some', { list: T('sql_error_progress_time_entries', { count: 123 }) }),
+    });
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+  });
+
   it('works in Arabic (rtl): labels and the checkbox render, the login field stays left-to-right', async () => {
     await i18n.changeLanguage('ar');
     const user = userEvent.setup();

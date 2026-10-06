@@ -1,8 +1,37 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildApiUrl, deleteTimeEntry, getTimeEntryUpdates, normalizeProjects, normalizeTasks } from './timeflowApi';
+import i18n from '../i18n';
+import { buildApiUrl, deleteTimeEntry, getActiveTimer, getTimeEntryUpdates, normalizeProjects, normalizeTasks } from './timeflowApi';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe('moduleTimerRequest failure modes', () => {
+  it('reports a translated network-error message when fetch() itself rejects (offline, DNS, CORS)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+
+    await expect(getActiveTimer()).rejects.toThrow(i18n.t('app.network_error'));
+  });
+
+  it('reports a translated service-unavailable message for a non-JSON response (core fatal-error page, HTTP 202)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 202,
+      text: () => Promise.resolve('This website or feature is currently temporarly not available...'),
+    }));
+
+    await expect(getActiveTimer()).rejects.toThrow(i18n.t('app.service_unavailable'));
+  });
+
+  it('reports a translated session-expired message when the login page HTML comes back instead of JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve('<form><input type="hidden" name="actionlogin" value="login"></form>'),
+    }));
+
+    await expect(getActiveTimer()).rejects.toThrow(i18n.t('app.session_expired'));
+  });
 });
 
 describe('buildApiUrl', () => {
