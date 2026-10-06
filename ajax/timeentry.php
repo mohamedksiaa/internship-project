@@ -2593,8 +2593,6 @@ switch ($action) {
         break;
 
     case 'getSummaryReports':
-        $limit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
-        $limit = $limit > 0 ? $limit : 1000;
         $dateFrom = $postData['date_from'] ?? GETPOST('date_from', 'alphanohtml');
         $dateTo = $postData['date_to'] ?? GETPOST('date_to', 'alphanohtml');
         if (($dateFrom !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) || ($dateTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo))) {
@@ -2611,28 +2609,9 @@ switch ($action) {
         // notion used there, which is intentionally broader than this one.
         $onlyValidated = !empty($postData['only_validated']) || GETPOST('only_validated', 'int');
 
-        $filters = array();
-        if (!timeflowCanReadAllTimeEntries($user)) {
-            $filters[] = '(t.fk_user:=:'.((int) $user->id).')';
-        }
-        if ($onlyValidated) {
-            $filters[] = '(t.status:=:'.TimeEntry::STATUS_VALIDATED.')';
-        }
-        $filter = implode(' AND ', $filters);
-        // The period bounds carry an "HH:MM:SS" part, which Dolibarr 19.x's
-        // Universal Search parser mangles (see timeflowSqlDateTimeCondition()),
-        // so they are appended as plain SQL instead of going through $filter.
-        $dateRangeSql = '';
-        if ($dateFrom !== '') {
-            $dateRangeSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $dateFrom.' 00:00:00');
-        }
-        if ($dateTo !== '') {
-            $dateRangeSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $dateTo.' 23:59:59');
-        }
-        // Dashboard filters (Projet / Client / Employé), same fragment as the period so the rows, the totals
-        // and the "truncated" count agree. The employee filter is honoured for a user who may read every entry
-        // only: anybody else is already limited to their own entries above and the parameter is ignored,
-        // whatever the interface sent.
+        // Dashboard filters (Projet / Client / Employé). The employee filter is honoured for a user who may
+        // read every entry only: anybody else is already limited to their own entries below and the
+        // parameter is ignored, whatever the interface sent.
         $projectIds = timeflowParseIdFilter($postData['project_ids'] ?? GETPOST('project_ids', 'alphanohtml'));
         $clientIds = timeflowParseIdFilter($postData['client_ids'] ?? GETPOST('client_ids', 'alphanohtml'));
         $userIds = timeflowParseIdFilter($postData['user_ids'] ?? GETPOST('user_ids', 'alphanohtml'));
@@ -2642,7 +2621,6 @@ switch ($action) {
         if (!timeflowCanReadAllTimeEntries($user)) {
             $userIds = array();
         }
-        $dateRangeSql .= timeflowSummaryFilterSql($db, $projectIds, $clientIds, $userIds);
         // Same admin-only debug gate as timeflowFetchWeeklyTimesheet()'s own
         // instrumentation: not needed on every call in production.
         if (!empty($user->admin) && GETPOST('debug', 'int')) {
@@ -2650,12 +2628,9 @@ switch ($action) {
         }
 
         // F2 (SCAL-02 fix): total/by_project/by_client/by_user/by_status and
-        // every cross-tab the chart offers now come from ONE SQL aggregation
-        // over the WHOLE period (timeflowBuildSummaryFromAggregates()) —
-        // exact regardless of volume, no row cap. $whereSql below is the same
-        // entity/read-scope/period/project/client/employee conditions as
-        // $filter+$dateRangeSql above, just as one raw SQL string (an
-        // aggregate query has no use for the Universal Search filter format).
+        // every cross-tab the chart offers come from ONE SQL aggregation over
+        // the WHOLE period (timeflowBuildSummaryFromAggregates()) — exact
+        // regardless of volume, no row cap.
         $whereSql = ' WHERE t.entity IN ('.getEntity('timeentry').')';
         if (timeflowHasDateDeleteColumn($db)) {
             $whereSql .= ' AND t.date_delete IS NULL';
@@ -2675,27 +2650,27 @@ switch ($action) {
         $whereSql .= timeflowSummaryFilterSql($db, $projectIds, $clientIds, $userIds);
         $summaryData = timeflowBuildSummaryFromAggregates($db, $whereSql);
 
-        // by_group/by_tag are deliberately NOT part of the aggregate above
-        // (see its doc-comment) and are not reachable from the dashboard's
-        // dimension/cross-with selectors today — kept on the old capped-row
-        // path, unchanged, rather than recomputed. This capped fetch (and
-        // entries_returned/entries_total_in_period below) now describes only
-        // these two fields' own coverage, not the totals/chart, which are
-        // always exact above — see the removed truncation banner in
-        // DashboardPage.jsx.
-        $result = timeflowRequireRows($timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter, 'AND', $dateRangeSql), $timeentry, 'getSummaryReports:rows');
-        $rows = array();
-        if (is_array($result)) {
-            foreach ($result as $obj) {
-                $rows[] = timeflowExportTimeEntry($obj);
-            }
-        }
-        $legacySummary = timeflowBuildSummary($rows, $db);
-        $summaryData['by_group'] = $legacySummary['by_group'];
-        $summaryData['group_labels'] = $legacySummary['group_labels'];
-        $summaryData['by_tag'] = $legacySummary['by_tag'];
-        $summaryData['entries_returned'] = count($rows);
-        $summaryData['entries_total_in_period'] = timeflowCountEntriesMatchingFilter($db, $filter, $dateRangeSql);
+        // F2 follow-up: by_group/by_tag used to be computed from a SEPARATE
+        // capped (up to 1000 rows) fetchAll() + timeflowBuildSummary() call,
+        // kept around purely because that function computes them as a side
+        // effect of computing everything else — at 100 562 rows ("this
+        // year") that extra fetch alone cost ~300ms of the measured p95
+        // (973ms), entirely spent on two fields nothing reads: neither is a
+        // dimension the dashboard's "Dimension"/"Croiser avec" selectors
+        // expose (crossDimensions.js — 'group' was explicitly removed from
+        // that list; 'tag' was never in it), and no export consumes them
+        // either (dashboardExport.js/dashboardPdfExport.js only read the
+        // fields timeflowBuildSummaryFromAggregates() already provides).
+        // Confirmed by searching the whole frontend for every read of
+        // by_group/by_tag/group_labels/entries_returned/
+        // entries_total_in_period: none exist outside this file, a code
+        // comment, and the mock API's fixture shape.
+        // Returned empty/null — not computed, not a behavior anyone can see.
+        $summaryData['by_group'] = array();
+        $summaryData['group_labels'] = array();
+        $summaryData['by_tag'] = array();
+        $summaryData['entries_returned'] = null;
+        $summaryData['entries_total_in_period'] = null;
         timeflowJsonResponse(array('status' => 'success', 'data' => $summaryData));
         break;
 

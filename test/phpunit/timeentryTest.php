@@ -1446,31 +1446,178 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$r6Duration = $r6DateEnd - $r6DateStart;
 		$this->assertNotFalse($db->query('UPDATE '.$db->prefix().'timeflow_timeentry SET date_end = \''.$db->idate($r6DateEnd).'\', duration = '.$r6Duration.' WHERE rowid = '.(int) $r6));
 
-		// --- Build the same WHERE/filter the two getSummaryReports code paths use, scoped to this one test project. ---
-		$filter = '(t.fk_project:=:'.$projectId.')';
-		$dateRangeSql = timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $periodFrom.' 00:00:00');
-		$dateRangeSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $periodTo.' 23:59:59');
+		// r7: same project/period, but a DIFFERENT employee — exists only to give the "filter by employee"
+		// combination below something real to exclude.
+		require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
+		$otherUser = new User($db);
+		$otherUser->login = 'phpunit_f2_other_'.mt_rand(100000, 999999);
+		$otherUser->lastname = 'F2OtherEmployee';
+		$otherUser->entity = 1;
+		$otherUser->statut = 1;
+		$otherUserId = $otherUser->create($user);
+		$this->assertGreaterThan(0, $otherUserId, (string) $otherUser->error);
+		$e7 = new TimeEntry($db);
+		$r7 = $e7->createManualEntry($otherUserId, $projectId, 0, $base + 18000, $base + 18000 + 2400, 'r7 other employee', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
+		$this->assertGreaterThan(0, $r7, (string) $e7->error);
 
-		$whereSql = ' WHERE t.entity IN ('.getEntity('timeentry').')';
-		$whereSql .= ' AND t.date_delete IS NULL';
-		$whereSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $periodFrom.' 00:00:00');
-		$whereSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $periodTo.' 23:59:59');
-		$whereSql .= ' AND t.fk_project = '.$projectId;
+		// Shared period fragment — kept the same across all 4 combinations below ("un mois" from the
+		// user's request); only the OTHER filter dimension (project/employee/status) varies each time.
+		$periodFilter = timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $periodFrom.' 00:00:00');
+		$periodFilter .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $periodTo.' 23:59:59');
 
-		// --- OLD path: plain fetchAll() (no cap here — proving equivalence requires an untruncated baseline) + PHP loop. ---
+		// Combination 1 (baseline, as before): one project, one month. No employee restriction, so r7
+		// (same project, different employee) is included this time: r1, r2, r3 (0s), r6, r7 = 5 — only
+		// r4 (deleted) and r5 (before period) excluded.
+		$count1 = $this->assertEquivalentSummary('(t.fk_project:=:'.$projectId.')', $periodFilter, ' AND t.fk_project = '.$projectId, 'un projet, un mois');
+		$this->assertSame(5, $count1);
+
+		// Combination 2: no project/employee/status filter at all, period only — runs against EVERY entry
+		// in the period (potentially including real data unrelated to this test's fixture, depending on
+		// what else exists in this environment at that date), so no specific count is asserted here — the
+		// point is the old/new equivalence itself, on whatever that ambient data actually is, not a known
+		// value.
+		$this->assertEquivalentSummary('', $periodFilter, '', 'aucun filtre (periode seule)');
+
+		// Combination 3: same project, filtered to the ORIGINAL employee only — must exclude r7 (the
+		// other employee) identically on both sides, in addition to r4/r5 as before: r1, r2, r3, r6 = 4.
+		$count3 = $this->assertEquivalentSummary(
+			'(t.fk_project:=:'.$projectId.') AND (t.fk_user:=:'.((int) $user->id).')',
+			$periodFilter,
+			' AND t.fk_project = '.$projectId.timeflowSummaryFilterSql($db, array(), array(), array((int) $user->id)),
+			'filtre par employe'
+		);
+		$this->assertSame(4, $count3);
+
+		// Combination 4: same project, only_validated — must reduce to r1, r6 and r7 (all VALIDATED) on
+		// both sides, excluding r2 (SUBMITTED) and r3 (DRAFT, the active timer).
+		$count4 = $this->assertEquivalentSummary(
+			'(t.fk_project:=:'.$projectId.') AND (t.status:=:'.TimeEntry::STATUS_VALIDATED.')',
+			$periodFilter,
+			' AND t.fk_project = '.$projectId.' AND t.status = '.TimeEntry::STATUS_VALIDATED,
+			'only_validated'
+		);
+		$this->assertSame(3, $count4);
+	}
+
+	/**
+	 * F2 follow-up: a test that only checks "an account with no entries of
+	 * its own gets 0" cannot catch a bug that always returns 0, or one that
+	 * silently drops the fk_user restriction and returns the WRONG person's
+	 * total. This one creates entries for TWO different non-readall
+	 * employees under the same project/period and checks each one's
+	 * timeflowBuildSummaryFromAggregates() total is exactly the sum of their
+	 * OWN entries — not 0, not the other employee's, not the combined total
+	 * — with the WHERE clause built exactly the way a non-readall caller's
+	 * own branch in 'getSummaryReports' builds it (an unconditional
+	 * "AND t.fk_user = <their id>", not a user-chosen filter parameter).
+	 */
+	public function testDashboardSummaryAggregateRestrictsNonReadallUserToTheirOwnEntriesOnly()
+	{
+		global $conf, $user, $langs, $db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
+
+		require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
+		require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
+
+		$proj = new Project($db);
+		$proj->ref = 'PHPUNIT-F2-RIGHTS-'.mt_rand(100000, 999999);
+		$proj->title = 'PHPUnit F2 rights test project';
+		$proj->socid = 1;
+		$proj->status = Project::STATUS_VALIDATED;
+		$proj->usage_task = 1;
+		$projectId = $proj->create($user);
+		$this->assertGreaterThan(0, $projectId, (string) $proj->error);
+
+		$employeeA = new User($db);
+		$employeeA->login = 'phpunit_f2_rights_a_'.mt_rand(100000, 999999);
+		$employeeA->lastname = 'F2RightsA';
+		$employeeA->entity = 1;
+		$employeeA->statut = 1;
+		$employeeAId = $employeeA->create($user);
+		$this->assertGreaterThan(0, $employeeAId, (string) $employeeA->error);
+
+		$employeeB = new User($db);
+		$employeeB->login = 'phpunit_f2_rights_b_'.mt_rand(100000, 999999);
+		$employeeB->lastname = 'F2RightsB';
+		$employeeB->entity = 1;
+		$employeeB->statut = 1;
+		$employeeBId = $employeeB->create($user);
+		$this->assertGreaterThan(0, $employeeBId, (string) $employeeB->error);
+
+		$base = strtotime('2026-02-01 09:00:00 UTC');
+
+		// Employee A: 3 entries, 3600 + 1800 + 900 = 6300s.
+		foreach (array(array(0, 3600), array(2, 1800), array(4, 900)) as [$hourOffset, $durationA]) {
+			$entry = new TimeEntry($db);
+			$start = $base + $hourOffset * 3600;
+			$id = $entry->createManualEntry($employeeAId, $projectId, 0, $start, $start + $durationA, 'rights A', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
+			$this->assertGreaterThan(0, $id, (string) $entry->error);
+		}
+		$expectedA = 3600 + 1800 + 900;
+
+		// Employee B: 2 entries, 2400 + 1200 = 3600s — deliberately a DIFFERENT total from A's, so a bug
+		// that mixed the two up (or always returned one specific value) would be caught either way.
+		foreach (array(array(6, 2400), array(8, 1200)) as [$hourOffset, $durationB]) {
+			$entry = new TimeEntry($db);
+			$start = $base + $hourOffset * 3600;
+			$id = $entry->createManualEntry($employeeBId, $projectId, 0, $start, $start + $durationB, 'rights B', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
+			$this->assertGreaterThan(0, $id, (string) $entry->error);
+		}
+		$expectedB = 2400 + 1200;
+
+		// Exactly the WHERE a non-readall caller gets in 'getSummaryReports': an unconditional
+		// "AND t.fk_user = <their own id>", never a parameter the caller could override.
+		$whereSqlFor = function ($ownUserId) use ($db, $projectId) {
+			$sql = ' WHERE t.entity IN ('.getEntity('timeentry').')';
+			$sql .= ' AND t.date_delete IS NULL';
+			$sql .= ' AND t.fk_user = '.((int) $ownUserId);
+			$sql .= ' AND t.fk_project = '.$projectId;
+			return $sql;
+		};
+
+		$summaryA = timeflowBuildSummaryFromAggregates($db, $whereSqlFor($employeeAId));
+		$summaryB = timeflowBuildSummaryFromAggregates($db, $whereSqlFor($employeeBId));
+
+		$this->assertSame($expectedA, $summaryA['total_seconds'], 'Employee A must see exactly the sum of their own 3 entries');
+		$this->assertSame($expectedB, $summaryB['total_seconds'], 'Employee B must see exactly the sum of their own 2 entries, not A\'s, not 0, not the combined total');
+		$this->assertSame(array((string) $employeeAId => $expectedA), $summaryA['by_user'], 'Employee A\'s by_user must contain only their own id');
+		$this->assertSame(array((string) $employeeBId => $expectedB), $summaryB['by_user'], 'Employee B\'s by_user must contain only their own id');
+	}
+
+	/**
+	 * Shared body for testDashboardSummaryAggregateMatchesLegacyComputation()'s
+	 * several filter combinations: runs both code paths with the given
+	 * filter/WHERE fragments and asserts every overlapping field matches.
+	 * Returns the OLD path's own row count, so each call site can still pin
+	 * down a concrete expected value (equivalence alone cannot catch two
+	 * paths sharing the same bug).
+	 *
+	 * @param string $legacyFilter Universal Search fragment for the OLD path's fetchAll().
+	 * @param string $legacyDateRangeSql Raw SQL fragment (period, always present) appended after $legacyFilter, OLD path.
+	 * @param string $newWhereExtra Raw SQL fragment appended to the base ' WHERE entity/date_delete/period' clause, NEW path.
+	 * @param string $context Message suffix identifying which combination failed, if any.
+	 * @return int
+	 */
+	private function assertEquivalentSummary($legacyFilter, $legacyDateRangeSql, $newWhereExtra, $context)
+	{
+		global $db;
+
 		$legacyEntry = new TimeEntry($db);
-		$fetched = timeflowRequireRows($legacyEntry->fetchAll('DESC', 't.date_start', 100000, 0, $filter, 'AND', $dateRangeSql), $legacyEntry, 'test:legacy');
+		$fetched = timeflowRequireRows($legacyEntry->fetchAll('DESC', 't.date_start', 500000, 0, $legacyFilter, 'AND', $legacyDateRangeSql), $legacyEntry, 'test:legacy:'.$context);
 		$legacyRows = array();
 		foreach ($fetched as $obj) {
 			$legacyRows[] = $this->exportForSummaryLegacy($obj, $db);
 		}
 		$oldSummary = timeflowBuildSummary($legacyRows, $db);
 
-		// --- NEW path: one SQL aggregation. ---
+		$whereSql = ' WHERE t.entity IN ('.getEntity('timeentry').')';
+		$whereSql .= ' AND t.date_delete IS NULL';
+		$whereSql .= $legacyDateRangeSql; // Same period fragment, raw SQL either way — reused verbatim.
+		$whereSql .= $newWhereExtra;
 		$newSummary = timeflowBuildSummaryFromAggregates($db, $whereSql);
-
-		// Expect exactly r1, r2, r3 (0s), r6 — r4 (deleted) and r5 (before period) excluded.
-		$this->assertCount(4, $legacyRows, 'sanity check on the OLD path\'s own row count before comparing');
 
 		// ksort both sides before comparing the dictionary-shaped fields: the two code paths build their
 		// by_X arrays by iterating in different row orders (fetchAll() is ORDER BY date_start DESC, the SQL
@@ -1484,12 +1631,9 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 				ksort($oldValue);
 				ksort($newValue);
 			}
-			$this->assertSame($oldValue, $newValue, "Field '$field' differs between the legacy and the new aggregate computation");
+			$this->assertSame($oldValue, $newValue, "[$context] Field '$field' differs between the legacy and the new aggregate computation");
 		}
 
-		// Pin down the actual expected values too, not just old==new (both could agree on a shared bug).
-		$this->assertSame(3600 + 1800 + 0 + (int) ($r6DateEnd - $r6DateStart), $newSummary['total_seconds']);
-		$this->assertSame(3600 + 0 + (int) ($r6DateEnd - $r6DateStart), $newSummary['billable_seconds'], 'r1 and r6 are billable, r2 is not, r3 contributes 0');
-		$this->assertSame(4, array_sum($newSummary['by_status']), 'r1..r3 and r6 must all be counted once in by_status, r3 included despite duration=0');
+		return count($legacyRows);
 	}
 	}  // @phan-suppress-current-line PhanUndeclaredClass

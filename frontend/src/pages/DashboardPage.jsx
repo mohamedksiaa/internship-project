@@ -162,11 +162,11 @@ export default function DashboardPage() {
 
   // F2 (SCAL-02 fix): totals/chart/cross-tabs are now built from a SQL
   // aggregation over the whole period (ajax/timeentry.php ->
-  // timeflowBuildSummaryFromAggregates()), not a row sample capped at
-  // `limit` — entries_returned/entries_total_in_period still exist in the
-  // payload (they now describe only by_group/by_tag's own coverage, see that
-  // function's doc-comment) but no longer mean the cards/chart below could
-  // be partial, so the truncation banner that used to compare them is gone.
+  // timeflowBuildSummaryFromAggregates()), not a row sample capped at a
+  // limit — so the truncation banner that used to compare
+  // entries_returned/entries_total_in_period is gone. Those two fields,
+  // along with by_group/by_tag/group_labels, are no longer computed at all
+  // (confirmed unused anywhere in this frontend) and come back empty/null.
 
   const summaryStats = useMemo(() => ({
     totalSeconds: Number(summary?.total_seconds || 0),
