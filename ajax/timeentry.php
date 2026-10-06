@@ -2833,6 +2833,41 @@ switch ($action) {
         if (!empty($user->admin) && GETPOST('debug', 'int')) {
             dol_syslog('timeflow.getSummaryReports user_id='.(int)$user->id.' can_readall='.(int)timeflowCanReadAllTimeEntries($user).' dateFrom='.(string)$dateFrom.' dateTo='.(string)$dateTo, LOG_DEBUG);
         }
+
+        // F2 (SCAL-02 fix): total/by_project/by_client/by_user/by_status and
+        // every cross-tab the chart offers now come from ONE SQL aggregation
+        // over the WHOLE period (timeflowBuildSummaryFromAggregates()) —
+        // exact regardless of volume, no row cap. $whereSql below is the same
+        // entity/read-scope/period/project/client/employee conditions as
+        // $filter+$dateRangeSql above, just as one raw SQL string (an
+        // aggregate query has no use for the Universal Search filter format).
+        $whereSql = ' WHERE t.entity IN ('.getEntity('timeentry').')';
+        if (timeflowHasDateDeleteColumn($db)) {
+            $whereSql .= ' AND t.date_delete IS NULL';
+        }
+        if (!timeflowCanReadAllTimeEntries($user)) {
+            $whereSql .= ' AND t.fk_user = '.((int) $user->id);
+        }
+        if ($onlyValidated) {
+            $whereSql .= ' AND t.status = '.TimeEntry::STATUS_VALIDATED;
+        }
+        if ($dateFrom !== '') {
+            $whereSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '>=', $dateFrom.' 00:00:00');
+        }
+        if ($dateTo !== '') {
+            $whereSql .= timeflowSqlDateTimeCondition($db, 't.date_start', '<=', $dateTo.' 23:59:59');
+        }
+        $whereSql .= timeflowSummaryFilterSql($db, $projectIds, $clientIds, $userIds);
+        $summaryData = timeflowBuildSummaryFromAggregates($db, $whereSql);
+
+        // by_group/by_tag are deliberately NOT part of the aggregate above
+        // (see its doc-comment) and are not reachable from the dashboard's
+        // dimension/cross-with selectors today — kept on the old capped-row
+        // path, unchanged, rather than recomputed. This capped fetch (and
+        // entries_returned/entries_total_in_period below) now describes only
+        // these two fields' own coverage, not the totals/chart, which are
+        // always exact above — see the removed truncation banner in
+        // DashboardPage.jsx.
         $result = timeflowRequireRows($timeentry->fetchAll('DESC', 't.date_start', $limit, 0, $filter, 'AND', $dateRangeSql), $timeentry, 'getSummaryReports:rows');
         $rows = array();
         if (is_array($result)) {
@@ -2840,9 +2875,10 @@ switch ($action) {
                 $rows[] = timeflowExportTimeEntry($obj);
             }
         }
-        $summaryData = timeflowBuildSummary($rows, $db);
-        // Lets the frontend warn when the period holds more rows than $limit
-        // fetched above, instead of silently charting an incomplete sample.
+        $legacySummary = timeflowBuildSummary($rows, $db);
+        $summaryData['by_group'] = $legacySummary['by_group'];
+        $summaryData['group_labels'] = $legacySummary['group_labels'];
+        $summaryData['by_tag'] = $legacySummary['by_tag'];
         $summaryData['entries_returned'] = count($rows);
         $summaryData['entries_total_in_period'] = timeflowCountEntriesMatchingFilter($db, $filter, $dateRangeSql);
         timeflowJsonResponse(array('status' => 'success', 'data' => $summaryData));

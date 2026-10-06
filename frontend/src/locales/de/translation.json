@@ -96,7 +96,6 @@
     "chart_type_label": "Diagrammtyp",
     "cross_with_label": "Kreuzen mit",
     "cross_with_none": "Keine",
-    "entries_truncated_warning": "Die angezeigten Daten sind auf die ersten {{limit}} Einträge dieses Zeitraums beschränkt — grenzen Sie Ihren Datumsfilter für eine vollständige Ansicht ein.",
     "billable_label": "Abrechenbar",
     "non_billable_label": "Nicht abrechenbar",
     "other_bucket": "Sonstige",
