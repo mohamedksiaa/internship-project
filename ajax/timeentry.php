@@ -2094,12 +2094,16 @@ if ($timeflowRequiredRight !== null && !timeflowUserHasRequiredRight($user, $tim
 try {
 switch ($action) {
     case 'getActiveTimer':
-        $id = $timeentry->hasActiveTimer($user->id);
-        if ($id > 0) {
-            $timeentry->fetch($id);
-            timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
-        } else {
-            timeflowJsonResponse(array('status' => 'success', 'data' => null));
+        try {
+            $id = $timeentry->hasActiveTimer($user->id);
+            if ($id > 0) {
+                $timeentry->fetch($id);
+                timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
+            } else {
+                timeflowJsonResponse(array('status' => 'success', 'data' => null));
+            }
+        } catch (TimeflowSqlException $e) {
+            timeflowJsonResponse(timeflowSqlErrorPayload($e, $user), 503);
         }
         break;
 
@@ -2145,13 +2149,15 @@ switch ($action) {
             }
         }
 
+        try {
         if ($fk_project > 0) {
             $sql = 'SELECT rowid FROM '.$db->prefix().'projet';
             $sql .= ' WHERE rowid = '.((int) $fk_project);
             $sql .= ' AND entity IN ('.getEntity('project').')';
-            $resql = $db->query($sql);
-            if (!$resql || $db->num_rows($resql) <= 0) {
-                timeflowStartTimerRejected('Projet introuvable', array('stage' => 'project_not_found', 'fk_project' => $fk_project, 'db_error' => !$resql ? $db->lasterror() : ''));
+            // A lost connection must throw (caught below, 503), not be reported as "Projet introuvable".
+            $resql = timeflowQuery($db, $sql, 'ajax:startTimer:project_check');
+            if ($db->num_rows($resql) <= 0) {
+                timeflowStartTimerRejected('Projet introuvable', array('stage' => 'project_not_found', 'fk_project' => $fk_project));
             }
             if (timeflowProjectIsClosed($db, $fk_project)) {
                 timeflowStartTimerRejected('Ce projet est fermé et n’accepte plus de nouvelles entrées de temps.', array('stage' => 'project_closed', 'fk_project' => $fk_project));
@@ -2163,7 +2169,7 @@ switch ($action) {
 
         if ($fk_task > 0) {
             $task = new Task($db);
-            if ($task->fetch($fk_task) <= 0) {
+            if (timeflowRequireFetch($task->fetch($fk_task), $task, 'ajax:startTimer:task_check') === 0) {
                 timeflowStartTimerRejected('Tâche introuvable', array('stage' => 'task_not_found', 'fk_task' => $fk_task));
             }
             // fk_project IS the native llx_projet id directly now — no more
@@ -2183,6 +2189,9 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
         } else {
             timeflowStartTimerRejected($timeentry->error ?: 'Erreur au démarrage', array('stage' => 'timeentry_create', 'fk_project' => $fk_project, 'fk_task' => $fk_task, 'db_error' => $db->lasterror()));
+        }
+        } catch (TimeflowSqlException $e) {
+            timeflowJsonResponse(timeflowSqlErrorPayload($e, $user), 503);
         }
         break;
 
@@ -2250,20 +2259,24 @@ switch ($action) {
 
     case 'stopTimer':
         $id = !empty($postData['id']) ? (int)$postData['id'] : (int)GETPOST('id', 'int');
-        $res = $timeentry->stopTimer($id, $user);
-        if ($res > 0) {
-            $data = timeflowExportTimeEntry($timeentry);
-            // A timer left running past the max-duration cap is split into one
-            // entry per calendar day crossed (see TimeEntry::stopTimer()); the
-            // frontend needs every extra segment to show them immediately
-            // instead of waiting for the next full reload.
-            if (!empty($timeentry->splitSegments)) {
-                $data['split_segments'] = array_map('timeflowExportTimeEntry', $timeentry->splitSegments);
+        try {
+            $res = $timeentry->stopTimer($id, $user);
+            if ($res > 0) {
+                $data = timeflowExportTimeEntry($timeentry);
+                // A timer left running past the max-duration cap is split into one
+                // entry per calendar day crossed (see TimeEntry::stopTimer()); the
+                // frontend needs every extra segment to show them immediately
+                // instead of waiting for the next full reload.
+                if (!empty($timeentry->splitSegments)) {
+                    $data['split_segments'] = array_map('timeflowExportTimeEntry', $timeentry->splitSegments);
+                }
+                timeflowJsonResponse(array('status' => 'success', 'data' => $data));
+            } else {
+                http_response_code(400);
+                timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à l\'arrêt'), 400);
             }
-            timeflowJsonResponse(array('status' => 'success', 'data' => $data));
-        } else {
-            http_response_code(400);
-            timeflowJsonResponse(array('status' => 'error', 'message' => $timeentry->error ?: 'Erreur à l\'arrêt'), 400);
+        } catch (TimeflowSqlException $e) {
+            timeflowJsonResponse(timeflowSqlErrorPayload($e, $user), 503);
         }
         break;
 
@@ -2276,7 +2289,8 @@ switch ($action) {
         if ($id <= 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Identifiant d’entrée invalide'), 400);
         }
-        if ($timeentry->fetch($id) <= 0) {
+        try {
+        if (timeflowRequireFetch($timeentry->fetch($id), $timeentry, 'ajax:restartTimer:fetch') === 0) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Entrée introuvable'), 404);
         }
         if ((int) $timeentry->fk_user !== (int) $user->id) {
@@ -2296,8 +2310,8 @@ switch ($action) {
             $sql = 'SELECT rowid FROM '.$db->prefix().'projet';
             $sql .= ' WHERE rowid = '.$fk_project;
             $sql .= ' AND entity IN ('.getEntity('project').')';
-            $resql = $db->query($sql);
-            if (!$resql || $db->num_rows($resql) <= 0) {
+            $resql = timeflowQuery($db, $sql, 'ajax:restartTimer:project_check');
+            if ($db->num_rows($resql) <= 0) {
                 timeflowJsonResponse(array('status' => 'error', 'message' => 'Projet introuvable'), 400);
             }
             if (!timeflowCanAccessProject($db, $user, $fk_project)) {
@@ -2313,6 +2327,9 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($freshEntry)));
         }
         timeflowJsonResponse(array('status' => 'error', 'message' => $freshEntry->error ?: 'Erreur à la reprise'), 400);
+        } catch (TimeflowSqlException $e) {
+            timeflowJsonResponse(timeflowSqlErrorPayload($e, $user), 503);
+        }
         break;
 
     case 'deleteTimeEntry':
