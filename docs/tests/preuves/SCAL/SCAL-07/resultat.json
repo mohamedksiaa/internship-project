@@ -1,0 +1,38 @@
+{
+  "cas": "SCAL-07 — Analyse des index et plans d'execution (EXPLAIN)",
+  "volume": 10510,
+  "index_existants": [
+    "PRIMARY(rowid)", "idx_timeflow_timeentry_fk_user", "idx_timeflow_timeentry_fk_project",
+    "idx_timeflow_timeentry_date_delete", "idx_timeflow_timeentry_date_start",
+    "idx_timeflow_timeentry_fk_user_date_start (fk_user, date_start)"
+  ],
+  "requetes_analysees": {
+    "import_key_lookup (timeEntryAlreadyImported)": {
+      "sql": "SELECT 1 FROM llx_timeflow_timeentry WHERE import_key = ? LIMIT 1",
+      "explain": { "type": "ALL", "key": null, "rows": 10510, "extra": "Using where" },
+      "verdict": "BALAYAGE COMPLET DE TABLE — confirme le candidat de l'annexe C4. Cette requete tourne UNE FOIS PAR LIGNE importee ; a 100000 lignes existantes, un import de 5000 lignes impliquerait jusqu'a 500 millions d'examens de ligne au total.",
+      "index_propose": "CREATE INDEX idx_timeflow_timeentry_import_key ON llx_timeflow_timeentry (import_key);"
+    },
+    "dashboard_date_range (getSummaryReports, readall, sans filtre utilisateur)": {
+      "sql": "SELECT * FROM llx_timeflow_timeentry WHERE date_start >= ? AND date_start <= ? ORDER BY date_start DESC LIMIT 1000",
+      "explain": { "type": "range", "key": "idx_timeflow_timeentry_date_start", "rows": 5255, "extra": "Using where" },
+      "verdict": "OK — utilise deja l'index date_start, pas d'action necessaire."
+    },
+    "overlap_check (hasTimeOverlap, createManualEntry)": {
+      "sql": "SELECT rowid FROM llx_timeflow_timeentry WHERE fk_user = ? AND date_start < ? AND (date_end IS NULL OR date_end > ?)",
+      "explain": { "type": "range", "key": "idx_timeflow_timeentry_fk_user_date_start", "rows": 194, "extra": "Using index condition; Using where" },
+      "verdict": "OK — utilise deja l'index composite (fk_user, date_start), efficace."
+    },
+    "validation_queue (getValidationEntries, status=SUBMITTED)": {
+      "sql": "SELECT * FROM llx_timeflow_timeentry WHERE status = 1 ORDER BY date_start DESC LIMIT 20",
+      "explain": { "type": "index", "key": "idx_timeflow_timeentry_date_start", "rows_shown": 20, "extra": "Using where" },
+      "verdict": "Balayage COMPLET DE L'INDEX date_start (pas de la table, mais parcourt potentiellement tout l'index en filtrant status=1 a la volee jusqu'a trouver 20 correspondances) — le volume de lignes reellement examinees depend de la densite du statut recherche (SUBMITTED est ~5% des lignes generees), pas visible directement dans le EXPLAIN (le compteur 'rows' ici reflete seulement LIMIT 20). Candidat confirme par le plan (annexe C4) : (status, date_start) ou (fk_user, status, date_start).",
+      "index_propose": "CREATE INDEX idx_timeflow_timeentry_status_date ON llx_timeflow_timeentry (status, date_start);"
+    },
+    "notification_lookup (cloche)": {
+      "explain": "non necessaire — index unique (entity, fk_user, notif_type, date_ref) deja present et adapte, plus un index de lecture (entity, fk_user, date_read).",
+      "verdict": "OK — pas d'action necessaire."
+    }
+  },
+  "conclusion": "2 requetes chaudes ne passent pas a l'echelle sans index dedie : la recherche par import_key (balayage complet confirme, severite la plus elevee car invoquee par ligne importee) et la file de validation par statut (balayage d'index, severite moderee). Les deux index proposes ci-dessus sont EXACTEMENT ceux suggeres par l'annexe C4 du plan. Non crees, conformement a la consigne — a tester avant/apres dans une PR separee."
+}

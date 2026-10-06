@@ -1,0 +1,14 @@
+{
+  "cas": "SCAL-03 — Rapports, listes paginees et exports",
+  "volume_au_moment_du_test": 108539,
+  "listes_paginees_page_20": "voir le tableau des seuils du rapport principal — tous p95 <= 2s aux paliers 563/10000/100000",
+  "export_global_csv": {
+    "duree": "931 ms",
+    "lignes_retournees": 50000,
+    "lignes_eligibles_reelles": 108539,
+    "constat": "LIMIT 50000 codee en dur dans timeflowBuildGlobalCsvRows() (ajax/timeentry.php), presentee dans le code comme un 'filet de securite contre une requete non bornee', pas comme une limite reelle attendue. Au volume actuel, 58539 lignes (54%) manquent silencieusement.",
+    "verification_frontend": "ReportsPage.jsx::handleExportGlobalCsv() telecharge directement 'rows' sans jamais verifier un total ni afficher un avertissement — contrairement au tableau de bord (entries_returned/entries_total_in_period), l'export global n'a AUCUN mecanisme de signalement de troncature.",
+    "severite": "export utilisable pour un sous-ensemble mais un administrateur qui l'utilise pour une paie/facturation a 100000+ saisies obtiendrait un fichier incomplet sans le savoir"
+  },
+  "conclusion": "temps rapides meme a volume eleve (toutes les listes paginees et l'export restent sous 1s), mais l'export global tronque silencieusement au-dela de 50000 lignes eligibles — voir ANO-SCAL-01."
+}

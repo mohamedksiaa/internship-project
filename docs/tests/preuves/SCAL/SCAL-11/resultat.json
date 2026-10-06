@@ -1,0 +1,24 @@
+{
+  "cas": "SCAL-11 — Interface : poids, chargement, rendu",
+  "build_production": "npm run build (frontend/), rebuild frais pour cette mesure",
+  "poids_paquets": {
+    "index-CpWRsO60.js (paquet principal)": "1257.12 kB brut, confirme l'ordre de grandeur signale (~1,2 Mo)",
+    "dashboardPdfExport-ljPefup2.js": "601.40 kB — DEJA correctement decoupe en chargement differe (voir ci-dessous)",
+    "index.es-72ETtj0N.js (vendor partage)": "150.99 kB",
+    "purify.es-B9QMXtAM.js (DOMPurify)": "26.93 kB",
+    "index-BhXzb5s4.css": "36.45 kB"
+  },
+  "module_pdf_charge_a_la_demande": {
+    "verifie_dans_le_code": "frontend/src/pages/DashboardPage.jsx ligne 261 : import('../utils/dashboardPdfExport.js') — un vrai import() dynamique, declenche uniquement au clic sur Exporter en PDF, confirme par les commentaires du fichier lui-meme ('exclusively via a dynamic import() at the moment the user clicks Export PDF')",
+    "verdict": "CRITERE DEJA SATISFAIT, aucune action necessaire"
+  },
+  "temps_de_chargement": {
+    "conditions": "Puppeteer + Chrome DevTools Protocol : reseau 'Fast 3G' (1.6 Mbps descendant, 750 Kbps montant, latence 150ms), CPU ralenti 4x (profils standard Lighthouse)",
+    "methode": "Lighthouse lui-meme non installe dans cet environnement — mesure equivalente via Puppeteer/CDP directement (emulation reseau + CPU, chronometrage du chargement reseau complet puis de l'apparition du contenu interactif)",
+    "page_load_networkidle0": "5450 ms",
+    "temps_jusqu_au_contenu_interactif_apres_ca": "12 ms (quasi immediat une fois le reseau termine — l'app est deja hydratee)",
+    "total_depuis_navigation": "5462 ms",
+    "verdict": "LEGEREMENT AU-DESSUS du seuil du plan (<= 5s) — depassement de 462 ms (9%), attribuable au paquet principal volumineux sur un reseau lent"
+  },
+  "conclusion": "Le decoupage du module PDF est deja fait correctement. Le paquet principal (1,26 Mo) reste le point faible : decoupage supplementaire recommande (voir rapport, section recommandations) pour repasser sous le seuil de 5s avec une marge confortable, pas seulement de justesse."
+}

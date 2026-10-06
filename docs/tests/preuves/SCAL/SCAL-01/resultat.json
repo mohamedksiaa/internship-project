@@ -1,0 +1,16 @@
+{
+  "cas": "SCAL-01 — Generation et verification du jeu de donnees",
+  "generateur": "scratchpad/gen_perf_data.php, deterministe (pas de hasard, uniquement arithmetique sur l'index de ligne), idempotent et incremental",
+  "marqueurs": "note LIKE 'zz_perf_%' ET import_key LIKE 'zzpf%' (double marquage) ; comptes/projets/clients/groupes prefixes zz_perf_",
+  "palier_10000": {
+    "temps_generation": "0.34s (hors mise en place des 50 comptes/200 projets/30 clients/15 groupes, 0.67s la premiere fois, 0s les fois suivantes car idempotent)",
+    "total_rows": 10000,
+    "distinct_import_key": 10000,
+    "date_range": "2026-09-02 08:00:00 a 2026-10-06 15:00:00 (ancre sur aujourd'hui, en remontant en arriere pour que le mois/trimestre courant contienne toujours des donnees generees)",
+    "chevauchements_meme_employe": 0,
+    "duree_negative_ou_nulle": 0,
+    "repartition": "exactement 200 lignes par employe (50 employes x 200 lignes = 10000), confirmee"
+  },
+  "premier_essai_invalide_et_corrige": "premiere version du generateur ancrait les dates sur une date fixe passee (janvier 2025) independamment d'aujourd'hui — a 10000 lignes, les fenetres mois/trimestre/annee du tableau de bord (calculees depuis aujourd'hui) ne recouvraient AUCUNE donnee generee, faussant totalement les mesures. Corrige : generation en remontant depuis aujourd'hui. Les 10000 premieres lignes invalides ont ete supprimees exactement par import_key LIKE 'zzpf%' (0 ligne hors prefixe supprimee, retour exact a 563) avant de regenerer — demontre au passage que la suppression par marqueur fonctionne proprement.",
+  "conclusion": "jeu conforme a la specification (ecarts 0%), suppression exacte verifiee, generation tres rapide (sous la seconde pour 10000 lignes grace a l'insertion SQL par lots de 2000)."
+}
