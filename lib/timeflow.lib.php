@@ -562,6 +562,30 @@ function timeflowRequireRows($result, $object, $context = 'fetchAll')
 }
 
 /**
+ * Same guarantee for the Dolibarr single-row fetch() convention: >0 found, 0 not found,
+ * <0 a real SQL error (with ->error/->errors already filled by CommonObject::fetchCommon()).
+ * Readers used to test "if ($obj->fetch($id) <= 0)" with no else, so a lost connection came
+ * out identical to "no such id" — see ANO-PANNES-02's same defect in the import path.
+ *
+ * @param int    $result  What fetch() returned.
+ * @param object $object  The object it was called on (for ->error/->errors).
+ * @param string $context See timeflowQuery().
+ * @return int The result, guaranteed >= 0.
+ * @throws TimeflowSqlException
+ */
+function timeflowRequireFetch($result, $object, $context = 'fetch')
+{
+    if ((int) $result >= 0) {
+        return (int) $result;
+    }
+
+    $e = new TimeflowSqlException((string) $context);
+    $e->dbError = is_array($object->errors ?? null) ? implode(' ', $object->errors) : (string) ($object->error ?? '');
+    dol_syslog('TimeFlow SQL failure ['.$context.']: '.$e->dbError, LOG_ERR);
+    throw $e;
+}
+
+/**
  * The JSON error payload for a TimeflowSqlException. The raw driver text is
  * included only for an admin; everyone else gets the context label, not the
  * table/column names.

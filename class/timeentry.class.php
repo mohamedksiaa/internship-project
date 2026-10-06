@@ -3,6 +3,7 @@
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
+dol_include_once('/timeflow/lib/timeflow.lib.php'); // timeflowQuery(), timeflowRequireFetch(), TimeflowSqlException
 
 /**
  * Class for TimeEntry
@@ -1357,8 +1358,10 @@ class TimeEntry extends CommonObject
 		$sql .= ' WHERE fk_user = '.((int) $fk_user).' AND date_end IS NULL';
 		$sql .= ' ORDER BY date_start DESC';
 		$sql .= $this->db->plimit(1);
-		$resql = $this->db->query($sql);
-		if ($resql && $this->db->num_rows($resql)) {
+		// Must not fail silently: a lost connection reported as "no active timer" would let
+		// startTimer() create a second one for a user who already had an active timer.
+		$resql = timeflowQuery($this->db, $sql, 'TimeEntry::hasActiveTimer');
+		if ($this->db->num_rows($resql)) {
 			return (int) $this->db->fetch_object($resql)->rowid;
 		}
 		return 0;
@@ -1580,7 +1583,10 @@ class TimeEntry extends CommonObject
 	 */
 	public function stopTimer($id, User $user, $stopAt = null)
 	{
-		if ($this->fetch((int) $id) <= 0) {
+		// timeflowRequireFetch() throws on a real SQL error (fetch() < 0) instead of letting it
+		// fall through as "Entrée introuvable" — a lost connection must never be reported as a
+		// missing timer (see ANO-PANNES-02's same defect in the import path).
+		if (timeflowRequireFetch($this->fetch((int) $id), $this, 'TimeEntry::stopTimer:fetch') === 0) {
 			$this->error = 'Entrée introuvable';
 			return -1;
 		}
@@ -1765,8 +1771,10 @@ class TimeEntry extends CommonObject
 			$sql .= ' WHERE fk_split_previous = '.$currentId;
 			$sql .= ' ORDER BY rowid ASC';
 			$sql .= $this->db->plimit(1);
-			$resql = $this->db->query($sql);
-			$obj = $resql ? $this->db->fetch_object($resql) : null;
+			// Must not fail silently: a lost connection reported as "no successor" would make
+			// stopTimer() wrongly conclude the timer is already stopped instead of surfacing the panne.
+			$resql = timeflowQuery($this->db, $sql, 'TimeEntry::findActiveSuccessorId');
+			$obj = $this->db->fetch_object($resql);
 			if (!$obj) {
 				return 0;
 			}

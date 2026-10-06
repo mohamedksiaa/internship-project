@@ -138,7 +138,14 @@ async function moduleTimerRequest(action, body = null) {
   }
 
   if (!response.ok || data?.status === 'error') {
-    const err = new Error(data?.message || data?.error || `Erreur du chrono (${response.status})`);
+    // 'sql_error' (timeflowSqlErrorPayload(), PHP, generic) carries a French-only message —
+    // substitute the already-translated one, same as the non-JSON branch above. A more
+    // specific code (e.g. 'import_sql_error') keeps its own message: that caller builds its
+    // own translated sentence from 'data' (see ImportPreviewModal.jsx).
+    const message = data?.code === 'sql_error'
+      ? i18n.t('app.service_unavailable')
+      : (data?.message || data?.error || `Erreur du chrono (${response.status})`);
+    const err = new Error(message);
     if (data?.code) err.code = data.code;
     if (data?.data !== undefined) err.data = data.data;
     throw err;

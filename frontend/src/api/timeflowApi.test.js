@@ -32,6 +32,20 @@ describe('moduleTimerRequest failure modes', () => {
 
     await expect(getActiveTimer()).rejects.toThrow(i18n.t('app.session_expired'));
   });
+
+  it('translates a generic "sql_error" JSON response (e.g. a lost connection inside stopTimer/startTimer), ignoring the server\'s French message', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: () => Promise.resolve(JSON.stringify({
+        status: 'error',
+        code: 'sql_error',
+        message: 'Erreur de base de données (TimeEntry::stopTimer:fetch). Contactez un administrateur.',
+      })),
+    }));
+
+    await expect(getActiveTimer()).rejects.toThrow(i18n.t('app.service_unavailable'));
+  });
 });
 
 describe('buildApiUrl', () => {
