@@ -1,0 +1,32 @@
+{
+  "steps": [
+    {
+      "step": "bell opened online",
+      "panelText": "Notifications\nTout marquer comme lu\n\nAucune notification.\n\nRecevoir aussi les alertes par email\n\nAdresse : zz_nf_admin@invalid.test"
+    },
+    {
+      "step": "bell opened OFFLINE",
+      "panelText": "Notifications\nTout marquer comme lu\n\nAucune notification.\n\nImpossible de charger les notifications.\n\nRecevoir aussi les alertes par email\n\nAdresse : zz_nf_admin@invalid.test"
+    },
+    {
+      "step": "bell opened after recovery",
+      "panelText": "Notifications\nTout marquer comme lu\n\nAucune notification.\n\nRecevoir aussi les alertes par email\n\nAdresse : zz_nf_admin@invalid.test"
+    }
+  ],
+  "offlineDurationMs": 2030,
+  "recoveredWithinMs": 55617,
+  "allNotifHits": [
+    {
+      "offsetFromOnlineMs": -4361,
+      "status": 200
+    },
+    {
+      "offsetFromOnlineMs": -3328,
+      "status": 200
+    },
+    {
+      "offsetFromOnlineMs": 55617,
+      "status": 200
+    }
+  ]
+}
