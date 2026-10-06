@@ -14,30 +14,46 @@
   "perimetre": {
     "deplace_en_sql": ["total_seconds", "billable_seconds", "non_billable_seconds", "by_project", "by_client", "by_user", "by_project_employee", "by_project_client", "by_project_billable", "by_employee_client", "by_employee_billable", "by_client_billable", "by_status (comptages)"],
     "inchange_documente": ["by_group (multi-appartenance aux groupes, pas un GROUP BY simple)", "by_tag (texte libre separe par virgules, pas une colonne groupable)"],
-    "plafond_1000_lignes_et_avertissement": "retires - plus aucun total/graphique affiche ne peut etre partiel ; le champ entries_returned/entries_total_in_period reste dans la reponse mais ne decrit plus que la couverture de by_group/by_tag (non affiches par l'interface actuelle)"
+    "plafond_1000_lignes_et_avertissement": "retires - plus aucun total/graphique affiche ne peut etre partiel"
+  },
+  "suivi_suppression_fetch_residuel": {
+    "constat": "getSummaryReports gardait un fetchAll() plafonne a 1000 lignes + timeflowBuildSummary() uniquement pour calculer by_group/by_tag",
+    "verification": "recherche dans tout le frontend (DashboardPage.jsx, CustomChartWidget.jsx, dashboardExport.js, dashboardPdfExport.js, ReportsPage.jsx) : aucune lecture de by_group, by_tag, group_labels, entries_returned, entries_total_in_period - 'group' deja retire des dimensions selectionnables de crossDimensions.js, 'tag' n'y a jamais figure",
+    "cout_mesure": "~300ms du p95 a 100562 lignes pour ces deux champs seuls",
+    "action": "fetchAll() + appel a timeflowBuildSummary() supprimes de getSummaryReports ; les 5 champs renvoyes vides/null, documentes comme non calcules ; timeflowBuildSummary() conservee comme reference pour le test d'equivalence uniquement"
   },
   "test_equivalence_phpunit": {
     "nom": "test/phpunit/timeentryTest.php::testDashboardSummaryAggregateMatchesLegacyComputation",
-    "methode": "projet de test dedie, 6 lignes connues, compare champ par champ l'ancien calcul (timeflowBuildSummary sur un fetchAll non plafonne) au nouveau (timeflowBuildSummaryFromAggregates)",
+    "methode": "projet de test dedie, 7 lignes connues (incluant un 2e employe), compare champ par champ l'ancien calcul (timeflowBuildSummary sur un fetchAll non plafonne) au nouveau (timeflowBuildSummaryFromAggregates), sur 4 combinaisons de filtres",
+    "combinaisons": ["un projet + un mois", "aucun filtre (periode seule)", "filtre par employe", "only_validated"],
     "cas_couverts": {
       "chrono_actif_date_end_null": "duration=0, compte dans by_status, ne contribue a aucune somme - identique des deux cotes",
       "saisie_soft_supprimee": "validee puis supprimee (soft-delete reel, verifie via date_delete), exclue des deux cotes",
       "saisie_avant_la_periode": "date_start hors periode, exclue des deux cotes (borne sur date_start uniquement)",
-      "saisie_a_cheval_sur_la_fin": "date_start dans la periode, date_end 6 jours apres - incluse des deux cotes avec sa duree COMPLETE, non tronquee"
-    },
-    "resultat": "27/27 tests de la suite passent (1 skip preexistant, sans rapport)"
+      "saisie_a_cheval_sur_la_fin": "date_start dans la periode, date_end 6 jours apres - incluse des deux cotes avec sa duree COMPLETE, non tronquee",
+      "deuxieme_employe": "meme projet/periode, autre utilisateur - exclu par le filtre employe, inclus sinon, sur les deux chemins identiquement"
+    }
+  },
+  "test_droits_dedie": {
+    "nom": "test/phpunit/timeentryTest.php::testDashboardSummaryAggregateRestrictsNonReadallUserToTheirOwnEntriesOnly",
+    "methode": "deux employes non-readall avec de vraies saisies distinctes (6300s et 3600s), WHERE construit exactement comme la branche non-readall de getSummaryReports (AND t.fk_user = <leur id>, pas un parametre)",
+    "pourquoi": "un test avec un compte sans aucune saisie ne detecterait pas un bug renvoyant toujours 0 ; celui-ci verifie une somme exacte et non nulle, differente entre les deux employes",
+    "resultat": "28/28 tests de la suite passent (1 skip preexistant, sans rapport)"
   },
   "mesure_p95_100562_lignes": {
-    "mois": { "echantillon_ms": [665,686,701,735,762,765,803,804,868,868,879,919,930,937,973], "p95_ms": 973 },
-    "annee": { "echantillon_ms": [668,672,697,700,710,733,816,866,873,954,979,993,1009,1040,1083], "p95_ms": 1083 },
+    "avant_f2": { "mois_ms": 652, "annee_ms": 801 },
+    "apres_f2_fetch_residuel_conserve": { "mois_ms": 973, "annee_ms": 1083 },
+    "apres_suppression_fetch_residuel": {
+      "mois": { "echantillon_ms": [105,108,108,109,110,115,119,119,120,121,128,129,162,167,196], "p95_ms": 196 },
+      "annee": { "echantillon_ms": [159,164,165,166,168,169,170,170,180,185,188,197,201,212,277], "p95_ms": 277 }
+    },
     "seuil": "2000 ms",
-    "conclusion": "largement sous le seuil aux deux paliers"
+    "conclusion": "resultat final plus rapide qu'avant tout correctif (196/277ms contre 652/801ms), pas seulement exact"
   },
   "preuve_exactitude_sql_brut_independant": {
     "total_annee": { "api": 363756202, "sql_brut": 363756202, "ecart": 0 },
     "by_project_92": { "api": 3083195, "sql_brut": 3083195, "ecart": 0 },
-    "by_user_1": { "api": 16252, "sql_brut": 16252, "ecart": 0 },
-    "perimetre_droits": "zz_nf_employee (non readall, 0 saisie propre) recoit total_seconds=0 et by_user vide, pas les donnees des autres employes - confirme que la restriction fk_user=X s'applique bien a la nouvelle requete d'agregation"
+    "by_user_1": { "api": 16252, "sql_brut": 16252, "ecart": 0 }
   },
-  "conclusion": "SCAL-02 repasse a (Correctif implémenté, totaux exacts a tout volume, p95 largement sous seuil, aucune regression sur by_group/by_tag ni sur les cas limites verifies)."
+  "conclusion": "SCAL-02 repasse a vert : correctif implemente, totaux exacts a tout volume, p95 bien sous le seuil (et plus rapide qu'avant le correctif), aucune regression sur by_group/by_tag (non lus par l'interface), equivalence verifiee sur 4 combinaisons de filtres, droits verifies avec des donnees reelles non nulles."
 }
