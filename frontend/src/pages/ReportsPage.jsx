@@ -53,6 +53,26 @@ const GLOBAL_CSV_HEADER = [
   'Projet', 'Client', 'Groupe', 'Description', 'Email', 'Utilisateur',
   'Facturable', 'Date de début', 'Heure de début', 'Date de fin', 'Heure de fin', 'Durée (décimal)',
 ];
+const GLOBAL_CSV_START_DATE_COL = 7; // 'm/d/Y'
+const GLOBAL_CSV_START_TIME_COL = 8; // 'H:i:s'
+
+function globalCsvRowStartTimestamp(row) {
+  const [month, day, year] = row[GLOBAL_CSV_START_DATE_COL].split('/').map(Number);
+  const [hours, minutes, seconds] = row[GLOBAL_CSV_START_TIME_COL].split(':').map(Number);
+  return new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+}
+
+// The export is paged by rowid (ANO-SCAL-01 fix: a cursor, not a date, is
+// what's immune to rows being added/removed mid-export), so the rows arrive
+// in rowid order — not the date_start order users expect from a time-entry
+// export. This re-sorts once, after everything has been received, into the
+// order the old single-query export used to produce. Array.sort is
+// guaranteed stable (ES2019+), so two rows with the same start date/time
+// keep their original rowid-ascending relative order — exactly "rowid as
+// tiebreak" — without the export needing to carry rowid through at all.
+function sortGlobalCsvRowsByStartDate(rows) {
+  return [...rows].sort((a, b) => globalCsvRowStartTimestamp(a) - globalCsvRowStartTimestamp(b));
+}
 
 const ASSIGNED_USERS_INLINE_LIMIT = 2;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -908,7 +928,7 @@ export default function ReportsPage() {
     const mismatchWarning = expectedTotal !== null && allRows.length !== expectedTotal
       ? t('processed_history.export_csv_global_mismatch_warning', { received: allRows.length, expected: expectedTotal })
       : '';
-    downloadCsv('consolide', GLOBAL_CSV_HEADER, allRows, ',');
+    downloadCsv('consolide', GLOBAL_CSV_HEADER, sortGlobalCsvRowsByStartDate(allRows), ',');
     setExportState({ loading: false, received: allRows.length, total: expectedTotal ?? allRows.length, error: '', mismatchWarning });
   };
 
