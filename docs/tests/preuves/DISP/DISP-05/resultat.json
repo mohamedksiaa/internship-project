@@ -1,0 +1,21 @@
+{
+  "cas": "DISP-05 — Sauvegarde locale de base",
+  "activation": "job rowid=3 (MakeLocalDatabaseDumpShort), active via admin/cron/card.php?action=activate (vrai mecanisme admin), status 0 -> 1",
+  "execution": "scripts/cron/cron_run_jobs.php testcronkey admin 3 --force, depuis le conteneur timeflow-dolibarr-cron",
+  "parametres_job": "compression=none, type=auto, usedefault=1, file=auto, keeplastnfiles=10, execmethod=0, lowmemorydump=0",
+  "emplacement": "/var/www/documents/admin/backup/ — volume nomme persistant dolibarr_documents (docker-compose.yml), pas l'interieur ephemere du conteneur",
+  "fichier_exemple": "mysqldump_dolibarr_19.0.2_2610060933.sql, 1861570 octets",
+  "integrite": "marqueur de fin propre '-- Dump completed on 2026-10-06 10:33:24' (pas de troncature) ; compression=none donc gzip -t non applicable",
+  "couverture_tables": "15/15 tables llx_timeflow_* presentes (CREATE TABLE trouve pour chacune) ; 566 separateurs de lignes pour llx_timeflow_timeentry correspondant aux 567 lignes reelles",
+  "exposition_identifiants": {
+    "constat": "core/class/utils.class.php::dumpDatabase() construit une commande mysqldump avec le mot de passe en ligne de commande (execmethod=1 -> exec($fullcommandclear)) ; la sortie filtre explicitement l'avertissement 'Warning: Using a password on the command line interface can be insecure.' — preuve que le mot de passe EST passe en clair sur la ligne de commande",
+    "portee": "comportement du coeur Dolibarr (core/class/utils.class.php), pas du module TimeFlow — non modifiable sans toucher au coeur",
+    "fenetre_exposition": "bref (duree d'execution de mysqldump), non verifie directement via ps aux pendant l'execution (fenetre trop courte), deduit de la lecture du code source"
+  },
+  "retention_7_executions": {
+    "procedure": "job relance 6 fois supplementaires (7 au total) en moins de 2 minutes, via --force",
+    "resultat": "seulement 2 fichiers distincts obtenus (mysqldump_..._2610060933.sql et ..._2610060934.sql) — le nom de fichier a une granularite PAR MINUTE : plusieurs executions dans la meme minute ECRASENT silencieusement le fichier precedent au lieu d'en creer un nouveau",
+    "limite": "ne reproduit pas fidelement '7 executions planifiees' au sens du plan (qui suppose un espacement realiste, ex. une fois par jour) — teste seulement le cas limite des executions rapprochees"
+  },
+  "conclusion": "activation et execution reelles confirmees, fichier complet et valide sur un volume persistant, couverture totale des tables du module. Deux observations a noter (voir rapport) : exposition bref du mot de passe via la ligne de commande mysqldump (coeur Dolibarr, non modifiable) ; ecrasement silencieux si le job est relance plus d'une fois par minute."
+}
