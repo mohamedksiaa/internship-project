@@ -11,10 +11,10 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 
 ## 1. Résumé
 
-- Cas prévus : 12 · exécutés : 8 (DISP-01, 02, 03, 04, 05, 08, 09, 11) · préparés sans exécution (procédure seule) : 2 (DISP-06, 07) · non exécutés : 2 (DISP-10 optionnel, DISP-12 sans objet — un seul environnement 19.0.2 disponible)
-- Statuts : ✅ 4 (DISP-01, 02, 08, 09) · ⚠️ 3 (DISP-03, 04, 05 — testés avec une réserve) · ℹ️ informatif 1 (DISP-11)
+- Cas prévus : 12 · exécutés : 9 (DISP-01, 02, 03, 04, 05, 06, 08, 09, 11) · préparé sans exécution (procédure seule) : 1 (DISP-07) · non exécutés : 2 (DISP-10 optionnel, DISP-12 sans objet — un seul environnement 19.0.2 disponible)
+- Statuts : ✅ 5 (DISP-01, 02, 06, 08, 09) · ⚠️ 3 (DISP-03, 04, 05 — testés avec une réserve) · ℹ️ informatif 1 (DISP-11)
 - Anomalies : 2 réelles (ANO-DISP-02 Faible, ANO-DISP-03 Moyen) · 1 **invalidée après vérification** (ANO-DISP-01 — erreur de méthode de test, voir §3, gardée pour mémoire) · 0 corrigée (consigne : documentées, pas corrigées en phase de disponibilité)
-- **Conclusion.** Le redémarrage propre (DISP-01), la politique de redémarrage pour un vrai plantage (DISP-02, rejoué avec un OOM-kill réel après correction de méthode), la pile complète (DISP-03) et la désactivation/réactivation du module (DISP-08) sont tous fiables, sans perte de donnée. La sauvegarde fonctionne réellement et couvre 100 % des tables du module (DISP-05), avec deux réserves mineures côté cœur Dolibarr. Aucune perte ni corruption de données constatée dans aucun des cas destructifs exécutés.
+- **Conclusion.** Le redémarrage propre (DISP-01), la politique de redémarrage pour un vrai plantage (DISP-02, rejoué avec un OOM-kill réel après correction de méthode), la pile complète (DISP-03), la restauration complète (DISP-06, exécutée par le responsable, 15/15 tables identiques, RTO 18,3 s) et la désactivation/réactivation du module (DISP-08) sont tous fiables, sans perte de donnée. La sauvegarde fonctionne réellement et couvre 100 % des tables du module (DISP-05), avec deux réserves mineures côté cœur Dolibarr. Aucune perte ni corruption de données constatée dans aucun des cas destructifs exécutés.
 
 ## 2. Tableau récapitulatif
 
@@ -27,6 +27,7 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 | DISP-05 | Sauvegarde : activation, exécution, contenu | Job « Sauvegarde locale de base » (rowid 3, `MakeLocalDatabaseDumpShort`) **activé via le vrai mécanisme admin** (`cron/card.php?action=activate`), exécuté via `cron_run_jobs.php` (identique au mécanisme réel du conteneur cron). Fichier produit sur `/var/www/documents/admin/backup/` — **volume nommé persistant** `dolibarr_documents`, pas l'intérieur éphémère du conteneur. 1,86 Mo, marqueur de fin propre (pas de troncature). **15/15 tables `llx_timeflow_*` présentes**, 566 séparateurs de lignes pour `timeentry` = 567 lignes réelles. Relancé 7 fois au total en < 2 min : **seulement 2 fichiers distincts** — le nom de fichier a une granularité **par minute**, donc plusieurs exécutions dans la même minute s'écrasent silencieusement (limite du test : ne reproduit pas un espacement réaliste). Lecture du code cœur (`Utils::dumpDatabase()`) : le mot de passe **est bien passé en ligne de commande** à `mysqldump` (confirmé par le filtrage explicite de l'avertissement mysqldump correspondant) — comportement du cœur, non modifiable. | Fichier produit à chaque exécution **(✅, hors collision de nom)** ; 100 % des tables du module présentes **(✅)** ; taille cohérente **(✅)** ; stocké sur volume persistant **(✅)** | ⚠️ | `preuves/DISP/DISP-05/` |
 | DISP-08 | Désactivation puis réactivation du module | Comptages sur 9 tables + 2 tâches planifiées + 13 constantes `TIMEFLOW_*` relevés avant ; désactivation puis réactivation via le **vrai mécanisme admin** (`admin/modules.php?action=reset\|set&value=modTimeFlow`, compte superadmin réel, pas une manipulation directe de la base). Après réactivation : **2 tâches planifiées exactement (pas 4)**, mêmes rowid (1, 6) ; **13/13 constantes identiques** ; **9/9 comptages de tables identiques** (ex. `timeentry` 567/567) ; application de nouveau accessible (200). Observation (non bloquante) : pendant la désactivation, `timeflowindex.php` pour un utilisateur connecté renvoie une page Dolibarr standard **vide** (menu seul, aucun message explicite "module désactivé") plutôt qu'un message clair — à rapprocher de DISP-11. | Comptages identiques **(✅)** ; 2 tâches planifiées exactement **(✅)** ; réglages inchangés **(✅)** | ✅ | — |
 | DISP-09 | Mode dégradé | Scénario type (démarrer/arrêter un chrono, tableau de bord, soumettre) rejoué pour chaque dépendance coupée séparément. **Mailpit arrêté** (déjà PAN-04, phase 2) : application utilisable, notification créée, email en `failed` puis retenté avec succès au retour. **Cron arrêté** (nouveau) : démarrer/arrêter un chrono, consulter le tableau de bord, soumettre — **tout fonctionne (200/success)** ; seules les tâches planifiées (détection de retard, découpage de minuit) ne tournent pas pendant l'arrêt. **Base arrêtée** (déjà PAN-01, phase 2) : application indisponible (HTTP 202, page du cœur, pas de message TimeFlow) — voir ANO-PANNES-01, déjà corrigé côté frontend (message traduit) en PR n° 50. | Matrice conforme à l'attendu **(✅)** ; 0 perte de donnée **(✅)** | ✅ | `preuves/PANNES/PAN-01/`, `preuves/PANNES/PAN-04/` |
+| DISP-06 | Restauration complète testée (RPO/RTO) | **Exécutée par le responsable** avec la procédure corrigée (§6) : sauvegarde fraîche via « Lancer maintenant » (cron arrêté pour figer la base), copiée sur disque puis dans `timeflow-mariadb`, restaurée dans `dolibarr_restore_test`. **15/15 tables identiques** (sommes de contrôle, colonne `Checksum` isolée). Restauration en **18,3 s** (fichier 1,86 Mo, sauvegarde du 06/10 à 11:07). | Sommes de contrôle égales à 100 % **(✅)** ; RTO ≤ 15 min **(✅ 18,3 s)** ; RPO ≤ 24 h avec sauvegarde quotidienne **(✅, voir R5)** | ✅ | — |
 | DISP-11 | Observabilité | Synthèse des pannes provoquées en phases 2 et 3 (tableau ci-dessous). Les pannes applicatives (import, chrono) sont **désormais visibles** dans la réponse HTTP elle-même (503 + code + détail, PR n° 49/50/52) — diagnostic immédiat, pas d'enquête. Les pannes **infrastructure** (conteneur arrêté/planté) sont visibles uniquement via `docker ps`/`docker inspect` — **aucune alerte ne pousse l'information**, il faut aller la chercher. Le cœur Dolibarr (page 202) est visible à l'écran mais sans code machine exploitable. Voir le tableau et la recommandation en §5. | 100 % des pannes identifiables en < 5 min **(✅, en sachant où chercher)** ; manques listés **(✅, voir §5)** | ℹ️ informatif | — |
 
 ## 3. Détail des anomalies
@@ -43,6 +44,7 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
   - `timeflow-dolibarr-cron` : empreinte trop légère (~2 Mo) pour déclencher un OOM même à la limite minimale autorisée par Docker (6 Mo) au repos — **non concluant pour ce conteneur spécifiquement**, faute d'une charge active au moment du test ; les 3 autres suffisent à confirmer le mécanisme.
 - **Conclusion confirmée** : la politique `restart: unless-stopped` **fonctionne correctement** pour un vrai plantage (initié par le noyau, pas par une commande Docker explicite), sur 3 conteneurs sur 4 testés avec succès (le 4ᵉ non concluant par manque de charge, pas par échec du mécanisme).
 - **Leçon de méthode** : pour simuler un plantage dans un futur test, ne jamais utiliser `docker kill`/`docker stop` (comptés comme arrêt volontaire) ; utiliser une cause réelle (OOM via `docker update --memory`, erreur fatale du processus lui-même, etc.).
+- **Note de process (signalée par le responsable)** : après ces tests OOM, les 4 conteneurs portaient encore des limites mémoire (512 Mo pour 3 d'entre eux, 2 Go pour `mariadb`) que je leur avais imposées pour forcer le déclenchement du noyau — **ces limites n'existent pas dans `docker-compose.yml`** (aucune limite déclarée) et auraient dû être retirées entièrement, pas « remises à une valeur ». Le responsable les avait repassées à `docker update --memory=0`, qui s'est révélé **sans effet réel** sur `HostConfig.Memory` (reste à l'ancienne valeur au lieu de 0 — comportement de `docker update` non éclairci). Confirmé et corrigé en repassant explicitement `--memory`/`--memory-swap` à la mémoire totale de l'hôte (`docker info --format '{{.MemTotal}}'`, 8180621312 octets ici), qui est la valeur que `docker stats` affiche déjà pour un conteneur sans aucune limite déclarée — les 4 conteneurs affichent de nouveau leur limite d'origine (celle d'un conteneur non contraint). **Pour l'avenir** : ne jamais laisser de limite `docker update --memory` après un test qui en pose une — la retirer complètement (ou, si `--memory=0` ne suffit pas sur cette installation, la remettre explicitement à la mémoire totale de l'hôte) avant de considérer le test terminé.
 
 ### ANO-DISP-02 — Le nom de fichier de sauvegarde a une granularité à la minute : des exécutions rapprochées s'écrasent
 - **Cas concerné** : DISP-05
@@ -67,7 +69,7 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 ## 4. Cas non exécutés ou non concluants
 
 - **DISP-03** (fenêtre d'erreur cron) : aucune exécution de job ne tombait dans la fenêtre d'observation de 60 s après le démarrage simultané — « 0 tâche à vide » n'a donc pas pu être vérifié positivement, seulement l'absence d'exécution observée. À rejouer avec une fenêtre d'observation couvrant un vrai cycle de 5 min si une confirmation plus solide est souhaitée.
-- **DISP-06** (restauration complète) : procédure préparée avec les sommes de contrôle de référence (§6), **non exécutée** — consigne explicite, le responsable l'exécute lui-même.
+- **DISP-06** : ✅ exécutée par le responsable — voir §2 et §6.
 - **DISP-07** (restauration partielle + volume documents) : procédure préparée (§6), **non exécutée** pour la même raison.
 - **DISP-10** (essai de disponibilité continue 24 h) : optionnel par consigne, **non lancé** sans accord explicite.
 - **DISP-12** (compatibilité 19.0.2 / 22.0.4) : **sans objet** dans cet environnement — un seul `docker-compose.yml` existe, pointant sur Dolibarr 19.0.2 ; aucune pile 22.0.4 n'est configurée pour rejouer la comparaison.
@@ -124,15 +126,20 @@ Règles spécifiques à cette phase (rappel) : seuls les conteneurs `timeflow-do
 
 ## 6. Procédures préparées (à exécuter par le responsable)
 
-### Procédure DISP-06 — Restauration complète testée (RPO/RTO)
+### Procédure DISP-06 — Restauration complète testée (RPO/RTO) — ✅ **exécutée par le responsable**
+
+**Résultat** (voir §2) : 15/15 tables identiques, restauration en **18,3 s**, fichier de 1,86 Mo (sauvegarde du 06/10 à 11:07). RTO ≤ 15 min : ✅. Avec une sauvegarde quotidienne (R5), RPO ≤ 24 h : conforme au seuil retenu.
 
 **Pourquoi vous l'exécutez vous-même** : consigne explicite, aucune restauration n'est faite par l'exécutant, y compris sur une base de vérification jetable.
 
-**Corrections apportées à la version précédente** (signalées par le responsable) :
-- Le fichier de sauvegarde est sur le volume `dolibarr_documents`, monté dans `timeflow-dolibarr`/`timeflow-dolibarr-cron`, **pas dans `timeflow-mariadb`** — la restauration doit d'abord faire sortir le fichier, puis l'amener dans `timeflow-mariadb`, pas le lire directement depuis ce dernier.
-- Les sommes de contrôle doivent être prises **immédiatement après** la sauvegarde fraîche (même instant), pas après coup sur un état qui a pu changer depuis.
+**Version corrigée** après un premier essai qui ne fonctionnait pas tel quel :
+- **(a)** `cron_run_jobs.php ... 3 --force` répondait *"no qualified job found"* même avec le job activé. Ce qui fonctionne : **arrêter `timeflow-dolibarr-cron`** (pour qu'il ne lance pas le même job en même temps — sinon deux écritures sur le même fichier horodaté à la minute, et une copie en plein milieu de l'écriture automatique donne un fichier de **0 octet**), activer le job si besoin, puis cliquer **« Lancer maintenant »** depuis `cron/list.php` dans l'interface (connecté en admin) — pas de CLI pour cette étape-là.
+- La base doit être **figée** (cron arrêté) entre la sauvegarde et la prise des sommes de contrôle, pour que les deux reflètent exactement le même instant.
+- **Vérifier que le fichier est complet** avant de continuer : `ls -lt` sur le dossier de sauvegarde, confirmer que la taille correspond à une sauvegarde complète (comparable aux précédentes, pas 0 octet, pas en cours d'écriture — relancer `ls -l` une seconde fois pour confirmer que la taille ne bouge plus).
+- `CHECKSUM TABLE` inclut le nom de la base dans chaque ligne (`dolibarr.xxx` vs `dolibarr_restore_test.xxx`) — comparer les lignes entières avec `Compare-Object` les signale toutes comme différentes à tort. Correction : `mariadb -N` (pas d'en-têtes) puis découpage sur la tabulation pour comparer **uniquement la colonne Checksum**.
+- **Sécurité ajoutée avant restauration** : vérifier que le fichier ne contient **ni `USE`, ni `CREATE DATABASE`** (`grep -c`) — sinon la restauration de test écraserait la vraie base `dolibarr`. Confirmé sur le fichier réel : 0 occurrence des deux.
 
-**Script PowerShell complet** (à exécuter vous-même, dans l'ordre ; copier-coller le bloc entier ou étape par étape) :
+**Script PowerShell complet et corrigé** :
 
 ```powershell
 # Dossier de travail sur votre disque — adapter si besoin
@@ -148,24 +155,47 @@ $tableNames = @(
   "llx_timeflow_timeentry_extrafields","llx_timeflow_timeentry_modification","llx_timeflow_time_edit_log"
 )
 
-# --- (a) Lancer une sauvegarde fraîche ---
-docker exec timeflow-dolibarr-cron php /var/www/scripts/cron/cron_run_jobs.php testcronkey admin 3 --force
+# --- (a) Figer la base : arrêter le conteneur cron, PUIS déclencher la sauvegarde via l'interface ---
+docker stop timeflow-dolibarr-cron
+Write-Host "1) Connectez-vous en admin sur http://localhost:8080"
+Write-Host "2) Si besoin, activez le job sur cron/card.php?id=3 (bouton Activer)"
+Write-Host "3) Depuis cron/list.php, cliquez 'Lancer maintenant' sur la ligne du job de sauvegarde"
+Read-Host "Appuyez sur Entrée une fois la sauvegarde lancée depuis l'interface"
 
-# Nom exact (avec chemin) du fichier qui vient d'être produit (le plus récent du dossier)
-$backupFile = (docker exec timeflow-dolibarr-cron sh -c "ls -t /var/www/documents/admin/backup/*.sql | head -1").Trim()
-Write-Host "Fichier de sauvegarde : $backupFile"
+# Vérifier que le fichier est complet : deux lectures de taille qui ne bougent pas
+$backupFile = (docker exec timeflow-dolibarr sh -c "ls -t /var/www/documents/admin/backup/*.sql | head -1").Trim()
+$size1 = docker exec timeflow-dolibarr sh -c "stat -c %s '$backupFile'"
+Start-Sleep -Seconds 2
+$size2 = docker exec timeflow-dolibarr sh -c "stat -c %s '$backupFile'"
+if ($size1 -ne $size2 -or [int]$size1 -eq 0) {
+  Write-Error "Fichier encore en cours d'écriture ou vide (taille $size1 puis $size2) — attendez et relancez cette vérification avant de continuer."
+  return
+}
+Write-Host "Fichier de sauvegarde complet : $backupFile ($size2 octets)"
 
-# --- (b) Prendre immédiatement les sommes de contrôle de référence (même instant que la sauvegarde) ---
+# --- Sécurité : le fichier ne doit contenir ni USE ni CREATE DATABASE ---
+$unsafeCount = docker exec timeflow-dolibarr sh -c "grep -cE '^(USE |CREATE DATABASE)' '$backupFile'"
+if ([int]$unsafeCount -gt 0) {
+  Write-Error "Le fichier contient $unsafeCount instruction(s) USE/CREATE DATABASE — restauration annulée par sécurité (risque d'écraser la vraie base)."
+  return
+}
+Write-Host "Vérifié : 0 instruction USE/CREATE DATABASE dans le fichier."
+
+# --- (b) Prendre immédiatement les sommes de contrôle de référence (base toujours figée, cron arrêté) ---
 $refList = ($tableNames | ForEach-Object { "dolibarr.$_" }) -join ", "
-docker exec timeflow-mariadb mariadb -udolibarr -pdolibarrpass -e "CHECKSUM TABLE $refList;" |
-  Out-File "$hostDir\disp06_reference_checksums.txt"
-Write-Host "Sommes de contrôle de référence enregistrées dans $hostDir\disp06_reference_checksums.txt"
+$refChecksums = docker exec timeflow-mariadb mariadb -N -udolibarr -pdolibarrpass -e "CHECKSUM TABLE $refList;" |
+  ForEach-Object { ($_ -split "`t")[1] }
+$refChecksums | Out-File "$hostDir\disp06_reference_checksums.txt"
+Write-Host "Sommes de contrôle de référence enregistrées."
 
 # --- (c) Copier le fichier vers votre disque, puis dans timeflow-mariadb ---
 $fileName = Split-Path $backupFile -Leaf
-docker cp "timeflow-dolibarr-cron:${backupFile}" "$hostDir\$fileName"
+docker cp "timeflow-dolibarr:${backupFile}" "$hostDir\$fileName"
 docker cp "$hostDir\$fileName" "timeflow-mariadb:/tmp/$fileName"
 Write-Host "Copié sur le disque ($hostDir\$fileName) puis dans timeflow-mariadb (/tmp/$fileName)"
+
+# La base n'a plus besoin d'être figée à partir d'ici : on peut redémarrer le cron
+docker start timeflow-dolibarr-cron
 
 # --- (d) Restaurer dans une base de test, jamais dans "dolibarr" ---
 docker exec timeflow-mariadb mariadb -uroot -prootpass -e "DROP DATABASE IF EXISTS dolibarr_restore_test; CREATE DATABASE dolibarr_restore_test;"
@@ -178,12 +208,13 @@ $t1 = Get-Date
 $rto = $t1 - $t0
 Write-Host "RTO de restauration : $($rto.TotalSeconds) secondes"
 
-# --- (e) Comparer les sommes de contrôle ---
+# --- (e) Comparer uniquement la colonne Checksum (pas le nom de la base) ---
 $testList = ($tableNames | ForEach-Object { "dolibarr_restore_test.$_" }) -join ", "
-docker exec timeflow-mariadb mariadb -uroot -prootpass -e "CHECKSUM TABLE $testList;" |
-  Out-File "$hostDir\disp06_restored_checksums.txt"
-Write-Host "Comparaison (rien affiché = identique) :"
-Compare-Object (Get-Content "$hostDir\disp06_reference_checksums.txt") (Get-Content "$hostDir\disp06_restored_checksums.txt")
+$testChecksums = docker exec timeflow-mariadb mariadb -N -uroot -prootpass -e "CHECKSUM TABLE $testList;" |
+  ForEach-Object { ($_ -split "`t")[1] }
+$testChecksums | Out-File "$hostDir\disp06_restored_checksums.txt"
+Write-Host "Comparaison des sommes de contrôle (rien affiché = 100% identiques) :"
+Compare-Object $refChecksums $testChecksums
 
 # --- (g) Supprimer la base de test ---
 docker exec timeflow-mariadb mariadb -uroot -prootpass -e "DROP DATABASE dolibarr_restore_test;"
@@ -191,11 +222,10 @@ Write-Host "Base de test supprimée."
 ```
 
 **Notes** :
-- Les deux fichiers `disp06_reference_checksums.txt` et `disp06_restored_checksums.txt` ont les tables dans le même ordre (`$tableNames` sert aux deux), donc `Compare-Object` ligne à ligne est valide tel quel — seul le nom de la base (`dolibarr.` vs `dolibarr_restore_test.`) diffère dans la colonne "Table", ce qui est normal et attendu.
-- `Compare-Object` ne doit rien afficher si les sommes `Checksum` sont identiques — toute ligne affichée au-delà du nom de base attendu signale une divergence réelle.
+- `$refChecksums`/`$testChecksums` ne contiennent que les valeurs numériques de `Checksum`, dans le même ordre (`$tableNames`), donc `Compare-Object` ne doit strictement rien afficher si tout est identique.
 - (Optionnel, plus représentatif mais plus lourd) Pointer une instance Dolibarr de test séparée sur `dolibarr_restore_test` pour comparer visuellement le tableau de bord — nécessite un second conteneur `dolibarr`, non mis en place dans cette session.
 
-**Critère de réussite** : sommes de contrôle égales à 100 % ; RTO ≤ 15 min.
+**Critère de réussite** : sommes de contrôle égales à 100 % ; RTO ≤ 15 min. **Atteint.**
 
 ### Procédure DISP-07 — Restauration partielle (une table) et volume de documents
 
@@ -205,8 +235,7 @@ Write-Host "Base de test supprimée."
 
 ## 7. Perspectives
 
-- Exécuter la procédure DISP-06 préparée (§6) pour mesurer un vrai RTO/RPO de restauration, et DISP-07 pour la restauration partielle.
-- Confirmer ou infirmer ANO-DISP-01 (politique de redémarrage) sur un autre hôte Docker, pour isoler environnement vs projet.
-- Décider des recommandations R1-R4 (§5) : sonde applicative, version d'image figée, supervision externe du redémarrage, détection d'un cron arrêté.
+- Exécuter DISP-07 (restauration partielle, procédure préparée en §6) avec le même soin que DISP-06 (fichier sur le bon volume, base figée, comparaison sur la seule colonne Checksum).
+- Décider des recommandations R1, R2, R4, R5 (§5) : sonde applicative, version d'image figée, détection d'un cron arrêté, réactivation du job de sauvegarde + copie hors site.
 - Rejouer DISP-03 avec une fenêtre d'observation couvrant un vrai cycle cron (≥ 5 min) pour conclure sur « 0 tâche à vide ».
 - DISP-10 (24 h) et DISP-12 (22.0.4) restent à planifier séparément si souhaités.
