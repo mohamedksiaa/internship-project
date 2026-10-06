@@ -1432,12 +1432,17 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$r5 = $e5->createManualEntry((int) $user->id, $projectId, 0, strtotime('2025-12-31 23:00:00 UTC'), strtotime('2026-01-01 02:00:00 UTC'), 'r5 before period', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
 		$this->assertGreaterThan(0, $r5, (string) $e5->error);
 
-		// r6: date_start inside the period but date_end well past it — included by both, with its FULL duration (not clipped at the period boundary).
+		// r6: date_start inside the period but date_end well past it — included by both, with its FULL duration
+		// (not clipped at the period boundary). A 6-day span would be rejected by createManualEntry()'s own
+		// 18h max-duration guard, which is irrelevant to what this test is checking — created as a normal
+		// 1h entry, then backdated/extended directly in SQL, same technique as the midnight-cron test above.
 		$e6 = new TimeEntry($db);
 		$r6DateStart = strtotime('2026-01-30 20:00:00 UTC');
 		$r6DateEnd = strtotime('2026-02-05 20:00:00 UTC'); // 6 days later, past periodTo.
-		$r6 = $e6->createManualEntry((int) $user->id, $projectId, 0, $r6DateStart, $r6DateEnd, 'r6 straddles end', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
+		$r6 = $e6->createManualEntry((int) $user->id, $projectId, 0, $r6DateStart, $r6DateStart + 3600, 'r6 straddles end', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
 		$this->assertGreaterThan(0, $r6, (string) $e6->error);
+		$r6Duration = $r6DateEnd - $r6DateStart;
+		$this->assertNotFalse($db->query('UPDATE '.$db->prefix().'timeflow_timeentry SET date_end = \''.$db->idate($r6DateEnd).'\', duration = '.$r6Duration.' WHERE rowid = '.(int) $r6));
 
 		// --- Build the same WHERE/filter the two getSummaryReports code paths use, scoped to this one test project. ---
 		$filter = '(t.fk_project:=:'.$projectId.')';
