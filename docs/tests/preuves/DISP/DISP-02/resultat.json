@@ -1,0 +1,23 @@
+{
+  "cas": "DISP-02 — Plantage brutal et politique de redemarrage",
+  "premier_essai_invalide": {
+    "methode": "docker kill (SIGKILL) sur les 4 conteneurs separement, sans action manuelle",
+    "resultat": "les 4 sont restes Exited (137), RestartCount=0",
+    "invalidation": "docker kill est enregistre par Docker comme un arret VOLONTAIRE de l'utilisateur ; restart: unless-stopped ignore ce cas par conception — ce n'est pas un plantage simule, c'est un arret intentionnel. Signale et verifie par le responsable avec un conteneur alpine jetable (sleep 5; exit 1, --restart unless-stopped) : RestartCount=5 au bout de 30s, confirmant que la politique fonctionne pour un vrai plantage."
+  },
+  "tentative_kill_interne": {
+    "methode": "docker exec <conteneur> kill -9 1 (tuer le PID 1 depuis l'interieur)",
+    "resultat": "aucun effet (sortie 0, conteneur inchange, StartedAt inchange)",
+    "explication": "le noyau Linux ignore tout signal (y compris SIGKILL) envoye a l'« init » (PID 1) d'un espace de noms PID, tant qu'aucun gestionnaire n'est installe pour ce signal — comportement documente (pid_namespaces(7)), pas specifique a ce projet."
+  },
+  "retest_oom_kill_reel": {
+    "methode": "docker update --memory=<valeur sous l'empreinte reelle> pour forcer un OOM-kill declenche par le noyau ; jamais de docker kill/stop",
+    "resultats": {
+      "timeflow-mailpit": { "empreinte_avant": "11.72MiB", "limite_imposee": "8m", "RestartCount_avant": 0, "RestartCount_apres": 7, "OOMKilled": true, "etat_final": "running, HTTP 200 apres restauration de la limite" },
+      "timeflow-dolibarr": { "empreinte_avant": "20.65MiB", "limite_imposee": "16m", "RestartCount_avant": 0, "RestartCount_apres": 1, "etat_final": "Up, HTTP 200" },
+      "timeflow-mariadb": { "empreinte_avant": "210.8MiB", "limite_imposee": "120m", "RestartCount_avant": 0, "RestartCount_apres": 6, "etat_final": "healthy, CHECK TABLE OK sur llx_timeflow_timeentry et llx_timeflow_timeentry_modification" },
+      "timeflow-dolibarr-cron": { "empreinte_avant": "1.75MiB", "limite_testee": "10m puis 6m (minimum autorise par Docker)", "RestartCount_apres": 0, "conclusion": "non concluant — empreinte trop legere pour forcer un OOM meme a la limite minimale, faute de charge active pendant le test" }
+    }
+  },
+  "conclusion": "la politique restart: unless-stopped fonctionne correctement pour un vrai plantage initie par le noyau (OOM), confirmee sur 3 conteneurs sur 4 (le 4e non concluant par manque de charge, pas par echec du mecanisme). Le premier essai (docker kill) etait une erreur de methode : docker kill est un arret volontaire, pas un plantage, et unless-stopped l'ignore par conception."
+}
