@@ -1,0 +1,29 @@
+{
+  "cas": "Remesure post-correctif ANO-SCAL-01 — export CSV global, SCAL-03",
+  "contexte": "Donnees re-generees pour cette remesure (meme generateur deterministe que la phase 4, meme marqueurs zz_perf_*/import_key zzpf) : 100 000 lignes synthetiques + 562 lignes reference eligibles = 100 562 lignes eligibles au total.",
+  "avant_correctif": {
+    "limite_codee_en_dur": 50000,
+    "lignes_renvoyees_mesure_phase4": 50000,
+    "lignes_eligibles_mesure_phase4": 108539,
+    "taux_de_perte": "54%",
+    "avertissement_frontend": "aucun"
+  },
+  "apres_correctif": {
+    "lignes_eligibles": 100562,
+    "lignes_recues_total": 100562,
+    "ecart": 0,
+    "lots": 11,
+    "taille_lot": 10000,
+    "duree_totale_s": 4.6,
+    "verification_doublons_zzperf": {
+      "lignes_zz_perf_vues": 100000,
+      "notes_distinctes": 100000,
+      "doublons": 0
+    },
+    "verification_coherence": "total_count identique (100562) sur les 11 appels, et egal au nombre de lignes reellement accumulees — aucune ligne perdue ni dupliquee a l'echelle complete."
+  },
+  "test_unitaire_curseur": "test/phpunit/timeentryTest.php::testGlobalCsvExportCursorSkipsNothingAndDuplicatesNothingAcrossInsertAndDelete — cree 4 lignes connues, supprime l'une d'elles et en insere une nouvelle entre deux appels de lot ; verifie que l'export final est exactement {r1, r2, r4, r5}. 26/26 tests de la suite passent (1 skip preexistant, sans rapport).",
+  "non_regression_563": "timeflowBuildGlobalCsvRows() sur les 562 lignes de reference eligibles (hors donnees generees) : 562/562 recues en un seul lot, total_count=562, 0 ligne malformee.",
+  "verification_navigateur_reel": "Reproduit dans un vrai navigateur (Puppeteer/Chrome, bouton Export cliqué comme un vrai utilisateur) apres reconstruction du bundle front (frontend/dist etait obsolete, non versionne) : fichier telecharge avec 100 563 lignes (1 en-tete + 100 562 donnees), 100 000 marqueurs zz_perf_* presents et distincts, 0 doublon dans la colonne Description. Capture : export_ui_done.png.",
+  "conclusion": "ANO-SCAL-01 corrigee : export complet quel que soit le volume (pagination par curseur sur rowid, plafond de lot a 10 000 cote serveur comme SCAL-12), aucun fichier partiel possible (un lot en echec interrompt tout, 0 telechargement). Verifie a la fois au niveau HTTP et dans un vrai navigateur. SCAL-03 et ANO-SCAL-01 repassent a ✅."
+}
