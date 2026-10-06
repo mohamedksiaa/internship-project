@@ -1,0 +1,22 @@
+{
+  "cas": "PAN-08(e) — Chronometre actif a cheval sur minuit pendant une panne",
+  "setup": "Timer reel demarre puis date_start recule a la main (UPDATE direct) a ~20h avant l'arret, avant minuit UTC, pour forcer le declenchement du decoupage de minuit (seuil TIMEFLOW_MAX_ENTRY_DURATION_HOURS=18h) sans attendre reellement la nuit.",
+  "etape_1_db_coupee_avant_le_bootstrap": {
+    "procedure": "docker kill mariadb puis appel stopTimer",
+    "resultat": "HTTP 202, page de maintenance du coeur (identique a PAN-01) — la requete n'atteint meme pas stopTimer(). 0 impact sur l'entree."
+  },
+  "etape_2_db_coupee_a_80ms_apres_l_appel": {
+    "procedure": "appel stopTimer puis docker kill mariadb ~80ms apres",
+    "resultat": "HTTP 400 \"Entrée introuvable\" — la connexion s'est perdue pendant TimeEntry::fetch($id), AVANT l'ouverture de la transaction de decoupage (db->begin() vient apres). 0 transaction ouverte, 0 etat partiel.",
+    "observation_mineure_hors_perimetre": "fetch() <= 0 est interprete comme \"entree introuvable\" sans distinguer un vrai id absent d'un echec de connexion — meme famille de defaut que ANO-PANNES-02 mais dans TimeEntry::stopTimer(), pas audite ici (hors demande), a signaler pour une revue ulterieure si souhaite."
+  },
+  "etape_3_apres_reprise_db": {
+    "procedure": "docker start mariadb, nouvel appel stopTimer (DB saine)",
+    "resultat": {
+      "segment_1": { "rowid": 10542, "date_start_utc": "2026-10-05T11:46:37Z", "date_end_utc": "2026-10-06T00:00:00Z", "duration_s": 44003, "fk_split_previous": null },
+      "segment_2": { "rowid": 10543, "date_start_utc": "2026-10-06T00:00:00Z", "date_end_utc": "2026-10-06T08:48:22Z", "duration_s": 31702, "fk_split_previous": 10542 }
+    },
+    "conclusion": "decoupage exact a minuit UTC, 2 segments chaines correctement via fk_split_previous, 0 doublon, 0 segment manquant ou partiel, malgre deux tentatives interrompues juste avant."
+  },
+  "conclusion_generale": "le chronometre n'a jamais perdu ni fausse de temps a travers les deux pannes : soit la requete est bloquee avant tout effet (etapes 1 et 2), soit elle reussit entierement (etape 3) — jamais d'etat intermediaire."
+}
