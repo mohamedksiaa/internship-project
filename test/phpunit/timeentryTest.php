@@ -1394,7 +1394,7 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$proj->status = Project::STATUS_VALIDATED;
 		$proj->usage_task = 1;
 		$projectId = $proj->create($user);
-		$this->assertGreaterThan(0, $projectId, $proj->error);
+		$this->assertGreaterThan(0, $projectId, (string) $proj->error);
 
 		$periodFrom = '2026-01-01';
 		$periodTo = '2026-01-31';
@@ -1403,12 +1403,12 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		// r1: validated, billable — the plain case.
 		$e1 = new TimeEntry($db);
 		$r1 = $e1->createManualEntry((int) $user->id, $projectId, 0, $base, $base + 3600, 'r1', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
-		$this->assertGreaterThan(0, $r1, $e1->error);
+		$this->assertGreaterThan(0, $r1, (string) $e1->error);
 
 		// r2: submitted, non-billable.
 		$e2 = new TimeEntry($db);
 		$r2 = $e2->createManualEntry((int) $user->id, $projectId, 0, $base + 7200, $base + 7200 + 1800, 'r2', '', 0, $user, null, TimeEntry::STATUS_SUBMITTED);
-		$this->assertGreaterThan(0, $r2, $e2->error);
+		$this->assertGreaterThan(0, $r2, (string) $e2->error);
 
 		// r3: active timer (date_end NULL, duration 0) inside the period — must count in by_status, contribute 0 to every sum.
 		$e3 = new TimeEntry($db);
@@ -1419,25 +1419,25 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		// r4: validated then soft-deleted — must be excluded from both paths.
 		$e4 = new TimeEntry($db);
 		$r4 = $e4->createManualEntry((int) $user->id, $projectId, 0, $base + 14400, $base + 14400 + 900, 'r4 soft-deleted', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
-		$this->assertGreaterThan(0, $r4, $e4->error);
+		$this->assertGreaterThan(0, $r4, (string) $e4->error);
 		$admin = new User($db);
 		$admin->fetch(1);
 		$toDelete = new TimeEntry($db);
 		$this->assertGreaterThan(0, $toDelete->fetch($r4));
-		$this->assertGreaterThan(0, $toDelete->delete($admin), $toDelete->error);
+		$this->assertGreaterThan(0, $toDelete->delete($admin), (string) $toDelete->error);
 		$this->assertNotNull($this->rawDateDelete($r4), 'r4 must be soft-deleted (date_delete set), not hard-deleted, for this test to mean anything');
 
 		// r5: date_start strictly before the period — excluded by both (date_start-only boundary, not an overlap test).
 		$e5 = new TimeEntry($db);
 		$r5 = $e5->createManualEntry((int) $user->id, $projectId, 0, strtotime('2025-12-31 23:00:00 UTC'), strtotime('2026-01-01 02:00:00 UTC'), 'r5 before period', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
-		$this->assertGreaterThan(0, $r5, $e5->error);
+		$this->assertGreaterThan(0, $r5, (string) $e5->error);
 
 		// r6: date_start inside the period but date_end well past it — included by both, with its FULL duration (not clipped at the period boundary).
 		$e6 = new TimeEntry($db);
 		$r6DateStart = strtotime('2026-01-30 20:00:00 UTC');
 		$r6DateEnd = strtotime('2026-02-05 20:00:00 UTC'); // 6 days later, past periodTo.
 		$r6 = $e6->createManualEntry((int) $user->id, $projectId, 0, $r6DateStart, $r6DateEnd, 'r6 straddles end', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
-		$this->assertGreaterThan(0, $r6, $e6->error);
+		$this->assertGreaterThan(0, $r6, (string) $e6->error);
 
 		// --- Build the same WHERE/filter the two getSummaryReports code paths use, scoped to this one test project. ---
 		$filter = '(t.fk_project:=:'.$projectId.')';
