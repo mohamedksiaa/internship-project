@@ -17,6 +17,8 @@ const {
   deleteExpectedAbsence,
   listActiveThirdParties,
   listActiveUsers,
+  exportGlobalCsvBatch,
+  downloadCsv,
 } = vi.hoisted(() => ({
   getProjects: vi.fn().mockResolvedValue([]),
   getProcessedHistory: vi.fn().mockResolvedValue({
@@ -33,6 +35,8 @@ const {
   deleteExpectedAbsence: vi.fn().mockResolvedValue({}),
   listActiveThirdParties: vi.fn().mockResolvedValue([]),
   listActiveUsers: vi.fn().mockResolvedValue([]),
+  exportGlobalCsvBatch: vi.fn().mockResolvedValue({ rows: [], nextCursor: null, totalCount: 0 }),
+  downloadCsv: vi.fn(),
 }));
 
 vi.mock('../api/timeflowApi', () => ({
@@ -47,7 +51,10 @@ vi.mock('../api/timeflowApi', () => ({
   deleteExpectedAbsence,
   listActiveThirdParties,
   listActiveUsers,
+  exportGlobalCsvBatch,
 }));
+
+vi.mock('../utils/csvExport.js', () => ({ downloadCsv }));
 
 // ReportsPage reads/writes its tab and filters via useSearchParams (see
 // src/hooks/useUrlState.js), which requires a Router ancestor even in tests.
@@ -75,6 +82,8 @@ describe('ReportsPage', () => {
     deleteExpectedAbsence.mockReset().mockResolvedValue({});
     listActiveThirdParties.mockReset().mockResolvedValue([]);
     listActiveUsers.mockReset().mockResolvedValue([]);
+    exportGlobalCsvBatch.mockReset().mockResolvedValue({ rows: [], nextCursor: null, totalCount: 0 });
+    downloadCsv.mockReset();
   });
 
   afterEach(() => {
@@ -312,6 +321,35 @@ describe('ReportsPage', () => {
       renderReportsPage();
       await screen.findByText('Entrée validée');
       expect(screen.getByRole('button', { name: i18n.t('processed_history.import_csv_global') })).toBeInTheDocument();
+    });
+  });
+
+  describe('Global CSV export ordering (ANO-SCAL-01 follow-up)', () => {
+    // The export is paged by rowid (immune to rows being added/removed
+    // mid-export — see exportGlobalCsvBatch), not by date_start, so the
+    // batches arrive in rowid order. The page must re-sort everything by
+    // start date/time before writing the file, which is what users expect
+    // from a time-entry export (and what the export did before that fix).
+    it('re-sorts every row by start date/time across batches once fully received, keeping rowid order as the tiebreak', async () => {
+      // Two rows share the exact same start date/time (18/09 09:00): "Early A"
+      // arrives in the first batch, "Early B" in the second — i.e. "Early A"
+      // has the lower rowid. A stable sort must keep "Early A" before "Early
+      // B" even though both land on the same sort key.
+      const rowLate = ['Projet', 'Client', 'Groupe', 'Late', 'e@x.com', 'User', 'Oui', '09/20/2026', '10:00:00', '09/20/2026', '11:00:00', '1.00'];
+      const rowEarlyA = ['Projet', 'Client', 'Groupe', 'Early A', 'e@x.com', 'User', 'Oui', '09/18/2026', '09:00:00', '09/18/2026', '10:00:00', '1.00'];
+      const rowMiddle = ['Projet', 'Client', 'Groupe', 'Middle', 'e@x.com', 'User', 'Oui', '09/19/2026', '08:00:00', '09/19/2026', '09:00:00', '1.00'];
+      const rowEarlyB = ['Projet', 'Client', 'Groupe', 'Early B', 'e@x.com', 'User', 'Oui', '09/18/2026', '09:00:00', '09/18/2026', '10:00:00', '1.00'];
+
+      exportGlobalCsvBatch
+        .mockResolvedValueOnce({ rows: [rowLate, rowEarlyA], nextCursor: 2, totalCount: 4 })
+        .mockResolvedValueOnce({ rows: [rowMiddle, rowEarlyB], nextCursor: null, totalCount: 4 });
+
+      renderReportsPage();
+      await userEvent.click(await screen.findByRole('button', { name: i18n.t('processed_history.export_csv_global') }));
+
+      await waitFor(() => expect(downloadCsv).toHaveBeenCalledTimes(1));
+      const [, , sortedRows] = downloadCsv.mock.calls[0];
+      expect(sortedRows.map((row) => row[3])).toEqual(['Early A', 'Early B', 'Middle', 'Late']);
     });
   });
 });
