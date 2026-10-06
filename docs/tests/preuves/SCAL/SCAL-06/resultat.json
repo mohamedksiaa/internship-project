@@ -1,0 +1,18 @@
+{
+  "cas": "SCAL-06 — Job de fermeture des chronometres de minuit",
+  "palier_teste": "50 chronometres actifs (un par compte zz_perf_user_*), date_start la veille, date_end NULL",
+  "resultat": {
+    "duree_s": 1.347,
+    "requetes_sql": 554,
+    "memoire_pic_mo": 10,
+    "requetes_par_ligne": "~11 (554/50) — confirme un traitement PAR LIGNE (TimeEntry::fetch() + User::fetch() + closeSegmentAndOpenNext() dans une boucle foreach), pas un traitement par lot"
+  },
+  "verification_correction": {
+    "chronos_correctement_fermes": 50,
+    "nouveaux_segments_ouverts_aujourdhui": 50,
+    "liens_fk_split_previous": 50,
+    "conclusion": "100% corrects, correspondance 1 a 1"
+  },
+  "extrapolation_500": "non mesure directement (contrainte de temps) ; a cout par ligne constant (~27ms/ligne a ce palier), 500 lignes donneraient environ 13-14s — resterait sous le seuil de 60s, mais a confirmer par une vraie mesure, la relation duree/lignes pouvant ne pas rester parfaitement lineaire (ex: si la table grandit pendant le traitement comme observe en SCAL-04 pour import_key, ce qui n'est pas le cas ici car ce job ne fait pas de recherche par import_key)",
+  "conclusion": "exact a 50 chronometres (0 incoherence), bien sous le seuil a ce palier (1,35s pour un budget proportionnel de 6s). Pattern par-ligne confirme mais pas bloquant a ce volume — a surveiller si le nombre de chronometres oublies simultanement grandissait beaucoup plus."
+}

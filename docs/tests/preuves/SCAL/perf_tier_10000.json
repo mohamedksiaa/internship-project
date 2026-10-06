@@ -1,0 +1,94 @@
+[
+  {
+    "action": "getSummaryReports",
+    "median": 593,
+    "p95": 706,
+    "min": 570,
+    "max": 706,
+    "sample": {
+      "entries_returned": 1000,
+      "entries_total_in_period": 8810,
+      "total_seconds": 3600000
+    }
+  },
+  {
+    "action": "getSummaryReports",
+    "median": 592,
+    "p95": 814,
+    "min": 565,
+    "max": 814,
+    "sample": {
+      "entries_returned": 1000,
+      "entries_total_in_period": 10483,
+      "total_seconds": 3600000
+    }
+  },
+  {
+    "action": "getSummaryReports",
+    "median": 603,
+    "p95": 801,
+    "min": 570,
+    "max": 801,
+    "sample": {
+      "entries_returned": 1000,
+      "entries_total_in_period": 10562,
+      "total_seconds": 3600000
+    }
+  },
+  {
+    "action": "getTimeFlowProjects",
+    "median": 106,
+    "p95": 172,
+    "min": 96,
+    "max": 172,
+    "sample": {}
+  },
+  {
+    "action": "getTimeFlowUsers",
+    "median": 148,
+    "p95": 250,
+    "min": 124,
+    "max": 250,
+    "sample": {}
+  },
+  {
+    "action": "getProcessedHistory",
+    "median": 176,
+    "p95": 454,
+    "min": 158,
+    "max": 454,
+    "sample": {}
+  },
+  {
+    "action": "getUsersPresence",
+    "median": 131,
+    "p95": 158,
+    "min": 119,
+    "max": 158,
+    "sample": {}
+  },
+  {
+    "action": "getTimeEntries",
+    "median": 101,
+    "p95": 115,
+    "min": 96,
+    "max": 115,
+    "sample": {}
+  },
+  {
+    "action": "getValidationEntries",
+    "median": 127,
+    "p95": 180,
+    "min": 111,
+    "max": 180,
+    "sample": {}
+  },
+  {
+    "action": "getWeeklyTimesheet",
+    "median": 125,
+    "p95": 186,
+    "min": 98,
+    "max": 186,
+    "sample": {}
+  }
+]

@@ -1,0 +1,14 @@
+{
+  "cas": "SCAL-12 — Bornes des parametres de pagination",
+  "actions_testees": ["getTimeEntries", "getProcessedHistory", "getValidationEntries"],
+  "parametres_abusifs": ["per_page=1000000", "per_page=-1", "per_page='abc' (non numerique)", "page=999999999", "page=-5"],
+  "resultats": {
+    "per_page_1000000": "ramene a 100 (plafond raisonnable, jamais la valeur demandee), confirme sur les 3 actions",
+    "per_page_negatif": "ramene a la valeur par defaut (20) ou 1 selon l'action, jamais negatif ni cause d'erreur",
+    "per_page_non_numerique": "ramene a la valeur par defaut, 0 erreur serveur",
+    "page_tres_grande": "acceptee telle quelle mais renvoie simplement une page vide (0 ligne) — pas de charge excessive, pas de plantage",
+    "page_negative": "ramenee a 1"
+  },
+  "temps_de_reponse": "143 a 794 ms sur les 15 combinaisons testees (3 actions x 5 cas), tous tres en dessous du seuil de 5s",
+  "conclusion": "0 anomalie — toutes les actions testees ramenent les parametres abusifs a un plafond raisonnable cote serveur, quelle que soit la valeur envoyee par le client. Critere du plan satisfait."
+}

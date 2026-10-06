@@ -1,0 +1,18 @@
+{
+  "cas": "SCAL-05 — Job d'alertes",
+  "palier_teste": "61 employes attendus (50 comptes zz_perf_user_* generes + comptes reels/test avec activite recente), 1 jour simule frais",
+  "resultat": {
+    "expected": 61,
+    "late": 60,
+    "on_time": 1,
+    "notifications_creees": 4,
+    "emails_envoyes": 1,
+    "emails_sautes": 3,
+    "duree_s": 0.21,
+    "requetes_sql": 45,
+    "memoire_pic_mo": 12
+  },
+  "verification_code": "findManagers() et filterActiveAccounts() sont deja des requetes ensemblistes (IN (...)), pas une boucle par compte — confirme empiriquement par le faible nombre de requetes (45) a 61 employes.",
+  "paliers_200_1000": "non executes cette session (necessiteraient de generer 150 puis 950 comptes employes supplementaires, hors temps imparti)",
+  "conclusion": "tres largement sous le seuil (<=30s pour 50 employes) — 0,21s mesure. Pas d'indice de probleme N+1 sur la recherche des responsables."
+}

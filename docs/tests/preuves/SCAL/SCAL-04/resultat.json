@@ -1,0 +1,20 @@
+{
+  "cas": "SCAL-04 — Import Clockify",
+  "volume_existant_au_moment_du_test": "~100000-105000 lignes llx_timeflow_timeentry",
+  "fichier_test": "5000 lignes, dates reparties sur 53 jours a partir du 2027-04-01 (genere par script, aucun chevauchement, aucune date invalide — corrige apres un premier essai dont le generateur produisait des dates de jour > 31)",
+  "premiere_tentative_invalidee": {
+    "cause": "bug du generateur de test (pas du module) : jours calcules par arithmetique naive (jour = 1 + index/96) depassant 31 pour certains mois, produisant des dates invalides comme 03/32/2027",
+    "resultat_partiel": "216.1 s pour 2976 creations reelles (2024 lignes rejetees pour date invalide AVANT d'atteindre la verification couteuse import_key, donc ce chiffre sous-estime le cout reel)"
+  },
+  "mesure_valide_fichier_corrige": {
+    "previewClockifyImport": "2.7 s",
+    "executeClockifyImport": {
+      "duree_cote_client": "le fetch() Node a expire au bout d'environ 300 s (HeadersTimeoutError, cote CLIENT) sans jamais recevoir de reponse",
+      "duree_reelle_cote_serveur": "384 s (6 min 24 s), reconstituee a partir des horodatages tms des lignes creees (12:38:05 a 12:44:29) — le serveur a continue et termine l'import APRES que le client a abandonne",
+      "resultat_final": "5000/5000 lignes creees, 5000/5000 import_key distincts, 0 doublon"
+    }
+  },
+  "constat_principal": "le seuil du plan (<= 120 s pour 5000 lignes) est depasse de 220% (384s mesures). La cause directe est confirmee par SCAL-07 : TimeImport::timeEntryAlreadyImported() fait un balayage complet de table a CHAQUE ligne importee, de plus en plus couteux au fur et a mesure que la table grandit pendant l'import lui-meme.",
+  "constat_secondaire_experience_utilisateur": "set_time_limit(300) (TimeImport::executeImportFromCsvPath()) ne protege pas contre ce cas : l'execution a continue plusieurs dizaines de secondes AU-DELA de cette limite declaree, probablement parce que le temps d'attente sur les requetes SQL ne compte pas dans le budget CPU de PHP. Un utilisateur reel verrait son navigateur expirer ou afficher une erreur reseau BIEN AVANT que l'import ne reussisse reellement en arriere-plan, sans aucune confirmation visible que l'import a fonctionne.",
+  "idempotence": "non re-teste dans cette session par manque de temps (le reimport du meme fichier devrait converger sans doublon grace a import_key, deja verifie a plus petite echelle en PAN-02/PAN-06, mais pas specifiquement a ce palier de 100000+ lignes existantes)."
+}
