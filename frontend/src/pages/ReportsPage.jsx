@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Card from '../components/atoms/Card';
 import {
-  exportGlobalCsv,
+  exportGlobalCsvBatch,
   exportProcessedHistory,
   getDailyReports,
   getMyDailyReports,
@@ -675,6 +675,7 @@ export default function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [importState, setImportState] = useState({ open: false, loading: false, error: '', data: null, file: null });
   const importFileInputRef = useRef(null);
+  const [exportState, setExportState] = useState({ loading: false, received: 0, total: 0, error: '', mismatchWarning: '' });
 
   useEffect(() => {
     getProjects().then(setProjects).catch(() => setProjects([]));
@@ -873,9 +874,42 @@ export default function ReportsPage() {
   // in the exact column shape previewClockifyImport() expects, so the file
   // can be re-imported as-is. Delimiter is ',' (not the ';' the per-tab
   // exports use) to match config/import_column_mapping_clockify.json.
+  // Pages through the full export with exportGlobalCsvBatch()'s keyset cursor
+  // (ANO-SCAL-01 fix) and only triggers the download once every batch has
+  // arrived. Any batch failing (network, session expiry, 500) aborts the
+  // whole export with nothing downloaded — never a partial file. The total
+  // announced by the FIRST batch is compared against what was actually
+  // received once exhausted: a mismatch (rows changed mid-export) still
+  // downloads the file, but with a visible warning rather than silently.
   const handleExportGlobalCsv = async () => {
-    const rows = await exportGlobalCsv();
-    downloadCsv('consolide', GLOBAL_CSV_HEADER, rows, ',');
+    setExportState({ loading: true, received: 0, total: 0, error: '', mismatchWarning: '' });
+    const allRows = [];
+    let cursor = 0;
+    let expectedTotal = null;
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { rows, nextCursor, totalCount } = await exportGlobalCsvBatch(cursor);
+        if (expectedTotal === null) {
+          expectedTotal = totalCount;
+        }
+        allRows.push(...rows);
+        setExportState((prev) => ({ ...prev, received: allRows.length, total: expectedTotal }));
+        if (nextCursor === null) {
+          break;
+        }
+        cursor = nextCursor;
+      }
+    } catch (err) {
+      setExportState({ loading: false, received: 0, total: 0, error: err.message || t('processed_history.export_csv_global_error'), mismatchWarning: '' });
+      return;
+    }
+
+    const mismatchWarning = expectedTotal !== null && allRows.length !== expectedTotal
+      ? t('processed_history.export_csv_global_mismatch_warning', { received: allRows.length, expected: expectedTotal })
+      : '';
+    downloadCsv('consolide', GLOBAL_CSV_HEADER, allRows, ',');
+    setExportState({ loading: false, received: allRows.length, total: expectedTotal ?? allRows.length, error: '', mismatchWarning });
   };
 
   return (
@@ -895,10 +929,27 @@ export default function ReportsPage() {
             />
           </>
         )}
-        <button type="button" onClick={handleExportGlobalCsv} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba]">
-          {t('processed_history.export_csv_global')}
+        <button
+          type="button"
+          onClick={handleExportGlobalCsv}
+          disabled={exportState.loading}
+          className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-white hover:tw-bg-[#4A7690] dark:hover:tw-bg-[#6ea0ba] disabled:tw-cursor-not-allowed disabled:tw-opacity-60"
+        >
+          {exportState.loading
+            ? t('processed_history.export_csv_global_progress', { count: exportState.received, total: exportState.total })
+            : t('processed_history.export_csv_global')}
         </button>
       </div>
+      {exportState.error && (
+        <p className="tw-rounded-lg tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">
+          {exportState.error}
+        </p>
+      )}
+      {exportState.mismatchWarning && (
+        <p className="tw-rounded-lg tw-bg-amber-50 dark:tw-bg-amber-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-amber-700 dark:tw-text-amber-300">
+          ⚠ {exportState.mismatchWarning}
+        </p>
+      )}
 
       <Card size="section">
         <div className="tw-mb-4 tw-flex tw-flex-wrap tw-gap-2">

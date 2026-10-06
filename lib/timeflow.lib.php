@@ -989,3 +989,153 @@ function timeflowExpectedAbsenceUserIdsForDate($db, $date, $entity = null)
 
     return $set;
 }
+
+/**
+ * Builds one row per real time entry (any status — this is meant as a full
+ * consolidated dump, and the Clockify CSV format has no status column to
+ * preserve it through a round-trip anyway) for Rapports' global "Export"
+ * button, in EXACTLY the column shape TimeImportClockify expects
+ * (config/import_column_mapping_clockify.json) so the file can be
+ * re-imported as-is via previewClockifyImport(). Joins project -> client and
+ * user -> group(s) so each row carries everything the import format wants,
+ * even though those live on separate Rapports sub-pages on screen.
+ *
+ * Excluded: entries with no date_end or a non-positive duration (an
+ * unfinished/active timer has no "end" to round-trip) and, for a caller
+ * without team-wide read rights, every entry that isn't their own — same
+ * scoping rule as getTimeEntries/getSummaryReports elsewhere in this file.
+ *
+ * No row-count cap: the frontend pages through the full result with
+ * $afterId (a keyset/cursor on t.rowid, not OFFSET — immune to rows being
+ * inserted/deleted between two pages, and doesn't re-scan already-returned
+ * rows the way a growing OFFSET would). $limit is still bounded server-side
+ * (ANO-SCAL-01 fix: a client-requested unbounded batch is still a batch,
+ * capped the same way page/per_page are elsewhere, see SCAL-12) — the
+ * caller is expected to keep requesting with the returned next_cursor until
+ * it comes back null.
+ *
+ * @param DoliDB $db
+ * @param User $user
+ * @param int $afterId Keyset cursor: only rows with rowid > $afterId. 0 = from the start.
+ * @param int $limit Batch size, clamped to [1, 10000].
+ * @return array{rows: array<int, array<int, string>>, next_cursor: int|null, total_count: int}
+ *         total_count is the count under the same filters, independent of
+ *         the batch's own size — the caller uses the value from its FIRST
+ *         call as the expected total, and compares it against how many
+ *         rows it actually accumulated once next_cursor comes back null.
+ */
+function timeflowBuildGlobalCsvRows($db, $user, $afterId = 0, $limit = 10000)
+{
+    $rows = array();
+    $afterId = max(0, (int) $afterId);
+    $limit = min(10000, max(1, (int) $limit));
+
+    $whereSql = ' WHERE t.entity IN ('.getEntity('timeentry').')';
+    if (timeflowHasDateDeleteColumn($db)) {
+        $whereSql .= ' AND t.date_delete IS NULL';
+    }
+    if (!timeflowCanReadAllTimeEntries($user)) {
+        $whereSql .= ' AND t.fk_user = '.((int) $user->id);
+    }
+    $whereSql .= ' AND t.date_end IS NOT NULL AND t.duration > 0';
+
+    $countSql = 'SELECT COUNT(*) AS nb FROM '.$db->prefix().'timeflow_timeentry AS t'.$whereSql;
+    $countResql = timeflowQuery($db, $countSql, 'timeflowBuildGlobalCsvRows:count');
+    $countObj = $countResql ? $db->fetch_object($countResql) : null;
+    $totalCount = $countObj ? (int) $countObj->nb : 0;
+
+    $sql = 'SELECT t.rowid, t.fk_project, t.fk_user, t.date_start, t.date_end, t.duration, t.note, t.billable,';
+    $sql .= ' u.email, u.firstname, u.lastname, u.login,';
+    $sql .= ' p.title AS project_title, p.ref AS project_ref, p.fk_soc';
+    $sql .= ' FROM '.$db->prefix().'timeflow_timeentry AS t';
+    $sql .= ' INNER JOIN '.$db->prefix().'user AS u ON u.rowid = t.fk_user';
+    $sql .= ' LEFT JOIN '.$db->prefix().'projet AS p ON p.rowid = t.fk_project';
+    $sql .= $whereSql;
+    $sql .= ' AND t.rowid > '.((int) $afterId);
+    $sql .= ' ORDER BY t.rowid ASC';
+    $sql .= ' LIMIT '.$limit;
+
+    $resql = timeflowQuery($db, $sql, 'timeflowBuildGlobalCsvRows:entries');
+    if (!$resql) {
+        return array('rows' => $rows, 'next_cursor' => null, 'total_count' => $totalCount);
+    }
+
+    $entries = array();
+    $clientIds = array();
+    $userIds = array();
+    $lastRowId = null;
+    while ($obj = $db->fetch_object($resql)) {
+        $entries[] = $obj;
+        if (!empty($obj->fk_soc)) {
+            $clientIds[(int) $obj->fk_soc] = true;
+        }
+        $userIds[(int) $obj->fk_user] = true;
+        $lastRowId = (int) $obj->rowid;
+    }
+    $db->free($resql);
+
+    // Client labels — one query for every fk_soc actually referenced.
+    $clientLabelMap = array();
+    if (!empty($clientIds)) {
+        $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
+        $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', array_keys($clientIds))).')';
+        $resql = timeflowQuery($db, $sql, 'timeflowBuildGlobalCsvRows:clients');
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $clientLabelMap[(int) $obj->rowid] = (string) $obj->nom;
+            }
+            $db->free($resql);
+        }
+    }
+
+    // Groups per user — same llx_usergroup_user/llx_usergroup join used
+    // elsewhere (timeflowBuildSummary, timeflowFetchTimeFlowUsers).
+    $userGroupsMap = array();
+    if (!empty($userIds)) {
+        $sql = 'SELECT ug.fk_user, g.nom FROM '.$db->prefix().'usergroup_user AS ug';
+        $sql .= ' INNER JOIN '.$db->prefix().'usergroup AS g ON g.rowid = ug.fk_usergroup';
+        $sql .= ' WHERE ug.fk_user IN ('.implode(',', array_map('intval', array_keys($userIds))).')';
+        $resql = timeflowQuery($db, $sql, 'timeflowBuildGlobalCsvRows:groups');
+        if ($resql) {
+            while ($obj = $db->fetch_object($resql)) {
+                $userGroupsMap[(int) $obj->fk_user][] = (string) $obj->nom;
+            }
+            $db->free($resql);
+        }
+    }
+
+    foreach ($entries as $obj) {
+        $startTs = is_numeric($obj->date_start) ? (int) $obj->date_start : strtotime((string) $obj->date_start);
+        $endTs = is_numeric($obj->date_end) ? (int) $obj->date_end : strtotime((string) $obj->date_end);
+        if (!$startTs || !$endTs) {
+            continue;
+        }
+
+        $projectTitle = !empty($obj->project_title) ? (string) $obj->project_title : (string) ($obj->project_ref ?? '');
+        $clientName = !empty($obj->fk_soc) ? ($clientLabelMap[(int) $obj->fk_soc] ?? '') : '';
+        $groups = $userGroupsMap[(int) $obj->fk_user] ?? array();
+        $displayName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
+
+        $rows[] = array(
+            $projectTitle,
+            $clientName,
+            implode(',', $groups),
+            (string) $obj->note,
+            (string) $obj->email,
+            $displayName !== '' ? $displayName : (string) $obj->login,
+            !empty($obj->billable) ? 'Oui' : 'Non',
+            date('m/d/Y', $startTs),
+            date('H:i:s', $startTs),
+            date('m/d/Y', $endTs),
+            date('H:i:s', $endTs),
+            number_format(((int) $obj->duration) / 3600, 2, '.', ''),
+        );
+    }
+
+    // Exhaustion is decided on the raw fetched count, not count($rows): a row
+    // skipped above (unparseable date) must still advance the cursor past it,
+    // or the next call would re-fetch it forever and never terminate.
+    $nextCursor = (count($entries) === $limit) ? $lastRowId : null;
+
+    return array('rows' => $rows, 'next_cursor' => $nextCursor, 'total_count' => $totalCount);
+}

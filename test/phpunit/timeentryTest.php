@@ -1236,4 +1236,72 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$this->assertGreaterThan(0, $entry->submitEntry($id, $user), (string) $entry->error);
 		$this->assertSame(TimeEntry::STATUS_SUBMITTED, $this->rawStatus($id));
 	}
+
+	/**
+	 * ANO-SCAL-01 fix: timeflowBuildGlobalCsvRows() pages with a keyset cursor
+	 * (rowid > $afterId) instead of OFFSET specifically so that a row being
+	 * inserted or deleted between two batches can never cause another row to
+	 * be skipped or returned twice — an OFFSET-based page would shift every
+	 * row's position when one ahead of it is removed or added. This test
+	 * creates 4 known rows, deletes one and inserts a new one *between* two
+	 * batch calls, and checks the full export is still exactly {r1, r2, r4,
+	 * r5} with nothing skipped and nothing duplicated.
+	 *
+	 * The cursor starts after whatever rowid already exists in this DB (the
+	 * reference dataset's own rows) so the test is isolated from them.
+	 */
+	public function testGlobalCsvExportCursorSkipsNothingAndDuplicatesNothingAcrossInsertAndDelete()
+	{
+		global $conf, $user, $langs, $db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
+
+		$baseline = (int) $db->fetch_object($db->query('SELECT MAX(rowid) AS m FROM '.$db->prefix().'timeflow_timeentry'))->m;
+		$now = dol_now();
+
+		$makeRow = function ($offsetHours, $marker) use ($user, $db, $now) {
+			$entry = new TimeEntry($db);
+			$start = $now + ($offsetHours * 3600);
+			$id = $entry->createManualEntry((int) $user->id, 1, 0, $start, $start + 1800, $marker, '', 0, $user, null, TimeEntry::STATUS_VALIDATED);
+			$this->assertGreaterThan(0, $id, $entry->error ?: implode(', ', $entry->errors));
+			return $id;
+		};
+
+		$r1 = $makeRow(1, 'phpunit_cursor_r1');
+		$r2 = $makeRow(2, 'phpunit_cursor_r2');
+		$r3 = $makeRow(3, 'phpunit_cursor_r3');
+		$r4 = $makeRow(4, 'phpunit_cursor_r4');
+		$this->assertTrue($r1 < $r2 && $r2 < $r3 && $r3 < $r4, 'Expected strictly increasing rowids from sequential inserts');
+
+		$batch1 = timeflowBuildGlobalCsvRows($db, $user, $baseline, 2);
+		$this->assertCount(2, $batch1['rows']);
+		$this->assertSame($r2, $batch1['next_cursor']);
+		$totalAfterCreate = $batch1['total_count'];
+
+		// Between the two batches: r3 (not yet fetched) is deleted, and a new
+		// row r5 is inserted — exactly the two mutation types a keyset cursor
+		// must tolerate without skipping or duplicating anything.
+		$toDelete = new TimeEntry($db);
+		$toDelete->fetch($r3);
+		$this->assertGreaterThan(0, $toDelete->delete($user));
+		$r5 = $makeRow(5, 'phpunit_cursor_r5');
+
+		$batch2 = timeflowBuildGlobalCsvRows($db, $user, $batch1['next_cursor'], 2);
+		$this->assertCount(2, $batch2['rows'], 'r3 was deleted, so only r4 and r5 should remain in this batch');
+		$this->assertSame($r5, $batch2['next_cursor']);
+		// Net effect on the filtered total: +4 created, -1 deleted = +3 vs
+		// baseline-at-create-time, and unchanged between the two batches
+		// (recomputed fresh each call, not a stale snapshot from batch1).
+		$this->assertSame($totalAfterCreate, $batch2['total_count']);
+
+		$batch3 = timeflowBuildGlobalCsvRows($db, $user, $batch2['next_cursor'], 2);
+		$this->assertCount(0, $batch3['rows']);
+		$this->assertNull($batch3['next_cursor']);
+
+		$allNotes = array_map(static fn ($row) => $row[3], array_merge($batch1['rows'], $batch2['rows'], $batch3['rows']));
+		sort($allNotes);
+		$this->assertSame(['phpunit_cursor_r1', 'phpunit_cursor_r2', 'phpunit_cursor_r4', 'phpunit_cursor_r5'], $allNotes, 'r3 must be absent (deleted), nothing else skipped, nothing duplicated');
+	}
 	}  // @phan-suppress-current-line PhanUndeclaredClass

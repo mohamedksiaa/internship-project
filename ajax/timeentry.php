@@ -1203,127 +1203,10 @@ function timeflowDeleteExpectedAbsence($db, $targetUserId, $date)
     return (int) $db->affected_rows($resql);
 }
 
-/**
- * Builds one row per real time entry (any status — this is meant as a full
- * consolidated dump, and the Clockify CSV format has no status column to
- * preserve it through a round-trip anyway) for Rapports' global "Export"
- * button, in EXACTLY the column shape TimeImportClockify expects
- * (config/import_column_mapping_clockify.json) so the file can be
- * re-imported as-is via previewClockifyImport(). Joins project -> client and
- * user -> group(s) so each row carries everything the import format wants,
- * even though those live on separate Rapports sub-pages on screen.
- *
- * Excluded: entries with no date_end or a non-positive duration (an
- * unfinished/active timer has no "end" to round-trip) and, for a caller
- * without team-wide read rights, every entry that isn't their own — same
- * scoping rule as getTimeEntries/getSummaryReports elsewhere in this file.
- *
- * @param DoliDB $db
- * @param User $user
- * @return array<int, array<int, string>> Rows only — the fixed French header
- *         (must match the import's expected column labels verbatim,
- *         independent of UI language) is added by the frontend.
- */
-function timeflowBuildGlobalCsvRows($db, $user)
-{
-    $rows = array();
-
-    $sql = 'SELECT t.fk_project, t.fk_user, t.date_start, t.date_end, t.duration, t.note, t.billable,';
-    $sql .= ' u.email, u.firstname, u.lastname, u.login,';
-    $sql .= ' p.title AS project_title, p.ref AS project_ref, p.fk_soc';
-    $sql .= ' FROM '.$db->prefix().'timeflow_timeentry AS t';
-    $sql .= ' INNER JOIN '.$db->prefix().'user AS u ON u.rowid = t.fk_user';
-    $sql .= ' LEFT JOIN '.$db->prefix().'projet AS p ON p.rowid = t.fk_project';
-    $sql .= ' WHERE t.entity IN ('.getEntity('timeentry').')';
-    if (timeflowHasDateDeleteColumn($db)) {
-        $sql .= ' AND t.date_delete IS NULL';
-    }
-    if (!timeflowCanReadAllTimeEntries($user)) {
-        $sql .= ' AND t.fk_user = '.((int) $user->id);
-    }
-    $sql .= ' AND t.date_end IS NOT NULL AND t.duration > 0';
-    $sql .= ' ORDER BY t.date_start ASC';
-    // Safety net, not a real-world pagination cap — bounds against a
-    // pathological unbounded query rather than an expected data size.
-    $sql .= ' LIMIT 50000';
-
-    $resql = timeflowQuery($db, $sql, 'timeflowBuildGlobalCsvRows:entries');
-    if (!$resql) {
-        return $rows;
-    }
-
-    $entries = array();
-    $clientIds = array();
-    $userIds = array();
-    while ($obj = $db->fetch_object($resql)) {
-        $entries[] = $obj;
-        if (!empty($obj->fk_soc)) {
-            $clientIds[(int) $obj->fk_soc] = true;
-        }
-        $userIds[(int) $obj->fk_user] = true;
-    }
-    $db->free($resql);
-
-    // Client labels — one query for every fk_soc actually referenced.
-    $clientLabelMap = array();
-    if (!empty($clientIds)) {
-        $sql = 'SELECT rowid, nom FROM '.$db->prefix().'societe';
-        $sql .= ' WHERE rowid IN ('.implode(',', array_map('intval', array_keys($clientIds))).')';
-        $resql = timeflowQuery($db, $sql, 'timeflowBuildGlobalCsvRows:clients');
-        if ($resql) {
-            while ($obj = $db->fetch_object($resql)) {
-                $clientLabelMap[(int) $obj->rowid] = (string) $obj->nom;
-            }
-            $db->free($resql);
-        }
-    }
-
-    // Groups per user — same llx_usergroup_user/llx_usergroup join used
-    // elsewhere (timeflowBuildSummary, timeflowFetchTimeFlowUsers).
-    $userGroupsMap = array();
-    if (!empty($userIds)) {
-        $sql = 'SELECT ug.fk_user, g.nom FROM '.$db->prefix().'usergroup_user AS ug';
-        $sql .= ' INNER JOIN '.$db->prefix().'usergroup AS g ON g.rowid = ug.fk_usergroup';
-        $sql .= ' WHERE ug.fk_user IN ('.implode(',', array_map('intval', array_keys($userIds))).')';
-        $resql = timeflowQuery($db, $sql, 'timeflowBuildGlobalCsvRows:groups');
-        if ($resql) {
-            while ($obj = $db->fetch_object($resql)) {
-                $userGroupsMap[(int) $obj->fk_user][] = (string) $obj->nom;
-            }
-            $db->free($resql);
-        }
-    }
-
-    foreach ($entries as $obj) {
-        $startTs = is_numeric($obj->date_start) ? (int) $obj->date_start : strtotime((string) $obj->date_start);
-        $endTs = is_numeric($obj->date_end) ? (int) $obj->date_end : strtotime((string) $obj->date_end);
-        if (!$startTs || !$endTs) {
-            continue;
-        }
-
-        $projectTitle = !empty($obj->project_title) ? (string) $obj->project_title : (string) ($obj->project_ref ?? '');
-        $clientName = !empty($obj->fk_soc) ? ($clientLabelMap[(int) $obj->fk_soc] ?? '') : '';
-        $groups = $userGroupsMap[(int) $obj->fk_user] ?? array();
-        $displayName = trim(trim((string) $obj->firstname).' '.trim((string) $obj->lastname));
-
-        $rows[] = array(
-            $projectTitle,
-            $clientName,
-            implode(',', $groups),
-            (string) $obj->note,
-            (string) $obj->email,
-            $displayName !== '' ? $displayName : (string) $obj->login,
-            !empty($obj->billable) ? 'Oui' : 'Non',
-            date('m/d/Y', $startTs),
-            date('H:i:s', $startTs),
-            date('m/d/Y', $endTs),
-            date('H:i:s', $endTs),
-            number_format(((int) $obj->duration) / 3600, 2, '.', ''),
-        );
-    }
-
-    return $rows;
-}
+// timeflowBuildGlobalCsvRows() moved to lib/timeflow.lib.php (already included
+// above) so it can be exercised by a PHPUnit test without pulling in this
+// file's own HTTP dispatch (top_httphead(), the module-enabled gate, $action
+// switch) — same reasoning as the other pure helpers already living there.
 
 /**
  * SQL clause restricting a `projet` query to the projects a given user is
@@ -2508,7 +2391,10 @@ switch ($action) {
         break;
 
     case 'exportGlobalCsv':
-        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowBuildGlobalCsvRows($db, $user)));
+        $afterId = !empty($postData['after_id']) ? (int) $postData['after_id'] : (int) GETPOST('after_id', 'int');
+        $batchLimit = !empty($postData['limit']) ? (int) $postData['limit'] : (int) GETPOST('limit', 'int');
+        $batchLimit = $batchLimit > 0 ? $batchLimit : 10000;
+        timeflowJsonResponse(array('status' => 'success', 'data' => timeflowBuildGlobalCsvRows($db, $user, $afterId, $batchLimit)));
         break;
 
     case 'listActiveThirdParties':

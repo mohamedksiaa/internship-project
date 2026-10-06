@@ -463,13 +463,15 @@ function handleMockRequest(action, body) {
     case 'saveAlertPreferences':
       mockEmailEnabled = body?.email_enabled === true;
       return Promise.resolve({ status: 'success', data: { email_enabled: mockEmailEnabled, has_email: true, email: 'manager@example.com', alerts_enabled: true, mail_enabled: true } });
-    case 'exportGlobalCsv':
+    case 'exportGlobalCsv': {
+      const mockGlobalCsvRows = [
+        ['Projet Alpha', 'Client Test', 'HRM', 'Mock entry', 'alice.martin@example.com', 'Alice Martin', 'Oui', '07/01/2026', '09:00:00', '07/01/2026', '11:00:00', '2.00'],
+      ];
       return Promise.resolve({
         status: 'success',
-        data: [
-          ['Projet Alpha', 'Client Test', 'HRM', 'Mock entry', 'alice.martin@example.com', 'Alice Martin', 'Oui', '07/01/2026', '09:00:00', '07/01/2026', '11:00:00', '2.00'],
-        ],
+        data: { rows: mockGlobalCsvRows, next_cursor: null, total_count: mockGlobalCsvRows.length },
       });
+    }
     case 'listActiveThirdParties':
       return Promise.resolve({
         status: 'success',
@@ -737,9 +739,18 @@ export async function saveAlertPreferences({ emailEnabled }) {
   return mapAlertPreferences(data?.data ?? data);
 }
 
-export async function exportGlobalCsv() {
-  const data = await moduleTimerRequest('exportGlobalCsv');
-  return Array.isArray(data?.data) ? data.data : [];
+// One batch of the global CSV export (ANO-SCAL-01 fix): server-side keyset
+// pagination on rowid, not OFFSET — see timeflowBuildGlobalCsvRows() in
+// ajax/timeentry.php for why. The caller loops, passing each response's
+// next_cursor back as afterId, until next_cursor comes back null.
+export async function exportGlobalCsvBatch(afterId = 0, limit = 10000) {
+  const data = await moduleTimerRequest('exportGlobalCsv', { after_id: afterId, limit });
+  const payload = data?.data ?? {};
+  return {
+    rows: Array.isArray(payload.rows) ? payload.rows : [],
+    nextCursor: payload.next_cursor ?? null,
+    totalCount: Number.isFinite(payload.total_count) ? payload.total_count : 0,
+  };
 }
 
 export async function listActiveThirdParties() {
