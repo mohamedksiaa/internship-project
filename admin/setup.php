@@ -267,6 +267,28 @@ print '<script>(function () {'
 	.' }'
 	.'})();</script>';
 
+// I1 (SCAL-04/ANO-SCAL-02): Dolibarr's own module-activation mechanism
+// (core/lib/admin.lib.php::run_sql(), called from _load_tables()) silently
+// tolerates a failed "ADD UNIQUE INDEX" — MySQL error 1062 is mapped to
+// DB_ERROR_RECORD_ALREADY_EXISTS, which is in run_sql()'s default list of
+// errors it treats as harmless. If duplicate import_key values already
+// existed when the module was (re)activated, the index creation fails but
+// nothing is shown to the administrator and nothing is logged — this check
+// is the only place that would ever surface it. SHOW INDEX, not a cached
+// flag: must reflect the real schema, in case someone dropped it by hand.
+$sql = 'SHOW INDEX FROM '.$db->prefix().'timeflow_timeentry';
+$sql .= " WHERE Key_name = 'uk_timeflow_timeentry_import_key'";
+$resqlIndexCheck = $db->query($sql);
+$hasUniqueImportKeyIndex = $resqlIndexCheck && $db->num_rows($resqlIndexCheck) > 0;
+if (!$hasUniqueImportKeyIndex) {
+	print '<div class="warning" style="margin-bottom: 1em;">';
+	print img_picto('', 'warning', 'class="pictofixedwidth"');
+	print dol_escape_htmltag($langs->transnoentitiesnoconv('TimeFlowMissingUniqueImportKeyIndexWarning'));
+	print '<br><code>SELECT import_key, COUNT(*) FROM '.$db->prefix().'timeflow_timeentry';
+	print ' WHERE import_key IS NOT NULL AND import_key != \'\' GROUP BY import_key HAVING COUNT(*) > 1;</code>';
+	print '</div>';
+}
+
 if (!empty($formSetup->items)) {
 	print $formSetup->generateOutput(true);
 	print '<br>';

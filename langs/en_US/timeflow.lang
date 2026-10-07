@@ -80,6 +80,7 @@ TimeFlowLateMailOpen = See today's presence in TimeFlow
 TimeFlowLateMailFooter = You receive this email because you have the "Read all time entries" right in TimeFlow. You can stop receiving it from the notification bell in TimeFlow (the in-app notification stays on).
 TimeFlowServerTimeInfo = Current server time: %s (timezone %s, UTC%s). The arrival threshold time is interpreted in this timezone, not in the timezone of whoever sets it.
 TimeFlowServerTimeMismatch = Warning: this browser is not in the same timezone as the server. Check MAIN_SERVER_TZ or date.timezone (php.ini) before enabling the alerts.
+TimeFlowMissingUniqueImportKeyIndexWarning = Warning: the unique index on import_key (duplicate-import protection) is missing. Its creation probably failed silently when the module was activated because duplicates already existed. Run the query below to find them, fix them, then disable and re-enable the module:
 TimeFlowLateOutDisabled = Late-arrival alerts are disabled (TIMEFLOW_LATE_ALERT_ENABLED): nothing was checked.
 TimeFlowLateOutNotWorkday = __DAY__ is not a controlled day (controlled days: __WORKDAYS__).
 TimeFlowLateOutTooEarly = Threshold not reached yet (threshold __THRESHOLD__ + grace __GRACE__ min = __CUTOFF__, server time __NOW__).

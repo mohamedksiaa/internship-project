@@ -1,0 +1,50 @@
+{
+  "cas": "I1 (index UNIQUE import_key) + I2 (status, date_start) - implementation et mesures",
+  "activation": {
+    "methode": "unActivateModule('modTimeFlow', 0) puis activateModule('modTimeFlow', 0, 1) - memes fonctions core que admin/modules.php",
+    "resultat": "activateModule: nbmodules=1, errors=[], nbperms=6 - 0 erreur",
+    "verification_show_index": {
+      "uk_timeflow_timeentry_import_key": "Non_unique=0 (confirme unique), Cardinality=563",
+      "idx_timeflow_timeentry_status_date_start": "2 colonnes (status, date_start) confirmees"
+    }
+  },
+  "verification_prealable_563_lignes_reference": {
+    "doublons_import_key": 0,
+    "import_key_null": 9,
+    "import_key_vide": 0
+  },
+  "explain_import_key": {
+    "avant": { "type": "ALL", "lignes_examinees_10k": 10510, "lignes_examinees_100k": 99871 },
+    "apres": { "type": "const", "lignes_examinees": 1, "extra": "Using index" }
+  },
+  "explain_status_date_start": {
+    "avant": { "type": "index", "extra": "balayage complet de l'index date_start, filtre status a la volee" },
+    "apres": { "type": "ref", "key": "idx_timeflow_timeentry_status_date_start", "extra": "Using where; Using index" }
+  },
+  "scal04_remeasure": {
+    "avant_i1": { "duree_s": 384, "seuil_s": 120, "depassement": "+220%" },
+    "apres_i1": { "duree_s": 313, "seuil_s": 120, "ecart_vs_avant": "-18%", "toujours_au_dessus_du_seuil": true },
+    "lignes_creees": 5000,
+    "doublons": 0,
+    "cause_du_cout_restant": "chaque ligne importee execute aussi hasTimeOverlap() (1 requete), fetch() du nouvel id (1 requete), update() avec son propre fetch() interne pour l'audit (2 requetes), 2 ecritures d'audit (logManualCreation + logAutoValidationOnImport) - soit ~6 requetes sequentielles par ligne independantes de tout index, qui dominent maintenant le temps total",
+    "comportement_client": "le client a de nouveau cesse d'attendre apres ~300s (meme comportement qu'avant, ANO-SCAL-02 deja documentee, pas aggravee)"
+  },
+  "test_phpunit_race": {
+    "nom": "test/phpunit/timeimportTest.php::testConcurrentImportRaceIsCaughtByTheUniqueIndexAndLeavesNoOrphanedTrace",
+    "methode": "insere la ligne gagnante dans l'intervalle exact entre timeEntryAlreadyImported() et l'INSERT du perdant - reproduit la vraie course en un seul thread",
+    "verifie": ["echec de la 2e insertion", "db->lasterrno()==DB_ERROR_RECORD_ALREADY_EXISTS", "nom de la contrainte dans lasterror()", "exactement 1 ligne en base", "0 trace orpheline (modification/audit)", "wasBlockedByUniqueImportKey() confirme"],
+    "second_test": "wasBlockedByUniqueImportKey() ne donne pas de faux positif sur un echec sans rapport (dates invalides) - decouvert que db->lasterrno() seul etait insuffisant (reste figé sur le dernier VRAI echec SQL), corrige en verifiant $timeentry->errors (scope objet, toujours vide sur un objet neuf) plutot que db->lasterrno() (scope connexion)",
+    "resultat": "81/81 tests de la suite passent (1 skip preexistant)"
+  },
+  "test_concurrence_reelle_docker": {
+    "methode": "deux processus Node lances en parallele (meme instant OS), meme fichier CSV de 20 lignes, meme utilisateur/projet",
+    "lignes_en_base_apres": 20,
+    "import_key_distincts": 20,
+    "doublons": 0,
+    "rapport_A": { "created": 10, "already_imported": 8, "invalid_overlap": 2 },
+    "rapport_B": { "created": 10, "already_imported": 9, "invalid_overlap": 1 },
+    "coherence": "created_A+created_B=20 (chaque ligne creee une seule fois, confirme par la base) ; already_imported_A+already_imported_B=17 (le perdant de 17 des 20 courses correctement intercepte par l'index import_key) ; invalid_overlap_A+invalid_overlap_B=3 (le perdant de 3 des 20 courses intercepte PLUS TOT, par hasTimeOverlap(), qui s'execute avant l'insertion protegee par l'index - un chemin de course different et preexistant, hors perimetre d'I1, mais avec le meme resultat net : 0 doublon, import non interrompu)",
+    "nuance_importante": "sur ces 3 lignes, le perdant est compte 'invalide/chevauchement' plutot que 'deja importe' - categorisation legerement differente de l'ideal mais sans consequence sur l'integrite des donnees ni sur la continuite de l'import"
+  },
+  "conclusion": "I1 et I2 appliques avec succes sur le Docker de test. I2 corrige completement SCAL-07 (status). I1 corrige completement le risque de doublon (ANO-SCAL-02, 0 doublon sous course reelle et simulee) et la cause structurelle du balayage complet (EXPLAIN), mais SCAL-04 reste rouge car l'import a un cout plancher par ligne independant de cet index - piste distincte documentee en perspective."
+}

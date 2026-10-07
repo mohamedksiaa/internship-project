@@ -80,6 +80,7 @@ TimeFlowLateMailOpen = Anwesenheit des Tages in TimeFlow ansehen
 TimeFlowLateMailFooter = Sie erhalten diese E-Mail, weil Sie in TimeFlow das Recht „Alle Zeiteinträge lesen“ haben. Sie können sie über die Benachrichtigungsglocke in TimeFlow abbestellen (die interne Benachrichtigung bleibt aktiv).
 TimeFlowServerTimeInfo = Aktuelle Serverzeit: %s (Zeitzone %s, UTC%s). Die Ankunfts-Schwellenzeit wird in dieser Zeitzone interpretiert, nicht in der Zeitzone der Person, die sie einstellt.
 TimeFlowServerTimeMismatch = Achtung: Dieser Browser befindet sich nicht in derselben Zeitzone wie der Server. Prüfen Sie MAIN_SERVER_TZ oder date.timezone (php.ini), bevor Sie die Warnungen aktivieren.
+TimeFlowMissingUniqueImportKeyIndexWarning = Achtung: Der eindeutige Index für import_key (Schutz vor Import-Duplikaten) fehlt. Seine Erstellung ist bei der Modulaktivierung wahrscheinlich stillschweigend fehlgeschlagen, weil bereits Duplikate vorhanden waren. Führen Sie die folgende Abfrage aus, um sie zu finden, beheben Sie sie, und deaktivieren und reaktivieren Sie dann das Modul:
 TimeFlowLateOutDisabled = Verspätungswarnungen sind deaktiviert (TIMEFLOW_LATE_ALERT_ENABLED): nichts wurde geprüft.
 TimeFlowLateOutNotWorkday = __DAY__ ist kein geprüfter Tag (geprüfte Tage: __WORKDAYS__).
 TimeFlowLateOutTooEarly = Schwelle noch nicht erreicht (Schwelle __THRESHOLD__ + Toleranz __GRACE__ Min = __CUTOFF__, Serverzeit __NOW__).
