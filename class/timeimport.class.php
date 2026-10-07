@@ -2478,12 +2478,52 @@ class TimeImportClockify
                 $timeentry->logManualCreation($user, 'Import CSV Clockify');
                 $timeentry->logAutoValidationOnImport($user, 'Validation automatique — import Clockify');
                 $report['time_entries_created']++;
+            } elseif ($this->wasBlockedByUniqueImportKey()) {
+                // I1: a concurrent import inserted this exact import_key between our own
+                // timeEntryAlreadyImported() check above and this INSERT — the unique index
+                // caught the race. Not an invalid row: it really is already imported, just by
+                // whichever import won the race, so it is counted the same way the normal
+                // (non-race) already-imported check above would have counted it, and the loop
+                // continues to the next row exactly as it already does for every other branch
+                // here (createManualEntry()/create() never throw, they return <=0 on failure).
+                $report['time_entries_skipped_already_imported']++;
             } else {
                 $report['time_entries_skipped_invalid']++;
                 $report['unresolved_rows'][] = array('row' => $rowNumber, 'reason' => 'create_error', 'value' => (string) $timeentry->error);
             }
         }
         fclose($handle);
+    }
+
+    /**
+     * Whether the time entry creation that just failed was blocked
+     * specifically by I1's unique index on import_key (a race between two
+     * concurrent imports), rather than any other creation failure.
+     *
+     * Checks $this->db->lasterrno() — Dolibarr's own structured error code,
+     * captured by the DB driver at the moment the query failed (see
+     * mysqli.class.php::query()) — not the failed object's ->error/->errors
+     * text. Two reasons: (1) CommonObject::createCommon() itself already
+     * special-cases DB_ERROR_RECORD_ALREADY_EXISTS and OVERWRITES
+     * ->errors[] with a generic translated string ("ErrorRefAlreadyExists")
+     * instead of the raw MySQL message — by the time control reaches here,
+     * the constraint name is no longer in ->error/->errors at all, only in
+     * the DB driver's own ->lasterror(); (2) lasterrno()/lasterror() are
+     * plain properties set only inside query()'s failure branch, so a
+     * later successful ROLLBACK (which createCommon() always issues before
+     * returning) cannot reset them the way a live ->errno() query against
+     * the connection could.
+     *
+     * Also checks the constraint NAME in ->lasterror() (still the raw
+     * message at this point): DB_ERROR_RECORD_ALREADY_EXISTS covers every
+     * unique-constraint violation on this table, not specifically this one
+     * — today it is the only one, but naming it keeps this check correct if
+     * that ever changes.
+     */
+    protected function wasBlockedByUniqueImportKey()
+    {
+        return $this->db->lasterrno() === 'DB_ERROR_RECORD_ALREADY_EXISTS'
+            && strpos((string) $this->db->lasterror(), 'uk_timeflow_timeentry_import_key') !== false;
     }
 
     /**
