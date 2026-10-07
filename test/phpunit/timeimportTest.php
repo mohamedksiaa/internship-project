@@ -139,13 +139,16 @@ class TimeImportTest extends PHPUnit\Framework\TestCase // @phan-suppress-curren
 		$this->assertFalse($this->callProtected($import, 'timeEntryAlreadyImported', array($importKey)));
 
 		// Step 2 — simulates "a concurrent import wins the race": a real row is created with
-		// this import_key, in the gap after step 1's check already ran.
+		// this import_key, in the gap after step 1's check already ran. import_key is set
+		// BEFORE createManualEntry(), matching exactly how the real import path sets it
+		// (class/timeimport.class.php: "$timeentry->import_key = $importKey;" right before
+		// calling createManualEntry()) — not a separate update() afterward, which is a
+		// different code path this test does not need to exercise.
 		$winner = new TimeEntry($db);
 		$now = dol_now();
+		$winner->import_key = $importKey;
 		$winnerId = $winner->createManualEntry((int) $user->id, $projectId, 0, $now - 3600, $now, 'race winner', '', 1, $user, null, TimeEntry::STATUS_VALIDATED);
 		$this->assertGreaterThan(0, $winnerId, (string) $winner->error);
-		$winner->import_key = $importKey;
-		$this->assertGreaterThan(0, $winner->update($user), (string) $winner->error);
 
 		$modificationCountBefore = $this->countModificationRows($db, $winnerId);
 
@@ -172,7 +175,7 @@ class TimeImportTest extends PHPUnit\Framework\TestCase // @phan-suppress-curren
 		$this->assertSame($modificationCountBefore, $this->countModificationRows($db, $winnerId));
 
 		// And the protected helper the production code actually calls agrees.
-		$this->assertTrue($this->callProtected($import, 'wasBlockedByUniqueImportKey'));
+		$this->assertTrue($this->callProtected($import, 'wasBlockedByUniqueImportKey', array($loser)));
 	}
 
 	/** wasBlockedByUniqueImportKey() must say no for an unrelated failure (e.g. invalid dates). */
@@ -186,13 +189,16 @@ class TimeImportTest extends PHPUnit\Framework\TestCase // @phan-suppress-curren
 
 		$import = new TimeImportClockify($db);
 		$entry = new TimeEntry($db);
-		// Invalid dates: fails in createManualEntry()'s own validation, before any SQL ever runs —
-		// $db->lasterrno()/lasterror() stay at whatever a PREVIOUS, unrelated query last set.
-		// This asserts the method does not false-positive on a failure that has nothing to do
-		// with import_key, regardless of what lingers in $db's error state from earlier calls.
+		// Invalid dates: fails in createManualEntry()'s own PHP validation, before any SQL ever
+		// runs — $db->lasterrno()/lasterror() stay at whatever a PREVIOUS, unrelated query last
+		// set (possibly still DB_ERROR_RECORD_ALREADY_EXISTS from another test's real duplicate-
+		// key failure, since both tests share the same connection). This is exactly why the
+		// production check is scoped to $entry->errors (always freshly empty on this new object)
+		// rather than the connection-wide lasterrno(): asserts no false positive from that kind
+		// of staleness, regardless of what lingers in $db's error state from earlier calls.
 		$result = $entry->createManualEntry((int) $user->id, 0, 0, dol_now(), dol_now() - 3600, 'bad dates', '', 1, $user);
 		$this->assertLessThanOrEqual(0, $result);
-		$this->assertFalse($this->callProtected($import, 'wasBlockedByUniqueImportKey'));
+		$this->assertFalse($this->callProtected($import, 'wasBlockedByUniqueImportKey', array($entry)));
 	}
 
 	private function countModificationRows($db, $timeentryId)

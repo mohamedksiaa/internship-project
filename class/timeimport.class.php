@@ -2478,7 +2478,7 @@ class TimeImportClockify
                 $timeentry->logManualCreation($user, 'Import CSV Clockify');
                 $timeentry->logAutoValidationOnImport($user, 'Validation automatique — import Clockify');
                 $report['time_entries_created']++;
-            } elseif ($this->wasBlockedByUniqueImportKey()) {
+            } elseif ($this->wasBlockedByUniqueImportKey($timeentry)) {
                 // I1: a concurrent import inserted this exact import_key between our own
                 // timeEntryAlreadyImported() check above and this INSERT — the unique index
                 // caught the race. Not an invalid row: it really is already imported, just by
@@ -2496,33 +2496,42 @@ class TimeImportClockify
     }
 
     /**
-     * Whether the time entry creation that just failed was blocked
-     * specifically by I1's unique index on import_key (a race between two
-     * concurrent imports), rather than any other creation failure.
+     * Whether the time entry creation that just failed on $timeentry was
+     * blocked specifically by I1's unique index on import_key (a race
+     * between two concurrent imports), rather than any other creation
+     * failure.
      *
-     * Checks $this->db->lasterrno() — Dolibarr's own structured error code,
-     * captured by the DB driver at the moment the query failed (see
-     * mysqli.class.php::query()) — not the failed object's ->error/->errors
-     * text. Two reasons: (1) CommonObject::createCommon() itself already
-     * special-cases DB_ERROR_RECORD_ALREADY_EXISTS and OVERWRITES
-     * ->errors[] with a generic translated string ("ErrorRefAlreadyExists")
-     * instead of the raw MySQL message — by the time control reaches here,
-     * the constraint name is no longer in ->error/->errors at all, only in
-     * the DB driver's own ->lasterror(); (2) lasterrno()/lasterror() are
-     * plain properties set only inside query()'s failure branch, so a
-     * later successful ROLLBACK (which createCommon() always issues before
-     * returning) cannot reset them the way a live ->errno() query against
-     * the connection could.
+     * Primary signal: $timeentry->errors contains the literal string
+     * "ErrorRefAlreadyExists" — CommonObject::createCommon() pushes exactly
+     * that (an untranslated language key, not yet passed through
+     * $langs->trans()) when its own INSERT fails with
+     * $this->db->lasterrno() === 'DB_ERROR_RECORD_ALREADY_EXISTS'. This is
+     * scoped to $timeentry itself, which the caller always constructs fresh
+     * ("new TimeEntry($this->db)") for every row — unlike checking
+     * $this->db->lasterrno()/lasterror() directly, which are DB-connection-
+     * wide and only updated inside query()'s failure branch: a row that
+     * fails for a reason that never reaches the database at all (invalid
+     * dates, a closed project, exceeding the max duration — all checked in
+     * pure PHP before createCommon() ever runs a query) would leave them
+     * stale from whichever earlier, unrelated query last actually failed on
+     * this connection, producing a false positive. Caught by
+     * testWasBlockedByUniqueImportKeyIsFalseForAnUnrelatedFailure().
      *
-     * Also checks the constraint NAME in ->lasterror() (still the raw
-     * message at this point): DB_ERROR_RECORD_ALREADY_EXISTS covers every
+     * Secondary check: the constraint NAME must still appear in
+     * $this->db->lasterror() (the raw MySQL message, captured by query()
+     * the moment the INSERT failed — unaffected by createCommon()'s
+     * subsequent rollback, or by its own overwriting of ->errors[] with the
+     * generic string above, since lasterror() is the DB driver's own record,
+     * not the object's). DB_ERROR_RECORD_ALREADY_EXISTS covers every
      * unique-constraint violation on this table, not specifically this one
      * — today it is the only one, but naming it keeps this check correct if
      * that ever changes.
+     *
+     * @param TimeEntry $timeentry The object create()/createManualEntry() was just called on.
      */
-    protected function wasBlockedByUniqueImportKey()
+    protected function wasBlockedByUniqueImportKey(TimeEntry $timeentry)
     {
-        return $this->db->lasterrno() === 'DB_ERROR_RECORD_ALREADY_EXISTS'
+        return in_array('ErrorRefAlreadyExists', $timeentry->errors, true)
             && strpos((string) $this->db->lasterror(), 'uk_timeflow_timeentry_import_key') !== false;
     }
 
