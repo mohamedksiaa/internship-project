@@ -27,7 +27,7 @@
     "lignes_creees": 5000,
     "doublons": 0,
     "cause_du_cout_restant": "chaque ligne importee execute aussi hasTimeOverlap() (1 requete), fetch() du nouvel id (1 requete), update() avec son propre fetch() interne pour l'audit (2 requetes), 2 ecritures d'audit (logManualCreation + logAutoValidationOnImport) - soit ~6 requetes sequentielles par ligne independantes de tout index, qui dominent maintenant le temps total",
-    "comportement_client": "le client a de nouveau cesse d'attendre apres ~300s (meme comportement qu'avant, ANO-SCAL-02 deja documentee, pas aggravee)"
+    "comportement_client": "le client a de nouveau cesse d'attendre apres ~300s alors que le serveur continuait - ANO-SCAL-02 (le defaut de confirmation visible) reste OUVERTE, amelioree seulement : 313s > 300s, le seuil d'abandon du client est toujours depasse"
   },
   "test_phpunit_race": {
     "nom": "test/phpunit/timeimportTest.php::testConcurrentImportRaceIsCaughtByTheUniqueIndexAndLeavesNoOrphanedTrace",
@@ -46,5 +46,5 @@
     "coherence": "created_A+created_B=20 (chaque ligne creee une seule fois, confirme par la base) ; already_imported_A+already_imported_B=17 (le perdant de 17 des 20 courses correctement intercepte par l'index import_key) ; invalid_overlap_A+invalid_overlap_B=3 (le perdant de 3 des 20 courses intercepte PLUS TOT, par hasTimeOverlap(), qui s'execute avant l'insertion protegee par l'index - un chemin de course different et preexistant, hors perimetre d'I1, mais avec le meme resultat net : 0 doublon, import non interrompu)",
     "nuance_importante": "sur ces 3 lignes, le perdant est compte 'invalide/chevauchement' plutot que 'deja importe' - categorisation legerement differente de l'ideal mais sans consequence sur l'integrite des donnees ni sur la continuite de l'import"
   },
-  "conclusion": "I1 et I2 appliques avec succes sur le Docker de test. I2 corrige completement SCAL-07 (status). I1 corrige completement le risque de doublon (ANO-SCAL-02, 0 doublon sous course reelle et simulee) et la cause structurelle du balayage complet (EXPLAIN), mais SCAL-04 reste rouge car l'import a un cout plancher par ligne independant de cet index - piste distincte documentee en perspective."
+  "conclusion": "I1 et I2 appliques avec succes sur le Docker de test. I2 corrige completement SCAL-07 (status). I1 corrige completement le risque de doublon documente en phase 2 (RAPPORT_PANNES.md §6, 0 doublon sous course reelle et simulee) et la cause structurelle du balayage complet sur import_key (EXPLAIN). ANO-SCAL-02 et SCAL-04 restent OUVERTS (ameliores : 384s->313s, -18%, mais toujours au-dessus des deux seuils - 120s et le seuil d'abandon client ~300s) car l'import a un cout plancher par ligne independant de cet index - piste distincte documentee en perspective."
 }
