@@ -1,0 +1,42 @@
+{
+  "cas": "F1 - decoupage du paquet principal par page (React.lazy + Suspense)",
+  "changement": "App.jsx : les 6 pages (Dashboard, Timer, History, Reports, Validation, DailyReport) passent d'imports statiques a React.lazy(). AppLayout reste eager (header/nav toujours visibles). RouteSuspenseBoundary (nouveau composant) monte une seule fois autour de <Outlet/> : etat de chargement traduit (cle 'loading') pendant le telechargement d'un chunk, ErrorBoundary classe affichant 'app.service_unavailable' (meme message que la PR #50) si le chunk echoue, remonte sur key={pathname} pour se reinitialiser a chaque navigation.",
+  "poids_du_paquet": {
+    "avant": { "paquet_principal_ko": 1257.12 },
+    "apres": {
+      "paquet_principal_ko": 423.29,
+      "variation": "-66%",
+      "chunks_par_page_ko": {
+        "TimerPage": 9.94,
+        "DailyReportPage": 10.60,
+        "ValidationPage": 12.33,
+        "ReportsPage": 77.30,
+        "HistoryPage": 269.28,
+        "DashboardPage": 431.26
+      },
+      "note": "dashboardPdfExport (601 ko) deja differe avant cette PR (SCAL-11), inchange"
+    }
+  },
+  "temps_de_chargement_fast3g_cpu4x": {
+    "avant": { "total_ms": 5462 },
+    "apres": { "echantillon_ms": [5227, 5267, 5221], "moyenne_ms": 5238, "variation": "-4%" },
+    "seuil_plan_ms": 5000,
+    "toujours_au_dessus_du_seuil": true,
+    "pourquoi_le_gain_est_modeste": "le paquet principal pese 66% moins mais le chemin critique au premier chargement inclut aussi le chunk vendor partage (index.es, 150 ko, jamais differe), le CSS (36 ko) et la page par defaut (/timer, 9.94 ko) - sous 'Fast 3G' (latence 150ms), chaque requete reseau supplementaire coute un montant fixe independant de sa taille ; le gain de telechargement/parsing du paquet principal est partiellement compense par ce nouvel aller-retour reseau pour le chunk de la page par defaut, qui n'existait pas avant (tout etait deja present dans le seul paquet principal)"
+  },
+  "verification_navigateur_reel_echec_de_chunk": {
+    "methode": "Puppeteer : connexion coupee (CDP Network offline=true) juste avant une navigation cote client vers /dashboard, dont le chunk n'avait encore jamais ete telecharge",
+    "resultat": {
+      "header_nav_reste_visible": true,
+      "message_service_indisponible_affiche": true,
+      "recuperation_apres_retour_en_ligne_et_navigation_vers_une_autre_page": true
+    },
+    "capture": "f1_chunk_failure.png"
+  },
+  "tests_frontend": {
+    "nouveau_fichier": "RouteSuspenseBoundary.test.jsx",
+    "cas_couverts": ["rendu normal sans echec", "etat de chargement traduit pendant la resolution d'un chunk", "message traduit sur un chunk qui echoue (import() rejete)", "meme message sur une erreur synchrone (pas seulement un chunk)"],
+    "resultat": "533/533 tests de la suite passent (45 fichiers)"
+  },
+  "conclusion": "F1 implemente avec un gain reel et mesure sur le poids du paquet (-66%), mais un gain plus modeste sur le temps de chargement total sous Fast 3G + CPU x4 (-4%, toujours au-dessus du seuil de 5s) pour les raisons expliquees ci-dessus. L'etat de chargement et la gestion d'echec de chunk sont tous deux verifies dans un vrai navigateur."
+}
