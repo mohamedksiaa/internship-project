@@ -18,11 +18,11 @@ TimeFlow est un module Dolibarr de suivi du temps : chronomètre, saisie manuell
 
 | Axe | Cas prévus | Exécutés | Anomalies trouvées | Corrigées | Atténuées | Ouvertes |
 |---|---|---|---|---|---|---|
-| Sécurité | 20 | 20 | 13 (dont 1 critique) | 7 | 1 | 5 |
+| Sécurité | 20 | 20 | 14 (dont 1 critique) | 8 | 1 | 5 |
 | Pannes | 15 | 10 | 3 (toutes Moyen) | 3 | 0 | 0 |
 | Disponibilité | 12 | 9 (+1 préparée) | 2 réelles (+1 invalidée après vérification) | 0* | 0 | 2* |
 | Scalabilité | 13 | 9 | 2 (1 élevé, 1 moyen) | 1 | 0 | 1 (améliorée) |
-| **Total** | **60** | **48** | **20** | **11** | **1** | **8** |
+| **Total** | **60** | **48** | **21** | **12** | **1** | **8** |
 
 *Les 2 anomalies ouvertes de l'axe Disponibilité relèvent du cœur Dolibarr (nom de fichier de sauvegarde à la minute, mot de passe visible sur la ligne de commande `mysqldump`) : non corrigibles dans le module, documentées à l'intention de l'éditeur.
 
@@ -55,7 +55,7 @@ Au-delà du dénombrement : **environ 70 000 requêtes hostiles** rejouées cont
 
 ## 5. Ce qui reste ouvert
 
-- **A-01 (critique, sécurité) — décision du responsable.** Un fichier de configuration réel (mot de passe de base, identifiant d'instance) figure dans l'historique d'un dépôt public. La récidive est bloquée ; l'exposition déjà commise demande une rotation du mot de passe, une régénération de l'identifiant et une réécriture de l'historique — des actions hors du périmètre d'une PR de code, dont l'impact a été chiffré précisément pour éclairer la décision.
+- **A-01 (critique, sécurité) — risque résiduel réduit, décisions restantes optionnelles.** Un fichier de configuration réel (mot de passe de base, identifiant d'instance) figure dans l'historique d'un dépôt public ; la récidive est bloquée. Vérifications faites par le responsable (2026-10-08) : le mot de passe exposé **n'ouvre plus aucun compte connu** (utilisateur et longueur différents de ceux en usage) ; l'identifiant d'instance exposé **diffère** de celui en usage sur le dev local (comparé par empreinte, jamais affiché). La rotation du mot de passe et la réécriture de l'historique restent des décisions optionnelles du responsable ; régénérer l'identifiant d'instance n'est plus nécessaire pour écarter un risque de collision. **Découverte additionnelle en traitant ce point** : la base de données du dev local écoutait sur toutes les interfaces réseau, pas seulement en local — **corrigée** par le responsable le même jour (`bind-address=127.0.0.1`).
 - **A-06 à A-09 (sécurité, priorité moyenne/faible).** Jeton CSRF transporté dans l'URL ; durcissement serveur (version PHP exposée, pas de limite de taille de corps) ; aucune trace d'audit sur soumission/validation/refus ; validation perfectible des fichiers importés.
 - **ANO-SCAL-02 / SCAL-04 (scalabilité) — améliorée, pas résolue.** L'import de 5 000 lignes est passé de 384 s à 313 s après l'index unique, mais reste au-dessus des deux seuils (120 s visé, ~300 s avant que le navigateur n'abandonne). La cause restante : environ 6 requêtes séquentielles exécutées pour chaque ligne importée, indépendantes de tout index.
 - **SCAL-11 — améliorée, pas résolue.** Voir leçon F1 ci-dessus : le temps de chargement sous connexion lente reste légèrement au-dessus du seuil de 5 s (5,24 s mesuré) malgré la réduction du poids du paquet.
@@ -66,7 +66,7 @@ Au-delà du dénombrement : **environ 70 000 requêtes hostiles** rejouées cont
 
 | Axe | Statut global | Rapport détaillé |
 |---|---|---|
-| Sécurité | 20/20 cas exécutés · 7 anomalies corrigées, 1 atténuée, 5 ouvertes (dont 1 critique, décision du responsable) | [`RAPPORT_SECURITE.md`](./RAPPORT_SECURITE.md) |
+| Sécurité | 20/20 cas exécutés · 8 anomalies corrigées, 1 atténuée, 5 ouvertes (dont A-01, critique, risque résiduel réduit — voir §5) | [`RAPPORT_SECURITE.md`](./RAPPORT_SECURITE.md) |
 | Pannes | 10/15 cas exécutés · 3/3 anomalies trouvées corrigées · 0 perte de donnée sur tous les cas destructifs | [`RAPPORT_PANNES.md`](./RAPPORT_PANNES.md) |
 | Disponibilité | 9/12 cas exécutés (+1 préparée) · restauration complète vérifiée (RTO 18,3 s) · 2 anomalies, toutes deux côté cœur Dolibarr | [`RAPPORT_DISPONIBILITE.md`](./RAPPORT_DISPONIBILITE.md) |
 | Scalabilité | 9/13 cas exécutés · export corrigé, tableau de bord corrigé, index ajoutés, import et temps de chargement améliorés mais encore ouverts | [`RAPPORT_SCALABILITE.md`](./RAPPORT_SCALABILITE.md) |
