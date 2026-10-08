@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import timeflowLogo from '../../assets/timeflow-logo.png';
 import LanguageSelector from '../molecules/LanguageSelector';
 import NotificationBell from '../organisms/NotificationBell';
+import RouteSuspenseBoundary from '../molecules/RouteSuspenseBoundary';
 import useDarkMode from '../../hooks/useDarkMode';
 
 function classNames(...classes) { return classes.filter(Boolean).join(' '); }
@@ -67,7 +68,11 @@ export default function AppLayout() {
             })}
           </nav>
         </aside>
-        <main className="tw-min-w-0 tw-flex-1"><Outlet /></main>
+        <main className="tw-min-w-0 tw-flex-1">
+          <RouteSuspenseBoundary>
+            <Outlet />
+          </RouteSuspenseBoundary>
+        </main>
       </div>
     </div>
   );
