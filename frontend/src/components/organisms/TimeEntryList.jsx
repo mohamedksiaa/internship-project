@@ -114,6 +114,9 @@ export default function TimeEntryList({
   const [entryToDelete, setEntryToDelete] = useState(null);
   const [entryToSubmit, setEntryToSubmit] = useState(null);
   const [correctionError, setCorrectionError] = useState('');
+  const [entryToReject, setEntryToReject] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
 
   useEffect(() => setEntries(initialEntries), [initialEntries]);
   // Reset selection when the entries list changes
@@ -176,13 +179,47 @@ export default function TimeEntryList({
     setBusyId(id);
     setError('');
     try {
-      if (status === 2) await approveTimeEntry(id);
-      else await rejectTimeEntry(id);
+      await approveTimeEntry(id);
       const next = entries.map((entry) => (entry.id === id ? { ...entry, status } : entry));
       setEntries(next);
       setParentEntries?.(next);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // A refusal always carries a manager-typed motif (A-08): unlike approve,
+  // which needs no confirmation dialog, reject opens a modal mirroring the
+  // correction-reason one below (same >=5-character rule), since there is
+  // no other place in the UI to type it.
+  const openReject = (entry) => {
+    setError('');
+    setRejectError('');
+    setRejectReason('');
+    setEntryToReject(entry);
+  };
+
+  const confirmReject = async (event) => {
+    event.preventDefault();
+    if (!entryToReject) return;
+    const reason = rejectReason.trim();
+    if (reason.length < 5) {
+      setRejectError(t('timeentry.error_reject_reason_required'));
+      return;
+    }
+    const entry = entryToReject;
+    setBusyId(entry.id);
+    setRejectError('');
+    try {
+      await rejectTimeEntry(entry.id, reason);
+      const next = entries.map((item) => (item.id === entry.id ? { ...item, status: 9 } : item));
+      setEntries(next);
+      setParentEntries?.(next);
+      setEntryToReject(null);
+    } catch (err) {
+      setRejectError(err.message);
     } finally {
       setBusyId(null);
     }
@@ -604,7 +641,7 @@ export default function TimeEntryList({
                             </button>
                             <button
                               title={t('timeentry.title_reject')}
-                              onClick={() => decide(entry.id, 9)}
+                              onClick={() => openReject(entry)}
                               disabled={busyId === entry.id}
                               className="tw-text-[#d66]"
                             >
@@ -778,6 +815,35 @@ export default function TimeEntryList({
               <button type="button" onClick={() => setEntryToCorrect(null)} disabled={busyId !== null} className="tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">{t('cancel')}</button>
               <button type="submit" disabled={busyId === entryToCorrect.id || correction.reason.trim().length < 5} className="tw-rounded tw-bg-[#5B8FA8] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white disabled:tw-opacity-50">
                 {busyId === entryToCorrect.id ? t('timeentry.saving') : t('save')}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      {entryToReject && (
+        <div className="tw-fixed tw-inset-0 tw-z-50 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-p-4" role="dialog" aria-modal="true" aria-labelledby="reject-title">
+          <form onSubmit={confirmReject} className="tw-w-full tw-max-w-md tw-space-y-4 tw-rounded-lg tw-bg-white dark:tw-bg-slate-900 dark:tw-border dark:tw-border-slate-700 tw-p-6 tw-shadow-xl">
+            <div>
+              <h2 id="reject-title" className="tw-text-lg tw-font-semibold tw-text-[#263746] dark:tw-text-slate-100">{t('timeentry.reject_title')}</h2>
+              <p className="tw-mt-1 tw-text-sm tw-text-[#52656f] dark:tw-text-slate-400">{t('timeentry.reject_message')}</p>
+            </div>
+            {rejectError && (
+              <p className="tw-whitespace-pre-line tw-rounded-md tw-bg-rose-50 dark:tw-bg-rose-900/30 tw-px-3 tw-py-2 tw-text-sm tw-text-rose-600 dark:tw-text-rose-300">{rejectError}</p>
+            )}
+            <label className="tw-block tw-text-sm tw-font-medium tw-text-[#2c3e49] dark:tw-text-slate-200">
+              {t('timeentry.reject_reason')}
+              <textarea
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+                className="tw-mt-1 tw-w-full tw-rounded tw-border tw-border-[#cfd9df] dark:tw-border-slate-600 tw-px-3 tw-py-2 dark:tw-bg-slate-800 dark:tw-text-slate-100"
+                rows="3"
+                autoFocus
+              />
+            </label>
+            <div className="tw-flex tw-justify-end tw-gap-3">
+              <button type="button" onClick={() => setEntryToReject(null)} disabled={busyId !== null} className="tw-text-sm tw-text-[#52656f] dark:tw-text-slate-300">{t('timeentry.cancel')}</button>
+              <button type="submit" disabled={busyId === entryToReject.id || rejectReason.trim().length < 5} className="tw-rounded tw-bg-[#d66] tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white disabled:tw-opacity-50">
+                {busyId === entryToReject.id ? t('timeentry.saving') : t('timeentry.title_reject')}
               </button>
             </div>
           </form>

@@ -173,7 +173,15 @@
     "ip": "IP",
     "complete_report": "Full report",
     "report_close": "Close",
-    "view_day": "Day"
+    "view_day": "Day",
+    "action_submit": "Submitted",
+    "action_validate": "Validated",
+    "action_reject": "Rejected",
+    "status_field": "Status",
+    "status_draft": "Draft",
+    "status_submitted": "Submitted",
+    "status_validated": "Validated",
+    "status_canceled": "Rejected"
   },
   "project_selector": {
     "placeholder": "Project",
@@ -410,6 +418,10 @@
     "edit_title": "Edit time entry",
     "edit_manual_message": "This correction will be tracked.",
     "edit_reason": "Reason (required, minimum 5 characters)",
+    "reject_title": "Reject this entry?",
+    "reject_message": "State the reason for rejecting it: the employee will see it in this entry's history.",
+    "reject_reason": "Rejection reason (required, minimum 5 characters)",
+    "error_reject_reason_required": "The rejection reason is required and must be at least 5 characters.",
     "saving": "Saving…",
     "close": "Close",
     "delete_title": "Delete entry",

@@ -182,7 +182,15 @@
     "end": "النهاية",
     "ip": "IP",
     "complete_report": "تقرير كامل",
-    "report_close": "إغلاق"
+    "report_close": "إغلاق",
+    "action_submit": "مُقدَّمة",
+    "action_validate": "موافق عليها",
+    "action_reject": "مرفوضة",
+    "status_field": "الحالة",
+    "status_draft": "مسودة",
+    "status_submitted": "مُقدَّمة",
+    "status_validated": "موافق عليها",
+    "status_canceled": "مرفوضة"
   },
   "project_selector": {
     "placeholder": "المشروع",
@@ -423,6 +431,10 @@
     "edit_title": "تعديل إدخال الوقت",
     "edit_manual_message": "سيتم تسجيل هذا التصحيح.",
     "edit_reason": "السبب (إجباري، 5 أحرف على الأقل)",
+    "reject_title": "رفض هذا الإدخال؟",
+    "reject_message": "اذكر سبب الرفض: سيراه الموظف في سجل هذا الإدخال.",
+    "reject_reason": "سبب الرفض (إجباري، 5 أحرف على الأقل)",
+    "error_reject_reason_required": "سبب الرفض إجباري ويجب أن يكون 5 أحرف على الأقل.",
     "saving": "جارٍ الحفظ…",
     "close": "إغلاق",
     "delete_title": "حذف الإدخال",

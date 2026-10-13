@@ -175,7 +175,9 @@ class TimeEntry extends CommonObject
 	public $splitSegments = array();
 
     const MOD_ACTION_EDIT = 'edit';
+    const MOD_ACTION_SUBMIT = 'submit';
     const MOD_ACTION_VALIDATE = 'validate';
+    const MOD_ACTION_REJECT = 'reject';
     const MOD_ACTION_MANUAL_EMPLOYEE = 'manual_employee';
     const MOD_ACTION_MANUAL_MANAGER = 'manual_manager';
     const MOD_ACTION_MANUAL_CREATE = 'manual_create';
@@ -623,7 +625,12 @@ class TimeEntry extends CommonObject
                 if ($isManualCorrection) {
                     dol_syslog('timeflow.correctTimeEntry audit_insert_query rowid='.(int) $this->id.' field='.$field, LOG_INFO);
                 }
-                $insertResult = $this->db->query($sql);
+                // Was captured and silently ignored (A-08): a failed INSERT here used to
+                // leave the caller believing the audit trail was written. timeflowQuery()
+                // throws instead, so submit/validate/reject (which open their own outer
+                // transaction around update(), see submitEntry()/validateEntry()) can roll
+                // back the status change too rather than commit it with no audit trace.
+                $insertResult = timeflowQuery($this->db, $sql, 'TimeEntry::logModifications:'.$field);
                 if ($isManualCorrection) {
                     dol_syslog('timeflow.correctTimeEntry audit_insert_result rowid='.(int) $this->id.' field='.$field.' result='.($insertResult ? 'success' : 'failure'), LOG_INFO);
                 }
@@ -644,10 +651,11 @@ class TimeEntry extends CommonObject
      * going through the Validation page), as a distinct 'validate' audit
      * row alongside the creation row logManualCreation() already writes.
      *
-     * validateEntry() itself calls update() with no $reason, so a manual
-     * manager validation from the Validation page leaves no audit row at
-     * all — any 'validate' row therefore always comes from either this
-     * method or a one-off backfill script, both identifiable by $reason.
+     * A manager validation from the Validation page now writes its own
+     * 'validate' row via validateEntry() itself (A-08) — this method only
+     * covers an import creating an entry directly as STATUS_VALIDATED,
+     * which never goes through validateEntry(). Both kinds of 'validate'
+     * row remain distinguishable by $reason.
      *
      * Reuses logModifications() by feeding it every current field value as
      * its own "old" value except status (forced to STATUS_DRAFT), so only
@@ -1937,18 +1945,73 @@ class TimeEntry extends CommonObject
 		$this->status = self::STATUS_SUBMITTED;
 		$this->date_submit = dol_now();
 		$this->fk_user_submit = $user->id;
-		return $this->update($user);
+
+		// MOD_ACTION_SUBMIT as the audit reason (not a human-readable sentence) is
+		// deliberate: EditHistoryModal displays the translated action label for this
+		// row, never its stored reason, so this value is never shown to a user — it
+		// only exists to satisfy update()'s "log only if a reason was given" gate and
+		// the table's NOT NULL reason column. See validateEntry() for the same choice,
+		// and the reject branch there for the one case with a real, typed reason.
+		$this->db->begin();
+		try {
+			$result = $this->update($user, 0, self::MOD_ACTION_SUBMIT, self::MOD_ACTION_SUBMIT);
+		} catch (TimeflowSqlException $e) {
+			$this->db->rollback();
+			throw $e;
+		}
+		if ($result > 0) {
+			$this->db->commit();
+			return $result;
+		}
+		$this->db->rollback();
+		return $result;
 	}
 
-	/** Update the validation status of an entry. */
-	public function validateEntry($id, User $user, $status)
+	/**
+	 * Update the validation status of an entry (manager validate or reject).
+	 *
+	 * @param int    $id     Entry id
+	 * @param User   $user   Acting manager
+	 * @param int    $status self::STATUS_VALIDATED or self::STATUS_CANCELED
+	 * @param string $reason Required (>=5 chars) when $status is STATUS_CANCELED — the
+	 *                       refusal motif shown to the employee in the entry's history.
+	 *                       Ignored otherwise.
+	 * @return int >0 on success, -1 on a business refusal (e.g. missing motif)
+	 */
+	public function validateEntry($id, User $user, $status, $reason = '')
 	{
 		if ($this->fetch((int) $id) <= 0 || $this->isSoftDeleted((int) $id)) {
 			$this->error = 'Entrée introuvable';
 			return -1;
 		}
+
+		$isReject = ((int) $status === self::STATUS_CANCELED);
+		if ($isReject && mb_strlen(trim($reason)) < 5) {
+			$this->error = 'Le motif du refus est obligatoire (5 caractères minimum).';
+			return -1;
+		}
+
 		$this->status = (int) $status;
 		$this->fk_user_valid = $user->id;
-		return $this->update($user);
+
+		// See submitEntry()'s comment: MOD_ACTION_VALIDATE is used as a non-displayed
+		// sentinel reason for a validation, exactly like MOD_ACTION_SUBMIT above. Only
+		// a reject carries a real, manager-typed reason the employee will actually see.
+		$auditAction = $isReject ? self::MOD_ACTION_REJECT : self::MOD_ACTION_VALIDATE;
+		$auditReason = $isReject ? trim($reason) : self::MOD_ACTION_VALIDATE;
+
+		$this->db->begin();
+		try {
+			$result = $this->update($user, 0, $auditReason, $auditAction);
+		} catch (TimeflowSqlException $e) {
+			$this->db->rollback();
+			throw $e;
+		}
+		if ($result > 0) {
+			$this->db->commit();
+			return $result;
+		}
+		$this->db->rollback();
+		return $result;
 	}
 }

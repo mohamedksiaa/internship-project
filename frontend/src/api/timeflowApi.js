@@ -620,8 +620,8 @@ export async function approveTimeEntry(id) {
   return normalizeEntry(data?.data ?? data);
 }
 
-export async function rejectTimeEntry(id) {
-  const data = await moduleTimerRequest('rejectEntry', { id });
+export async function rejectTimeEntry(id, reason) {
+  const data = await moduleTimerRequest('rejectEntry', { id, reason });
   return normalizeEntry(data?.data ?? data);
 }
 
