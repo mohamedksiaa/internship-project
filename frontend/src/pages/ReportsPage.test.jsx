@@ -103,14 +103,30 @@ describe('ReportsPage', () => {
   // A-08-bis: the manager-typed rejection motif must be visible in clear
   // text on the "Historique traité" row itself (not hover-only), since this
   // is the governance screen where visibility matters most.
-  it('A-08-bis: shows the reject motif under the Refusé badge for a refused row', async () => {
+  it('A-08-bis: shows the reject motif under the Refusé badge for a refused row, prefixed with "Motif : "', async () => {
     getProcessedHistory.mockReset().mockResolvedValue({
       rows: [{ id: 2, note: 'Entrée refusée', project_label: 'Projet test', user_label: 'Emma Lambert', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 9, reject_reason: 'Projet annulé par le client', duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
       pagination: { page: 1, pages: 1 },
       stats: { validated_count: 0, refused_count: 1, manual_count: 0 },
     });
     render(<ReportsPage />, { wrapper: MemoryRouter });
-    expect(await screen.findByText('Projet annulé par le client')).toBeInTheDocument();
+    expect(await screen.findByText('Motif : Projet annulé par le client')).toBeInTheDocument();
+  });
+
+  it('A-08-bis: clicking the (truncated) motif on "Historique traité" reveals it in full — tap stands in for hover on touch', async () => {
+    getProcessedHistory.mockReset().mockResolvedValue({
+      rows: [{ id: 2, note: 'Entrée refusée', project_label: 'Projet test', user_label: 'Emma Lambert', date_start: '2026-08-12T08:00:00Z', date_end: '2026-08-12T09:00:00Z', status: 9, reject_reason: 'Projet annulé par le client', duration: 3600, processed_by_label: 'SuperAdmin', processed_at: '2026-08-12T10:00:00Z' }],
+      pagination: { page: 1, pages: 1 },
+      stats: { validated_count: 0, refused_count: 1, manual_count: 0 },
+    });
+    const user = userEvent.setup();
+    render(<ReportsPage />, { wrapper: MemoryRouter });
+
+    const motif = await screen.findByRole('button', { name: 'Afficher le motif complet' });
+    expect(motif.className).toContain('tw-truncate');
+
+    await user.click(motif);
+    expect(screen.getByRole('button', { name: 'Réduire le motif' }).className).toContain('tw-whitespace-normal');
   });
 
   it('A-08-bis: shows no motif text for a validated row', async () => {
