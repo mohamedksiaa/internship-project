@@ -57,6 +57,84 @@ $conf->global->MAIN_DISABLE_ALL_MAILS = 1;
 
 $langs->load("main");
 
+if (!class_exists('TimeflowAuditInsertFailureDb')) {
+	/**
+	 * Test double for A-08's atomicity test (testFailedAuditInsertRollsBackTheStatusChangeToo):
+	 * makes exactly one INSERT — the audit row into timeflow_timeentry_modification —
+	 * fail, while every other call (including the real status UPDATE and the real
+	 * begin()/commit()/rollback()) behaves exactly as the real connection would.
+	 * Deliberately not a DDL-based failure (renaming/altering the table): MariaDB
+	 * issues an implicit commit on DDL, which would break the very transaction
+	 * isolation this test verifies.
+	 *
+	 * Must genuinely be a DoliDB: TimeEntry::__construct() and update()'s internal
+	 * "new self($this->db)" both type-hint DoliDB $db, so a plain wrapper/decorator
+	 * object is rejected by PHP before a single query runs. Extending the real
+	 * driver class and building the instance via TimeflowAuditInsertFailureDb::wrap()
+	 * (reflection-copying every property off the live connection, bypassing its
+	 * constructor) gives a real DoliDBMysqli that happens to share the same open
+	 * connection and transaction counter as $db, with only query() overridden.
+	 */
+	class TimeflowAuditInsertFailureDb extends DoliDBMysqli
+	{
+		private $failingNeedle = '';
+
+		/** @var int Number of begin()/commit()/rollback() calls actually made on this object. */
+		public $beginCount = 0;
+		public $commitCount = 0;
+		public $rollbackCount = 0;
+
+		public static function wrap(DoliDB $realDb, $failingNeedle)
+		{
+			$decorated = (new ReflectionClass(self::class))->newInstanceWithoutConstructor();
+			$source = new ReflectionObject($realDb);
+			foreach ($source->getProperties() as $prop) {
+				$prop->setAccessible(true);
+				$target = new ReflectionProperty($prop->getDeclaringClass()->getName(), $prop->getName());
+				$target->setAccessible(true);
+				$target->setValue($decorated, $prop->getValue($realDb));
+			}
+			$decorated->failingNeedle = $failingNeedle;
+			return $decorated;
+		}
+
+		public function query($query, $usesavepoint = 0, $type = 'auto', $result_mode = 0)
+		{
+			if (stripos(ltrim($query), 'INSERT') === 0 && stripos($query, $this->failingNeedle) !== false) {
+				return false;
+			}
+			return parent::query($query, $usesavepoint, $type, $result_mode);
+		}
+
+		// The whole PHPUnit suite already runs inside one outer transaction
+		// (see setUpBeforeClass()/tearDownAfterClass() below), so a nested
+		// rollback() here only decrements DoliDB's in-PHP counter — it cannot
+		// issue a real SQL ROLLBACK without also undoing every other test's
+		// fixtures. Counting calls instead of inspecting row state afterward is
+		// what actually proves submitEntry() took the rollback branch, not the
+		// commit branch, on an audit-insert failure — independent of nesting
+		// depth. The real-ROLLBACK, real-undo behavior at the true outermost
+		// level (production's actual scenario) was verified separately against
+		// a dedicated connection outside this suite's wrapping transaction.
+		public function begin($textinlog = '')
+		{
+			$this->beginCount++;
+			return parent::begin($textinlog);
+		}
+
+		public function commit($log = '')
+		{
+			$this->commitCount++;
+			return parent::commit($log);
+		}
+
+		public function rollback($log = '')
+		{
+			$this->rollbackCount++;
+			return parent::rollback($log);
+		}
+	}
+}
 
 /**
  * Class TimeEntryTest
@@ -1008,7 +1086,10 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 			$this->assertNotFalse($res);
 			$this->assertNull($db->fetch_object($res), 'Submitted-pending entry row still present after delete()');
 
-			$sql = 'SELECT action FROM '.$db->prefix().'timeflow_timeentry_modification WHERE fk_timeentry = '.((int) $entryId);
+			// A-08: submitEntry() now also leaves its own 'submit' audit row on this
+			// same entry, so the delete trace is looked up by its own action rather
+			// than assumed to be the only row.
+			$sql = "SELECT action FROM ".$db->prefix()."timeflow_timeentry_modification WHERE fk_timeentry = ".((int) $entryId)." AND action = '".TimeEntry::MOD_ACTION_DELETE_SUBMITTED_HARD."'";
 			$res = $db->query($sql);
 			$this->assertNotFalse($res);
 			$obj = $db->fetch_object($res);
@@ -1057,8 +1138,10 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 					);
 					$this->assertGreaterThan(0, $entryId, $entry->error ?: implode(', ', $entry->errors));
 
-					// A real manager decision: this is what sets fk_user_valid.
-					$this->assertGreaterThan(0, $entry->validateEntry($entryId, $admin, $decisionStatus), $entry->error ?: implode(', ', $entry->errors));
+					// A real manager decision: this is what sets fk_user_valid. A-08:
+					// rejecting now requires a motif of >=5 characters.
+					$decisionReason = $decisionStatus === TimeEntry::STATUS_CANCELED ? 'Motif de refus pour ce test' : '';
+					$this->assertGreaterThan(0, $entry->validateEntry($entryId, $admin, $decisionStatus, $decisionReason), $entry->error ?: implode(', ', $entry->errors));
 
 					// Simulate status being reported back as DRAFT or SUBMITTED
 					// afterward, without touching fk_user_valid — exactly what a
@@ -1244,6 +1327,180 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$entry = new TimeEntry($db);
 		$this->assertGreaterThan(0, $entry->submitEntry($id, $user), (string) $entry->error);
 		$this->assertSame(TimeEntry::STATUS_SUBMITTED, $this->rawStatus($id));
+	}
+
+	/** Reads one audit row straight from the database (expects exactly one to exist). */
+	private function fetchSingleAuditRow($entryId, $action)
+	{
+		global $db;
+		$sql = 'SELECT * FROM '.$db->prefix().'timeflow_timeentry_modification';
+		$sql .= ' WHERE fk_timeentry = '.((int) $entryId)." AND action = '".$db->escape($action)."'";
+		$res = $db->query($sql);
+		$this->assertNotFalse($res);
+		$rows = array();
+		while ($obj = $db->fetch_object($res)) {
+			$rows[] = $obj;
+		}
+		$this->assertCount(1, $rows, 'Expected exactly one '.$action.' audit row for entry '.$entryId);
+		return $rows[0];
+	}
+
+	/** A-08 (point 2/6): submitEntry() writes exactly one audit row (who/when/old/new status). */
+	public function testSubmitEntryWritesExactlyOneAuditRow()
+	{
+		global $db, $user;
+		$id = $this->createDraftFor($user, 40);
+		$entry = new TimeEntry($db);
+		$this->assertGreaterThan(0, $entry->submitEntry($id, $user), (string) $entry->error);
+
+		$row = $this->fetchSingleAuditRow($id, TimeEntry::MOD_ACTION_SUBMIT);
+		$this->assertSame('status', $row->field_name);
+		$this->assertSame((string) TimeEntry::STATUS_DRAFT, $row->old_value);
+		$this->assertSame((string) TimeEntry::STATUS_SUBMITTED, $row->new_value);
+		$this->assertSame((int) $user->id, (int) $row->fk_user);
+	}
+
+	/** A-08 (point 2/6): validateEntry() writes exactly one audit row for a manager validation. */
+	public function testValidateEntryWritesExactlyOneAuditRow()
+	{
+		global $db, $user;
+		$admin = new User($db);
+		$admin->fetch(1);
+		$admin->admin = 1;
+
+		$id = $this->createDraftFor($user, 41);
+		$submitted = new TimeEntry($db);
+		$this->assertGreaterThan(0, $submitted->submitEntry($id, $user));
+
+		$entry = new TimeEntry($db);
+		$this->assertGreaterThan(0, $entry->validateEntry($id, $admin, TimeEntry::STATUS_VALIDATED), (string) $entry->error);
+
+		$row = $this->fetchSingleAuditRow($id, TimeEntry::MOD_ACTION_VALIDATE);
+		$this->assertSame('status', $row->field_name);
+		$this->assertSame((string) TimeEntry::STATUS_SUBMITTED, $row->old_value);
+		$this->assertSame((string) TimeEntry::STATUS_VALIDATED, $row->new_value);
+		$this->assertSame((int) $admin->id, (int) $row->fk_user);
+	}
+
+	/** A-08 (points 2 et 3/6): un refus écrit une ligne d'audit avec le motif tapé par le manager. */
+	public function testRejectEntryWritesExactlyOneAuditRowWithTypedMotif()
+	{
+		global $db, $user;
+		$admin = new User($db);
+		$admin->fetch(1);
+		$admin->admin = 1;
+
+		$id = $this->createDraftFor($user, 42);
+		$submitted = new TimeEntry($db);
+		$this->assertGreaterThan(0, $submitted->submitEntry($id, $user));
+
+		$entry = new TimeEntry($db);
+		$this->assertGreaterThan(0, $entry->validateEntry($id, $admin, TimeEntry::STATUS_CANCELED, 'Projet annulé par le client'), (string) $entry->error);
+
+		$row = $this->fetchSingleAuditRow($id, TimeEntry::MOD_ACTION_REJECT);
+		$this->assertSame('status', $row->field_name);
+		$this->assertSame((string) TimeEntry::STATUS_SUBMITTED, $row->old_value);
+		$this->assertSame((string) TimeEntry::STATUS_CANCELED, $row->new_value);
+		$this->assertSame('Projet annulé par le client', $row->reason);
+		$this->assertSame((int) $admin->id, (int) $row->fk_user);
+	}
+
+	/** A-08 (point 3/6): a refusal without a real motif is refused up front — no status change, no audit row. */
+	public function testRejectEntryRefusesAMotifUnderFiveCharacters()
+	{
+		global $db, $user;
+		$admin = new User($db);
+		$admin->fetch(1);
+		$admin->admin = 1;
+
+		$id = $this->createDraftFor($user, 43);
+		$submitted = new TimeEntry($db);
+		$this->assertGreaterThan(0, $submitted->submitEntry($id, $user));
+
+		$entry = new TimeEntry($db);
+		$this->assertSame(-1, $entry->validateEntry($id, $admin, TimeEntry::STATUS_CANCELED, 'abc'));
+		$this->assertStringContainsString('motif', $entry->error);
+		$this->assertSame(TimeEntry::STATUS_SUBMITTED, $this->rawStatus($id));
+
+		$sql = 'SELECT COUNT(*) AS c FROM '.$db->prefix().'timeflow_timeentry_modification';
+		$sql .= " WHERE fk_timeentry = ".((int) $id)." AND action = '".TimeEntry::MOD_ACTION_REJECT."'";
+		$res = $db->query($sql);
+		$this->assertSame(0, (int) $db->fetch_object($res)->c);
+	}
+
+	/** A-08 (point 4/6): "mass validation" is repeated single calls — each writes its own row, never one merged row. */
+	public function testRepeatedValidationsEachWriteTheirOwnAuditRow()
+	{
+		global $db, $user;
+		$admin = new User($db);
+		$admin->fetch(1);
+		$admin->admin = 1;
+
+		$ids = array();
+		foreach (array(44, 45, 46) as $offset) {
+			$draftId = $this->createDraftFor($user, $offset);
+			$submitted = new TimeEntry($db);
+			$this->assertGreaterThan(0, $submitted->submitEntry($draftId, $user));
+			$ids[] = $draftId;
+		}
+
+		foreach ($ids as $id) {
+			$entry = new TimeEntry($db);
+			$this->assertGreaterThan(0, $entry->validateEntry($id, $admin, TimeEntry::STATUS_VALIDATED), (string) $entry->error);
+		}
+
+		$sql = 'SELECT COUNT(*) AS c FROM '.$db->prefix().'timeflow_timeentry_modification';
+		$sql .= " WHERE action = '".TimeEntry::MOD_ACTION_VALIDATE."' AND fk_timeentry IN (".implode(',', array_map('intval', $ids)).')';
+		$res = $db->query($sql);
+		$this->assertSame(3, (int) $db->fetch_object($res)->c, 'Expected exactly one validate row per entry, not merged or missing');
+	}
+
+	/**
+	 * A-08 (point 3/6): if the audit insert fails, submitEntry() must take the
+	 * rollback branch (not the commit branch) around its own status change, and
+	 * the failed INSERT itself must never reach the audit table (no orphan
+	 * trace). Simulated with a DB test double (not a DDL rename/alter: MariaDB
+	 * issues an implicit commit on DDL, which would defeat the very transaction
+	 * isolation being tested) that fails only the one INSERT into the audit
+	 * table, while every other call — including the real status UPDATE —
+	 * goes through unchanged.
+	 *
+	 * Checking commit()/rollback() call counts rather than the row's persisted
+	 * status afterward is deliberate: this whole suite already runs inside one
+	 * outer transaction (see setUpBeforeClass()), so a nested rollback() here
+	 * only decrements DoliDB's in-PHP counter and cannot issue a real SQL
+	 * ROLLBACK without also undoing every other test's fixtures — persisted
+	 * status would misleadingly still read SUBMITTED regardless of which
+	 * branch submitEntry() took. See TimeflowAuditInsertFailureDb's comment.
+	 */
+	public function testFailedAuditInsertRollsBackTheStatusChangeToo()
+	{
+		global $db, $user;
+		$id = $this->createDraftFor($user, 47);
+
+		$entry = new TimeEntry($db);
+		$decorated = TimeflowAuditInsertFailureDb::wrap($db, 'timeflow_timeentry_modification');
+		$entry->db = $decorated;
+
+		$caught = null;
+		try {
+			$entry->submitEntry($id, $user);
+		} catch (TimeflowSqlException $e) {
+			$caught = $e;
+		}
+		$this->assertNotNull($caught, 'Expected a TimeflowSqlException when the audit insert fails');
+		// updateCommon() legitimately calls commit() once for its own internal
+		// transaction around the status UPDATE, win or lose — that's existing core
+		// behavior, not something submitEntry() controls. What submitEntry() itself
+		// must do, and the only thing this asserts, is call rollback() once more as
+		// its own resolving call once the audit insert throws.
+		$this->assertSame(1, $decorated->commitCount, "updateCommon()'s own internal commit of the status UPDATE");
+		$this->assertSame(1, $decorated->rollbackCount, 'submitEntry() must call rollback() exactly once when the audit insert fails');
+
+		$sql = 'SELECT COUNT(*) AS c FROM '.$db->prefix().'timeflow_timeentry_modification';
+		$sql .= " WHERE fk_timeentry = ".((int) $id)." AND action = '".TimeEntry::MOD_ACTION_SUBMIT."'";
+		$res = $db->query($sql);
+		$this->assertSame(0, (int) $db->fetch_object($res)->c, 'No orphan audit row should survive a rolled-back submission');
 	}
 
 	/**

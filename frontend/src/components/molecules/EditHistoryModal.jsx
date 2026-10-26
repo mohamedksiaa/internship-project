@@ -24,6 +24,41 @@ function formatChangedValue(fieldName, value) {
   return match ? match[1] : raw || '—';
 }
 
+// TimeEntry::STATUS_* (see class/timeentry.class.php): raw values stored by
+// logModifications() for field_name='status' — meaningless to a manager
+// without translation (A-08's submit/validate/reject rows all touch this
+// field).
+const STATUS_VALUE_LABEL_KEYS = {
+  0: 'history.status_draft',
+  1: 'history.status_submitted',
+  2: 'history.status_validated',
+  9: 'history.status_canceled',
+};
+
+// TimeEntry::MOD_ACTION_SUBMIT/VALIDATE/REJECT: the only actions whose
+// reason column is not user-facing text (see TimeEntry::submitEntry()/
+// validateEntry()) — shown instead as a translated action label.
+const ACTION_LABEL_KEYS = {
+  submit: 'history.action_submit',
+  validate: 'history.action_validate',
+  reject: 'history.action_reject',
+};
+
+function fieldLabel(fieldName, t) {
+  if (fieldName === 'date_start') return t('history.start');
+  if (fieldName === 'date_end') return t('history.end');
+  if (fieldName === 'status') return t('history.status_field');
+  return fieldName;
+}
+
+function displayValue(row, value, t) {
+  if (row.field_name === 'status') {
+    const key = STATUS_VALUE_LABEL_KEYS[Number(value)];
+    return key ? t(key) : formatChangedValue(row.field_name, value);
+  }
+  return formatChangedValue(row.field_name, value);
+}
+
 function isActualChange(row) {
   const oldValue = String(row.old_value ?? '');
   const newValue = String(row.new_value ?? '');
@@ -103,13 +138,21 @@ export default function EditHistoryModal({ entry, onClose }) {
                   <span className="tw-font-medium tw-text-[#2c3e49]">{editorName(row, t)}</span>
                   <span className="tw-text-xs tw-text-[#71838f]">{formatDateTime(row.date_modification || row.date_creation)}</span>
                 </div>
+                {ACTION_LABEL_KEYS[row.action] && (
+                  <p className="tw-mb-2 tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-[#3f8ae0]">{t(ACTION_LABEL_KEYS[row.action])}</p>
+                )}
                 <div className="tw-grid tw-grid-cols-2 tw-gap-2 tw-text-[#4d606b]">
-                  <span>{row.field_name === 'date_start' ? t('history.start') : row.field_name === 'date_end' ? t('history.end') : row.field_name}</span>
-                  <span className="tw-text-right"><span className="tw-line-through tw-text-[#a08]">{formatChangedValue(row.field_name, row.old_value)}</span>{' → '}<span className="tw-font-medium tw-text-[#2c3e49]">{formatChangedValue(row.field_name, row.new_value)}</span></span>
+                  <span>{fieldLabel(row.field_name, t)}</span>
+                  <span className="tw-text-right"><span className="tw-line-through tw-text-[#a08]">{displayValue(row, row.old_value, t)}</span>{' → '}<span className="tw-font-medium tw-text-[#2c3e49]">{displayValue(row, row.new_value, t)}</span></span>
                 </div>
-                <p className="tw-mt-2 tw-border-t tw-border-[#e3ebef] tw-pt-2 tw-text-[#52656f]">
-                  <span className="tw-font-medium tw-text-[#2c3e49]">{t('history.reason')}</span> {row.reason}
-                </p>
+                {/* submit/validate store a non-displayed technical sentinel in `reason`
+                    (see TimeEntry::submitEntry()/validateEntry()) — only a reject carries
+                    a real, manager-typed motif worth showing. */}
+                {row.action !== 'submit' && row.action !== 'validate' && (
+                  <p className="tw-mt-2 tw-border-t tw-border-[#e3ebef] tw-pt-2 tw-text-[#52656f]">
+                    <span className="tw-font-medium tw-text-[#2c3e49]">{t('history.reason')}</span> {row.reason}
+                  </p>
+                )}
                 {row.ip && (
                   <p className="tw-mt-1 tw-text-xs tw-text-[#8a9aa4]">{t('history.ip')}: {row.ip}{row.user_agent ? ` · ${row.user_agent.slice(0, 60)}…` : ''}</p>
                 )}

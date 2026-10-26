@@ -174,7 +174,15 @@
     "end": "Ende",
     "ip": "IP",
     "complete_report": "Vollständiger Bericht",
-    "report_close": "Schließen"
+    "report_close": "Schließen",
+    "action_submit": "Eingereicht",
+    "action_validate": "Genehmigt",
+    "action_reject": "Abgelehnt",
+    "status_field": "Status",
+    "status_draft": "Entwurf",
+    "status_submitted": "Eingereicht",
+    "status_validated": "Genehmigt",
+    "status_canceled": "Abgelehnt"
   },
   "project_selector": {
     "placeholder": "Projekt",
@@ -411,6 +419,10 @@
     "edit_title": "Zeiteintrag bearbeiten",
     "edit_manual_message": "Diese Korrektur wird protokolliert.",
     "edit_reason": "Grund (obligatorisch, mindestens 5 Zeichen)",
+    "reject_title": "Diesen Eintrag ablehnen?",
+    "reject_message": "Geben Sie den Ablehnungsgrund an: der Mitarbeiter sieht ihn im Verlauf dieses Eintrags.",
+    "reject_reason": "Ablehnungsgrund (obligatorisch, mindestens 5 Zeichen)",
+    "error_reject_reason_required": "Der Ablehnungsgrund ist erforderlich und muss mindestens 5 Zeichen lang sein.",
     "saving": "Wird gespeichert…",
     "close": "Schließen",
     "delete_title": "Eintrag löschen",

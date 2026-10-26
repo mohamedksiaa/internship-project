@@ -174,7 +174,15 @@
     "end": "Fin",
     "ip": "IP",
     "complete_report": "Compte-rendu complet",
-    "report_close": "Fermer"
+    "report_close": "Fermer",
+    "action_submit": "Soumise",
+    "action_validate": "Validée",
+    "action_reject": "Refusée",
+    "status_field": "Statut",
+    "status_draft": "Brouillon",
+    "status_submitted": "Soumise",
+    "status_validated": "Validée",
+    "status_canceled": "Refusée"
   },
   "project_selector": {
     "placeholder": "Projet",
@@ -412,6 +420,10 @@
     "edit_title": "Modifier l’entrée de temps",
     "edit_manual_message": "Cette correction sera tracée.",
     "edit_reason": "Raison (obligatoire, 5 caractères minimum)",
+    "reject_title": "Refuser cette entrée ?",
+    "reject_message": "Indiquez le motif du refus : l’employé le verra dans l’historique de cette entrée.",
+    "reject_reason": "Motif du refus (obligatoire, 5 caractères minimum)",
+    "error_reject_reason_required": "Le motif du refus est obligatoire et doit contenir au moins 5 caractères.",
     "saving": "Enregistrement…",
     "close": "Fermer",
     "delete_title": "Supprimer l’entrée",

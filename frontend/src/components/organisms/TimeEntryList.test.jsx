@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import TimeEntryList from './TimeEntryList';
 import i18n from '../../i18n';
-import { correctTimeEntry, deleteTimeEntry, submitEntry } from '../../api/timeflowApi';
+import { correctTimeEntry, deleteTimeEntry, rejectTimeEntry, submitEntry } from '../../api/timeflowApi';
 
 vi.mock('../../api/timeflowApi', () => ({
   approveTimeEntry: vi.fn(), correctTimeEntry: vi.fn(), deleteTimeEntry: vi.fn(), rejectTimeEntry: vi.fn(), submitEntry: vi.fn(), getModificationHistory: vi.fn().mockResolvedValue([]),
@@ -114,6 +114,63 @@ describe('TimeEntryList validation mode', () => {
     await user.click(screen.getByRole('button', { name: 'Soumettre' }));
     expect(submitEntry).toHaveBeenCalledWith(42);
     expect(setEntries).toHaveBeenCalled();
+  });
+
+  // A-08: a refusal always carries a manager-typed motif, stored in the audit
+  // trail and shown to the employee — unlike approve, which needs none.
+  it('A-08: clicking × opens a motif modal, keeps the confirm button disabled under 5 characters, and sends the typed motif', async () => {
+    rejectTimeEntry.mockReset().mockResolvedValue({ id: 42, status: 9 });
+    const setEntries = vi.fn();
+    const user = userEvent.setup();
+    render(<TimeEntryList entries={[{ ...entry, status: 1 }]} showValidationActions setEntries={setEntries} />);
+
+    await user.click(screen.getByTitle('Refuser'));
+    expect(rejectTimeEntry).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Refuser cette entrée ?')).toBeInTheDocument();
+
+    const confirmButton = screen.getByRole('button', { name: 'Refuser', exact: true });
+    const textarea = screen.getByLabelText('Motif du refus (obligatoire, 5 caractères minimum)');
+    expect(confirmButton).toBeDisabled();
+
+    await user.type(textarea, 'abc');
+    expect(confirmButton).toBeDisabled();
+
+    await user.clear(textarea);
+    await user.type(textarea, 'Projet annulé');
+    expect(confirmButton).not.toBeDisabled();
+
+    await user.click(confirmButton);
+    expect(rejectTimeEntry).toHaveBeenCalledWith(42, 'Projet annulé');
+    expect(setEntries).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('A-08: "Annuler" on the reject modal never calls rejectTimeEntry and leaves the entry untouched', async () => {
+    rejectTimeEntry.mockReset();
+    const setEntries = vi.fn();
+    const user = userEvent.setup();
+    render(<TimeEntryList entries={[{ ...entry, status: 1 }]} showValidationActions setEntries={setEntries} />);
+
+    await user.click(screen.getByTitle('Refuser'));
+    await user.type(screen.getByLabelText('Motif du refus (obligatoire, 5 caractères minimum)'), 'Peu importe');
+    await user.click(screen.getByRole('button', { name: 'Annuler' }));
+
+    expect(rejectTimeEntry).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('A-08: surfaces the server error on the reject modal without closing it', async () => {
+    rejectTimeEntry.mockReset().mockRejectedValue(new Error('Erreur au refus'));
+    const user = userEvent.setup();
+    render(<TimeEntryList entries={[{ ...entry, status: 1 }]} showValidationActions setEntries={vi.fn()} />);
+
+    await user.click(screen.getByTitle('Refuser'));
+    await user.type(screen.getByLabelText('Motif du refus (obligatoire, 5 caractères minimum)'), 'Projet annulé');
+    await user.click(screen.getByRole('button', { name: 'Refuser', exact: true }));
+
+    expect(await screen.findByText('Erreur au refus')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   it('marks a midnight-split pair with the continuation link, distinct from the resume/segments badge', () => {

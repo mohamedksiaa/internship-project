@@ -1948,7 +1948,11 @@ switch ($action) {
 
     case 'submitEntry':
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        $res = $timeentry->submitEntry($id, $user);
+        try {
+            $res = $timeentry->submitEntry($id, $user);
+        } catch (TimeflowSqlException $e) {
+            timeflowJsonResponse(timeflowSqlErrorPayload($e, $user), 503);
+        }
         if ($res > 0) {
             timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
         }
@@ -2683,7 +2687,11 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        $res = $timeentry->validateEntry($id, $user, TimeEntry::STATUS_VALIDATED);
+        try {
+            $res = $timeentry->validateEntry($id, $user, TimeEntry::STATUS_VALIDATED);
+        } catch (TimeflowSqlException $e) {
+            timeflowJsonResponse(timeflowSqlErrorPayload($e, $user), 503);
+        }
         if ($res > 0) {
             timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
         }
@@ -2695,7 +2703,15 @@ switch ($action) {
             timeflowJsonResponse(array('status' => 'error', 'message' => 'Accès refusé'), 403);
         }
         $id = !empty($postData['id']) ? (int) $postData['id'] : (int) GETPOST('id', 'int');
-        $res = $timeentry->validateEntry($id, $user, TimeEntry::STATUS_CANCELED);
+        $reason = trim((string) ($postData['reason'] ?? GETPOST('reason', 'restricthtml')));
+        if (mb_strlen($reason) < 5) {
+            timeflowJsonResponse(array('status' => 'error', 'message' => 'Le motif du refus est obligatoire (5 caractères minimum).'), 400);
+        }
+        try {
+            $res = $timeentry->validateEntry($id, $user, TimeEntry::STATUS_CANCELED, $reason);
+        } catch (TimeflowSqlException $e) {
+            timeflowJsonResponse(timeflowSqlErrorPayload($e, $user), 503);
+        }
         if ($res > 0) {
             timeflowJsonResponse(array('status' => 'success', 'data' => timeflowExportTimeEntry($timeentry)));
         }
