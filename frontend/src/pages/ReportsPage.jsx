@@ -18,6 +18,7 @@ import {
 } from '../api/timeflowApi';
 import StatusBadge from '../components/atoms/StatusBadge';
 import TruncatedText from '../components/atoms/TruncatedText';
+import RejectReasonText from '../components/atoms/RejectReasonText.jsx';
 import PresenceBadge from '../components/atoms/PresenceBadge.jsx';
 import ExpectedAbsenceDialog from '../components/molecules/ExpectedAbsenceDialog.jsx';
 import ConfirmRemoveAbsenceDialog from '../components/molecules/ConfirmRemoveAbsenceDialog.jsx';
@@ -1133,8 +1134,8 @@ export default function ReportsPage() {
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{dateTime(entry.date_end)}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0 tw-max-w-[220px]">
                           <StatusBadge status={Number(entry.status)} />
-                          {Number(entry.status) === 9 && entry.reject_reason && (
-                            <TruncatedText text={entry.reject_reason} className="tw-mt-1 tw-text-xs tw-text-rose-600 dark:tw-text-rose-300" />
+                          {Number(entry.status) === 9 && (
+                            <RejectReasonText reason={entry.reject_reason} className="tw-mt-1 tw-text-xs tw-text-rose-600 dark:tw-text-rose-300" />
                           )}
                         </td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">

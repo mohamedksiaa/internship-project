@@ -175,10 +175,21 @@ describe('TimeEntryList validation mode', () => {
 
   // A-08-bis: the motif must be visible in clear text under the refused row
   // itself (not hover-only — invisible on mobile/touch, per the adjustment).
-  it('A-08-bis: shows the reject motif in clear text under the Refusé badge on "Suivi du temps"', () => {
+  it('A-08-bis: shows the reject motif in clear text, prefixed with "Motif : ", under the Refusé badge on "Suivi du temps"', () => {
     render(<TimeEntryList entries={[{ ...entry, status: 9, reject_reason: 'Projet annulé par le client' }]} setEntries={vi.fn()} />);
     expect(screen.getByText('Refusé')).toBeInTheDocument();
-    expect(screen.getByText('Projet annulé par le client')).toBeInTheDocument();
+    expect(screen.getByText('Motif : Projet annulé par le client')).toBeInTheDocument();
+  });
+
+  it('A-08-bis: clicking the (truncated) motif on "Suivi du temps" reveals it in full — tap stands in for hover on touch', async () => {
+    const user = userEvent.setup();
+    render(<TimeEntryList entries={[{ ...entry, status: 9, reject_reason: 'Projet annulé par le client' }]} setEntries={vi.fn()} />);
+
+    const motif = screen.getByRole('button', { name: 'Afficher le motif complet' });
+    expect(motif.className).toContain('tw-truncate');
+
+    await user.click(motif);
+    expect(screen.getByRole('button', { name: 'Réduire le motif' }).className).toContain('tw-whitespace-normal');
   });
 
   it('A-08-bis: shows no motif text for a non-refused entry even if reject_reason is somehow present', () => {
@@ -189,6 +200,7 @@ describe('TimeEntryList validation mode', () => {
   it('A-08-bis: shows nothing extra for a refused entry with no reject_reason (defensive, no crash)', () => {
     render(<TimeEntryList entries={[{ ...entry, status: 9, reject_reason: null }]} setEntries={vi.fn()} />);
     expect(screen.getByText('Refusé')).toBeInTheDocument();
+    expect(screen.queryByText(/^Motif :/)).not.toBeInTheDocument();
   });
 
   it('marks a midnight-split pair with the continuation link, distinct from the resume/segments badge', () => {

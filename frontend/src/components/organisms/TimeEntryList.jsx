@@ -4,6 +4,7 @@ import { approveTimeEntry, correctTimeEntry, deleteTimeEntry, rejectTimeEntry, s
 import { formatDuration } from '../../utils/FormatDuration.js';
 import StatusBadge from '../atoms/StatusBadge.jsx';
 import TruncatedText from '../atoms/TruncatedText.jsx';
+import RejectReasonText from '../atoms/RejectReasonText.jsx';
 import EditHistoryModal from '../molecules/EditHistoryModal.jsx';
 
 function entryDate(value) {
@@ -590,8 +591,8 @@ export default function TimeEntryList({
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-max-w-[180px]">
                       <StatusBadge status={Number(entry.status)} />
-                      {Number(entry.status) === 9 && entry.reject_reason && (
-                        <TruncatedText text={entry.reject_reason} className="tw-mt-1 tw-text-xs tw-text-rose-600 dark:tw-text-rose-300" />
+                      {Number(entry.status) === 9 && (
+                        <RejectReasonText reason={entry.reject_reason} className="tw-mt-1 tw-text-xs tw-text-rose-600 dark:tw-text-rose-300" />
                       )}
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-text-right tw-font-bold tw-text-[#2b3d48] dark:tw-text-slate-100 tw-whitespace-nowrap">
