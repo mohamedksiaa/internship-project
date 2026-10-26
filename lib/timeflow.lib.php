@@ -216,6 +216,64 @@ function timeflowManualEditedSqlPredicate($db, $tableAlias = 't')
 }
 
 /**
+ * Attaches the manager-typed rejection motif (A-08-bis) to every row of an
+ * already-built, already-rights-filtered $rows array (as produced by
+ * timeflowExportTimeEntry() in a loop): $row['reject_reason'] = the reason
+ * of that entry's LAST action='reject' audit row, or null for anything that
+ * isn't currently refused.
+ *
+ * Exactly one extra query for the whole page, regardless of how many rows
+ * it contains or how many of them are refused — never one query per row.
+ * Safe to call on rows scoped to a single user (calendar, "my entries") or
+ * to every user (manager's Historique traité): it only ever asks for the
+ * reason of ids already present in $rows, which the caller has already
+ * filtered by rights, so it can never leak another user's motif.
+ *
+ * Lives here (not in ajax/timeentry.php, where its three callers are)
+ * so it can be exercised directly by a PHPUnit test without pulling in
+ * that file's own HTTP dispatch — same reasoning as timeflowBuildSummary()
+ * and timeflowBuildGlobalCsvRows().
+ */
+function timeflowAttachRejectReasons(&$rows)
+{
+    global $db;
+
+    $canceledIds = array();
+    foreach ($rows as &$row) {
+        $row['reject_reason'] = null;
+        if ((int) ($row['status'] ?? 0) === TimeEntry::STATUS_CANCELED) {
+            $id = (int) ($row['id'] ?? $row['rowid'] ?? 0);
+            if ($id > 0) {
+                $canceledIds[] = $id;
+            }
+        }
+    }
+    unset($row);
+
+    if (empty($canceledIds)) {
+        return;
+    }
+
+    $sql = 'SELECT m1.fk_timeentry, m1.reason FROM '.$db->prefix().'timeflow_timeentry_modification m1'
+        .' INNER JOIN (SELECT fk_timeentry, MAX(rowid) AS max_rowid FROM '.$db->prefix().'timeflow_timeentry_modification'
+        ." WHERE action = '".TimeEntry::MOD_ACTION_REJECT."' AND fk_timeentry IN (".implode(',', array_unique($canceledIds)).')'
+        .' GROUP BY fk_timeentry) m2 ON m2.max_rowid = m1.rowid';
+    $resql = timeflowQuery($db, $sql, 'timeflowAttachRejectReasons');
+    $reasons = array();
+    while ($resql && ($obj = $db->fetch_object($resql))) {
+        $reasons[(int) $obj->fk_timeentry] = $obj->reason;
+    }
+
+    foreach ($rows as &$row) {
+        $id = (int) ($row['id'] ?? $row['rowid'] ?? 0);
+        if (isset($reasons[$id])) {
+            $row['reject_reason'] = $reasons[$id];
+        }
+    }
+    unset($row);
+}
+
+/**
  * A manager may receive this dedicated permission without becoming a Dolibarr
  * administrator. Every non-validation list must use this server-side scope —
  * except the Calendar (timeflowFetchWeeklyTimesheet() in ajax/timeentry.php),

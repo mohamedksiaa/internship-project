@@ -173,6 +173,24 @@ describe('TimeEntryList validation mode', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
+  // A-08-bis: the motif must be visible in clear text under the refused row
+  // itself (not hover-only — invisible on mobile/touch, per the adjustment).
+  it('A-08-bis: shows the reject motif in clear text under the Refusé badge on "Suivi du temps"', () => {
+    render(<TimeEntryList entries={[{ ...entry, status: 9, reject_reason: 'Projet annulé par le client' }]} setEntries={vi.fn()} />);
+    expect(screen.getByText('Refusé')).toBeInTheDocument();
+    expect(screen.getByText('Projet annulé par le client')).toBeInTheDocument();
+  });
+
+  it('A-08-bis: shows no motif text for a non-refused entry even if reject_reason is somehow present', () => {
+    render(<TimeEntryList entries={[{ ...entry, status: 2, reject_reason: 'ne doit jamais apparaître' }]} setEntries={vi.fn()} />);
+    expect(screen.queryByText('ne doit jamais apparaître')).not.toBeInTheDocument();
+  });
+
+  it('A-08-bis: shows nothing extra for a refused entry with no reject_reason (defensive, no crash)', () => {
+    render(<TimeEntryList entries={[{ ...entry, status: 9, reject_reason: null }]} setEntries={vi.fn()} />);
+    expect(screen.getByText('Refusé')).toBeInTheDocument();
+  });
+
   it('marks a midnight-split pair with the continuation link, distinct from the resume/segments badge', () => {
     const dayOne = { id: 100, fk_user: 5, note: 'Oubli chrono', date_start: '2026-08-11T20:00:00Z', date_end: '2026-08-12T00:00:00Z', duration: 4 * 3600, status: 0 };
     const dayTwo = { id: 101, fk_user: 5, note: 'Oubli chrono', date_start: '2026-08-12T00:00:00Z', date_end: '2026-08-12T05:00:00Z', duration: 5 * 3600, status: 0, fk_split_previous: 100 };

@@ -420,7 +420,7 @@
     "edit_manual_message": "Diese Korrektur wird protokolliert.",
     "edit_reason": "Grund (obligatorisch, mindestens 5 Zeichen)",
     "reject_title": "Diesen Eintrag ablehnen?",
-    "reject_message": "Geben Sie den Ablehnungsgrund an: der Mitarbeiter sieht ihn im Verlauf dieses Eintrags.",
+    "reject_message": "Geben Sie den Ablehnungsgrund an: er wird bei diesem Eintrag (Zeiterfassung, Kalender) und unter Berichte > Verarbeiteter Verlauf angezeigt.",
     "reject_reason": "Ablehnungsgrund (obligatorisch, mindestens 5 Zeichen)",
     "error_reject_reason_required": "Der Ablehnungsgrund ist erforderlich und muss mindestens 5 Zeichen lang sein.",
     "saving": "Wird gespeichert…",

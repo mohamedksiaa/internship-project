@@ -8,11 +8,11 @@ const STATUS_LABELS = {
   9: { key: 'status.rejected', color: 'tw-bg-rose-50 tw-text-rose-700 dark:tw-bg-rose-900/40 dark:tw-text-rose-300' },
 };
 
-export default function StatusBadge({ status }) {
+export default function StatusBadge({ status, title }) {
   const { t } = useTranslation();
   const info = STATUS_LABELS[status] ?? STATUS_LABELS[0];
   return (
-    <span className={`tw-inline-flex tw-items-center tw-min-w-0 tw-px-2 tw-py-1 tw-rounded-full tw-text-xs tw-font-medium ${info.color}`}>
+    <span title={title || undefined} className={`tw-inline-flex tw-items-center tw-min-w-0 tw-px-2 tw-py-1 tw-rounded-full tw-text-xs tw-font-medium ${info.color}`}>
       {t(info.key)}
     </span>
   );

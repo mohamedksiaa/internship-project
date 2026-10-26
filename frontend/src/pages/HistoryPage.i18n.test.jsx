@@ -107,6 +107,44 @@ describe('HistoryPage i18n', () => {
     expect(nonBillableTitle.parentElement).not.toContainElement(indicators[0]);
   });
 
+  // A-08-bis: the manager's rejection motif must be reachable on the
+  // calendar too — hover is enough here (unlike "Suivi du temps", which
+  // must show it in clear text — touch has no hover). Same dot pattern as
+  // the billable indicator above, rose-colored, title = the motif.
+  it('A-08-bis: marks a refused event with a reject indicator carrying the motif as its tooltip', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-09T12:00:00Z'));
+    getWeeklyTimesheet.mockResolvedValue({
+      weekStart: '2026-09-07',
+      weekEnd: '2026-09-14',
+      rows: [
+        {
+          id: 1083, fk_user: 1, fk_project: 1, date_start: '2026-09-09T02:00:00Z', date_end: '2026-09-09T02:30:00Z',
+          duration: 1800, note: 'Audit calendrier - refusee', billable: '0', status: 9, reject_reason: 'Projet annulé par le client',
+          user_label: 'SuperAdmin', project_label: 'Projet Test', task_label: '',
+        },
+        {
+          id: 1084, fk_user: 1, fk_project: 1, date_start: '2026-09-09T03:00:00Z', date_end: '2026-09-09T03:30:00Z',
+          duration: 1800, note: 'Audit calendrier - validee', billable: '0', status: 2,
+          user_label: 'SuperAdmin', project_label: 'Projet Test', task_label: '',
+        },
+      ],
+    });
+
+    await i18n.changeLanguage('fr');
+    render(<HistoryPage />);
+
+    await screen.findByText(/Audit calendrier - refusee/);
+    await screen.findByText(/Audit calendrier - validee/);
+
+    const indicators = screen.getAllByTitle('Projet annulé par le client');
+    expect(indicators).toHaveLength(1);
+    const rejectedTitle = screen.getByText(/Audit calendrier - refusee/);
+    const validatedTitle = screen.getByText(/Audit calendrier - validee/);
+    expect(indicators[0].parentElement).toContainElement(rejectedTitle);
+    expect(validatedTitle.parentElement).not.toContainElement(indicators[0]);
+  });
+
   it('renders the calendar-only page without the task/report tab split', async () => {
     getWeeklyTimesheet.mockResolvedValue({
       weekStart: '2026-08-17',
