@@ -27,6 +27,31 @@ if (!class_exists('TimeEntry')) {
 }
 
 /**
+ * A-06: the allow-list of ajax/timeentry.php actions that never write to the
+ * database, and so may be requested over GET as well as POST.
+ *
+ * Deliberately a allow-list, not a deny-list: ajax/timeentry.php's own
+ * method check requires POST for anything NOT in this array, so a new action
+ * added to the switch later and never classified here defaults to POST-only
+ * (fails closed) rather than silently accepting GET. Kept here, not inline
+ * in ajax/timeentry.php, so a PHPUnit test can check it against the actual
+ * list of `case` labels in that file without pulling in its HTTP dispatch
+ * (see timeentryTest.php's testEveryAjaxActionIsClassifiedAsReadOrDefaultsToPost()).
+ *
+ * @return string[]
+ */
+function timeflowAjaxReadActions()
+{
+    return array(
+        'getActiveTimer', 'getProjects', 'getTimeFlowProjects', 'getTimeFlowUsers', 'getUsersPresence',
+        'getMyNotifications', 'getAlertPreferences', 'exportGlobalCsv', 'listActiveThirdParties', 'getTasks',
+        'getTimeEntryUpdates', 'getTimeEntries', 'getValidationEntries', 'getProcessedHistory',
+        'exportProcessedHistory', 'listActiveUsers', 'listUserGroups', 'getMyDailyReports', 'getDailyReports',
+        'getWeeklyTimesheet', 'getSummaryReports', 'getDashboardFilterOptions', 'getModificationHistory',
+    );
+}
+
+/**
  * Prepare admin pages header
  *
  * @return array<array{string,string,string}>

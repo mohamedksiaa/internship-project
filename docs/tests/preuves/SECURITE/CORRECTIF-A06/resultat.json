@@ -1,0 +1,80 @@
+[
+ {
+  "id": "A-06",
+  "name": "GET sur une action d'écriture, jeton valide dans l'URL (style avant correctif)",
+  "ok": true,
+  "detail": "HTTP 405, en-tête Allow: POST — avant correctif : HTTP 200, 1 ligne créée"
+ },
+ {
+  "id": "A-06",
+  "name": "GET sur une action d'écriture, jeton valide dans l'en-tête X-CSRF-Token",
+  "ok": true,
+  "detail": "HTTP 405 — le contrôle de méthode s'applique quel que soit l'emplacement du jeton"
+ },
+ {
+  "id": "A-06",
+  "name": "POST sur une action d'écriture, jeton valide UNIQUEMENT dans l'en-tête",
+  "ok": true,
+  "detail": "HTTP 400 (erreur métier \"raison obligatoire\") — passe les deux contrôles (méthode, jeton), rejeté ensuite par la validation métier normale"
+ },
+ {
+  "id": "A-06",
+  "name": "POST sur une action d'écriture, sans jeton (ni en-tête ni URL)",
+  "ok": true,
+  "detail": "HTTP 403 {\"code\":\"invalid_token\"}"
+ },
+ {
+  "id": "A-06",
+  "name": "POST sur une action d'écriture, jeton valide UNIQUEMENT dans l'URL (plus accepté)",
+  "ok": true,
+  "detail": "HTTP 403 {\"code\":\"invalid_token\"} — confirme que l'URL n'est plus jamais lue pour le jeton"
+ },
+ {
+  "id": "A-06",
+  "name": "POST sur une action d'écriture, jeton incorrect dans l'en-tête",
+  "ok": true,
+  "detail": "HTTP 403 {\"code\":\"invalid_token\"}"
+ },
+ {
+  "id": "A-06",
+  "name": "POST sur une action d'écriture, jeton valide d'une AUTRE session (compte identique, connexion différente)",
+  "ok": true,
+  "detail": "HTTP 403 {\"code\":\"invalid_token\"} — <masqué> (session A) refusé avec le jeton <masqué> (session B)"
+ },
+ {
+  "id": "A-06",
+  "name": "Requête anonyme (sans cookie de session) sur une action d'écriture",
+  "ok": null,
+  "detail": "HTTP 200, page de connexion HTML renvoyée (comportement du noyau Dolibarr, antérieur à ce correctif — voir SEC-14) ; aucune ligne créée"
+ },
+ {
+  "id": "A-06",
+  "name": "GET sur une action de lecture (getActiveTimer), jeton valide dans l'en-tête",
+  "ok": true,
+  "detail": "HTTP 200 — les lectures restent accessibles en GET"
+ },
+ {
+  "id": "A-06",
+  "name": "GET sur exportProcessedHistory (lecture), jeton valide dans l'en-tête",
+  "ok": true,
+  "detail": "HTTP 200"
+ },
+ {
+  "id": "A-06",
+  "name": "GET sur previewClockifyImport (reclassée écriture : INSERT dans llx_timeflow_import_mapping), jeton valide",
+  "ok": true,
+  "detail": "HTTP 405 — confirme la reclassification de previewClockifyImport"
+ },
+ {
+  "id": "A-06",
+  "name": "CORS : en-tête Access-Control-Allow-Origin absent pour une origine étrangère",
+  "ok": true,
+  "detail": "ACAO=absent (non-régression, inchangé depuis SEC-09)"
+ },
+ {
+  "id": "A-06",
+  "name": "Journaux Apache : le jeton n'apparaît plus dans l'URL pour un appel légitime (en-tête seul)",
+  "ok": true,
+  "detail": "Sur les 9 requêtes \"légitimes\" du scénario (jeton en en-tête), 0 occurrence de 'token=' dans l'URL journalisée ; les 2 seules occurrences de 'token=' dans la fenêtre du test proviennent des requêtes délibérément adversariales (ancien style, pour prouver qu'elles sont désormais rejetées), pas de l'application elle-même — confirmé par ailleurs au niveau du code source (frontend/src/api/timeflowApi.js ne construit plus jamais d'URL avec 'token=', vérifié par grep et par des tests Vitest dédiés)"
+ }
+]

@@ -22,6 +22,7 @@
     "section_manage": "VERWALTEN",
     "service_unavailable": "Dienst vorübergehend nicht verfügbar, bitte erneut versuchen.",
     "session_expired": "Ihre Sitzung ist abgelaufen, bitte melden Sie sich erneut an.",
+    "session_renewed_reload": "Ihre Sitzung wurde in einem anderen Tab erneuert. Laden Sie diese Seite neu, um fortzufahren.",
     "network_error": "Der Server ist nicht erreichbar. Überprüfen Sie Ihre Netzwerkverbindung und versuchen Sie es erneut."
   },
   "status": {

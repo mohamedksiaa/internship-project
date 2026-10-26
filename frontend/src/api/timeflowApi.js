@@ -74,11 +74,40 @@ function normalizeEntries(payload) {
 }
 
 function getApiHeaders(body) {
-  const headers = { Accept: 'application/json' };
+  // A-06: the CSRF token travels only in this header now — never the URL
+  // (Apache access logs, browser history, Referer) nor the request body.
+  // Works identically for a JSON body (moduleTimerRequest) and a
+  // multipart/form-data one (previewClockifyImport/executeClockifyImport),
+  // unlike the body, which has two different shapes across this file.
+  const headers = { Accept: 'application/json', 'X-CSRF-Token': TIMEFLOW_TOKEN };
   if (body) {
     headers['Content-Type'] = 'application/json';
   }
   return headers;
+}
+
+/**
+ * Builds the Error thrown for a non-2xx/`status:'error'` API response,
+ * shared by moduleTimerRequest() and the two multipart upload functions
+ * below (previewClockifyImport/executeClockifyImport) so the three agree on
+ * how 'sql_error' and 'invalid_token' are turned into a translated message.
+ */
+function timeflowBuildApiError(data, fallbackMessage) {
+  // 'sql_error' (timeflowSqlErrorPayload(), PHP, generic) carries a French-only message —
+  // substitute the already-translated one. 'invalid_token' (A-06) means the CSRF token held
+  // by this tab was rolled server-side — typically another tab loading a normal Dolibarr page
+  // — so only a reload can fetch a fresh one; a retry with the same token would fail again. A
+  // more specific code (e.g. 'import_sql_error') keeps its own message: that caller builds its
+  // own translated sentence from 'data' (see ImportPreviewModal.jsx).
+  const message = data?.code === 'sql_error'
+    ? i18n.t('app.service_unavailable')
+    : data?.code === 'invalid_token'
+    ? i18n.t('app.session_renewed_reload')
+    : (data?.message || data?.error || fallbackMessage);
+  const err = new Error(message);
+  if (data?.code) err.code = data.code;
+  if (data?.data !== undefined) err.data = data.data;
+  return err;
 }
 
 export function buildApiUrl(action, baseUrl = MODULE_AJAX_URL) {
@@ -92,8 +121,10 @@ async function moduleTimerRequest(action, body = null) {
     return handleMockRequest(action, body);
   }
 
+  // A-06: no more '&token=' here — the token travels in the X-CSRF-Token
+  // header (see getApiHeaders()), never the URL.
+  const url = buildApiUrl(action);
   // Instrumentation: record timing and response size for diagnostics
-  const url = `${buildApiUrl(action)}&token=${encodeURIComponent(TIMEFLOW_TOKEN)}`;
   const start = Date.now();
   let response;
   try {
@@ -138,17 +169,7 @@ async function moduleTimerRequest(action, body = null) {
   }
 
   if (!response.ok || data?.status === 'error') {
-    // 'sql_error' (timeflowSqlErrorPayload(), PHP, generic) carries a French-only message —
-    // substitute the already-translated one, same as the non-JSON branch above. A more
-    // specific code (e.g. 'import_sql_error') keeps its own message: that caller builds its
-    // own translated sentence from 'data' (see ImportPreviewModal.jsx).
-    const message = data?.code === 'sql_error'
-      ? i18n.t('app.service_unavailable')
-      : (data?.message || data?.error || `Erreur du chrono (${response.status})`);
-    const err = new Error(message);
-    if (data?.code) err.code = data.code;
-    if (data?.data !== undefined) err.data = data.data;
-    throw err;
+    throw timeflowBuildApiError(data, `Erreur du chrono (${response.status})`);
   }
 
   return data;
@@ -900,10 +921,13 @@ export async function previewClockifyImport(file) {
   const formData = new FormData();
   formData.append('csv_file', file);
 
-  const url = `${buildApiUrl('previewClockifyImport')}&token=${encodeURIComponent(TIMEFLOW_TOKEN)}`;
+  // A-06: no more '&token=' here — the token travels in the X-CSRF-Token
+  // header (getApiHeaders(null): Accept + the token, no Content-Type, so the
+  // browser still generates the multipart boundary itself).
+  const url = buildApiUrl('previewClockifyImport');
   const response = await fetch(url, {
     method: 'POST',
-    headers: { Accept: 'application/json' },
+    headers: getApiHeaders(null),
     credentials: 'include',
     body: formData,
   });
@@ -917,7 +941,7 @@ export async function previewClockifyImport(file) {
   }
 
   if (!response.ok || data?.status === 'error') {
-    throw new Error(data?.message || data?.error || `Erreur d’import (${response.status})`);
+    throw timeflowBuildApiError(data, `Erreur d’import (${response.status})`);
   }
 
   return data?.data ?? data;
@@ -952,10 +976,11 @@ export async function executeClockifyImport(file) {
   const formData = new FormData();
   formData.append('csv_file', file);
 
-  const url = `${buildApiUrl('executeClockifyImport')}&token=${encodeURIComponent(TIMEFLOW_TOKEN)}`;
+  // A-06: no more '&token=' here — same header-based token as previewClockifyImport above.
+  const url = buildApiUrl('executeClockifyImport');
   const response = await fetch(url, {
     method: 'POST',
-    headers: { Accept: 'application/json' },
+    headers: getApiHeaders(null),
     credentials: 'include',
     body: formData,
   });
@@ -969,7 +994,7 @@ export async function executeClockifyImport(file) {
   }
 
   if (!response.ok || data?.status === 'error') {
-    throw new Error(data?.message || data?.error || `Erreur d’exécution de l’import (${response.status})`);
+    throw timeflowBuildApiError(data, `Erreur d’exécution de l’import (${response.status})`);
   }
 
   return data?.data ?? data;

@@ -2019,4 +2019,69 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 
 		return count($legacyRows);
 	}
+
+	/**
+	 * A-06 (adjustment 1): timeflowAjaxReadActions() (lib/timeflow.lib.php) is
+	 * an allow-list of GET-safe actions — ajax/timeentry.php requires POST
+	 * for anything NOT in it, so an action added to the switch later and
+	 * never classified defaults to POST-only (fails closed), never silently
+	 * open over GET. This test is pure static analysis (reads the ajax file
+	 * as text, never includes it — its top-level HTTP dispatch is not
+	 * reachable from PHPUnit, see the other tests' own comments on this) and
+	 * exists to catch drift in either direction:
+	 *  - a `case` added to or removed from the switch without this test's
+	 *    own $knownActions list being updated (forces a conscious look);
+	 *  - a typo or stale name in timeflowAjaxReadActions() itself (would
+	 *    silently make an action POST-only, or stay silently absent);
+	 *  - the complement (every action NOT in the read allow-list) drifting
+	 *    away from the write/read split this PR's plan was audited against.
+	 */
+	public function testEveryAjaxActionIsClassifiedAsReadOrDefaultsToPost()
+	{
+		$source = file_get_contents(dirname(__DIR__, 2).'/ajax/timeentry.php');
+		$this->assertNotFalse($source, 'Could not read ajax/timeentry.php');
+
+		preg_match_all("/case\s+'([A-Za-z0-9_]+)':/", $source, $matches);
+		$actionsInSwitch = array_values(array_unique($matches[1]));
+		sort($actionsInSwitch);
+
+		// The full, manually-audited set of 44 actions (read body of each
+		// `case` to decide, not just its name — e.g. previewClockifyImport
+		// reads like a read-only preview but actually INSERTs mapping rows).
+		$knownActions = array(
+			'getActiveTimer', 'startTimer', 'createManualEntry', 'submitEntry', 'stopTimer', 'restartTimer',
+			'deleteTimeEntry', 'getProjects', 'getTimeFlowProjects', 'getTimeFlowUsers', 'getUsersPresence',
+			'saveExpectedAbsence', 'deleteExpectedAbsence', 'getMyNotifications', 'markNotificationsRead',
+			'getAlertPreferences', 'saveAlertPreferences', 'exportGlobalCsv', 'listActiveThirdParties', 'getTasks',
+			'getTimeEntryUpdates', 'getTimeEntries', 'getValidationEntries', 'getProcessedHistory',
+			'exportProcessedHistory', 'previewClockifyImport', 'executeClockifyImport', 'listActiveUsers',
+			'listUserGroups', 'resolveClockifyMapping', 'saveDailyReport', 'updateDailyReport', 'deleteDailyReport',
+			'getMyDailyReports', 'getDailyReports', 'validateDailyReport', 'rejectDailyReport', 'getWeeklyTimesheet',
+			'getSummaryReports', 'getDashboardFilterOptions', 'validateEntry', 'rejectEntry', 'correctTimeEntry',
+			'getModificationHistory',
+		);
+		sort($knownActions);
+		$this->assertSame($knownActions, $actionsInSwitch, 'A case was added to or removed from the switch without updating this test — classify it (read allow-list, or left POST-only by default) and update both lists here.');
+
+		$readActions = timeflowAjaxReadActions();
+		sort($readActions);
+		foreach ($readActions as $readAction) {
+			$this->assertContains($readAction, $actionsInSwitch, "timeflowAjaxReadActions() lists '$readAction', which is not an actual case in the switch (typo or stale name)");
+		}
+
+		// Everything NOT in the read allow-list is, by construction, POST-only
+		// (default-deny) — this is the manually-audited write list from the
+		// A-06 plan, kept here so a reviewer sees explicitly what moved.
+		$expectedPostOnlyActions = array(
+			'startTimer', 'createManualEntry', 'submitEntry', 'stopTimer', 'restartTimer', 'deleteTimeEntry',
+			'correctTimeEntry', 'saveDailyReport', 'updateDailyReport', 'deleteDailyReport', 'validateDailyReport',
+			'rejectDailyReport', 'validateEntry', 'rejectEntry', 'saveExpectedAbsence', 'deleteExpectedAbsence',
+			'markNotificationsRead', 'saveAlertPreferences', 'previewClockifyImport', 'executeClockifyImport',
+			'resolveClockifyMapping',
+		);
+		sort($expectedPostOnlyActions);
+		$actualPostOnlyActions = array_values(array_diff($actionsInSwitch, $readActions));
+		sort($actualPostOnlyActions);
+		$this->assertSame($expectedPostOnlyActions, $actualPostOnlyActions, 'The set of actions left POST-only by default no longer matches the A-06 plan — an action moved without this test being updated.');
+	}
 	}  // @phan-suppress-current-line PhanUndeclaredClass
