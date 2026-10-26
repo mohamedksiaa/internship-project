@@ -84,7 +84,15 @@ if (!class_exists('TimeflowAuditInsertFailureDb')) {
 		public $commitCount = 0;
 		public $rollbackCount = 0;
 
-		public static function wrap(DoliDB $realDb, $failingNeedle)
+		// A-08-bis (performance of timeflowAttachRejectReasons()): optional,
+		// independent of failingNeedle above — counts every query whose SQL
+		// contains $countNeedle, instead of failing it. Lets a test prove "one
+		// query for the whole page, never one per row" without a second
+		// reflective wrap() (same class, two unrelated single-purpose knobs).
+		private $countNeedle = null;
+		public $matchedQueryCount = 0;
+
+		public static function wrap(DoliDB $realDb, $failingNeedle = '', $countNeedle = null)
 		{
 			$decorated = (new ReflectionClass(self::class))->newInstanceWithoutConstructor();
 			$source = new ReflectionObject($realDb);
@@ -95,12 +103,16 @@ if (!class_exists('TimeflowAuditInsertFailureDb')) {
 				$target->setValue($decorated, $prop->getValue($realDb));
 			}
 			$decorated->failingNeedle = $failingNeedle;
+			$decorated->countNeedle = $countNeedle;
 			return $decorated;
 		}
 
 		public function query($query, $usesavepoint = 0, $type = 'auto', $result_mode = 0)
 		{
-			if (stripos(ltrim($query), 'INSERT') === 0 && stripos($query, $this->failingNeedle) !== false) {
+			if ($this->countNeedle !== null && stripos($query, $this->countNeedle) !== false) {
+				$this->matchedQueryCount++;
+			}
+			if ($this->failingNeedle !== '' && stripos(ltrim($query), 'INSERT') === 0 && stripos($query, $this->failingNeedle) !== false) {
 				return false;
 			}
 			return parent::query($query, $usesavepoint, $type, $result_mode);
@@ -1501,6 +1513,120 @@ class TimeEntryTest extends PHPUnit\Framework\TestCase  // @phan-suppress-curren
 		$sql .= " WHERE fk_timeentry = ".((int) $id)." AND action = '".TimeEntry::MOD_ACTION_SUBMIT."'";
 		$res = $db->query($sql);
 		$this->assertSame(0, (int) $db->fetch_object($res)->c, 'No orphan audit row should survive a rolled-back submission');
+	}
+
+	/**
+	 * A-08-bis (point 3): the motif shown to the manager/employee must be the
+	 * one typed on the LAST rejection, not the first — relevant once a refused
+	 * entry has been rejected more than once over its lifetime. Two 'reject'
+	 * audit rows are inserted directly (the public API has no "reject an
+	 * already-refused entry again" path, so this exercises
+	 * timeflowAttachRejectReasons()'s own MAX(rowid) tie-break against data
+	 * shaped the way it would actually accumulate), and the function must
+	 * return the reason of the one with the higher rowid.
+	 */
+	public function testAttachRejectReasonsUsesTheLastRejectRowWhenMultipleExist()
+	{
+		global $db, $user;
+		$admin = new User($db);
+		$admin->fetch(1);
+		$admin->admin = 1;
+
+		$id = $this->createDraftFor($user, 48);
+		$submitted = new TimeEntry($db);
+		$this->assertGreaterThan(0, $submitted->submitEntry($id, $user));
+		$entry = new TimeEntry($db);
+		$this->assertGreaterThan(0, $entry->validateEntry($id, $admin, TimeEntry::STATUS_CANCELED, 'Premier motif'));
+
+		$now = $db->idate(dol_now());
+		$sql = 'INSERT INTO '.$db->prefix().'timeflow_timeentry_modification';
+		$sql .= ' (entity, fk_timeentry, fk_user, action, field_name, old_value, new_value, reason, date_creation, fk_user_creat) VALUES (';
+		$sql .= '1, '.((int) $id).', '.((int) $admin->id).", '".TimeEntry::MOD_ACTION_REJECT."', 'status', '1', '9', 'Deuxieme motif (resoumission simulee)', '".$now."', ".((int) $admin->id).')';
+		$this->assertNotFalse($db->query($sql));
+
+		$rows = array(array('id' => $id, 'status' => TimeEntry::STATUS_CANCELED));
+		timeflowAttachRejectReasons($rows);
+		$this->assertSame('Deuxieme motif (resoumission simulee)', $rows[0]['reject_reason'], 'Expected the reason of the HIGHEST rowid reject row, not the first one inserted');
+	}
+
+	/** A-08-bis (point 3): reject_reason is null for anything that isn't currently refused — never undefined/missing. */
+	public function testAttachRejectReasonsReturnsNullForNonRefusedEntries()
+	{
+		global $db, $user;
+		$admin = new User($db);
+		$admin->fetch(1);
+		$admin->admin = 1;
+
+		$draftId = $this->createDraftFor($user, 49);
+		$submittedId = $this->createDraftFor($user, 50);
+		$submitted = new TimeEntry($db);
+		$this->assertGreaterThan(0, $submitted->submitEntry($submittedId, $user));
+		$validatedId = $this->createDraftFor($user, 51);
+		$toValidate = new TimeEntry($db);
+		$this->assertGreaterThan(0, $toValidate->submitEntry($validatedId, $user));
+		$validateCall = new TimeEntry($db);
+		$this->assertGreaterThan(0, $validateCall->validateEntry($validatedId, $admin, TimeEntry::STATUS_VALIDATED));
+
+		$rows = array(
+			array('id' => $draftId, 'status' => TimeEntry::STATUS_DRAFT),
+			array('id' => $submittedId, 'status' => TimeEntry::STATUS_SUBMITTED),
+			array('id' => $validatedId, 'status' => TimeEntry::STATUS_VALIDATED),
+		);
+		timeflowAttachRejectReasons($rows);
+		foreach ($rows as $row) {
+			$this->assertArrayHasKey('reject_reason', $row);
+			$this->assertNull($row['reject_reason']);
+		}
+	}
+
+	/**
+	 * A-08-bis (performance requirement): "no query per row" on the
+	 * Historique traité — timeflowAttachRejectReasons() must issue exactly
+	 * ONE query for the whole page, regardless of how many refused rows it
+	 * contains. Proven here with 4 refused rows on the same page (not 1,
+	 * which a naive per-row implementation could also satisfy by accident).
+	 */
+	public function testAttachRejectReasonsIssuesExactlyOneQueryForTheWholePage()
+	{
+		global $db, $user;
+		$admin = new User($db);
+		$admin->fetch(1);
+		$admin->admin = 1;
+
+		$rows = array();
+		foreach (array(52, 53, 54, 55) as $offset) {
+			$id = $this->createDraftFor($user, $offset);
+			$submitted = new TimeEntry($db);
+			$this->assertGreaterThan(0, $submitted->submitEntry($id, $user));
+			$rejected = new TimeEntry($db);
+			$this->assertGreaterThan(0, $rejected->validateEntry($id, $admin, TimeEntry::STATUS_CANCELED, 'Motif lot '.$offset));
+			$rows[] = array('id' => $id, 'status' => TimeEntry::STATUS_CANCELED);
+		}
+		// One validated row mixed in: must not add a second query, and must not get a reject_reason.
+		$validatedId = $this->createDraftFor($user, 56);
+		$validatedSubmit = new TimeEntry($db);
+		$this->assertGreaterThan(0, $validatedSubmit->submitEntry($validatedId, $user));
+		$validatedCall = new TimeEntry($db);
+		$this->assertGreaterThan(0, $validatedCall->validateEntry($validatedId, $admin, TimeEntry::STATUS_VALIDATED));
+		$rows[] = array('id' => $validatedId, 'status' => TimeEntry::STATUS_VALIDATED);
+
+		$decorated = TimeflowAuditInsertFailureDb::wrap($db, '', 'MAX(rowid)');
+		$savedDb = $db;
+		$db = $decorated;
+		try {
+			timeflowAttachRejectReasons($rows);
+		} finally {
+			$db = $savedDb;
+		}
+
+		$this->assertSame(1, $decorated->matchedQueryCount, 'Expected exactly one batched query, never one per row');
+		foreach ($rows as $row) {
+			if ((int) $row['status'] === TimeEntry::STATUS_CANCELED) {
+				$this->assertStringContainsString('Motif lot', $row['reject_reason']);
+			} else {
+				$this->assertNull($row['reject_reason']);
+			}
+		}
 	}
 
 	/**

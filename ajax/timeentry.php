@@ -403,6 +403,7 @@ function timeflowFetchVisibleTimeEntries($timeentry, $user, $scope = 'entries', 
             $rows[] = timeflowExportTimeEntry($obj);
         }
     }
+    timeflowAttachRejectReasons($rows);
 
     return array(
         'entries' => $rows,
@@ -1455,6 +1456,8 @@ function timeflowFetchWeeklyTimesheet($timeentry, $user, $weekStart = null)
         }
     }
 
+    timeflowAttachRejectReasons($rows);
+
     $resultPayload = array(
         'weekStart' => date('Y-m-d', $weekStartTs),
         'weekEnd' => date('Y-m-d', $weekEndTs),
@@ -1574,6 +1577,7 @@ function timeflowGetProcessedHistory($input, $user = null)
         $row['processed_at'] = $obj->tms;
         $rows[] = $row;
     }
+    timeflowAttachRejectReasons($rows);
     $employees = array();
     if ($isManagerView) {
         $employeeSql = 'SELECT DISTINCT t.fk_user, u.login, u.firstname, u.lastname FROM '.$db->prefix().'timeflow_timeentry t LEFT JOIN '.$db->prefix().'user u ON u.rowid=t.fk_user WHERE t.entity IN ('.getEntity('timeentry').') AND t.date_delete IS NULL AND t.status IN ('.TimeEntry::STATUS_VALIDATED.','.TimeEntry::STATUS_CANCELED.')';

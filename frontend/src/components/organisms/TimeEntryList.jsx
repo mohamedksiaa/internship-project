@@ -588,8 +588,11 @@ export default function TimeEntryList({
                         </span>
                       )}
                     </td>
-                    <td className="tw-px-3 tw-py-3 tw-whitespace-nowrap">
+                    <td className="tw-px-3 tw-py-3 tw-max-w-[180px]">
                       <StatusBadge status={Number(entry.status)} />
+                      {Number(entry.status) === 9 && entry.reject_reason && (
+                        <TruncatedText text={entry.reject_reason} className="tw-mt-1 tw-text-xs tw-text-rose-600 dark:tw-text-rose-300" />
+                      )}
                     </td>
                     <td className="tw-px-3 tw-py-3 tw-text-right tw-font-bold tw-text-[#2b3d48] dark:tw-text-slate-100 tw-whitespace-nowrap">
                       {formatDuration(displayedDuration(entry))}

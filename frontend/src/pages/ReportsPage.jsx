@@ -1131,7 +1131,12 @@ export default function ReportsPage() {
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{entry.user_label}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{dateTime(entry.date_start)}</td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">{dateTime(entry.date_end)}</td>
-                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0"><StatusBadge status={Number(entry.status)} /></td>
+                        <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0 tw-max-w-[220px]">
+                          <StatusBadge status={Number(entry.status)} />
+                          {Number(entry.status) === 9 && entry.reject_reason && (
+                            <TruncatedText text={entry.reject_reason} className="tw-mt-1 tw-text-xs tw-text-rose-600 dark:tw-text-rose-300" />
+                          )}
+                        </td>
                         <td className="tw-px-2 tw-py-2 tw-border-r tw-border-[#dce5ea] dark:tw-border-slate-700 last:tw-border-r-0">
                           {formatDuration(entry.duration)}
                           {(() => {

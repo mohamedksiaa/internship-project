@@ -421,7 +421,7 @@
     "edit_manual_message": "Cette correction sera tracée.",
     "edit_reason": "Raison (obligatoire, 5 caractères minimum)",
     "reject_title": "Refuser cette entrée ?",
-    "reject_message": "Indiquez le motif du refus : l’employé le verra dans l’historique de cette entrée.",
+    "reject_message": "Indiquez le motif du refus : il sera affiché sur cette saisie (suivi du temps, calendrier) et dans Rapports > Historique traité.",
     "reject_reason": "Motif du refus (obligatoire, 5 caractères minimum)",
     "error_reject_reason_required": "Le motif du refus est obligatoire et doit contenir au moins 5 caractères.",
     "saving": "Enregistrement…",

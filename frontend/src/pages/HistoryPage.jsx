@@ -148,6 +148,7 @@ export default function HistoryPage() {
           duration: entry.duration,
           billable: entry.billable,
           status: entry.status,
+          rejectReason: entry.reject_reason || '',
           startTime: formatTime(start, appLocale),
           endTime: formatTime(end, appLocale),
           projectLabel: project,
@@ -320,6 +321,8 @@ export default function HistoryPage() {
               const endTime = event.extendedProps.endTime;
               const isSmall = event.height < 40;
               const isBillable = Number(event.extendedProps.billable) === 1;
+              const isRejected = Number(event.extendedProps.status) === 9;
+              const rejectedTitle = event.extendedProps.rejectReason || t('status.rejected');
 
               return (
                 <div className="tw-flex tw-h-full tw-flex-col tw-overflow-hidden tw-px-1.5 tw-py-0.5 tw-text-[11px] tw-leading-tight">
@@ -329,6 +332,13 @@ export default function HistoryPage() {
                         title={t('history.billable_indicator')}
                         aria-label={t('history.billable_indicator')}
                         className="tw-inline-block tw-h-1.5 tw-w-1.5 tw-shrink-0 tw-rounded-full tw-bg-emerald-500"
+                      />
+                    )}
+                    {isRejected && (
+                      <span
+                        title={rejectedTitle}
+                        aria-label={rejectedTitle}
+                        className="tw-inline-block tw-h-1.5 tw-w-1.5 tw-shrink-0 tw-rounded-full tw-bg-rose-500"
                       />
                     )}
                     <span className="tw-truncate tw-font-semibold">{event.title}</span>
