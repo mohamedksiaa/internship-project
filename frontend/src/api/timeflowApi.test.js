@@ -112,3 +112,67 @@ describe('deleteTimeEntry', () => {
     expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ id: 42 }));
   });
 });
+
+// A-06: the CSRF token must never appear in the URL (Apache access logs, browser
+// history, Referer) — it travels only in the X-CSRF-Token header now. window.TIMEFLOW_TOKEN
+// is read into a module-level const at import time, so each test here sets it and then
+// re-imports the module fresh (vi.resetModules()) to actually pick up the new value — the
+// describe block above's static `import { ... } from './timeflowApi'` keeps its own original
+// binding (captured before any of this), so this is isolated from it.
+describe('A-06: CSRF token travels in the X-CSRF-Token header, never the URL', () => {
+  afterEach(() => {
+    delete window.TIMEFLOW_TOKEN;
+    vi.resetModules();
+  });
+
+  it('never puts the token in the URL, and sends it as X-CSRF-Token, for a plain JSON action', async () => {
+    window.TIMEFLOW_TOKEN = 'secret-token-abc';
+    vi.resetModules();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify({ status: 'success', data: null })),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { getActiveTimer: freshGetActiveTimer } = await import('./timeflowApi');
+
+    await freshGetActiveTimer();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).not.toContain('token=');
+    expect(options.headers['X-CSRF-Token']).toBe('secret-token-abc');
+  });
+
+  it('sends the token as a header, not the URL, for the multipart CSV upload (previewClockifyImport)', async () => {
+    window.TIMEFLOW_TOKEN = 'secret-token-abc';
+    vi.resetModules();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify({ status: 'success', data: {} })),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { previewClockifyImport: freshPreviewClockifyImport } = await import('./timeflowApi');
+
+    await freshPreviewClockifyImport(new Blob(['a;b'], { type: 'text/csv' }));
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).not.toContain('token=');
+    expect(options.headers['X-CSRF-Token']).toBe('secret-token-abc');
+    // No Content-Type: the browser must still generate the multipart boundary itself.
+    expect(options.headers['Content-Type']).toBeUndefined();
+  });
+
+  it('throws the translated "session renewed, reload" message when the server rejects with code invalid_token', async () => {
+    vi.resetModules();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: () => Promise.resolve(JSON.stringify({ status: 'error', code: 'invalid_token', error: 'Jeton invalide' })),
+    }));
+    const { getActiveTimer: freshGetActiveTimer } = await import('./timeflowApi');
+
+    await expect(freshGetActiveTimer()).rejects.toThrow(i18n.t('app.session_renewed_reload'));
+  });
+});

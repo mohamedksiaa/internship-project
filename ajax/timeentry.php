@@ -56,23 +56,43 @@ if ($invalidParam !== null) {
     exit;
 }
 
-$token = GETPOST('token', 'alphanohtml');
-if (empty($token) || $token !== currentToken()) {
-    // Do not log the token itself: it is a credential.  This trace makes it
-    // possible to distinguish a CSRF rejection (403) from a business 400.
-    dol_syslog('timeflow.startTimer csrf_rejected '.json_encode(array(
-        'action' => GETPOST('action', 'aZ09'),
-        'user_id' => (int) $user->id,
-        'token_present' => !empty($token),
-        'token_length' => strlen((string) $token),
-        'method' => $_SERVER['REQUEST_METHOD'] ?? '',
-    )), LOG_WARNING);
-    http_response_code(403);
-    echo json_encode(array('error' => 'Jeton invalide'));
+$action = GETPOST('action', 'aZ09');
+
+// A-06 (2/3): any action not explicitly listed as read-only must be POST,
+// never GET — independent of whether a valid token is presented below. This
+// is an allow-list (timeflowAjaxReadActions()), not a deny-list: an action
+// added to the switch later and never classified there defaults to
+// POST-only (fails closed) instead of silently accepting GET.
+if (!in_array($action, timeflowAjaxReadActions(), true) && ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    header('Allow: POST');
+    http_response_code(405);
+    echo json_encode(array('status' => 'error', 'message' => 'Méthode non autorisée : cette action doit être envoyée en POST.'));
     exit;
 }
 
-$action = GETPOST('action', 'aZ09');
+// A-06 (1/3): the token travels only in the X-CSRF-Token header now — never
+// the URL (Apache access logs, browser history, Referer) nor the request
+// body. A token present in the URL or body is simply never read, let alone
+// accepted. hash_equals() avoids leaking the token's value through a
+// timing side-channel on the comparison itself.
+$token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+if ($token === '' || !hash_equals(currentToken(), $token)) {
+    // Do not log the token itself: it is a credential. This trace makes it
+    // possible to distinguish a CSRF rejection (403) from a business 400.
+    dol_syslog('timeflow.startTimer csrf_rejected '.json_encode(array(
+        'action' => $action,
+        'user_id' => (int) $user->id,
+        'token_present' => $token !== '',
+        'token_length' => strlen($token),
+        'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+    )), LOG_WARNING);
+    http_response_code(403);
+    // code 'invalid_token' lets the frontend show "your session was renewed,
+    // reload the page" instead of a generic error — see A-06 adjustment 5.
+    echo json_encode(array('status' => 'error', 'code' => 'invalid_token', 'error' => 'Jeton invalide'));
+    exit;
+}
+
 $timeentry = new TimeEntry($db);
 
 // Gestion des requêtes POST JSON

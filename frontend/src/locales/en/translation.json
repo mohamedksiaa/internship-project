@@ -21,6 +21,7 @@
     "section_manage": "MANAGE",
     "service_unavailable": "Service temporarily unavailable, please try again.",
     "session_expired": "Your session has expired, please sign in again.",
+    "session_renewed_reload": "Your session was renewed in another tab. Reload this page to continue.",
     "network_error": "Unable to reach the server. Check your network connection and try again."
   },
   "status": {

@@ -22,6 +22,7 @@
     "section_manage": "GÉRER",
     "service_unavailable": "Service momentanément indisponible, réessayez.",
     "session_expired": "Votre session a expiré, reconnectez-vous.",
+    "session_renewed_reload": "Votre session a été renouvelée dans un autre onglet. Rechargez cette page pour continuer.",
     "network_error": "Impossible de contacter le serveur. Vérifiez votre connexion réseau et réessayez."
   },
   "status": {
