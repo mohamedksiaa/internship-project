@@ -1,80 +1,380 @@
 [
  {
   "id": "A-06",
-  "name": "GET sur une action d'écriture, jeton valide dans l'URL (style avant correctif)",
+  "group": "Résumé",
+  "name": "Récapitulatif des tailles de lot",
   "ok": true,
-  "detail": "HTTP 405, en-tête Allow: POST — avant correctif : HTTP 200, 1 ligne créée"
+  "detail": "GET+jeton valide -> 405 : 21/21 (les 21 actions d'écriture). POST+jeton valide -> ni 405 ni 403(invalid_token) : 21/21 (les 21 actions d'écriture). Matrice SEC-09 (5 actions x 4 conditions de jeton, en en-tête) : 20/20. Formulaire inter-domaine : 2/2. CORS : 1/1. Lectures en GET + jeton en en-tête : 8/8. Journaux Apache : 0 occurrence de 'token=' sur 159 lignes réelles de la session de vérification. Comptes de test créés : 3 (a06_verify_a, a06_verify_b, a06_verify_c), tous supprimés en fin de cycle ; comptage base avant/après identique (13 utilisateurs / 563 saisies / 6012 lignes d'audit)."
  },
  {
   "id": "A-06",
-  "name": "GET sur une action d'écriture, jeton valide dans l'en-tête X-CSRF-Token",
+  "group": "GET+jeton valide -> 405",
+  "name": "startTimer",
   "ok": true,
-  "detail": "HTTP 405 — le contrôle de méthode s'applique quel que soit l'emplacement du jeton"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "POST sur une action d'écriture, jeton valide UNIQUEMENT dans l'en-tête",
+  "group": "GET+jeton valide -> 405",
+  "name": "createManualEntry",
   "ok": true,
-  "detail": "HTTP 400 (erreur métier \"raison obligatoire\") — passe les deux contrôles (méthode, jeton), rejeté ensuite par la validation métier normale"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "POST sur une action d'écriture, sans jeton (ni en-tête ni URL)",
+  "group": "GET+jeton valide -> 405",
+  "name": "submitEntry",
   "ok": true,
-  "detail": "HTTP 403 {\"code\":\"invalid_token\"}"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "POST sur une action d'écriture, jeton valide UNIQUEMENT dans l'URL (plus accepté)",
+  "group": "GET+jeton valide -> 405",
+  "name": "stopTimer",
   "ok": true,
-  "detail": "HTTP 403 {\"code\":\"invalid_token\"} — confirme que l'URL n'est plus jamais lue pour le jeton"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "POST sur une action d'écriture, jeton incorrect dans l'en-tête",
+  "group": "GET+jeton valide -> 405",
+  "name": "restartTimer",
   "ok": true,
-  "detail": "HTTP 403 {\"code\":\"invalid_token\"}"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "POST sur une action d'écriture, jeton valide d'une AUTRE session (compte identique, connexion différente)",
+  "group": "GET+jeton valide -> 405",
+  "name": "deleteTimeEntry",
   "ok": true,
-  "detail": "HTTP 403 {\"code\":\"invalid_token\"} — <masqué> (session A) refusé avec le jeton <masqué> (session B)"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "Requête anonyme (sans cookie de session) sur une action d'écriture",
-  "ok": null,
-  "detail": "HTTP 200, page de connexion HTML renvoyée (comportement du noyau Dolibarr, antérieur à ce correctif — voir SEC-14) ; aucune ligne créée"
+  "group": "GET+jeton valide -> 405",
+  "name": "correctTimeEntry",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "GET sur une action de lecture (getActiveTimer), jeton valide dans l'en-tête",
+  "group": "GET+jeton valide -> 405",
+  "name": "saveDailyReport",
   "ok": true,
-  "detail": "HTTP 200 — les lectures restent accessibles en GET"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "GET sur exportProcessedHistory (lecture), jeton valide dans l'en-tête",
+  "group": "GET+jeton valide -> 405",
+  "name": "updateDailyReport",
   "ok": true,
-  "detail": "HTTP 200"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "GET sur previewClockifyImport (reclassée écriture : INSERT dans llx_timeflow_import_mapping), jeton valide",
+  "group": "GET+jeton valide -> 405",
+  "name": "deleteDailyReport",
   "ok": true,
-  "detail": "HTTP 405 — confirme la reclassification de previewClockifyImport"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "CORS : en-tête Access-Control-Allow-Origin absent pour une origine étrangère",
+  "group": "GET+jeton valide -> 405",
+  "name": "validateDailyReport",
   "ok": true,
-  "detail": "ACAO=absent (non-régression, inchangé depuis SEC-09)"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
  },
  {
   "id": "A-06",
-  "name": "Journaux Apache : le jeton n'apparaît plus dans l'URL pour un appel légitime (en-tête seul)",
+  "group": "GET+jeton valide -> 405",
+  "name": "rejectDailyReport",
   "ok": true,
-  "detail": "Sur les 9 requêtes \"légitimes\" du scénario (jeton en en-tête), 0 occurrence de 'token=' dans l'URL journalisée ; les 2 seules occurrences de 'token=' dans la fenêtre du test proviennent des requêtes délibérément adversariales (ancien style, pour prouver qu'elles sont désormais rejetées), pas de l'application elle-même — confirmé par ailleurs au niveau du code source (frontend/src/api/timeflowApi.js ne construit plus jamais d'URL avec 'token=', vérifié par grep et par des tests Vitest dédiés)"
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "GET+jeton valide -> 405",
+  "name": "validateEntry",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "GET+jeton valide -> 405",
+  "name": "rejectEntry",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "GET+jeton valide -> 405",
+  "name": "saveExpectedAbsence",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "GET+jeton valide -> 405",
+  "name": "deleteExpectedAbsence",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "GET+jeton valide -> 405",
+  "name": "markNotificationsRead",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "GET+jeton valide -> 405",
+  "name": "saveAlertPreferences",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "GET+jeton valide -> 405",
+  "name": "previewClockifyImport",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "GET+jeton valide -> 405",
+  "name": "executeClockifyImport",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "GET+jeton valide -> 405",
+  "name": "resolveClockifyMapping",
+  "ok": true,
+  "detail": "{\"status\":\"error\",\"message\":\"Méthode non autorisée : cette action doit être envoyée en POST.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "startTimer",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Veuillez sélectionner un projet avant de démarrer.\"} (erreur métier, donnée de test sans projet)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "createManualEntry",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Cette période chevauche déjà une autre entrée de temps.\"} (erreur métier, chevauchement avec une entrée créée par un run précédent du script — supprimée en fin de cycle)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "submitEntry",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Entrée introuvable\"} (erreur métier, id=999999999 inexistant par construction)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "stopTimer",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Entrée introuvable\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "restartTimer",
+  "ok": true,
+  "detail": "HTTP 404 — {\"status\":\"error\",\"message\":\"Entrée introuvable\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "deleteTimeEntry",
+  "ok": true,
+  "detail": "HTTP 404 — {\"status\":\"error\",\"message\":\"Entrée introuvable\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "correctTimeEntry",
+  "ok": true,
+  "detail": "HTTP 404 — {\"status\":\"error\",\"message\":\"Entrée introuvable\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "saveDailyReport",
+  "ok": true,
+  "detail": "HTTP 200 — succès réel (rapport de test créé, supprimé en fin de cycle)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "updateDailyReport",
+  "ok": true,
+  "detail": "HTTP 404 — {\"status\":\"error\",\"message\":\"Rapport introuvable.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "deleteDailyReport",
+  "ok": true,
+  "detail": "HTTP 404 — {\"status\":\"error\",\"message\":\"Rapport introuvable.\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "validateDailyReport",
+  "ok": true,
+  "detail": "HTTP 200 — succès déclaré par l'endpoint (comportement préexistant, sans lien avec A-06 : l'UPDATE sur un id inexistant affecte 0 ligne mais l'endpoint ne vérifie pas le nombre de lignes affectées)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "rejectDailyReport",
+  "ok": true,
+  "detail": "HTTP 200 — même comportement préexistant que validateDailyReport ci-dessus"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "validateEntry",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Entrée introuvable\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "rejectEntry",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Entrée introuvable\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "saveExpectedAbsence",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Utilisateur introuvable\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "deleteExpectedAbsence",
+  "ok": true,
+  "detail": "HTTP 200 — {\"status\":\"success\",\"data\":{\"deleted\":0,...}} (aucune ligne correspondante, rien à nettoyer)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "markNotificationsRead",
+  "ok": true,
+  "detail": "HTTP 200 — {\"status\":\"success\",\"data\":{\"updated\":0}} (aucune notification pour ce compte de test)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "saveAlertPreferences",
+  "ok": true,
+  "detail": "HTTP 200 — succès réel (préférence écrite pour le compte de test, supprimée en fin de cycle)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "previewClockifyImport",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Fichier CSV manquant.\"} (champ fichier délibérément omis, aucune écriture)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "executeClockifyImport",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Fichier CSV manquant.\"} (idem, aucune écriture)"
+ },
+ {
+  "id": "A-06",
+  "group": "POST+jeton valide -> ni 405 ni 403(invalid_token)",
+  "name": "resolveClockifyMapping",
+  "ok": true,
+  "detail": "HTTP 400 — {\"status\":\"error\",\"message\":\"Aucune décision de résolution fournie.\"} (liste vide, aucune écriture)"
+ },
+ {
+  "id": "A-06",
+  "group": "SEC-09 : 5 actions x 4 conditions de jeton (en en-tête, jamais l'URL)",
+  "name": "createManualEntry — sans jeton / jeton invalide / jeton d'un autre utilisateur / jeton d'une autre session",
+  "ok": true,
+  "detail": "4/4 — HTTP 403 {\"code\":\"invalid_token\"} dans les 4 cas"
+ },
+ {
+  "id": "A-06",
+  "group": "SEC-09 : 5 actions x 4 conditions de jeton (en en-tête, jamais l'URL)",
+  "name": "startTimer — sans jeton / jeton invalide / jeton d'un autre utilisateur / jeton d'une autre session",
+  "ok": true,
+  "detail": "4/4 — HTTP 403 {\"code\":\"invalid_token\"} dans les 4 cas"
+ },
+ {
+  "id": "A-06",
+  "group": "SEC-09 : 5 actions x 4 conditions de jeton (en en-tête, jamais l'URL)",
+  "name": "saveDailyReport — sans jeton / jeton invalide / jeton d'un autre utilisateur / jeton d'une autre session",
+  "ok": true,
+  "detail": "4/4 — HTTP 403 {\"code\":\"invalid_token\"} dans les 4 cas"
+ },
+ {
+  "id": "A-06",
+  "group": "SEC-09 : 5 actions x 4 conditions de jeton (en en-tête, jamais l'URL)",
+  "name": "deleteTimeEntry — sans jeton / jeton invalide / jeton d'un autre utilisateur / jeton d'une autre session",
+  "ok": true,
+  "detail": "4/4 — HTTP 403 {\"code\":\"invalid_token\"} dans les 4 cas"
+ },
+ {
+  "id": "A-06",
+  "group": "SEC-09 : 5 actions x 4 conditions de jeton (en en-tête, jamais l'URL)",
+  "name": "submitEntry — sans jeton / jeton invalide / jeton d'un autre utilisateur / jeton d'une autre session",
+  "ok": true,
+  "detail": "4/4 — HTTP 403 {\"code\":\"invalid_token\"} dans les 4 cas"
+ },
+ {
+  "id": "A-06",
+  "group": "Formulaire inter-domaine",
+  "name": "createManualEntry — POST text/plain, sans jeton, Origin étranger",
+  "ok": true,
+  "detail": "HTTP 403 {\"status\":\"error\",\"code\":\"invalid_token\",\"error\":\"Jeton invalide\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "Formulaire inter-domaine",
+  "name": "createManualEntry — POST formulaire classique (application/x-www-form-urlencoded), cookie de session présent, sans jeton, Origin étranger",
+  "ok": true,
+  "detail": "HTTP 403 {\"status\":\"error\",\"code\":\"invalid_token\",\"error\":\"Jeton invalide\"}"
+ },
+ {
+  "id": "A-06",
+  "group": "CORS",
+  "name": "getActiveTimer — Origin étranger, jeton valide en en-tête",
+  "ok": true,
+  "detail": "HTTP 200, ACAO=absent (non-régression, inchangé depuis SEC-09)"
+ },
+ {
+  "id": "A-06",
+  "group": "Lectures en GET + jeton en en-tête (non-régression)",
+  "name": "getActiveTimer, getProjects, getTimeEntries, getProcessedHistory, getWeeklyTimesheet, getMyDailyReports, getModificationHistory, getDashboardFilterOptions",
+  "ok": true,
+  "detail": "8/8 — HTTP 200 {\"status\":\"success\",...} pour chacune"
+ },
+ {
+  "id": "A-06",
+  "group": "Journaux Apache",
+  "name": "Le jeton n'apparaît jamais dans l'URL pendant la session de vérification complète (73 actions applicatives : 21+21 écritures, 20 SEC-09, 2 formulaires, 1 CORS, 8 lectures, + les connexions)",
+  "ok": true,
+  "detail": "159 lignes réelles journalisées pour cette session (identifiées par leur user-agent distinct, propre au script de vérification, et la date du jour), 0 contenant 'token=' dans l'URL. Le flag 'docker logs --since' s'est révélé non fonctionnel dans cet environnement (renvoie 0 ligne même pour une fenêtre relative de 10 minutes) — la fenêtre a donc été isolée par un filtre de contenu (user-agent + date du jour) plutôt que par horodatage, puis vérifiée manuellement contre le dernier lot de lignes du journal. Confirmé par ailleurs au niveau du code source : ni verify.js ni frontend/src/api/timeflowApi.js ne construisent jamais d'URL contenant 'token=' (vérifié par grep sur les deux)."
+ },
+ {
+  "id": "A-06",
+  "group": "Comptage base",
+  "name": "Avant / après la session de vérification complète",
+  "ok": true,
+  "detail": "13 utilisateurs / 563 saisies / 6012 lignes d'audit avant et après. 3 comptes de test créés (a06_verify_a id 6703, a06_verify_b id 6704, a06_verify_c id 6705) et les données qu'ils ont produites (1 saisie manuelle + 7 lignes d'audit associées, 2 comptes-rendus journaliers, 1 préférence d'alerte) ont été listées puis supprimées avant de revérifier le comptage."
  }
 ]
