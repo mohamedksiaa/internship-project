@@ -2,7 +2,7 @@
  {
   "id": "A-06",
   "group": "Résumé",
-  "name": "Récapitulatif des tailles de lot",
+  "name": "Récapitulatif A-06",
   "ok": true,
   "detail": "GET+jeton valide -> 405 : 21/21 (les 21 actions d'écriture). POST+jeton valide -> ni 405 ni 403(invalid_token) : 21/21 (les 21 actions d'écriture). Matrice SEC-09 (5 actions x 4 conditions de jeton, en en-tête) : 20/20. Formulaire inter-domaine : 2/2. CORS : 1/1. Lectures en GET + jeton en en-tête : 8/8. Journaux Apache : 0 occurrence de 'token=' sur 159 lignes réelles de la session de vérification. Comptes de test créés : 3 (a06_verify_a, a06_verify_b, a06_verify_c), tous supprimés en fin de cycle ; comptage base avant/après identique (13 utilisateurs / 563 saisies / 6012 lignes d'audit)."
  },
